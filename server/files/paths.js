@@ -1,0 +1,144 @@
+import path from 'node:path';
+import { HttpError } from '../http/respond.js';
+
+// ⚠️ This module is the security boundary described in spec.md §4. Every
+// read, write, delete, move, and public serve routes through it. Agents are
+// LLMs and will occasionally emit `../../etc/passwd`; the contract is that
+// such a path comes back as a refusal string, never as a filesystem access.
+
+export const MAX_PATH_CHARS = 200;
+export const MAX_SEGMENTS = 8;
+export const MAX_SLUG_CHARS = 40;
+
+// Codepoint ranges rather than a regex on purpose: a character class holding
+// these would be a run of invisible bytes in the source, which greps badly
+// and dies silently if an editor normalises the file. Hex literals are plain
+// ASCII and say what they mean.
+//
+// - control: C0 and DEL, meaningless in a filename and a classic truncation
+//   trick against anything that later hands the path to a C API.
+// - format: soft hyphen, zero-width spaces/joiners, bidi overrides, BOM.
+//   macOS treats several as ignorable, so `.gi<ZWSP>t` opens the real `.git`
+//   directory; bidi overrides make a filename render as something it isn't.
+function forbiddenCharKind(s) {
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (c < 0x20 || c === 0x7f) return 'a control character';
+    if (
+      c === 0x00ad ||
+      (c >= 0x200b && c <= 0x200f) ||
+      (c >= 0x202a && c <= 0x202e) ||
+      (c >= 0x2060 && c <= 0x2064) ||
+      (c >= 0x206a && c <= 0x206f) ||
+      c === 0xfeff ||
+      (c >= 0xfff9 && c <= 0xfffb)
+    ) {
+      return 'a zero-width or bidi character';
+    }
+  }
+  return null;
+}
+
+const bad = (reason) => ({ ok: false, reason });
+
+// Returns {ok: true, path} or {ok: false, reason}. Tools hand the reason
+// straight back to the model as a correction; routes convert it to a 400.
+export function checkProjectPath(input) {
+  if (typeof input !== 'string') return bad('path must be a string');
+  if (input === '') return bad('path is empty');
+  if (input.length > MAX_PATH_CHARS) {
+    return bad(`path is longer than ${MAX_PATH_CHARS} characters`);
+  }
+  const forbidden = forbiddenCharKind(input);
+  if (forbidden) return bad(`path contains ${forbidden}`);
+  if (input.includes('\\')) {
+    return bad('path contains a backslash; use / as the separator');
+  }
+  if (input.startsWith('/')) return bad('path must be relative, not absolute');
+
+  const segments = input.split('/');
+  if (segments.length > MAX_SEGMENTS) {
+    return bad(`path is deeper than ${MAX_SEGMENTS} segments`);
+  }
+  for (const seg of segments) {
+    if (seg === '') return bad('path has an empty segment');
+    if (seg === '.' || seg === '..') return bad(`path contains a '${seg}' segment`);
+    // Exactly `.git`, case-insensitively — the repository's own metadata.
+    // `.gitignore` and friends are ordinary files and stay allowed.
+    if (seg.toLowerCase() === '.git') return bad('path touches git metadata');
+    if (seg !== seg.trim()) {
+      return bad('path segment has leading or trailing whitespace');
+    }
+  }
+  return { ok: true, path: segments.join('/') };
+}
+
+// Throwing wrapper for route handlers.
+export function requireProjectPath(input) {
+  const res = checkProjectPath(input);
+  if (!res.ok) throw new HttpError(400, res.reason);
+  return res.path;
+}
+
+// Second, independent check: even a path that passed validation must resolve
+// inside the project directory. Belt and braces on purpose — the two checks
+// fail for different reasons, and this one is what catches a mistake in the
+// one above. Returns null when the result escapes.
+export function resolveInside(rootDir, projectPath) {
+  const root = path.resolve(rootDir);
+  const abs = path.resolve(root, projectPath);
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+  return abs;
+}
+
+// Validate and resolve in one step. Throws on either failure.
+export function resolveProjectPath(rootDir, input) {
+  const rel = requireProjectPath(input);
+  const abs = resolveInside(rootDir, rel);
+  if (abs === null) throw new HttpError(400, 'path escapes the project directory');
+  return { rel, abs };
+}
+
+// A slug becomes a directory name and a public URL segment, so it gets the
+// strictest rule in the app: it must start alphanumeric, which rules out '.',
+// '..', '-flag', and every dotfile in one clause.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export function checkSlug(input) {
+  if (typeof input !== 'string') return bad('slug must be a string');
+  if (input === '') return bad('slug is empty');
+  if (input.length > MAX_SLUG_CHARS) {
+    return bad(`slug is longer than ${MAX_SLUG_CHARS} characters`);
+  }
+  if (!SLUG_RE.test(input)) {
+    return bad(
+      'slug must be lowercase letters, digits, and dashes, starting with a letter or digit',
+    );
+  }
+  return { ok: true, slug: input };
+}
+
+export function requireSlug(input) {
+  const res = checkSlug(input);
+  if (!res.ok) throw new HttpError(400, res.reason);
+  return res.slug;
+}
+
+// Best-effort slug from a project name. May return '' — callers fall back to
+// asking for an explicit slug rather than inventing one.
+export function slugify(name) {
+  return String(name ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    // Drop combining marks left behind by the decomposition, so 'Über'
+    // becomes 'uber' rather than 'u-ber'. \p{M} keeps this file ASCII.
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_SLUG_CHARS)
+    .replace(/-+$/, '');
+}
+
+export function projectDir(gamesDir, slug) {
+  return path.join(path.resolve(gamesDir), requireSlug(slug));
+}

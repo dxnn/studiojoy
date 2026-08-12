@@ -1,0 +1,17 @@
+{
+  "name": "gamestudio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A private studio where people and DeepSeek agents build browser games together.",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test 'test/**/*.test.js'",
+    "adduser": "node --disable-warning=ExperimentalWarning bin/adduser.js",
+    "deluser": "node --disable-warning=ExperimentalWarning bin/deluser.js",
+    "smoke": "node --disable-warning=ExperimentalWarning --use-env-proxy bin/smoke.js"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

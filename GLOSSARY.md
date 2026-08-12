@@ -1,0 +1,18 @@
+# Glossary
+
+- **game project** — the unit the studio is organised around: a chat thread plus a versioned working tree of files, playable at a public URL. (formerly: *conversation*, in `new-y`)
+- **slug** — a project's `[a-z0-9-]` identifier. Immutable, and simultaneously the directory name under `GAMES_DIR` and the path segment on the games origin.
+- **working tree** — a project's on-disk directory. The source of truth for file content; there is no files table.
+- **project path** — a validated relative path inside a working tree. Validation rules are the app's main security boundary.
+- **studio access** — presence of a row in `users`. The only permission bit in the system; every account can edit every project, agent, and file.
+- **studio origin** — the authenticated listener (`PORT`) serving the SPA and `/api`.
+- **games origin** — the unauthenticated listener (`GAMES_PORT`) serving only game files. A separate origin so LLM-written game code cannot reach the studio's session cookie.
+- **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context; a plain versioned file rather than a database column.
+- **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
+- **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
+- **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)
+- **context path** — a project path a human attaches to a message, handing that file's current content to the agents on that turn.
+- **pinned file** — a file named by a context path on the current or previous two human turns. Never dropped by the context byte cap, and labelled in the prompt as what the human is pointing at.
+- **ambient context** — the rest of the working tree, sent to an agent on every fire without being asked for. Affordable because DeepSeek's window is 1M tokens; trimmed largest-first when the byte cap binds.
+- **reasoning trace** — DeepSeek's `reasoning_content`. Streamed to the client and rendered collapsed, never persisted to a message and never replayed into a later request.
+- **project mutex** — the per-project promise chain that serialises write-and-commit, so concurrent agents cannot interleave git operations.

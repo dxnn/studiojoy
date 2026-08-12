@@ -1,0 +1,148 @@
+import { DatabaseSync } from 'node:sqlite';
+import { nextUtcMidnight } from './util/time.js';
+
+// Schema as an ordered list of idempotent statements, the same pattern new-y
+// uses. Columns added after the initial release go through
+// addColumnIfMissing rather than being edited into a CREATE TABLE string, so
+// an existing database upgrades cleanly.
+const MIGRATIONS = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)`,
+
+  // Agents are studio-global: no owner column, because any account may edit
+  // any agent (spec.md §3). created_by is provenance for the UI only.
+  `CREATE TABLE IF NOT EXISTS agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT 'deepseek-v4-flash',
+    reasoning INTEGER NOT NULL DEFAULT 1,
+    file_tools INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER NOT NULL REFERENCES users,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  // Unique among the living only, so a name frees up on soft delete and an
+  // @mention always resolves to exactly one agent.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_name
+     ON agents (name) WHERE deleted = 0`,
+
+  `CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_by INTEGER NOT NULL REFERENCES users,
+    created_at TEXT NOT NULL
+  )`,
+
+  // Hard delete on detach is safe here: nothing references these rows, and
+  // the cooldown state they carry is disposable.
+  `CREATE TABLE IF NOT EXISTS project_agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    agent_id INTEGER NOT NULL REFERENCES agents,
+    chatty INTEGER NOT NULL DEFAULT 0,
+    cooldown_until TEXT,
+    response_pending INTEGER NOT NULL DEFAULT 0,
+    attached_by INTEGER NOT NULL REFERENCES users,
+    attached_at TEXT NOT NULL,
+    UNIQUE (project_id, agent_id)
+  )`,
+
+  // No participant indirection: humans are implicit members of every
+  // project, so a message points straight at a user or an agent. A 'system'
+  // banner has neither, or an agent_id naming the agent it concerns.
+  `CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    user_id INTEGER REFERENCES users,
+    agent_id INTEGER REFERENCES agents,
+    kind TEXT,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    CHECK (NOT (user_id IS NOT NULL AND agent_id IS NOT NULL))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_messages_project ON messages (project_id, id)`,
+
+  `CREATE TABLE IF NOT EXISTS message_context (
+    message_id INTEGER NOT NULL REFERENCES messages,
+    path TEXT NOT NULL,
+    PRIMARY KEY (message_id, path)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS message_writes (
+    message_id INTEGER NOT NULL REFERENCES messages,
+    path TEXT NOT NULL,
+    action TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    commit_sha TEXT NOT NULL,
+    PRIMARY KEY (message_id, path)
+  )`,
+
+  // Single row. One studio-wide daily budget, because agents have no owner
+  // to bill (spec.md §3).
+  `CREATE TABLE IF NOT EXISTS studio_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    tokens_used_today INTEGER NOT NULL DEFAULT 0,
+    budget_reset_at TEXT NOT NULL
+  )`,
+];
+
+export function openDb(dbPath) {
+  const db = new DatabaseSync(dbPath);
+  // WAL only makes sense for a file-backed database.
+  if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+  for (const sql of MIGRATIONS) db.exec(sql);
+  db.prepare(
+    `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
+     VALUES (1, 0, ?)`,
+  ).run(nextUtcMidnight());
+  return db;
+}
+
+// node:sqlite has no transaction() helper and rejects a nested BEGIN, so the
+// depth guard turns what would be an opaque SQLite error into a clear one.
+const inTx = new WeakSet();
+
+export function tx(db, fn) {
+  if (inTx.has(db)) {
+    throw new Error('tx() cannot be nested; pass the open transaction down instead');
+  }
+  inTx.add(db);
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // A failed rollback means the transaction was already gone; the
+      // original error is the one worth propagating.
+    }
+    throw err;
+  } finally {
+    inTx.delete(db);
+  }
+}
+
+export function addColumnIfMissing(db, table, column, spec, onAdded) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (cols.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${spec}`);
+  onAdded?.(db);
+}

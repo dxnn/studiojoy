@@ -1,0 +1,11 @@
+tmp/
+extra/
+.claude/
+# Each project's working tree is its own git repository (spec.md §5),
+# so games/ must never be tracked by this repo.
+games/
+gamestudio.db
+gamestudio.db-wal
+gamestudio.db-shm
+node_modules/
+.DS_Store
