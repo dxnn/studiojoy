@@ -3,10 +3,6 @@
 Build order for v0. Each line is independently testable; `spec.md` is the
 design-of-record.
 
-- write server/auth.js: scrypt, sessions, requireAuth, login lockout
-- write bin/adduser.js and bin/deluser.js
-- write server/files/{tree,mutex}.js
-- write server/files/git.js: init, commit, log, show, diff, mv
 - write server/broker.js — SSE fan-out to every tab
 - write routes: auth, projects, agents
 - write routes: files, history

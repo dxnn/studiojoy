@@ -1,16 +1,21 @@
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const ROOT = path.resolve(import.meta.dirname, '..');
+// Fixtures live in the OS temp directory, not the repo. Two reasons: a test
+// run shouldn't leave anything in the working tree, and the development
+// sandbox refuses writes to any `.git` directory beneath the project root —
+// which every git test needs to create. Nothing here is ever deleted; the OS
+// reclaims it.
+const SCRATCH_ROOT = path.join(
+  process.env.TMPDIR ?? os.tmpdir(), 'gamestudio-test',
+);
 
-// Scratch space for tests that need a real filesystem. Nothing here is ever
-// deleted: project policy is that tmp/ belongs to the operator, so runs
-// accumulate directories and are cleared by hand.
 export function scratchDir(label = 'case') {
   const dir = path.join(
-    ROOT, 'tmp', 'test', `${label}-${crypto.randomBytes(4).toString('hex')}`,
+    SCRATCH_ROOT, `${label}-${crypto.randomBytes(4).toString('hex')}`,
   );
   fs.mkdirSync(dir, { recursive: true });
   return dir;
