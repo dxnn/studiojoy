@@ -25,6 +25,10 @@ export async function withServer(handler, fn) {
   try {
     return await fn(`http://127.0.0.1:${port}`);
   } finally {
+    // fetch leaves the socket in its keep-alive pool, and close() waits for
+    // idle connections — without this each server costs the keep-alive
+    // timeout (~3s) before the test finishes.
+    server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
   }
 }
