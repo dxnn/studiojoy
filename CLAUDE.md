@@ -62,6 +62,13 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   DeepSeek. Deployed, none of this applies.
 - `node:sqlite` has no `db.transaction()` and rejects a nested `BEGIN`; use
   `tx()` from `server/db.js`, which guards against nesting.
+- **The sandbox denies `kill`**, and each Bash call is a fresh shell, so a
+  server backgrounded with `&` in one call cannot be stopped in a later one —
+  it squats on its port until the operator kills it. Don't background
+  long-lived servers. For a browser check, start it on an unused port, report
+  the PID immediately, and expect to hand cleanup over. `pkill -f` also
+  matches against the *relative* command line (`server/index.js`), so a
+  pattern containing the full path silently matches nothing.
 
 ## Audience
 
