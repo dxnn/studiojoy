@@ -156,11 +156,35 @@ test('an agent in a chat gets no file tools and no file block', async (t) => {
 
   const call = llm.lastCall();
   assert.equal(call.tools, null, 'file tools are withheld in a chat');
-  assert.doesNotMatch(call.system, /working tree|patch_file|different origin/);
-  assert.match(call.system, /no files here/);
+  // No studio preamble in a chat: the agent is exactly what its description
+  // says, with nothing layered on top.
+  assert.equal(call.system, 'You are friendly.');
   for (const message of call.messages) {
     assert.doesNotMatch(message.content, /PROJECT FILES/);
   }
+});
+
+test('a chat agent with no description sends no system prompt at all', async (t) => {
+  const llm = createFakeLlm([says('Hi.')]);
+  const app = await studio(t, { llm });
+  await makeChat(app);
+  const agent = await app.client.json('POST', '/api/agents', {
+    body: { name: 'Blank', description: '' },
+  });
+  await app.client.json('POST', '/api/projects/random/agents', {
+    body: { agent_id: agent.body.id, chatty: true },
+  });
+
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  const posted = await app.client.json('POST', '/api/projects/random/messages', {
+    body: { body: 'hello?' },
+  });
+  assert.equal(posted.status, 201);
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  // Falsy, which is what keeps the client from sending a system message.
+  assert.equal(llm.lastCall().system, '');
 });
 
 test('an agent in a game still gets its file tools', async (t) => {

@@ -213,12 +213,11 @@ function mine(data) {
 // trace it ever streamed.
 const MAX_KEPT_TRACES = 50;
 
-function keepTrace(messageId, text) {
+function keepTrace(messageId, text, open) {
   if (messageId === undefined || messageId === null) return;
-  // Collapsed on arrival, whatever it was doing while streaming. Its own
-  // toggle state is sticky from then on, so a later re-render cannot snap it
-  // shut while it is being read.
-  S.traces.set(messageId, { text, open: false });
+  // The reply landing changes nothing about the panel: open stays open,
+  // closed stays closed. Nothing should move under someone reading it.
+  S.traces.set(messageId, { text, open });
   while (S.traces.size > MAX_KEPT_TRACES) {
     S.traces.delete(S.traces.keys().next().value);
   }
@@ -252,7 +251,7 @@ function onEvent(name, data) {
       // saved, so this session is the only place it will ever exist.
       if (data.agent_id !== null) {
         const entry = S.live.get(data.agent_id);
-        if (entry?.trace) keepTrace(data.id, entry.trace);
+        if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
         S.live.delete(data.agent_id);
       }
       S.project.messages.push(data);

@@ -35,17 +35,10 @@ function firstLine(text) {
     : line;
 }
 
+// Games only. A chat gets no preamble at all: every sentence here is about a
+// working tree it does not have, and an agent in a chat is whatever its
+// description says it is, with nothing from the studio layered on top.
 function studioPreamble({ project, canEdit }) {
-  // A chat has no working tree, so every sentence about files, paths and the
-  // games origin would be a lie there.
-  if (project.kind === 'chat') {
-    return [
-      `You are an agent in Game Studio, in a conversation called "${project.name}".`,
-      'This is a chat: there are no files here, and nothing you say is written to disk.',
-      '',
-      'Keep your reply short and plain. The people here may be children.',
-    ].join('\n');
-  }
   const lines = [
     `You are an agent in Game Studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
@@ -235,12 +228,13 @@ async function buildContext({ db, project, dir, agent, lastFiredMaxId = 0 }) {
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
 
-  // In a chat there is no directory to read a brief from and no files to
-  // describe, so the whole file half of the context is skipped.
+  // In a chat there is no directory, so no brief and no files — and no
+  // preamble either. The system prompt is the agent's description and
+  // nothing else; empty is allowed, and sends no system message at all.
   const isChat = project.kind === 'chat';
   const brief = isChat ? null : await readFileAt(path.join(dir, BRIEF_FILE));
   const system = [
-    studioPreamble({ project, canEdit: agent.file_tools && !isChat }),
+    isChat ? null : studioPreamble({ project, canEdit: agent.file_tools }),
     brief ? `Project brief (${BRIEF_FILE}):\n${brief.toString('utf8')}` : null,
     agent.description || null,
   ].filter(Boolean).join('\n\n');
