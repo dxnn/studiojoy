@@ -63,6 +63,7 @@ const S = {
   diff: null,
   historyPath: null,
   live: new Map(), // agent_id -> {reply, trace, tool, error, nodes}
+  traces: new Map(), // message_id -> {text, open}; this session only
   dialog: null,
   banner: null,
   previewNonce: 0,
@@ -166,6 +167,7 @@ async function openProject(slug, { push = true } = {}) {
   S.history = [];
   S.diff = null;
   S.live.clear();
+  S.traces.clear();
   S.autoscroll = true;
   if (push) history.pushState({}, '', `/p/${slug}`);
   render();
@@ -205,10 +207,27 @@ function mine(data) {
   return data.project_slug === S.slug;
 }
 
+// Reasoning traces are never persisted (spec.md §8), so the copy held here is
+// the only one there will ever be: it survives the message landing, and
+// nothing else. Bounded, because a long session would otherwise hold every
+// trace it ever streamed.
+const MAX_KEPT_TRACES = 50;
+
+function keepTrace(messageId, text) {
+  if (messageId === undefined || messageId === null) return;
+  // Collapsed on arrival, whatever it was doing while streaming. Its own
+  // toggle state is sticky from then on, so a later re-render cannot snap it
+  // shut while it is being read.
+  S.traces.set(messageId, { text, open: false });
+  while (S.traces.size > MAX_KEPT_TRACES) {
+    S.traces.delete(S.traces.keys().next().value);
+  }
+}
+
 function liveFor(agentId) {
   let entry = S.live.get(agentId);
   if (!entry) {
-    entry = { reply: '', trace: '', tool: null, error: false, nodes: null };
+    entry = { reply: '', trace: '', tool: null, error: false, nodes: null, open: false };
     S.live.set(agentId, entry);
   }
   return entry;
@@ -228,8 +247,14 @@ function onEvent(name, data) {
 
     case 'message.new': {
       if (!mine(data)) return;
-      // The finished message replaces whatever was streaming from that agent.
-      if (data.agent_id !== null) S.live.delete(data.agent_id);
+      // The finished message replaces whatever was streaming from that agent,
+      // but its reasoning moves across rather than vanishing: it is never
+      // saved, so this session is the only place it will ever exist.
+      if (data.agent_id !== null) {
+        const entry = S.live.get(data.agent_id);
+        if (entry?.trace) keepTrace(data.id, entry.trace);
+        S.live.delete(data.agent_id);
+      }
       S.project.messages.push(data);
       render();
       return;
@@ -238,7 +263,7 @@ function onEvent(name, data) {
     case 'agent.stream.start': {
       if (!mine(data)) return;
       S.live.set(data.agent_id, {
-        reply: '', trace: '', tool: null, error: false, nodes: null,
+        reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
       });
       render();
       return;
@@ -727,8 +752,21 @@ function renderMessage(msg) {
     }));
   }
 
+  // Present only for a reply this tab watched arrive.
+  const kept = S.traces.get(msg.id);
+  const thinking = kept
+    ? h('details', {
+      class: 'thinking',
+      open: kept.open,
+      ontoggle: (event) => { kept.open = event.currentTarget.open; },
+    },
+    h('summary', { text: 'Thinking' }),
+    h('div', { class: 'trace', text: kept.text }))
+    : null;
+
   return h('div', { class: `msg ${isAgent ? 'from-agent' : 'from-human'}` },
     h('div', { class: 'from', text: who }),
+    thinking,
     msg.body && h('div', {
       class: 'bubble',
       style: tintStyle(isAgent, isAgent ? msg.agent_id : msg.user_id),
@@ -739,8 +777,11 @@ function renderMessage(msg) {
 
 function renderLive(agentId, entry) {
   const trace = h('div', { class: 'trace', text: entry.trace });
-  const thinking = h('details', { class: 'thinking' },
-    h('summary', { text: 'Thinking' }), trace);
+  const thinking = h('details', {
+    class: 'thinking',
+    open: entry.open,
+    ontoggle: (event) => { entry.open = event.currentTarget.open; },
+  }, h('summary', { text: 'Thinking' }), trace);
   thinking.hidden = entry.trace === '';
 
   const reply = h('div', {
@@ -774,20 +815,27 @@ function helperGap() {
       `Your helpers only answer when you call them. Try starting your message with ${names}, `,
       'or click a helper’s name at the top to make them always answer.');
   }
-  const none = S.agents.length === 0;
+  const where = isChat() ? 'chat' : 'game';
+  // With helpers in the studio the fix is one click in the sidebar, so say
+  // that rather than offering a link whose only job would be to open a
+  // sidebar that is usually already open.
+  if (S.agents.length > 0) {
+    return h('div', { class: 'notice' },
+      `This ${where} has no helpers in it yet, so nobody will answer. `,
+      'Add a helper by clicking them in the sidebar.');
+  }
   return h('div', { class: 'notice' },
-    none
-      ? 'Nobody can answer yet — the studio has no helpers. '
-      : `This ${isChat() ? 'chat' : 'game'} has no helpers in it yet, so nobody will answer. `,
+    'Nobody can answer yet — the studio has no helpers. ',
     h('button', {
       class: 'link',
-      text: none ? 'Make your first helper' : 'Add a helper',
+      text: 'Make your first helper',
       onclick: () => {
-        // Both answers live in the sidebar, so make sure it is showing.
         S.narrowPane = 'games';
         S.sidebar = true;
         prefs.set('sidebar', 'open');
-        if (none) S.dialog = { kind: 'new-agent' };
+        S.sections.helpers = true;
+        prefs.set('sec-helpers', 'open');
+        S.dialog = { kind: 'new-agent' };
         render();
       },
     }), '.');
