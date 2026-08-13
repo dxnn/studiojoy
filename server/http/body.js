@@ -1,26 +1,37 @@
 import { HttpError } from './respond.js';
 
 export const MAX_JSON_BYTES = 64 * 1024;
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+// Transport ceiling only. The per-file limit that actually matters lives with
+// the other project caps in files/tree.js, and callers pass it explicitly.
+export const MAX_RAW_BYTES = 16 * 1024 * 1024;
 
 // Buffer a request body, refusing as soon as the cap is passed rather than
 // after the whole thing has arrived — an oversized upload costs us the first
 // chunk over the limit and nothing more.
-export function readRaw(req, limit = MAX_FILE_BYTES) {
+export function readRaw(req, limit = MAX_RAW_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     let settled = false;
-    const fail = (err) => {
+    const fail = (err, { destroy = true } = {}) => {
       if (settled) return;
       settled = true;
-      req.destroy();
+      if (destroy) req.destroy();
       reject(err);
     };
     req.on('data', (chunk) => {
       if (settled) return;
       size += chunk.length;
-      if (size > limit) return fail(new HttpError(413, 'body too large'));
+      if (size > limit) {
+        // Pause rather than destroy. Destroying here tears down the socket
+        // before the 413 can be written, so the client sees a dropped
+        // connection instead of a status it can act on. Paused, the rest of
+        // the upload is never read and Node closes the connection once the
+        // response is flushed.
+        req.pause();
+        chunks.length = 0;
+        return fail(new HttpError(413, 'body too large'), { destroy: false });
+      }
       chunks.push(chunk);
     });
     req.on('end', () => {

@@ -9,6 +9,8 @@ import { createLockout, DEFAULT_EMAIL_LOCKOUT, DEFAULT_IP_LOCKOUT } from './auth
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import { agentRoutes } from './routes/agents.js';
+import { fileRoutes } from './routes/files.js';
+import { historyRoutes } from './routes/history.js';
 import { streamRoutes } from './routes/stream.js';
 
 const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
@@ -39,6 +41,8 @@ export function createApp({
   authRoutes(r);
   projectRoutes(r);
   agentRoutes(r);
+  fileRoutes(r);
+  historyRoutes(r);
   streamRoutes(r);
 
   // Unknown /api paths are 404 for every method. Without this the static
