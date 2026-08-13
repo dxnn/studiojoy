@@ -16,10 +16,21 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, and
-  a scripted fake LLM. No network, no API key.
+- `npm test` — 253 tests. `node:test` against `:memory:` SQLite, a temp
+  `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
+- `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
 - `npm run adduser -- <email> "<Name>"` — the only way accounts exist.
+
+Running locally in this sandbox, both gotchas below apply at once:
+
+```sh
+export GS=$TMPDIR/gamestudio-dev
+echo hunter2 | DB_PATH=$GS/db node bin/adduser.js you@example.com "You"
+NODE_OPTIONS=--use-env-proxy DEEPSEEK_API_KEY=$(cat tmp/deepseek.key) \
+  DB_PATH=$GS/db GAMES_DIR=$GS/games PORT=8490 GAMES_PORT=8491 \
+  GAMES_URL=http://127.0.0.1:8491 npm start
+```
 
 No build step, no linter, no dependencies. Node ≥ 24, ESM.
 
@@ -43,8 +54,10 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   `GAMES_DIR=$TMPDIR/gamestudio-games`. Deployed, `./games` is fine.
 - Outbound network goes through a CONNECT proxy and DNS does not resolve.
   `curl` reads `$https_proxy` on its own; Node's `fetch` needs
-  `node --use-env-proxy`. That's why `npm run smoke` carries the flag and
-  `npm test` doesn't need it.
+  `node --use-env-proxy`. `npm run smoke` carries the flag; `npm test` never
+  needs it; **`npm start` needs `NODE_OPTIONS=--use-env-proxy`** or every
+  agent reply fails with ENOTFOUND, because the server is the one calling
+  DeepSeek. Deployed, none of this applies.
 - `node:sqlite` has no `db.transaction()` and rejects a nested `BEGIN`; use
   `tx()` from `server/db.js`, which guards against nesting.
 
