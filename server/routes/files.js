@@ -25,7 +25,7 @@ function conflictBody(rel, buffer) {
 export function fileRoutes(r) {
   r.get('/api/projects/:slug/files', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { files: true });
     const { files, totalBytes, count } = await listTree(projectDirFor(ctx, project));
     json(ctx.res, 200, { files, total_bytes: totalBytes, count });
   });
@@ -34,7 +34,7 @@ export function fileRoutes(r) {
   // cannot collide with a file whose own name is 'move'.
   r.post('/api/projects/:slug/files/move', async (ctx) => {
     const user = requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    const project = requireProject(ctx, { write: true, files: true });
     const dir = projectDirFor(ctx, project);
     const body = await readJson(ctx.req);
     const from = resolveProjectPath(dir, body.from);
@@ -60,7 +60,7 @@ export function fileRoutes(r) {
 
   r.get('/api/projects/:slug/files/*path', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
     const { rel, abs } = resolveProjectPath(dir, ctx.params.path);
 
@@ -89,7 +89,7 @@ export function fileRoutes(r) {
 
   r.put('/api/projects/:slug/files/*path', async (ctx) => {
     const user = requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    const project = requireProject(ctx, { write: true, files: true });
     const dir = projectDirFor(ctx, project);
     const { rel, abs } = resolveProjectPath(dir, ctx.params.path);
 
@@ -133,7 +133,7 @@ export function fileRoutes(r) {
 
   r.delete('/api/projects/:slug/files/*path', async (ctx) => {
     const user = requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    const project = requireProject(ctx, { write: true, files: true });
     const dir = projectDirFor(ctx, project);
     const { rel, abs } = resolveProjectPath(dir, ctx.params.path);
 

@@ -29,11 +29,12 @@ export function createGamesApp({ db, gamesDir }) {
     if (!slug.ok) throw new HttpError(404, 'not found');
 
     // A directory on disk with no project row is not public. This is also
-    // what keeps a half-created project from being served.
+    // what keeps a half-created project from being served. A chat has no
+    // directory at all, so its slug is not public either.
     const project = db
-      .prepare('SELECT slug FROM projects WHERE slug = ?')
+      .prepare('SELECT slug, kind FROM projects WHERE slug = ?')
       .get(slug.slug);
-    if (!project) throw new HttpError(404, 'not found');
+    if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
 
     const requested = ctx.params.path === '' ? 'index.html' : ctx.params.path;
     // Same validation as the studio, but a refusal is reported as 404: the

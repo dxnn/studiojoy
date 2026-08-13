@@ -91,12 +91,21 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `id` | INTEGER PK | |
 | `slug` | TEXT UNIQUE NOT NULL | `[a-z0-9-]{1,40}`; the directory name under `GAMES_DIR` **and** the public URL path |
 | `name` | TEXT NOT NULL | ≤ 200 chars |
+| `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
 | `created_by` | INTEGER NOT NULL → users | display only |
 | `created_at` | TEXT NOT NULL | |
 
 The slug is immutable in v0 — renaming it would move the directory and break
 public game URLs. `name` is freely editable.
+
+`kind = 'chat'` is a project with the game taken out: same thread, same
+attached agents, same eligibility and cooldown rules, but **no working tree**.
+Nothing is created on disk for it, so every route that reaches the filesystem
+refuses it with 409, its slug is not served on the games origin, a message in
+it may not carry `context_paths`, and its agents are offered no file tools and
+no file block in their context (§8). The column is added by
+`addColumnIfMissing`, so an existing database upgrades with every row a game.
 
 There is no `system_prompt` column. Project-level standing instructions live
 in `BRIEF.md` at the project root: a plain file in the working tree, so it gets
@@ -299,7 +308,7 @@ There is no signup route. Accounts come from `npm run adduser`.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview |
-| POST | `/api/projects` | `{name, slug?}` | create row, directory, and git repo; slug derived from name when omitted |
+| POST | `/api/projects` | `{name, slug?, kind?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game` |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name}` | rename (display name only) |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
@@ -652,6 +661,9 @@ Tests enforce each of these.
   publicly served.
 - A project's git repository has at least one commit from the moment the
   project exists.
+- A chat has nothing on disk: no directory is created for it, every route that
+  would reach one answers 409, and the games origin answers 404 for its slug
+  even if a directory with that name exists.
 
 ## 13. Configuration
 

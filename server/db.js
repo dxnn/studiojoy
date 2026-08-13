@@ -1,6 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { nextUtcMidnight } from './util/time.js';
 
+export const PROJECT_KINDS = ['game', 'chat'];
+
 // Schema as an ordered list of idempotent statements, the same pattern new-y
 // uses. Columns added after the initial release go through
 // addColumnIfMissing rather than being edited into a CREATE TABLE string, so
@@ -106,6 +108,9 @@ export function openDb(dbPath) {
   if (dbPath !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   for (const sql of MIGRATIONS) db.exec(sql);
+  // A chat is a project with no working tree: same thread, same agents, no
+  // files and nothing on disk (spec.md §3).
+  addColumnIfMissing(db, 'projects', 'kind', "TEXT NOT NULL DEFAULT 'game'");
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,

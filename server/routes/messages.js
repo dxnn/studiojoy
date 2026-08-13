@@ -43,6 +43,9 @@ export function messageRoutes(r) {
       throw new HttpError(400, `body must be at most ${MAX_MESSAGE_BYTES} bytes`);
     }
     const contextPaths = normalizeContextPaths(body.context_paths);
+    if (contextPaths.length > 0 && project.kind === 'chat') {
+      throw new HttpError(400, 'a chat has no files to point at');
+    }
 
     const now = new Date().toISOString();
     const messageId = tx(ctx.db, () => {

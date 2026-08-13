@@ -36,7 +36,7 @@ function requireShaParam(value) {
 export function historyRoutes(r) {
   r.get('/api/projects/:slug/history', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
     const commits = await logCommits(dir, {
       path: optionalPath(ctx.query), limit: limitFrom(ctx.query),
@@ -46,7 +46,7 @@ export function historyRoutes(r) {
 
   r.get('/api/projects/:slug/history/:sha/*path', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
     const sha = requireShaParam(ctx.params.sha);
     const { rel } = resolveProjectPath(dir, ctx.params.path);
@@ -73,7 +73,7 @@ export function historyRoutes(r) {
 
   r.get('/api/projects/:slug/diff/:sha', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
     const sha = requireShaParam(ctx.params.sha);
     const filter = optionalPath(ctx.query);
@@ -94,7 +94,7 @@ export function historyRoutes(r) {
   // working tree and committed as a new commit (spec.md §5).
   r.post('/api/projects/:slug/restore', async (ctx) => {
     const user = requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    const project = requireProject(ctx, { write: true, files: true });
     const dir = projectDirFor(ctx, project);
     const body = await readJson(ctx.req);
     const sha = requireShaParam(body.sha);

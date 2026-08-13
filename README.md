@@ -31,7 +31,7 @@ made them, and presence in the `users` table is the whole permission model.
 Every account can edit every game, agent, and file.
 
 ```sh
-npm test          # 253 tests, no network and no API key required
+npm test          # 262 tests, no network and no API key required
 npm run smoke     # one live round trip against DeepSeek; needs the key
 ```
 

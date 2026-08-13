@@ -7,6 +7,7 @@ import { listTree } from '../files/tree.js';
 import {
   requireProject, projectDirFor, authorFor, requireString, messagePublic,
 } from './helpers.js';
+import { PROJECT_KINDS } from '../db.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -21,6 +22,7 @@ function projectPublic(db, row) {
   return {
     slug: row.slug,
     name: row.name,
+    kind: row.kind,
     archived: row.archived === 1,
     created_by: row.created_by,
     created_at: row.created_at,
@@ -40,6 +42,10 @@ export function projectRoutes(r) {
     const user = requireAuth(ctx);
     const body = await readJson(ctx.req);
     const name = requireString(body.name, 'name', { max: MAX_PROJECT_NAME });
+    const kind = body.kind === undefined ? 'game' : body.kind;
+    if (!PROJECT_KINDS.includes(kind)) {
+      throw new HttpError(400, `kind must be one of ${PROJECT_KINDS.join(', ')}`);
+    }
 
     // An explicit slug wins; otherwise derive one. Deriving can fail — a name
     // of only punctuation has no slug — so ask rather than invent.
@@ -54,27 +60,31 @@ export function projectRoutes(r) {
       throw new HttpError(409, `the slug '${slug}' is taken`);
     }
 
-    const dir = projectDirFor(ctx, { slug });
-    // The working tree and its repo are created before the row exists, so a
-    // project is never visible without a repository behind it (spec.md §12).
-    // A directory left by an earlier failed attempt is reused if it is
-    // already a repo, initialised otherwise.
-    await ctx.mutex.run(slug, async () => {
-      if (!(await isRepo(dir))) {
-        await initRepo(dir, { author: authorFor(user), slug });
-      }
-    });
+    // A chat never touches the disk: no directory, no repo, nothing to serve
+    // on the games origin. Everything else about it is a project.
+    if (kind === 'game') {
+      const dir = projectDirFor(ctx, { slug });
+      // The working tree and its repo are created before the row exists, so a
+      // project is never visible without a repository behind it (spec.md §12).
+      // A directory left by an earlier failed attempt is reused if it is
+      // already a repo, initialised otherwise.
+      await ctx.mutex.run(slug, async () => {
+        if (!(await isRepo(dir))) {
+          await initRepo(dir, { author: authorFor(user), slug });
+        }
+      });
+    }
 
     const now = new Date().toISOString();
     const info = ctx.db
       .prepare(
-        `INSERT INTO projects (slug, name, created_by, created_at)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO projects (slug, name, kind, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(slug, name, user.id, now);
+      .run(slug, name, kind, user.id, now);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
     const payload = projectPublic(ctx.db, row);
-    ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name });
+    ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
     json(ctx.res, 201, payload);
   });
 
@@ -98,11 +108,13 @@ export function projectRoutes(r) {
           ORDER BY a.name`,
       )
       .all(project.id);
-    const { files } = await listTree(projectDirFor(ctx, project));
+    // A chat has no working tree to list and nothing to play.
+    const isChat = project.kind === 'chat';
+    const files = isChat ? [] : (await listTree(projectDirFor(ctx, project))).files;
 
     json(ctx.res, 200, {
       ...projectPublic(ctx.db, project),
-      play_url: `${ctx.gamesUrl}/${project.slug}/`,
+      play_url: isChat ? null : `${ctx.gamesUrl}/${project.slug}/`,
       agents: agents.map((a) => ({
         agent_id: a.agent_id,
         name: a.name,

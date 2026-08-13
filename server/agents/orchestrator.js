@@ -36,6 +36,16 @@ function firstLine(text) {
 }
 
 function studioPreamble({ project, canEdit }) {
+  // A chat has no working tree, so every sentence about files, paths and the
+  // games origin would be a lie there.
+  if (project.kind === 'chat') {
+    return [
+      `You are an agent in Game Studio, in a conversation called "${project.name}".`,
+      'This is a chat: there are no files here, and nothing you say is written to disk.',
+      '',
+      'Keep your reply short and plain. The people here may be children.',
+    ].join('\n');
+  }
   const lines = [
     `You are an agent in Game Studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
@@ -225,17 +235,22 @@ async function buildContext({ db, project, dir, agent, lastFiredMaxId = 0 }) {
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
 
-  const brief = await readFileAt(path.join(dir, BRIEF_FILE));
+  // In a chat there is no directory to read a brief from and no files to
+  // describe, so the whole file half of the context is skipped.
+  const isChat = project.kind === 'chat';
+  const brief = isChat ? null : await readFileAt(path.join(dir, BRIEF_FILE));
   const system = [
-    studioPreamble({ project, canEdit: agent.file_tools }),
+    studioPreamble({ project, canEdit: agent.file_tools && !isChat }),
     brief ? `Project brief (${BRIEF_FILE}):\n${brief.toString('utf8')}` : null,
     agent.description || null,
   ].filter(Boolean).join('\n\n');
 
-  const fileBlock = await buildFileBlock(db, project, dir);
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
-  const last = messages[messages.length - 1];
-  last.content = `${fileBlock}\n\n${last.content}`;
+  if (!isChat) {
+    const fileBlock = await buildFileBlock(db, project, dir);
+    const last = messages[messages.length - 1];
+    last.content = `${fileBlock}\n\n${last.content}`;
+  }
   return { system, messages };
 }
 
@@ -318,7 +333,7 @@ export function createOrchestrator({
         `SELECT pa.id, pa.project_id, pa.agent_id, pa.response_pending,
                 a.name AS agent_name, a.description, a.model, a.reasoning,
                 a.file_tools, a.deleted,
-                p.slug, p.name AS project_name, p.archived
+                p.slug, p.name AS project_name, p.kind, p.archived
            FROM project_agents pa
            JOIN agents a ON a.id = pa.agent_id
            JOIN projects p ON p.id = pa.project_id
@@ -327,7 +342,9 @@ export function createOrchestrator({
       .get(projectAgentId);
     if (!row || row.response_pending !== 1 || row.deleted) return;
 
-    const project = { id: row.project_id, slug: row.slug, name: row.project_name };
+    const project = {
+      id: row.project_id, slug: row.slug, name: row.project_name, kind: row.kind,
+    };
     const clearPending = () => db
       .prepare('UPDATE project_agents SET response_pending = 0 WHERE id = ?')
       .run(row.id);
@@ -356,7 +373,9 @@ export function createOrchestrator({
         return;
       }
 
-      const dir = path.join(path.resolve(gamesDir), row.slug);
+      // null for a chat: there is no such directory, and nothing may go
+      // looking for one.
+      const dir = row.kind === 'chat' ? null : path.join(path.resolve(gamesDir), row.slug);
       const agent = {
         id: row.agent_id,
         name: row.agent_name,
@@ -375,7 +394,7 @@ export function createOrchestrator({
       });
       if (!context) return;
 
-      const toolset = agent.file_tools
+      const toolset = agent.file_tools && dir !== null
         ? createToolset({ dir, mutex, slug: row.slug })
         : null;
 

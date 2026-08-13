@@ -1,6 +1,8 @@
 # Glossary
 
-- **game project** — the unit the studio is organised around: a chat thread plus a versioned working tree of files, playable at a public URL. (formerly: *conversation*, in `new-y`)
+- **game project** — the unit the studio is organised around: a chat thread plus a versioned working tree of files, playable at a public URL. A `projects` row with `kind = 'game'`. (formerly: *conversation*, in `new-y`)
+- **chat** — a `projects` row with `kind = 'chat'`: the same thread and the same attached agents as a game project, with no working tree, nothing on disk, and nothing served on the games origin.
+- **tint** — the per-speaker colour wash on a message bubble. Hue and blob placement are derived from a hash of the speaker's id, warm for people and green-to-blue for agents; it carries no meaning beyond identity.
 - **slug** — a project's `[a-z0-9-]` identifier. Immutable, and simultaneously the directory name under `GAMES_DIR` and the path segment on the games origin.
 - **working tree** — a project's on-disk directory. The source of truth for file content; there is no files table.
 - **project path** — a validated relative path inside a working tree. Validation rules are the app's main security boundary.
