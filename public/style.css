@@ -273,18 +273,32 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
 
-/* Helpers live in the sidebar because they belong to the studio, not to one
-   game. The list is bounded so the game list always keeps most of the pane. */
-.helpers {
+/* Chats and helpers both live under the game list, in bounded, foldable
+   sections, so the games always keep most of the pane. */
+.small-list {
   flex: 0 1 auto;
   overflow-y: auto;
-  max-height: 30vh;
+  max-height: 26vh;
   border-top: 1px solid var(--border);
   padding: 4px 0;
 }
-.helper { display: flex; align-items: center; gap: 4px; padding: 1px 8px 1px 14px; }
-.helper:hover { background: var(--hover); }
-.helper .hname {
+.sec-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.sec-toggle:hover:not(:disabled) { background: none; color: var(--accent); }
+
+.srow { display: flex; align-items: center; gap: 4px; padding: 1px 8px 1px 14px; }
+.srow:hover { background: var(--hover); }
+.srow.sel { background: var(--active-bg); }
+.srow.sel .hname { color: var(--accent); font-weight: 600; }
+.srow .hname {
   flex: 1;
   min-width: 0;
   text-align: left;
@@ -296,11 +310,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.helper .hname:hover:not(:disabled) { background: none; color: var(--accent); }
+.srow .hname:hover:not(:disabled) { background: none; color: var(--accent); }
 /* Being in the game is the good state, so it must not read as disabled. */
-.helper .hname:disabled { opacity: 1; cursor: default; }
-.helper.here .hname { color: var(--agent); font-weight: 600; }
-.helper .dot { font-size: 9px; margin-right: 5px; vertical-align: middle; }
+.srow .hname:disabled { opacity: 1; cursor: default; }
+.srow.here .hname { color: var(--agent); font-weight: 600; }
+.srow .dot { font-size: 9px; margin-right: 5px; vertical-align: middle; }
 
 .tag {
   font-size: 11px;
@@ -348,16 +362,33 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .msg { display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
 .msg .from { font-size: 12px; font-weight: 700; }
+/* The bubble colour is the palette's; the three washes over it are the
+   speaker's, hued and placed from a hash of their id (--th, --x1 …). People
+   come out warm, helpers green to blue, and each one differs from the next.
+   Alphas are the whole subtlety knob and are raised a little in the dark. */
 .msg .bubble {
-  background: var(--human-soft);
+  --tint-1: 0.17;
+  --tint-2: 0.13;
+  --tint-3: 0.10;
+  background:
+    radial-gradient(90% 120% at var(--x1, 20%) var(--y1, 10%),
+      hsl(var(--th, 250) var(--ts, 50%) 55% / var(--tint-1)), transparent 62%),
+    radial-gradient(70% 90% at var(--x2, 85%) var(--y2, 85%),
+      hsl(var(--th2, 270) var(--ts, 50%) 50% / var(--tint-2)), transparent 60%),
+    radial-gradient(120% 70% at var(--x3, 50%) var(--y3, 55%),
+      hsl(var(--th, 250) var(--ts, 50%) 62% / var(--tint-3)), transparent 70%),
+    var(--bubble-bg, var(--human-soft));
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 8px 11px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+@media (prefers-color-scheme: dark) {
+  .msg .bubble { --tint-1: 0.24; --tint-2: 0.18; --tint-3: 0.14; }
+}
 .msg.from-agent .from { color: var(--agent); }
-.msg.from-agent .bubble { background: var(--agent-soft); }
+.msg.from-agent .bubble { --bubble-bg: var(--agent-soft); }
 .msg.system {
   max-width: none;
   align-items: center;
@@ -555,10 +586,14 @@ pre.diff .hunk { color: var(--accent); }
 
 /* Collapsing only means anything where the three panes are side by side; on a
    narrow screen the panes already take turns. */
+/* Column count follows how many panes are actually rendered: a zero-width
+   track would just be handed to the next pane by grid auto-placement. Both
+   rules are wide-only — narrow screens show one pane at a time, so a second
+   column there would strand the visible pane in the first one. */
 @media (min-width: 861px) {
-  /* Two panes left, so two columns: a zero-width first column would just be
-     handed to the chat by grid auto-placement. */
+  .app.no-rail { grid-template-columns: var(--side, 240px) minmax(0, 1fr); }
   .app.side-closed { grid-template-columns: minmax(0, 1fr) var(--rail, 360px); }
+  .app.side-closed.no-rail { grid-template-columns: minmax(0, 1fr); }
   .app.side-closed > .pane.side { display: none; }
   .app.side-closed > .pane.chat { border-left: none; }
 }
@@ -571,7 +606,7 @@ pre.diff .hunk { color: var(--accent); }
   .app > .pane.show { display: flex; }
   .pane + .pane { border-left: none; }
   .rail-grip { display: none; }
-  .helpers { max-height: 40vh; }
+  .small-list { max-height: 34vh; }
 }
 .only-narrow { display: none; }
 @media (max-width: 860px) { .only-narrow { display: inline-flex; } }

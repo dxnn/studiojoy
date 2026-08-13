@@ -70,7 +70,15 @@ const S = {
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
   railWidth: railClamp(Number(prefs.get('rail', '360'))),
+  // true = expanded. The game list is always shown; the two small sections
+  // under it fold away.
+  sections: {
+    chats: prefs.get('sec-chats', 'open') !== 'closed',
+    helpers: prefs.get('sec-helpers', 'open') !== 'closed',
+  },
 };
+
+const isChat = () => S.project?.kind === 'chat';
 
 const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
   ?? S.agents.find((a) => a.id === id)?.name
@@ -545,8 +553,27 @@ function renderAuth() {
 
 /* Render: sidebar --------------------------------------------------------- */
 
+// The header of a foldable section. The marker is the affordance; the whole
+// label is the hit area, because a 12px triangle is not one.
+function sectionHead(id, label, add) {
+  const open = S.sections[id];
+  return h('div', { class: 'section-label row' },
+    h('button', {
+      class: 'sec-toggle',
+      text: `${open ? '▾' : '▸'} ${label}`,
+      title: open ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`,
+      onclick: () => {
+        S.sections[id] = !open;
+        prefs.set(`sec-${id}`, open ? 'closed' : 'open');
+        render();
+      },
+    }),
+    h('div', { class: 'spacer' }),
+    add ? h('button', { class: 'icon tiny', text: '+', title: add.title, onclick: add.onclick }) : null);
+}
+
 function renderSidebar() {
-  const rows = S.projects.map((p) => h('button', {
+  const rows = S.projects.filter((p) => p.kind !== 'chat').map((p) => h('button', {
     class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
     onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
   },
@@ -570,6 +597,7 @@ function renderSidebar() {
     h('div', { class: 'section-label', text: 'Games' }),
     h('div', { class: 'scroll' },
       rows.length ? rows : h('div', { class: 'pad muted', text: 'No games yet. Make one!' })),
+    renderChatList(),
     renderHelperList(),
     h('div', { class: 'who' },
       h('div', { class: 'name', text: S.me.display_name }),
@@ -578,6 +606,28 @@ function renderSidebar() {
         onclick: async () => { await api('POST', '/api/logout'); location.href = '/'; },
       })),
   );
+}
+
+// A chat is a game with the game taken out: the same thread and the same
+// helpers, no files and no preview.
+function renderChatList() {
+  const chats = S.projects.filter((p) => p.kind === 'chat');
+  const head = sectionHead('chats', 'Chats', {
+    title: 'Start a new chat',
+    onclick: () => { S.dialog = { kind: 'new-project', chat: true }; render(); },
+  });
+  if (!S.sections.chats) return [head];
+
+  const rows = chats.map((p) => h('div', { class: `srow${p.slug === S.slug ? ' sel' : ''}` },
+    h('button', {
+      class: 'hname', text: p.name, title: p.name,
+      onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
+    })));
+
+  return [head, h('div', { class: 'small-list' },
+    rows.length
+      ? rows
+      : h('div', { class: 'pad hint muted', text: 'No chats yet. Start one with +.' }))];
 }
 
 // Helpers belong to the studio, not to one game, so they live beside the game
@@ -589,7 +639,7 @@ function renderHelperList() {
 
   const rows = S.agents.map((agent) => {
     const here = attached.has(agent.id);
-    return h('div', { class: `helper${here ? ' here' : ''}` },
+    return h('div', { class: `srow${here ? ' here' : ''}` },
       h('button', {
         class: 'hname',
         title: here
@@ -604,22 +654,55 @@ function renderHelperList() {
       }));
   });
 
-  return [
-    h('div', { class: 'section-label row' },
-      h('span', { text: 'Helpers' }),
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'icon tiny', text: '+', title: 'Make a new helper',
-        onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
-      })),
-    h('div', { class: 'helpers' },
-      rows.length
-        ? rows
-        : h('div', { class: 'pad hint muted', text: 'No helpers yet. Make one with +.' })),
-  ];
+  const head = sectionHead('helpers', 'Helpers', {
+    title: 'Make a new helper',
+    onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
+  });
+  if (!S.sections.helpers) return [head];
+
+  return [head, h('div', { class: 'small-list' },
+    rows.length
+      ? rows
+      : h('div', { class: 'pad hint muted', text: 'No helpers yet. Make one with +.' }))];
 }
 
 /* Render: chat ------------------------------------------------------------ */
+
+// FNV-1a. Any stable scramble would do; this one is four lines and needs no
+// seeding.
+function hashOf(text) {
+  let n = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    n = Math.imul(n ^ text.charCodeAt(i), 16777619);
+  }
+  return n >>> 0;
+}
+
+// A quiet wash of colour over a bubble, fixed per speaker: people land in the
+// warm end, helpers in the green-to-blue end, and everyone gets their own hue
+// and their own arrangement of blobs. Three low-alpha radial gradients over
+// the usual bubble colour — enough that two helpers in one thread are told
+// apart at a glance, not so much that it reads as decoration.
+function tintStyle(agent, id) {
+  const n = hashOf(`${agent ? 'a' : 'u'}:${id}`);
+  // >>> and not >>: the hash fills 32 bits, and a signed shift would hand
+  // back negative hues and off-canvas gradient origins.
+  const pick = (shift, span) => (n >>> shift) % span;
+  // Hue comes from a slot rather than a raw modulo, so two speakers either
+  // share a hue or sit a clear step apart — never three degrees apart, which
+  // reads as a rendering accident.
+  const slot = pick(0, 6);
+  const hue = agent ? 150 + slot * 15 : 20 + slot * 10;
+  const hue2 = hue + 14 + pick(6, 20);
+  return [
+    `--th:${hue}`,
+    `--th2:${hue2}`,
+    `--ts:${agent ? 60 : 50}%`,
+    `--x1:${6 + pick(9, 38)}%`, `--y1:${pick(13, 34)}%`,
+    `--x2:${58 + pick(17, 38)}%`, `--y2:${64 + pick(21, 36)}%`,
+    `--x3:${22 + pick(25, 56)}%`, `--y3:${38 + pick(3, 40)}%`,
+  ].join(';');
+}
 
 function renderMessage(msg) {
   if (msg.kind === 'system') {
@@ -646,7 +729,11 @@ function renderMessage(msg) {
 
   return h('div', { class: `msg ${isAgent ? 'from-agent' : 'from-human'}` },
     h('div', { class: 'from', text: who }),
-    msg.body && h('div', { class: 'bubble', text: msg.body }),
+    msg.body && h('div', {
+      class: 'bubble',
+      style: tintStyle(isAgent, isAgent ? msg.agent_id : msg.user_id),
+      text: msg.body,
+    }),
     chips.length ? h('div', { class: 'chips' }, chips) : null);
 }
 
@@ -656,7 +743,9 @@ function renderLive(agentId, entry) {
     h('summary', { text: 'Thinking' }), trace);
   thinking.hidden = entry.trace === '';
 
-  const reply = h('div', { class: 'bubble', text: entry.reply });
+  const reply = h('div', {
+    class: 'bubble', style: tintStyle(true, agentId), text: entry.reply,
+  });
   reply.hidden = entry.reply === '';
 
   const tool = h('div', { class: 'working dots', text: toolLabel(entry.tool) });
@@ -688,8 +777,8 @@ function helperGap() {
   const none = S.agents.length === 0;
   return h('div', { class: 'notice' },
     none
-      ? 'Nobody can answer yet — this game has no helpers. '
-      : 'This game has no helpers in it yet, so nobody will answer. ',
+      ? 'Nobody can answer yet — the studio has no helpers. '
+      : `This ${isChat() ? 'chat' : 'game'} has no helpers in it yet, so nobody will answer. `,
     h('button', {
       class: 'link',
       text: none ? 'Make your first helper' : 'Add a helper',
@@ -749,9 +838,13 @@ function renderChat() {
     await sendMessage(text);
   };
 
-  const pinNote = S.pinned.size
-    ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
-    : 'Tip: pin a file on the right to point at it.';
+  // A chat has no files, so it has nothing to pin and no tip to give.
+  let pinNote = '';
+  if (!isChat()) {
+    pinNote = S.pinned.size
+      ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
+      : 'Tip: pin a file on the right to point at it.';
+  }
 
   // Without an attached helper nothing is eligible to answer, and a message
   // just sits there. Say so before it happens rather than leaving silence to
@@ -789,7 +882,7 @@ function renderChat() {
       p.archived && h('span', { class: 'tag', text: 'archived' }),
       chips.length ? h('div', { class: 'hchips' }, chips) : null,
       h('div', { class: 'spacer' }),
-      h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
+      !isChat() && h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
       p.archived && h('button', {
         class: 'quiet tiny', text: 'Reopen',
         title: 'Start working on this again',
@@ -1007,17 +1100,19 @@ function dialogFor(d) {
   const cancel = h('button', { class: 'quiet', text: 'Cancel', onclick: close });
 
   if (d.kind === 'new-project') {
-    const name = h('input', { placeholder: 'Space Racer' });
-    const slug = h('input', { placeholder: 'space-racer (optional)' });
+    const chat = d.chat === true;
+    const name = h('input', { placeholder: chat ? 'Silly ideas' : 'Space Racer' });
+    const slug = h('input', { placeholder: chat ? 'silly-ideas (optional)' : 'space-racer (optional)' });
     const err = h('p', { class: 'error' });
-    return wrap('New game',
+    return wrap(chat ? 'New chat' : 'New game',
       h('label', { text: 'What is it called?' }), name,
       h('label', { text: 'Web address (letters, numbers and dashes)' }), slug,
+      chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game.' }) : null,
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Make it',
         onclick: async () => {
-          const body = { name: name.value.trim() };
+          const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
           if (slug.value.trim()) body.slug = slug.value.trim();
           const res = await api('POST', '/api/projects', body);
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
@@ -1196,10 +1291,12 @@ function render() {
     return;
   }
 
+  // A chat has no files, versions or preview, so it has no rail at all and
+  // the thread takes the whole width.
   const app = h('div', {
-    class: `app${S.sidebar ? '' : ' side-closed'}`,
+    class: `app${S.sidebar ? '' : ' side-closed'}${isChat() ? ' no-rail' : ''}`,
     style: `--rail:${S.railWidth}px`,
-  }, renderSidebar(), renderChat(), renderRail());
+  }, renderSidebar(), renderChat(), isChat() ? null : renderRail());
   root.append(app);
 
   if (S.banner) {
