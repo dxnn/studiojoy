@@ -3,8 +3,6 @@
 Build order for v0. Each line is independently testable; `spec.md` is the
 design-of-record.
 
-- write server/broker.js — SSE fan-out to every tab
-- write routes: auth, projects, agents
 - write routes: files, history
 - write routes: messages, stream
 - ⚠️ write server/games.js — public listener, traversal tests, no-cookie test

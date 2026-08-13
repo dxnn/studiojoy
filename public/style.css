@@ -1,0 +1,4 @@
+/* Placeholder. The studio UI is built in a later step; this keeps the shell
+   from requesting a stylesheet that doesn't exist. */
+:root { color-scheme: light dark; }
+body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
