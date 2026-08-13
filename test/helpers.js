@@ -124,6 +124,24 @@ export async function setup({ llm = null, orchestrator = null, gamesUrl = 'http:
   };
 }
 
+// The public listener, over the same db and games directory as a studio
+// fixture. Separate server, separate origin — which is the whole point.
+export async function startGames(fixture) {
+  const { createGamesApp } = await import('../server/games.js');
+  const handler = createGamesApp({ db: fixture.db, gamesDir: fixture.gamesDir });
+  const server = http.createServer(handler);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  return {
+    base,
+    client: makeClient(base),
+    async close() {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    },
+  };
+}
+
 export async function signIn(fixture, {
   email = 'dann@example.com', password = 'hunter2', displayName = 'Dann',
   client = fixture.client,
