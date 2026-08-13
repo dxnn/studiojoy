@@ -165,7 +165,9 @@ test('the shell is served for client-side routes', async (t) => {
     const res = await app.client.request('GET', p);
     assert.equal(res.status, 200, p);
     assert.match(res.headers.get('content-type'), /text\/html/);
-    assert.match(await res.text(), /<div id="app">/);
+    const html = await res.text();
+    assert.match(html, /<div id="root">/);
+    assert.match(html, /src="\/main\.js"/);
   }
 });
 

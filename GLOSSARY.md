@@ -10,6 +10,7 @@
 - **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context; a plain versioned file rather than a database column.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
+- **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
 - **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)
 - **context path** — a project path a human attaches to a message, handing that file's current content to the agents on that turn.
 - **pinned file** — a file named by a context path on the current or previous two human turns. Never dropped by the context byte cap, and labelled in the prompt as what the human is pointing at.

@@ -48,15 +48,26 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
 - `node:sqlite` has no `db.transaction()` and rejects a nested `BEGIN`; use
   `tx()` from `server/db.js`, which guards against nesting.
 
+## Audience
+
+The studio is used by kids. That shapes the interface, not the engineering:
+every technical affordance is present (file tree, versions, diffs, reasoning
+traces, model choice), but user-facing strings are plain language and
+destructive actions confirm first. The UI says **helper** where the code says
+**agent** — see GLOSSARY.md, and don't let "helper" leak into the code.
+
 ## Current state
 
-Foundations done and green (98 tests): `http/` router, body, static; `db.js`
-schema and `tx()`; `files/` paths, git, mutex, tree; `auth.js` and the account
-CLI. Not started: broker, routes, games listener, DeepSeek client,
-orchestrator, frontend.
+v0 is complete and green at 253 tests. Verified live end to end: a message in
+the UI produces a streamed reasoning trace, a `write_file` call, one git
+commit authored as the agent, a `files.changed` event, and a reloaded preview
+of a playable game on the public origin.
 
-Open question: ambient context sends the whole working tree to the model on
-every fire (spec.md §8). It's one constant to revert to pinned-files-only.
+Browser-checked, not just intended: on the games origin `document.cookie` is
+empty and `localStorage` works, and the studio cannot read into the preview
+iframe.
+
+Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)
 You manage git directly in this project. The global "manual git" rule does
