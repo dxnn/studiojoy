@@ -16,8 +16,10 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const port = Number(process.env.PORT ?? 8090);
-const gamesPort = Number(process.env.GAMES_PORT ?? 8091);
+// 8100/8101 rather than 8090/8091: hyper-y, the project this one is modelled
+// on, defaults to 8090, and both are expected to run at once.
+const port = Number(process.env.PORT ?? 8100);
+const gamesPort = Number(process.env.GAMES_PORT ?? 8101);
 const gamesUrl = process.env.GAMES_URL ?? `http://localhost:${gamesPort}`;
 const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
 const gamesDir = path.resolve(process.env.GAMES_DIR ?? 'games');

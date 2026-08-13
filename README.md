@@ -21,8 +21,10 @@ npm run adduser -- you@example.com "Your Name"
 DEEPSEEK_API_KEY=sk-... npm start
 ```
 
-The studio comes up on <http://localhost:8090> and games on
-<http://localhost:8091>.
+The studio comes up on <http://localhost:8100> and games on
+<http://localhost:8101>. (8090 is left alone deliberately — hyper-y, the
+project this one is modelled on, defaults to it, and both are expected to run
+at the same time.)
 
 There is no signup route by design: accounts exist only because the operator
 made them, and presence in the `users` table is the whole permission model.
@@ -50,8 +52,8 @@ the games one.
 |---|---|---|
 | `DEEPSEEK_API_KEY` | — | required; the server exits without it |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | |
-| `PORT` | `8090` | studio |
-| `GAMES_PORT` | `8091` | public games |
+| `PORT` | `8100` | studio |
+| `GAMES_PORT` | `8101` | public games |
 | `GAMES_URL` | `http://localhost:<GAMES_PORT>` | used for play and preview links |
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | one directory and one git repo per project |

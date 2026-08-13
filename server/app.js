@@ -26,7 +26,7 @@ export function createApp({
   gamesDir = 'games',
   llm = null,
   orchestrator = null,
-  gamesUrl = 'http://localhost:8091',
+  gamesUrl = 'http://localhost:8101',
   secureCookies = false,
   trustProxy = false,
   publicDir = DEFAULT_PUBLIC_DIR,

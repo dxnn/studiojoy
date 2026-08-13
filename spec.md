@@ -382,7 +382,7 @@ studio's origin, its JavaScript could call `/api/*` with the operator's
 session cookie and delete every project.
 
 So the studio and the games are served on **separate origins** by two
-listeners in the same process. `localhost:8090` and `localhost:8091` are
+listeners in the same process. `localhost:8100` and `localhost:8101` are
 distinct origins to the browser: the session cookie does not travel to the
 games listener, `fetch('/api/…')` from a game hits the games server (which has
 no such route), and each origin gets its own `localStorage` — so games keep
@@ -659,8 +659,8 @@ Tests enforce each of these.
 |---|---|---|
 | `DEEPSEEK_API_KEY` | — | required; the server fails fast at boot without it |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | the host also answers without the `/v1` prefix |
-| `PORT` | `8090` | studio listener |
-| `GAMES_PORT` | `8091` | games listener |
+| `PORT` | `8100` | studio listener; 8090 is left free for `new-y`, which both defaults to and is expected to run alongside this |
+| `GAMES_PORT` | `8101` | games listener |
 | `GAMES_URL` | `http://localhost:<GAMES_PORT>` | used to build play/preview links |
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | |

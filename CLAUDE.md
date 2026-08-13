@@ -22,14 +22,16 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
 - `npm run adduser -- <email> "<Name>"` — the only way accounts exist.
 
+Ports default to 8100 (studio) and 8101 (games). 8090 is deliberately left
+alone: `new-y` defaults to it and is expected to be running at the same time.
+
 Running locally in this sandbox, both gotchas below apply at once:
 
 ```sh
 export GS=$TMPDIR/gamestudio-dev
 echo hunter2 | DB_PATH=$GS/db node bin/adduser.js you@example.com "You"
 NODE_OPTIONS=--use-env-proxy DEEPSEEK_API_KEY=$(cat tmp/deepseek.key) \
-  DB_PATH=$GS/db GAMES_DIR=$GS/games PORT=8490 GAMES_PORT=8491 \
-  GAMES_URL=http://127.0.0.1:8491 npm start
+  DB_PATH=$GS/db GAMES_DIR=$GS/games npm start
 ```
 
 No build step, no linter, no dependencies. Node ≥ 24, ESM.
