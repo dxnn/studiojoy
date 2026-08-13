@@ -5,9 +5,14 @@ function normalize(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// The @ must start the string or follow a non-alphanumeric, so an email
+// address in a message doesn't conjure a mention — "mail dann@example.com"
+// would otherwise wake anything named Example.
+const MENTION = /(?:^|[^A-Za-z0-9])@([A-Za-z0-9_-]{1,100})/g;
+
 export function parseMentions(body) {
   const found = new Set();
-  for (const match of String(body ?? '').matchAll(/@([A-Za-z0-9_-]{1,100})/g)) {
+  for (const match of String(body ?? '').matchAll(MENTION)) {
     const handle = normalize(match[1]);
     if (handle) found.add(handle);
   }
