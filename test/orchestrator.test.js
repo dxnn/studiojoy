@@ -1,0 +1,512 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { setup, signIn, openStream } from './helpers.js';
+import {
+  createFakeLlm, createFailingLlm, says, calls, truncated,
+} from './fake-llm.js';
+import { logCommits } from '../server/files/git.js';
+import { budgetState } from '../server/budget.js';
+
+// A studio with one project and one agent attached.
+async function studio(t, { llm, chatty = true, agent = {}, ...opts } = {}) {
+  const app = await setup({ llm, ...opts });
+  t.after(() => app.close());
+  await signIn(app);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  const created = await app.client.json('POST', '/api/agents', {
+    body: { name: 'Designer', description: 'You design games.', ...agent },
+  });
+  await app.client.json('POST', '/api/projects/tank/agents', {
+    body: { agent_id: created.body.id, chatty },
+  });
+  return { app, dir: path.join(app.gamesDir, 'tank'), agentId: created.body.id };
+}
+
+const send = (app, body, contextPaths) =>
+  app.client.json('POST', '/api/projects/tank/messages', {
+    body: { body, ...(contextPaths ? { context_paths: contextPaths } : {}) },
+  });
+
+test('a chatty agent answers a human message', async (t) => {
+  const llm = createFakeLlm([says('Nice idea. I would start with movement.')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'Lets build a tank game');
+
+  const started = await stream.waitFor((e) => e.event === 'agent.stream.start');
+  assert.equal(started.data.project_slug, 'tank');
+
+  const chunk = await stream.waitFor((e) => e.event === 'agent.stream.chunk');
+  assert.match(chunk.data.delta, /Nice idea/);
+
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.match(reply.data.body, /Nice idea/);
+  assert.equal(reply.data.user_id, null);
+  await stream.waitFor((e) => e.event === 'agent.stream.end');
+});
+
+test('a quiet agent waits to be mentioned', async (t) => {
+  const llm = createFakeLlm([says('You rang?')]);
+  const { app } = await studio(t, { llm, chatty: false });
+
+  await send(app, 'just thinking out loud');
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(llm.calls.length, 0, 'no mention, no fire');
+
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, 'what do you think @Designer?');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(llm.calls.length, 1);
+});
+
+test('a mention matches a prefix of the name', async (t) => {
+  const llm = createFakeLlm([says('here'), says('here again')]);
+  const { app } = await studio(t, {
+    llm, chatty: false, agent: { name: 'Level Designer' },
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'hey @level take a look');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(llm.calls.length, 1);
+
+  // Wait on something unique to the second reply: waitFor also matches events
+  // that already arrived, so reusing a generic predicate would pass instantly.
+  await send(app, 'and @leveldesigner again');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'here again');
+  assert.equal(llm.calls.length, 2);
+});
+
+// Bot-to-bot dampening: an agent's own reply must not wake anything.
+test('an agent reply does not trigger another round', async (t) => {
+  const llm = createFakeLlm([says('First and only.')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  await stream.waitFor((e) => e.event === 'agent.stream.end');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(llm.calls.length, 1, 'the agent must not answer itself');
+});
+
+test('write_file lands on disk, in a commit, and in the message', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
+      { text: 'Scaffolding the page.' }),
+    says('Done — index.html is up.'),
+  ]);
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make a start');
+
+  const toolEvent = await stream.waitFor((e) => e.event === 'agent.tool');
+  assert.equal(toolEvent.data.tool, 'write_file');
+  assert.equal(toolEvent.data.path, 'index.html');
+
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), '<h1>Tank</h1>');
+
+  // One commit for the turn, authored by the agent.
+  const [head] = await logCommits(dir, { limit: 1 });
+  assert.match(head.subject, /^Designer: /);
+  assert.equal(head.author, 'Designer');
+  assert.equal(head.email, 'tank@agent.gamestudio.local');
+
+  assert.deepEqual(reply.data.writes.map((w) => [w.path, w.action]), [['index.html', 'create']]);
+  assert.equal(reply.data.writes[0].commit_sha, head.sha);
+  assert.match(reply.data.body, /Scaffolding the page/);
+  assert.match(reply.data.body, /index\.html is up/);
+
+  const changed = await stream.waitFor((e) => e.event === 'files.changed');
+  assert.deepEqual(changed.data.paths, ['index.html']);
+});
+
+test('several files written in one turn become one commit', async (t) => {
+  const llm = createFakeLlm([
+    calls([
+      { name: 'write_file', input: { path: 'index.html', content: '<html>' } },
+      { name: 'write_file', input: { path: 'js/game.js', content: 'go()' } },
+      { name: 'write_file', input: { path: 'css/style.css', content: 'body{}' } },
+    ]),
+    says('Three files in.'),
+  ]);
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'scaffold it');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.deepEqual(
+    reply.data.writes.map((w) => w.path).sort(),
+    ['css/style.css', 'index.html', 'js/game.js'],
+  );
+  // Initial commit plus exactly one for the turn.
+  assert.equal((await logCommits(dir, { limit: 50 })).length, 2);
+});
+
+test('patch_file edits in place and reports the delta', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'write_file', input: { path: 'game.js', content: 'let speed = 1;\n' } }]),
+    calls([{
+      name: 'patch_file',
+      input: { path: 'game.js', old_text: 'speed = 1', new_text: 'speed = 5' },
+    }]),
+    says('Faster now.'),
+  ]);
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'speed it up');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(fs.readFileSync(path.join(dir, 'game.js'), 'utf8'), 'let speed = 5;\n');
+});
+
+test('a tool refusal comes back to the model as text it can act on', async (t) => {
+  const seen = [];
+  const llm = createFakeLlm((opts, turn) => {
+    const toolResults = opts.messages.filter((m) => m.role === 'tool');
+    if (toolResults.length > 0) seen.push(toolResults.at(-1).content);
+    if (turn === 0) {
+      return calls([{ name: 'write_file', input: { path: '../escape.txt', content: 'no' } }]);
+    }
+    if (turn === 1) {
+      return calls([{ name: 'patch_file', input: { path: 'nope.js', old_text: 'a', new_text: 'b' } }]);
+    }
+    return says('Understood, I will stay inside the project.');
+  });
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'try something silly');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  assert.match(seen[0], /invalid path/);
+  assert.match(seen[1], /no such file/);
+  assert.equal(fs.existsSync(path.join(dir, '..', 'escape.txt')), false);
+  // A refusal is not a write, so there is nothing to commit.
+  assert.equal((await logCommits(dir, { limit: 50 })).length, 1);
+});
+
+test('read_file reaches a file that was left out of context', async (t) => {
+  const observed = [];
+  const llm = createFakeLlm((opts, turn) => {
+    observed.push(opts.messages.filter((m) => m.role === 'tool').map((m) => m.content));
+    if (turn === 0) return calls([{ name: 'read_file', input: { path: 'notes.md' } }]);
+    return says('Read it.');
+  });
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/notes.md', { rawBody: 'design notes here' });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'check the notes');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.match(observed.at(-1).at(-1), /design notes here/);
+});
+
+test('delete_file removes the file and the deletion is recorded', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'delete_file', input: { path: 'old.txt' } }]),
+    says('Removed it.'),
+  ]);
+  const { app, dir } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/old.txt', { rawBody: 'bye' });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'drop old.txt');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(fs.existsSync(path.join(dir, 'old.txt')), false);
+  assert.deepEqual(reply.data.writes.map((w) => w.action), ['delete']);
+});
+
+test('an agent without file tools is offered none', async (t) => {
+  const llm = createFakeLlm([says('I only have opinions.')]);
+  const { app } = await studio(t, {
+    llm, agent: { name: 'Critic', description: 'You critique.', file_tools: false },
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'thoughts?');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(llm.lastCall().tools, null);
+  assert.match(llm.lastCall().system, /no file tools/);
+});
+
+test('a reasoning trace streams but is never persisted', async (t) => {
+  const llm = createFakeLlm([
+    says('Movement first.', { reasoning: 'The user wants a tank game. Think about physics.' }),
+  ]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'where do we start?');
+  const trace = await stream.waitFor((e) => e.event === 'agent.stream.reasoning');
+  assert.match(trace.data.delta, /Think about physics/);
+
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(reply.data.body, 'Movement first.');
+  assert.ok(!reply.data.body.includes('physics'), 'the trace must not reach the message');
+
+  const stored = app.db.prepare('SELECT body FROM messages WHERE agent_id IS NOT NULL').all();
+  for (const row of stored) {
+    assert.ok(!row.body.includes('physics'), 'and must not reach the database');
+  }
+});
+
+test('a reasoning trace is not replayed on the next turn', async (t) => {
+  const llm = createFakeLlm([
+    says('First.', { reasoning: 'secret deliberation' }),
+    says('Second.'),
+  ]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'one');
+  await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
+  await send(app, 'two');
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.body === 'Second.',
+  );
+
+  const secondCall = llm.calls[1];
+  const serialized = JSON.stringify(secondCall.messages);
+  assert.ok(!serialized.includes('secret deliberation'));
+  assert.ok(serialized.includes('First.'), 'but the reply itself is replayed');
+});
+
+test('the context carries the tree, the brief, and pinned labels', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/BRIEF.md', {
+    rawBody: 'Keep it under 200KB and playable with one hand.',
+  });
+  await app.client.json('PUT', '/api/projects/tank/files/js/game.js', { rawBody: 'let a = 1;' });
+  await app.client.json('PUT', '/api/projects/tank/files/sprite.png', {
+    rawBody: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'look at this', ['js/game.js']);
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system, messages } = llm.lastCall();
+  assert.match(system, /Keep it under 200KB/, 'the brief is injected');
+  assert.match(system, /You design games\./, 'the agent description is injected');
+  assert.match(system, /prefer patch_file/i);
+
+  const finalUser = messages.at(-1).content;
+  assert.match(finalUser, /PROJECT FILES/);
+  assert.match(finalUser, /js\/game\.js \(10 bytes\)/);
+  assert.match(finalUser, /\[pinned by the user\]/);
+  assert.match(finalUser, /\[binary: sprite\.png, 4 bytes\]/, 'binaries are named, not sent');
+  assert.match(finalUser, /look at this$/);
+});
+
+test('the studio budget stops a fire before the API is called', async (t) => {
+  const llm = createFakeLlm([says('should never run')]);
+  const { app } = await studio(t, { llm, dailyTokenBudget: 10 });
+  app.db.prepare('UPDATE studio_state SET tokens_used_today = 999 WHERE id = 1').run();
+
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, 'hello');
+
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  assert.match(banner.data.body, /out of tokens/);
+  assert.equal(llm.calls.length, 0, 'no request is made when the budget is gone');
+});
+
+test('a reply charges the budget with the cache discount applied', async (t) => {
+  const llm = createFakeLlm([says('Charged.', { tokens: 40 })]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
+
+  const state = budgetState(app.db);
+  // 100 prompt tokens, all misses, plus 40 completion.
+  assert.equal(state.used, 140);
+});
+
+test('a truncated tool call is explained rather than silently dropped', async (t) => {
+  const llm = createFakeLlm([truncated({ text: 'Writing the game...' })]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build the whole thing at once');
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  assert.match(banner.data.body, /ran out of output budget/);
+});
+
+test('the tool call limit stops the loop and says so', async (t) => {
+  // Every turn asks for another write, so only the limit ends it.
+  const llm = createFakeLlm((opts, turn) =>
+    calls([{ name: 'write_file', input: { path: `f${turn}.txt`, content: `${turn}` } }]));
+  const { app } = await studio(t, { llm, maxToolCalls: 3, maxAssistantTurns: 8 });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go forever');
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  assert.match(banner.data.body, /stopped after 3 tool calls/);
+  const listing = await app.client.json('GET', '/api/projects/tank/files');
+  assert.equal(listing.body.count, 3, 'exactly the allowance was spent');
+});
+
+test('the assistant turn limit stops the loop and says so', async (t) => {
+  const llm = createFakeLlm((opts, turn) =>
+    calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]));
+  const { app } = await studio(t, { llm, maxAssistantTurns: 3, maxToolCalls: 50 });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'loop please');
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  assert.match(banner.data.body, /stopped after 3 turns/);
+  assert.equal(llm.calls.length, 3);
+});
+
+test('an upstream failure ends the stream without a message', async (t) => {
+  // The orchestrator logs the upstream error on purpose; quiet it here so a
+  // passing run has clean output.
+  const realError = console.error;
+  console.error = () => {};
+  t.after(() => { console.error = realError; });
+
+  const { app } = await studio(t, { llm: createFailingLlm() });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  const before = app.db.prepare('SELECT COUNT(*) c FROM messages').get().c;
+  await send(app, 'go');
+  const ended = await stream.waitFor((e) => e.event === 'agent.stream.end');
+  assert.equal(ended.data.error, true);
+
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  // Only the human's own message was stored.
+  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM messages').get().c, before + 1);
+});
+
+test('an archived project never fires an agent', async (t) => {
+  const llm = createFakeLlm([says('should not run')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
+
+  const res = await send(app, 'anyone there?');
+  assert.equal(res.status, 409, 'the message itself is refused');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(llm.calls.length, 0);
+});
+
+test('a detached agent stops answering', async (t) => {
+  const llm = createFakeLlm([says('one'), says('two')]);
+  const { app, agentId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'first');
+  await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
+  await (await app.client.request('DELETE', `/api/projects/tank/agents/${agentId}`)).text();
+
+  await send(app, 'second');
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(llm.calls.length, 1);
+});
+
+test('two agents both answer the same message', async (t) => {
+  const llm = createFakeLlm([says('From one.'), says('From two.')]);
+  const { app } = await studio(t, { llm });
+  const second = await app.client.json('POST', '/api/agents', {
+    body: { name: 'Critic', description: 'You critique.' },
+  });
+  await app.client.json('POST', '/api/projects/tank/agents', {
+    body: { agent_id: second.body.id, chatty: true },
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'thoughts, everyone?');
+  await stream.waitFor((e) => e.event === 'message.new' && /From one/.test(e.data.body ?? ''));
+  await stream.waitFor((e) => e.event === 'message.new' && /From two/.test(e.data.body ?? ''));
+  assert.equal(llm.calls.length, 2);
+});
+
+test('a message posted mid-fire is picked up afterwards', async (t) => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let turn = 0;
+  const llm = {
+    calls: [],
+    stream(opts) {
+      llm.calls.push(opts);
+      const mine = turn;
+      turn += 1;
+      return (async function* generate() {
+        // Hold the first fire open so the second message arrives while it runs.
+        if (mine === 0) await gate;
+        yield { type: 'delta', text: `reply ${mine}` };
+        yield {
+          type: 'end',
+          text: `reply ${mine}`,
+          finish_reason: 'stop',
+          usage: { prompt_tokens: 10, prompt_cache_miss_tokens: 10, completion_tokens: 1 },
+        };
+      })();
+    },
+  };
+
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'first');
+  await stream.waitFor((e) => e.event === 'agent.stream.start');
+  await send(app, 'second');
+  // Still one fire in flight; the dirty bit is set for the next.
+  assert.equal(llm.calls.length, 1);
+  assert.equal(
+    app.db.prepare('SELECT response_pending FROM project_agents LIMIT 1').get().response_pending,
+    1,
+  );
+
+  release();
+  await stream.waitFor((e) => e.event === 'message.new' && /reply 1/.test(e.data.body ?? ''));
+  assert.equal(llm.calls.length, 2, 'the pending flag produced exactly one more fire');
+});

@@ -94,12 +94,35 @@ function makeClient(base) {
 }
 
 // A whole app on an ephemeral port, against in-memory SQLite and a temp
-// games directory.
-export async function setup({ llm = null, orchestrator = null, gamesUrl = 'http://games.test' } = {}) {
+// games directory. Passing an `llm` wires a real orchestrator around it;
+// cooldown defaults to 0 so a test doesn't wait five seconds between fires.
+export async function setup({
+  llm = null,
+  gamesUrl = 'http://games.test',
+  cooldownMs = 0,
+  dailyTokenBudget = undefined,
+  maxAssistantTurns = undefined,
+  maxToolCalls = undefined,
+} = {}) {
   const db = openDb(':memory:');
   const gamesDir = scratchDir('games');
   const broker = createBroker();
   const mutex = createMutex();
+  let orchestrator = null;
+  if (llm) {
+    const { createOrchestrator } = await import('../server/agents/orchestrator.js');
+    orchestrator = createOrchestrator({
+      db,
+      broker,
+      mutex,
+      llm,
+      gamesDir,
+      cooldownMs,
+      ...(dailyTokenBudget === undefined ? {} : { dailyTokenBudget }),
+      ...(maxAssistantTurns === undefined ? {} : { maxAssistantTurns }),
+      ...(maxToolCalls === undefined ? {} : { maxToolCalls }),
+    });
+  }
   const handler = createApp({
     db, broker, mutex, gamesDir, llm, orchestrator, gamesUrl,
   });
@@ -112,6 +135,7 @@ export async function setup({ llm = null, orchestrator = null, gamesUrl = 'http:
     gamesDir,
     broker,
     mutex,
+    orchestrator,
     base,
     server,
     client: makeClient(base),
