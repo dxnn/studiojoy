@@ -541,6 +541,43 @@ function renderLive(agentId, entry) {
       : tool);
 }
 
+// A message only gets an answer if some agent attached to this project is
+// eligible. Nothing in the interface used to say that, so an unanswered
+// message looked like a broken app. Two distinct gaps, two distinct fixes.
+function helperGap() {
+  if (!S.project || S.project.archived) return null;
+  if (S.project.agents.length > 0) {
+    // Attached, but every one of them is waiting to be called by name.
+    if (S.project.agents.some((a) => a.chatty)) return null;
+    const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
+    return h('div', { class: 'notice' },
+      `Your helpers only answer when you call them. Try starting your message with ${names}, `,
+      h('button', {
+        class: 'link', text: 'or set one to always answer',
+        onclick: () => { S.tab = 'agents'; S.narrowPane = 'rail'; render(); },
+      }), '.');
+  }
+  const none = S.agents.length === 0;
+  return h('div', { class: 'notice' },
+    none
+      ? 'Nobody can answer yet — this game has no helpers. '
+      : 'This game has no helpers in it yet, so nobody will answer. ',
+    h('button', {
+      class: 'link',
+      text: none ? 'Make your first helper' : 'Add a helper',
+      onclick: () => {
+        S.narrowPane = 'rail';
+        if (none) {
+          S.tab = 'agents';
+          S.dialog = { kind: 'new-agent' };
+        } else {
+          S.tab = 'agents';
+        }
+        render();
+      },
+    }), '.');
+}
+
 function renderChat() {
   const p = S.project;
   if (!p) {
@@ -586,6 +623,11 @@ function renderChat() {
     ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
     : 'Tip: pin a file on the right to point at it.';
 
+  // Without an attached helper nothing is eligible to answer, and a message
+  // just sits there. Say so before it happens rather than leaving silence to
+  // be interpreted.
+  const gap = helperGap();
+
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
     h('div', { class: 'bar' },
       h('button', { class: 'quiet only-narrow', text: '☰', onclick: () => { S.narrowPane = 'games'; render(); } }),
@@ -605,6 +647,7 @@ function renderChat() {
       })),
     scroller,
     h('div', { class: 'composer' },
+      gap,
       box,
       h('div', { class: 'row' },
         h('span', { class: 'hint', text: pinNote }),
@@ -802,15 +845,22 @@ function renderAgentsTab() {
         })));
   });
 
+  const none = S.agents.length === 0;
   return [
     h('div', { class: 'pad' },
       h('button', {
-        class: 'quiet tiny', text: '+ New helper',
+        class: none ? 'filled' : 'quiet tiny',
+        style: none ? 'width:100%' : null,
+        text: '+ New helper',
         onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
       })),
     h('div', { class: 'scroll' },
-      rows.length ? rows : h('div', { class: 'pad muted', text: 'No helpers yet. Make one and add it to a game.' }),
-      h('div', { class: 'pad hint muted', text: 'Helpers with "always answers" reply to everything. The others wait until you type @ and their name.' })),
+      rows.length
+        ? rows
+        : h('div', { class: 'pad muted stack' },
+          h('p', { text: 'A helper is someone who builds the game with you.' }),
+          h('p', { text: 'Give them a name and say what they should be like. They will join this game straight away.' })),
+      h('div', { class: 'pad hint muted', text: 'Helpers set to "always answers" reply to everything. The others wait until you type @ and their name.' })),
   ];
 }
 
@@ -981,6 +1031,16 @@ function dialogFor(d) {
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that helper.'; return; }
           close();
           await loadAgents();
+          // You almost always make a helper because you want it in the game
+          // you are looking at. Requiring a second "add to this game" click
+          // was the trap that made a new studio look broken.
+          if (S.slug && !S.project?.archived) {
+            await api('POST', `/api/projects/${S.slug}/agents`, {
+              agent_id: res.body.id, chatty: true,
+            });
+            await openProject(S.slug, { push: false });
+            say(`${res.body.name} joined this game and will answer your messages.`);
+          }
           render();
         },
       })));
