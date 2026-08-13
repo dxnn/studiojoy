@@ -94,6 +94,19 @@ button.link {
 }
 button.link:hover:not(:disabled) { background: none; filter: brightness(1.1); }
 button.tiny { padding: 2px 8px; font-size: 13px; }
+/* A borderless button that only shows itself on hover: for the pencils, the
+   ✕s, and the sidebar toggles, where a full outline would be noise. */
+button.icon {
+  border-color: transparent;
+  color: var(--muted);
+  padding: 2px 7px;
+  line-height: 1.2;
+}
+button.icon:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 input, textarea, select {
   background: var(--panel);
@@ -145,9 +158,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* Shell ------------------------------------------------------------------- */
 
+/* Both side columns are adjustable: the left one collapses to nothing, the
+   right one is dragged by its grip and remembered in localStorage. */
 .app {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 360px;
+  grid-template-columns: var(--side, 240px) minmax(0, 1fr) var(--rail, 360px);
   height: 100vh;
   height: 100dvh;
   min-height: 0;
@@ -161,6 +176,19 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: var(--panel);
 }
 .pane + .pane { border-left: 1px solid var(--border); }
+.pane.rail { position: relative; }
+
+.rail-grip {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+.rail-grip:hover, .rail-grip:active { background: var(--accent-soft); }
 
 .bar {
   min-height: 52px;
@@ -184,7 +212,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   font-style: italic;
   line-height: 1;
 }
-.bar .spacer { flex: 1; }
+.bar.brand-bar .icon { color: var(--accent-ink); }
+.bar.brand-bar .icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.spacer { flex: 1; }
 .bar .title {
   font-weight: 600;
   overflow: hidden;
@@ -239,6 +273,35 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
 
+/* Helpers live in the sidebar because they belong to the studio, not to one
+   game. The list is bounded so the game list always keeps most of the pane. */
+.helpers {
+  flex: 0 1 auto;
+  overflow-y: auto;
+  max-height: 30vh;
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
+}
+.helper { display: flex; align-items: center; gap: 4px; padding: 1px 8px 1px 14px; }
+.helper:hover { background: var(--hover); }
+.helper .hname {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  color: inherit;
+  padding: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.helper .hname:hover:not(:disabled) { background: none; color: var(--accent); }
+/* Being in the game is the good state, so it must not read as disabled. */
+.helper .hname:disabled { opacity: 1; cursor: default; }
+.helper.here .hname { color: var(--agent); font-weight: 600; }
+.helper .dot { font-size: 9px; margin-right: 5px; vertical-align: middle; }
+
 .tag {
   font-size: 11px;
   border-radius: 999px;
@@ -251,6 +314,35 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .tag.on { background: var(--agent); color: #fff; }
 
 /* Chat -------------------------------------------------------------------- */
+
+/* One chip per helper in this game. The name toggles how they answer, the ✕
+   takes them out; the chip strip scrolls sideways rather than growing the
+   title bar. */
+.hchips {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.hchip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  white-space: nowrap;
+}
+.hchip.on { border-color: var(--agent); background: var(--agent-soft); }
+.hchip button { border: none; background: none; font-size: 12px; border-radius: 999px; }
+.hchip button:hover:not(:disabled) { background: none; }
+.hchip .hchip-name { color: var(--muted); padding: 2px 4px 2px 10px; }
+.hchip .hchip-name:hover:not(:disabled) { color: var(--accent); }
+.hchip.on .hchip-name { color: var(--agent); font-weight: 600; }
+.hchip .hchip-x { color: var(--muted); font-size: 11px; padding: 2px 9px 2px 4px; }
+.hchip .hchip-x:hover:not(:disabled) { color: var(--danger); }
 
 .messages { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -344,6 +436,14 @@ details.thinking .trace {
 .tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 .tree { padding: 6px 0; }
+/* With a file open the list keeps about five rows — a row is 13px/1.55 text
+   plus 8px of padding — and the editor below it gets the rest of the pane. */
+.tree.short {
+  flex: 0 0 auto;
+  max-height: 152px;
+  border-bottom: 1px solid var(--border);
+}
+.grow { flex: 1; }
 .file {
   display: flex;
   align-items: center;
@@ -374,7 +474,7 @@ details.thinking .trace {
 .editor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .editor textarea {
   flex: 1;
-  min-height: 220px;
+  min-height: 120px;
   font-family: var(--mono);
   font-size: 13px;
   line-height: 1.5;
@@ -453,14 +553,27 @@ pre.diff .hunk { color: var(--accent); }
 
 /* Narrow ------------------------------------------------------------------ */
 
+/* Collapsing only means anything where the three panes are side by side; on a
+   narrow screen the panes already take turns. */
+@media (min-width: 861px) {
+  /* Two panes left, so two columns: a zero-width first column would just be
+     handed to the chat by grid auto-placement. */
+  .app.side-closed { grid-template-columns: minmax(0, 1fr) var(--rail, 360px); }
+  .app.side-closed > .pane.side { display: none; }
+  .app.side-closed > .pane.chat { border-left: none; }
+}
 @media (max-width: 1100px) {
-  .app { grid-template-columns: 200px minmax(0, 1fr) 300px; }
+  .app { --side: 200px; }
 }
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .app > .pane { display: none; }
   .app > .pane.show { display: flex; }
   .pane + .pane { border-left: none; }
+  .rail-grip { display: none; }
+  .helpers { max-height: 40vh; }
 }
 .only-narrow { display: none; }
 @media (max-width: 860px) { .only-narrow { display: inline-flex; } }
+.only-wide { display: inline-flex; }
+@media (max-width: 860px) { .only-wide { display: none; } }

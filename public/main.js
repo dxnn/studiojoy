@@ -22,6 +22,29 @@ function h(tag, props, ...kids) {
   return el;
 }
 
+/* Saved preferences -------------------------------------------------------- */
+
+// Layout is a per-person, per-device choice, so it lives in localStorage
+// rather than in the database.
+const prefs = {
+  get(key, fallback) {
+    try { return localStorage.getItem(`gs.${key}`) ?? fallback; } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(`gs.${key}`, String(value)); } catch { /* private mode */ }
+  },
+};
+
+const RAIL_MIN = 280;
+const RAIL_MAX = 900;
+
+// The rail may never squeeze the chat below a readable width, whatever is
+// stored or dragged.
+function railClamp(px) {
+  const max = Math.max(RAIL_MIN, Math.min(RAIL_MAX, window.innerWidth - 420));
+  return Math.min(max, Math.max(RAIL_MIN, Number.isFinite(px) ? px : 360));
+}
+
 /* State ------------------------------------------------------------------- */
 
 const S = {
@@ -45,6 +68,8 @@ const S = {
   previewNonce: 0,
   autoscroll: true,
   narrowPane: 'chat',
+  sidebar: prefs.get('sidebar', 'open') !== 'closed',
+  railWidth: railClamp(Number(prefs.get('rail', '360'))),
 };
 
 const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
@@ -408,6 +433,67 @@ async function restore(sha, path) {
   say(`Brought ${path} back to an earlier version.`);
 }
 
+/* Helpers ----------------------------------------------------------------- */
+
+// Attaching, detaching and toggling all edit the open project's own copy of
+// its agent list rather than refetching it. A refetch would throw away the
+// open file, the pins, and anything mid-stream.
+async function attachAgent(agent) {
+  const res = await api('POST', `/api/projects/${S.slug}/agents`, {
+    agent_id: agent.id, chatty: true,
+  });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not add that helper.', true);
+    return;
+  }
+  S.project.agents.push({
+    agent_id: agent.id,
+    name: agent.name,
+    model: agent.model,
+    reasoning: agent.reasoning,
+    file_tools: agent.file_tools,
+    chatty: true,
+    responding: false,
+  });
+  S.project.agents.sort((a, b) => a.name.localeCompare(b.name));
+  say(`${agent.name} joined this game and will answer your messages.`);
+}
+
+async function detachAgent(a) {
+  const res = await api('DELETE', `/api/projects/${S.slug}/agents/${a.agent_id}`);
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not take that helper out.', true);
+    return;
+  }
+  S.project.agents = S.project.agents.filter((x) => x.agent_id !== a.agent_id);
+  say(`${a.name} is no longer in this game.`);
+}
+
+async function toggleChatty(a) {
+  const res = await api('PATCH', `/api/projects/${S.slug}/agents/${a.agent_id}`, {
+    chatty: !a.chatty,
+  });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not change that helper.', true);
+    return;
+  }
+  a.chatty = !a.chatty;
+  say(a.chatty
+    ? `${a.name} will answer every message.`
+    : `${a.name} will wait until you type @${a.name.split(' ')[0]}.`);
+}
+
+// The project payload carries its own copy of each attached helper's details,
+// so a studio-wide edit or delete has to be mirrored into it.
+function syncAttached() {
+  if (!S.project) return;
+  const byId = new Map(S.agents.map((a) => [a.id, a]));
+  S.project.agents = S.project.agents
+    .filter((a) => byId.has(a.agent_id))
+    .map((a) => ({ ...a, name: byId.get(a.agent_id).name, model: byId.get(a.agent_id).model }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /* Messages ---------------------------------------------------------------- */
 
 async function sendMessage(text) {
@@ -467,9 +553,14 @@ function renderSidebar() {
   h('div', { class: 'item-name', text: p.name }),
   h('div', { class: 'item-sub', text: p.preview || 'No messages yet' })));
 
-  return h('div', { class: `pane${S.narrowPane === 'games' ? ' show' : ''}` },
+  return h('div', { class: `pane side${S.narrowPane === 'games' ? ' show' : ''}` },
     h('div', { class: 'bar brand-bar' },
-      h('div', { class: 'brand', text: 'Game Studio' })),
+      h('div', { class: 'brand', text: 'Game Studio' }),
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'icon only-wide', text: '«', title: 'Hide this list',
+        onclick: () => { S.sidebar = false; prefs.set('sidebar', 'closed'); render(); },
+      })),
     h('div', { class: 'pad' },
       h('button', {
         class: 'filled', style: 'width:100%',
@@ -479,6 +570,7 @@ function renderSidebar() {
     h('div', { class: 'section-label', text: 'Games' }),
     h('div', { class: 'scroll' },
       rows.length ? rows : h('div', { class: 'pad muted', text: 'No games yet. Make one!' })),
+    renderHelperList(),
     h('div', { class: 'who' },
       h('div', { class: 'name', text: S.me.display_name }),
       h('button', {
@@ -486,6 +578,45 @@ function renderSidebar() {
         onclick: async () => { await api('POST', '/api/logout'); location.href = '/'; },
       })),
   );
+}
+
+// Helpers belong to the studio, not to one game, so they live beside the game
+// list. Which game a helper is *in* is shown and changed in that game's title
+// bar instead.
+function renderHelperList() {
+  const attached = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
+  const canAdd = Boolean(S.project) && !S.project.archived;
+
+  const rows = S.agents.map((agent) => {
+    const here = attached.has(agent.id);
+    return h('div', { class: `helper${here ? ' here' : ''}` },
+      h('button', {
+        class: 'hname',
+        title: here
+          ? `${agent.name} is in this game`
+          : (canAdd ? `Put ${agent.name} in this game` : agent.name),
+        disabled: here || !canAdd,
+        onclick: () => attachAgent(agent),
+      }, here ? h('span', { class: 'dot', text: '●' }) : null, agent.name),
+      h('button', {
+        class: 'icon tiny', text: '✎', title: `Change ${agent.name}`,
+        onclick: () => { S.dialog = { kind: 'edit-agent', agent }; render(); },
+      }));
+  });
+
+  return [
+    h('div', { class: 'section-label row' },
+      h('span', { text: 'Helpers' }),
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'icon tiny', text: '+', title: 'Make a new helper',
+        onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
+      })),
+    h('div', { class: 'helpers' },
+      rows.length
+        ? rows
+        : h('div', { class: 'pad hint muted', text: 'No helpers yet. Make one with +.' })),
+  ];
 }
 
 /* Render: chat ------------------------------------------------------------ */
@@ -552,10 +683,7 @@ function helperGap() {
     const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
     return h('div', { class: 'notice' },
       `Your helpers only answer when you call them. Try starting your message with ${names}, `,
-      h('button', {
-        class: 'link', text: 'or set one to always answer',
-        onclick: () => { S.tab = 'agents'; S.narrowPane = 'rail'; render(); },
-      }), '.');
+      'or click a helper’s name at the top to make them always answer.');
   }
   const none = S.agents.length === 0;
   return h('div', { class: 'notice' },
@@ -566,13 +694,11 @@ function helperGap() {
       class: 'link',
       text: none ? 'Make your first helper' : 'Add a helper',
       onclick: () => {
-        S.narrowPane = 'rail';
-        if (none) {
-          S.tab = 'agents';
-          S.dialog = { kind: 'new-agent' };
-        } else {
-          S.tab = 'agents';
-        }
+        // Both answers live in the sidebar, so make sure it is showing.
+        S.narrowPane = 'games';
+        S.sidebar = true;
+        prefs.set('sidebar', 'open');
+        if (none) S.dialog = { kind: 'new-agent' };
         render();
       },
     }), '.');
@@ -584,6 +710,10 @@ function renderChat() {
     return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
       h('div', { class: 'bar' },
         h('button', { class: 'quiet only-narrow', text: '☰ Games', onclick: () => { S.narrowPane = 'games'; render(); } }),
+        !S.sidebar && h('button', {
+          class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
+          onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
+        }),
         h('div', { class: 'title', text: 'Game Studio' })),
       h('div', { class: 'scroll pad muted' },
         h('p', { text: 'Pick a game on the left, or make a new one.' }),
@@ -628,21 +758,41 @@ function renderChat() {
   // be interpreted.
   const gap = helperGap();
 
+  // One chip per helper in this game: the name toggles between answering
+  // everything and waiting to be called, the ✕ takes them out.
+  const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
+    h('button', {
+      class: 'hchip-name', text: a.name, disabled: p.archived,
+      title: a.chatty
+        ? `${a.name} answers everything — click to make them wait for @${a.name.split(' ')[0]}`
+        : `${a.name} waits to be called — click to make them answer everything`,
+      onclick: () => toggleChatty(a),
+    }),
+    h('button', {
+      class: 'hchip-x', text: '✕', disabled: p.archived,
+      title: `Take ${a.name} out of this game`,
+      onclick: () => detachAgent(a),
+    })));
+
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
     h('div', { class: 'bar' },
       h('button', { class: 'quiet only-narrow', text: '☰', onclick: () => { S.narrowPane = 'games'; render(); } }),
+      !S.sidebar && h('button', {
+        class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
+        onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
+      }),
       h('div', { class: 'title', text: p.name }),
-      p.archived && h('span', { class: 'tag', text: 'archived' }),
-      h('div', { class: 'spacer' }),
-      h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
       h('button', {
-        class: 'quiet tiny', text: 'Rename',
+        class: 'icon tiny', text: '✎', title: 'Rename this game',
         onclick: () => { S.dialog = { kind: 'rename' }; render(); },
       }),
-      h('button', {
-        class: 'quiet tiny',
-        text: p.archived ? 'Reopen' : 'Finish',
-        title: p.archived ? 'Start working on this again' : 'Mark this game done and stop changes',
+      p.archived && h('span', { class: 'tag', text: 'archived' }),
+      chips.length ? h('div', { class: 'hchips' }, chips) : null,
+      h('div', { class: 'spacer' }),
+      h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
+      p.archived && h('button', {
+        class: 'quiet tiny', text: 'Reopen',
+        title: 'Start working on this again',
         onclick: () => { S.dialog = { kind: 'archive' }; render(); },
       })),
     scroller,
@@ -681,7 +831,7 @@ function renderFilesTab() {
   const editor = [];
   if (S.open) {
     if (S.open.content === null) {
-      editor.push(h('div', { class: 'pad muted', text: `${S.open.path} is a picture or sound, so there is nothing to edit here.` }));
+      editor.push(h('div', { class: 'pad muted grow', text: `${S.open.path} is a picture or sound, so there is nothing to edit here.` }));
     } else {
       const area = h('textarea', {
         spellcheck: 'false',
@@ -728,10 +878,11 @@ function renderFilesTab() {
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })
         : null),
-    h('div', { class: 'scroll' },
-      h('div', { class: 'tree' },
-        rows.length ? rows : h('div', { class: 'pad muted', text: 'No files yet. Ask a helper to make one.' })),
-      ...editor),
+    // With a file open the list shrinks to about five rows and the editor
+    // takes everything else; with nothing open the list fills the pane.
+    h('div', { class: `tree scroll${S.open ? ' short' : ''}` },
+      rows.length ? rows : h('div', { class: 'pad muted', text: 'No files yet. Ask a helper to make one.' })),
+    ...editor,
   ];
 }
 
@@ -796,76 +947,32 @@ function renderVersionsTab() {
       : null)];
 }
 
-function renderAgentsTab() {
-  const attached = new Map(S.project.agents.map((a) => [a.agent_id, a]));
-
-  const rows = S.agents.map((agent) => {
-    const here = attached.get(agent.id);
-    return h('div', { class: 'commit' },
-      h('div', { class: 'row' },
-        h('div', { class: 'subject', style: 'flex:1', text: agent.name }),
-        here
-          ? h('span', { class: `tag agent${here.chatty ? ' on' : ''}`, text: here.chatty ? 'always answers' : 'when called' })
-          : null),
-      h('div', { class: 'meta', text: `${agent.model.replace('deepseek-v4-', '')}${agent.reasoning ? ' · thinks first' : ''}${agent.file_tools ? ' · can edit files' : ' · talks only'}` }),
-      h('div', { class: 'row', style: 'margin-top:5px' },
-        here
-          ? h('button', {
-            class: 'quiet tiny',
-            text: here.chatty ? 'Only when called' : 'Always answer',
-            disabled: S.project.archived,
-            onclick: async () => {
-              await api('PATCH', `/api/projects/${S.slug}/agents/${agent.id}`, { chatty: !here.chatty });
-              await openProject(S.slug, { push: false });
-            },
-          })
-          : null,
-        here
-          ? h('button', {
-            class: 'quiet tiny', text: 'Remove', disabled: S.project.archived,
-            onclick: async () => {
-              await api('DELETE', `/api/projects/${S.slug}/agents/${agent.id}`);
-              await openProject(S.slug, { push: false });
-            },
-          })
-          : h('button', {
-            class: 'quiet tiny', text: 'Add to this game', disabled: S.project.archived,
-            onclick: async () => {
-              const res = await api('POST', `/api/projects/${S.slug}/agents`, {
-                agent_id: agent.id, chatty: true,
-              });
-              if (!res.ok) say(res.body?.error ?? 'Could not add that helper.', true);
-              await openProject(S.slug, { push: false });
-            },
-          }),
-        h('div', { class: 'spacer' }),
-        h('button', {
-          class: 'danger tiny', text: 'Delete helper',
-          onclick: () => { S.dialog = { kind: 'delete-agent', agent }; render(); },
-        })));
+// Drag the rail's left edge. Pointer capture keeps the drag on this element,
+// and the width is written straight to the shell as a CSS variable so a drag
+// never re-renders the pane it is resizing.
+function railGrip() {
+  const grip = h('div', { class: 'rail-grip', title: 'Drag to make this wider or narrower' });
+  grip.addEventListener('pointerdown', (down) => {
+    down.preventDefault();
+    grip.setPointerCapture(down.pointerId);
+    const app = document.querySelector('.app');
+    const move = (event) => {
+      S.railWidth = railClamp(window.innerWidth - event.clientX);
+      app.style.setProperty('--rail', `${S.railWidth}px`);
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      prefs.set('rail', S.railWidth);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
   });
-
-  const none = S.agents.length === 0;
-  return [
-    h('div', { class: 'pad' },
-      h('button', {
-        class: none ? 'filled' : 'quiet tiny',
-        style: none ? 'width:100%' : null,
-        text: '+ New helper',
-        onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
-      })),
-    h('div', { class: 'scroll' },
-      rows.length
-        ? rows
-        : h('div', { class: 'pad muted stack' },
-          h('p', { text: 'A helper is someone who builds the game with you.' }),
-          h('p', { text: 'Give them a name and say what they should be like. They will join this game straight away.' })),
-      h('div', { class: 'pad hint muted', text: 'Helpers set to "always answers" reply to everything. The others wait until you type @ and their name.' })),
-  ];
+  return grip;
 }
 
 function renderRail() {
-  if (!S.project) return h('div', { class: 'pane' });
+  if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
 
   const tab = (id, label) => h('button', {
     class: `tiny${S.tab === id ? ' on' : ''}`,
@@ -878,17 +985,16 @@ function renderRail() {
   });
 
   let body = [];
-  if (S.tab === 'files') body = renderFilesTab();
-  else if (S.tab === 'play') body = renderPlayTab();
+  if (S.tab === 'play') body = renderPlayTab();
   else if (S.tab === 'versions') body = renderVersionsTab();
-  else body = renderAgentsTab();
+  else body = renderFilesTab();
 
-  return h('div', { class: `pane${S.narrowPane === 'rail' ? ' show' : ''}` },
+  return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
+    railGrip(),
     h('div', { class: 'bar' },
       h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
       h('div', { class: 'tabs' },
-        tab('files', 'Files'), tab('play', 'Play'),
-        tab('versions', 'Versions'), tab('agents', 'Helpers'))),
+        tab('files', 'Files'), tab('play', 'Play'), tab('versions', 'Versions'))),
     ...body);
 }
 
@@ -939,18 +1045,15 @@ function dialogFor(d) {
       })));
   }
 
+  // Only reachable for a game that is already archived: nothing in the
+  // interface archives one any more.
   if (d.kind === 'archive') {
-    const finishing = !S.project.archived;
-    return wrap(finishing ? 'Finish this game?' : 'Work on this again?',
-      h('p', {
-        text: finishing
-          ? 'Nobody will be able to change it, and helpers will stop replying. People can still play it, and you can reopen it any time.'
-          : 'You will be able to change files and talk to helpers again.',
-      }),
+    return wrap('Work on this again?',
+      h('p', { text: 'You will be able to change files and talk to helpers again.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: finishing ? 'Finish it' : 'Reopen it',
+        class: 'filled', text: 'Reopen it',
         onclick: async () => {
-          await api('POST', `/api/projects/${S.slug}/archive`, { archived: finishing });
+          await api('POST', `/api/projects/${S.slug}/archive`, { archived: false });
           close();
           await openProject(S.slug, { push: false });
         },
@@ -999,7 +1102,8 @@ function dialogFor(d) {
         })));
   }
 
-  if (d.kind === 'new-agent') {
+  if (d.kind === 'new-agent' || d.kind === 'edit-agent') {
+    const editing = d.kind === 'edit-agent';
     const name = h('input', { placeholder: 'Level Designer' });
     const description = h('textarea', {
       rows: '5',
@@ -1010,40 +1114,54 @@ function dialogFor(d) {
       h('option', { value: 'deepseek-v4-pro', text: 'Pro — slower, better at hard things' }));
     const reasoning = h('input', { type: 'checkbox', checked: true });
     const fileTools = h('input', { type: 'checkbox', checked: true });
+    if (editing) {
+      name.value = d.agent.name;
+      description.value = d.agent.description;
+      model.value = d.agent.model;
+      reasoning.checked = d.agent.reasoning;
+      fileTools.checked = d.agent.file_tools;
+    }
     const err = h('p', { class: 'error' });
-    return wrap('New helper',
+    return wrap(editing ? `Change ${d.agent.name}` : 'New helper',
       h('label', { text: 'Name (this is what you @ to call them)' }), name,
       h('label', { text: 'What should they be like?' }), description,
       h('label', { text: 'Brain' }), model,
       h('label', { class: 'row' }, reasoning, ' Think before answering'),
       h('label', { class: 'row' }, fileTools, ' Allowed to change files'),
       err,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make helper',
-        onclick: async () => {
-          const res = await api('POST', '/api/agents', {
-            name: name.value.trim(),
-            description: description.value.trim(),
-            model: model.value,
-            reasoning: reasoning.checked,
-            file_tools: fileTools.checked,
-          });
-          if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that helper.'; return; }
-          close();
-          await loadAgents();
-          // You almost always make a helper because you want it in the game
-          // you are looking at. Requiring a second "add to this game" click
-          // was the trap that made a new studio look broken.
-          if (S.slug && !S.project?.archived) {
-            await api('POST', `/api/projects/${S.slug}/agents`, {
-              agent_id: res.body.id, chatty: true,
-            });
-            await openProject(S.slug, { push: false });
-            say(`${res.body.name} joined this game and will answer your messages.`);
-          }
-          render();
-        },
-      })));
+      h('div', { class: 'actions' },
+        editing
+          ? h('button', {
+            class: 'danger', text: 'Delete helper',
+            onclick: () => { S.dialog = { kind: 'delete-agent', agent: d.agent }; render(); },
+          })
+          : null,
+        editing ? h('div', { class: 'spacer' }) : null,
+        cancel,
+        h('button', {
+          class: 'filled', text: editing ? 'Save' : 'Make helper',
+          onclick: async () => {
+            const body = {
+              name: name.value.trim(),
+              description: description.value.trim(),
+              model: model.value,
+              reasoning: reasoning.checked,
+              file_tools: fileTools.checked,
+            };
+            const res = editing
+              ? await api('PATCH', `/api/agents/${d.agent.id}`, body)
+              : await api('POST', '/api/agents', body);
+            if (!res.ok) { err.textContent = res.body?.error ?? 'Could not save that helper.'; return; }
+            close();
+            await loadAgents();
+            syncAttached();
+            // You almost always make a helper because you want it in the game
+            // you are looking at. Requiring a second "add to this game" click
+            // was the trap that made a new studio look broken.
+            if (!editing && S.slug && !S.project?.archived) await attachAgent(res.body);
+            render();
+          },
+        })));
   }
 
   if (d.kind === 'delete-agent') {
@@ -1055,7 +1173,8 @@ function dialogFor(d) {
           await api('DELETE', `/api/agents/${d.agent.id}`);
           close();
           await loadAgents();
-          if (S.slug) await openProject(S.slug, { push: false });
+          syncAttached();
+          render();
         },
       })));
   }
@@ -1077,7 +1196,10 @@ function render() {
     return;
   }
 
-  const app = h('div', { class: 'app' }, renderSidebar(), renderChat(), renderRail());
+  const app = h('div', {
+    class: `app${S.sidebar ? '' : ' side-closed'}`,
+    style: `--rail:${S.railWidth}px`,
+  }, renderSidebar(), renderChat(), renderRail());
   root.append(app);
 
   if (S.banner) {
