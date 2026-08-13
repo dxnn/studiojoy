@@ -2,17 +2,19 @@ import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
+import { MODEL_IDS } from '../llm/deepseek.js';
 import { requireProject, requireString, optionalBool } from './helpers.js';
 
 const MAX_AGENT_NAME = 100;
 const MAX_DESCRIPTION = 8 * 1024;
 const MAX_AGENTS_PER_PROJECT = 10;
 
-// The two canonical model ids, verified against /v1/models (spec.md §14).
-// The deepseek-chat / deepseek-reasoner aliases are deliberately not offered:
-// they are undocumented, both resolve to flash, and differ only in reasoning,
-// which is a separate column here.
-export const MODELS = new Set(['deepseek-v4-flash', 'deepseek-v4-pro']);
+// The canonical model ids, verified against /v1/models (spec.md §14) and
+// defined next to the client that talks to them. The deepseek-chat and
+// deepseek-reasoner aliases are deliberately not offered: they are
+// undocumented, both resolve to flash, and differ only in reasoning, which is
+// a separate column here.
+const MODELS = new Set(MODEL_IDS);
 
 function agentPublic(row) {
   return {

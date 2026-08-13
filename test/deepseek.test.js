@@ -1,0 +1,310 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  createDeepSeek, tokensCharged, LlmError, MODEL_IDS,
+  DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS,
+} from '../server/llm/deepseek.js';
+
+// Build an SSE body from chunk objects. `sliceAt` emits the bytes in small
+// pieces so the parser is exercised on frames split mid-JSON, which is what
+// a real socket does.
+function sseBody(chunks, { sliceSize = 0, withDone = true } = {}) {
+  const text = chunks
+    .map((c) => `data: ${typeof c === 'string' ? c : JSON.stringify(c)}\n\n`)
+    .join('') + (withDone ? 'data: [DONE]\n\n' : '');
+  const bytes = new TextEncoder().encode(text);
+  return new ReadableStream({
+    start(controller) {
+      if (sliceSize <= 0) {
+        controller.enqueue(bytes);
+      } else {
+        for (let i = 0; i < bytes.length; i += sliceSize) {
+          controller.enqueue(bytes.slice(i, i + sliceSize));
+        }
+      }
+      controller.close();
+    },
+  });
+}
+
+function fakeFetch(chunks, opts = {}) {
+  const calls = [];
+  const impl = async (url, init) => {
+    calls.push({ url, init, body: JSON.parse(init.body) });
+    if (opts.status && opts.status !== 200) {
+      return new Response(JSON.stringify(opts.errorBody ?? {}), {
+        status: opts.status, headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(sseBody(chunks, opts), {
+      status: 200, headers: { 'content-type': 'text/event-stream' },
+    });
+  };
+  impl.calls = calls;
+  return impl;
+}
+
+const textChunk = (content) => ({
+  choices: [{ index: 0, delta: { content }, finish_reason: null }],
+});
+const reasoningChunk = (reasoning_content) => ({
+  choices: [{ index: 0, delta: { reasoning_content }, finish_reason: null }],
+});
+const finalChunk = (finish_reason = 'stop', usage = null) => ({
+  choices: [{ index: 0, delta: {}, finish_reason }],
+  ...(usage ? { usage } : {}),
+});
+const toolChunk = (index, patch) => ({
+  choices: [{ index: 0, delta: { tool_calls: [{ index, ...patch }] } }],
+});
+
+async function collect(client, opts = {}) {
+  const events = [];
+  for await (const event of client.stream({ messages: [{ role: 'user', content: 'hi' }], ...opts })) {
+    events.push(event);
+  }
+  return events;
+}
+
+test('text deltas stream and the end event carries the whole reply', async () => {
+  const fetchImpl = fakeFetch([
+    textChunk('Hello'), textChunk(' '), textChunk('world'),
+    finalChunk('stop', { prompt_tokens: 9, completion_tokens: 3, total_tokens: 12 }),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+
+  assert.deepEqual(
+    events.filter((e) => e.type === 'delta').map((e) => e.text),
+    ['Hello', ' ', 'world'],
+  );
+  const end = events.at(-1);
+  assert.equal(end.type, 'end');
+  assert.equal(end.text, 'Hello world');
+  assert.equal(end.finish_reason, 'stop');
+  assert.equal(end.usage.completion_tokens, 3);
+});
+
+test('a reasoning trace is its own event and stays out of the reply', async () => {
+  const fetchImpl = fakeFetch([
+    reasoningChunk('Let me think. '), reasoningChunk('91 = 7 x 13.'),
+    textChunk('No'), finalChunk(),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+
+  assert.deepEqual(
+    events.filter((e) => e.type === 'reasoning').map((e) => e.text),
+    ['Let me think. ', '91 = 7 x 13.'],
+  );
+  const end = events.at(-1);
+  assert.equal(end.text, 'No', 'the trace must not leak into the persisted reply');
+});
+
+test('tool call fragments are reassembled and parsed', async () => {
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'call_1', type: 'function', function: { name: 'write_file', arguments: '' } }),
+    toolChunk(0, { function: { arguments: '{"path": "index' } }),
+    toolChunk(0, { function: { arguments: '.html", "content"' } }),
+    toolChunk(0, { function: { arguments: ': "<h1>Hi</h1>"}' } }),
+    finalChunk('tool_calls'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+
+  const call = events.find((e) => e.type === 'tool_use');
+  assert.equal(call.id, 'call_1');
+  assert.equal(call.name, 'write_file');
+  assert.deepEqual(call.input, { path: 'index.html', content: '<h1>Hi</h1>' });
+  assert.equal(events.at(-1).finish_reason, 'tool_calls');
+});
+
+test('parallel tool calls come out in index order', async () => {
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'c0', function: { name: 'write_file', arguments: '{"path":"a.txt",' } }),
+    toolChunk(1, { id: 'c1', function: { name: 'write_file', arguments: '{"path":"b.txt",' } }),
+    toolChunk(1, { function: { arguments: '"content":"B"}' } }),
+    toolChunk(0, { function: { arguments: '"content":"A"}' } }),
+    finalChunk('tool_calls'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+
+  const calls = events.filter((e) => e.type === 'tool_use');
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls.map((c) => c.input.path), ['a.txt', 'b.txt']);
+  assert.deepEqual(calls.map((c) => c.input.content), ['A', 'B']);
+});
+
+// Truncation mid tool call: the non-streaming API drops the call, but
+// streaming has already delivered fragments, so the leftovers won't parse.
+test('truncated tool arguments surface as a failure, not a silent drop', async () => {
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'c0', function: { name: 'write_file', arguments: '{"path":"game.html","content":"<html' } }),
+    finalChunk('length'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+
+  const failed = events.find((e) => e.type === 'tool_use_failed');
+  assert.equal(failed.name, 'write_file');
+  assert.match(failed.reason, /truncated/);
+  assert.equal(events.find((e) => e.type === 'tool_use'), undefined);
+  assert.equal(events.at(-1).finish_reason, 'length');
+});
+
+test('frames split across arbitrary byte boundaries still parse', async () => {
+  const chunks = [
+    reasoningChunk('thinking'),
+    textChunk('Hello'),
+    toolChunk(0, { id: 'c0', function: { name: 'write_file', arguments: '{"path":"a.txt","content":"A"}' } }),
+    finalChunk('tool_calls', { prompt_tokens: 5, completion_tokens: 2 }),
+  ];
+  // One byte at a time is the pathological case.
+  for (const sliceSize of [1, 3, 17]) {
+    const fetchImpl = fakeFetch(chunks, { sliceSize });
+    const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+    assert.equal(events.find((e) => e.type === 'delta').text, 'Hello', `slice ${sliceSize}`);
+    assert.deepEqual(
+      events.find((e) => e.type === 'tool_use').input,
+      { path: 'a.txt', content: 'A' },
+      `slice ${sliceSize}`,
+    );
+    assert.equal(events.at(-1).usage.completion_tokens, 2);
+  }
+});
+
+test('an unparseable frame is skipped rather than fatal', async () => {
+  const fetchImpl = fakeFetch([
+    textChunk('before'), '{not json at all', textChunk('after'), finalChunk(),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+  assert.equal(events.at(-1).text, 'beforeafter');
+});
+
+test('a stream that stops without [DONE] still ends cleanly', async () => {
+  const fetchImpl = fakeFetch(
+    [textChunk('partial'), finalChunk('stop')], { withDone: false },
+  );
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+  const end = events.at(-1);
+  assert.equal(end.type, 'end');
+  assert.equal(end.text, 'partial');
+});
+
+test('an error response becomes an LlmError carrying the API message', async () => {
+  const fetchImpl = fakeFetch([], {
+    status: 400,
+    errorBody: {
+      error: {
+        message: 'The supported API model names are deepseek-v4-pro or deepseek-v4-flash',
+        type: 'invalid_request_error',
+        code: 'invalid_request_error',
+      },
+    },
+  });
+  await assert.rejects(
+    () => collect(createDeepSeek({ apiKey: 'k', fetchImpl })),
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.equal(err.status, 400);
+      assert.equal(err.type, 'invalid_request_error');
+      assert.match(err.message, /deepseek-v4-flash/);
+      return true;
+    },
+  );
+});
+
+test('a 401 is reported as such', async () => {
+  const fetchImpl = fakeFetch([], {
+    status: 401,
+    errorBody: { error: { message: 'Authentication Fails', type: 'authentication_error' } },
+  });
+  await assert.rejects(
+    () => collect(createDeepSeek({ apiKey: 'bad', fetchImpl })),
+    (err) => err.status === 401 && /Authentication Fails/.test(err.message),
+  );
+});
+
+test('a transport failure is wrapped rather than leaking', async () => {
+  const fetchImpl = async () => {
+    throw new Error('ECONNREFUSED');
+  };
+  await assert.rejects(
+    () => collect(createDeepSeek({ apiKey: 'k', fetchImpl })),
+    (err) => err instanceof LlmError && /request failed/.test(err.message),
+  );
+});
+
+test('the request body matches what the API expects', async () => {
+  const fetchImpl = fakeFetch([finalChunk()]);
+  const client = createDeepSeek({ apiKey: 'secret-key', fetchImpl });
+  await collect(client, {
+    model: 'deepseek-v4-pro',
+    system: 'You edit game files.',
+    tools: [{ type: 'function', function: { name: 'write_file' } }],
+  });
+
+  const { url, init, body } = fetchImpl.calls[0];
+  assert.match(url, /\/chat\/completions$/);
+  assert.equal(init.headers.Authorization, 'Bearer secret-key');
+  assert.equal(body.model, 'deepseek-v4-pro');
+  assert.equal(body.stream, true);
+  // Without include_usage the final chunk carries no usage and the budget
+  // cannot be charged.
+  assert.deepEqual(body.stream_options, { include_usage: true });
+  assert.equal(body.max_tokens, DEFAULT_MAX_TOKENS);
+  assert.equal(body.messages[0].role, 'system');
+  assert.equal(body.messages[1].content, 'hi');
+  assert.equal(body.tools.length, 1);
+  // Reasoning is on by default, so the parameter is absent.
+  assert.equal('reasoning_effort' in body, false);
+});
+
+test('reasoning is disabled with reasoning_effort none', async () => {
+  const fetchImpl = fakeFetch([finalChunk()]);
+  await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { reasoning: false });
+  assert.equal(fetchImpl.calls[0].body.reasoning_effort, 'none');
+});
+
+test('tools and system are omitted when absent', async () => {
+  const fetchImpl = fakeFetch([finalChunk()]);
+  await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { tools: [] });
+  const { body } = fetchImpl.calls[0];
+  assert.equal('tools' in body, false);
+  assert.equal(body.messages.length, 1);
+  assert.equal(body.messages[0].role, 'user');
+});
+
+test('max_tokens is clamped to the model ceiling', async () => {
+  const fetchImpl = fakeFetch([finalChunk()]);
+  await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { maxTokens: 999_999 });
+  assert.equal(fetchImpl.calls[0].body.max_tokens, MAX_OUTPUT_TOKENS);
+});
+
+test('a client without a key is a programming error', () => {
+  assert.throws(() => createDeepSeek({ apiKey: '' }), /apiKey/);
+});
+
+// prompt_tokens is hits plus misses, so charging it alongside the hit count
+// would bill cached tokens twice.
+test('tokensCharged discounts cache hits and never double counts', () => {
+  assert.equal(tokensCharged({
+    prompt_tokens: 4018,
+    prompt_cache_hit_tokens: 3968,
+    prompt_cache_miss_tokens: 50,
+    completion_tokens: 1,
+  }), 50 + Math.ceil(3968 / 10) + 1);
+
+  // A cold prompt: everything is a miss.
+  assert.equal(tokensCharged({
+    prompt_tokens: 322,
+    prompt_cache_hit_tokens: 0,
+    prompt_cache_miss_tokens: 322,
+    completion_tokens: 67,
+  }), 389);
+
+  // If the split is ever absent, fall back to the total rather than zero.
+  assert.equal(tokensCharged({ prompt_tokens: 100, completion_tokens: 5 }), 105);
+  assert.equal(tokensCharged(null), 0);
+  assert.equal(tokensCharged({}), 0);
+});
+
+test('the canonical model ids are the two verified ones', () => {
+  assert.deepEqual(MODEL_IDS, ['deepseek-v4-flash', 'deepseek-v4-pro']);
+});
