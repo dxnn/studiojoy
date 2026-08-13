@@ -16,7 +16,7 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — 262 tests. `node:test` against `:memory:` SQLite, a temp
+- `npm test` — 263 tests. `node:test` against `:memory:` SQLite, a temp
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
@@ -80,7 +80,7 @@ destructive actions confirm first. The UI says **helper** where the code says
 
 ## Current state
 
-v0 is complete and green at 262 tests. Verified live end to end: a message in
+v0 is complete and green at 263 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
