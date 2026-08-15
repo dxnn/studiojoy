@@ -22,8 +22,14 @@ const MAX_HISTORY_MESSAGES = 200;
 const PINNED_TURNS = 3;
 
 const DEFAULT_COOLDOWN_MS = 5_000;
-const MAX_ASSISTANT_TURNS = 8;
-const MAX_TOOL_CALLS = 12;
+// A whole small game is index.html, a stylesheet and four or five scripts,
+// and the model reads a file or two before it patches. At 8 turns it ran out
+// mid-build routinely, because DeepSeek usually emits one or two calls per
+// turn — so turns bound first and 12 tool calls were never reached. These are
+// runaway guards, not a work allowance; the daily token budget is what caps
+// cost.
+const MAX_ASSISTANT_TURNS = 24;
+const MAX_TOOL_CALLS = 40;
 
 const BRIEF_FILE = 'BRIEF.md';
 const MAX_COMMIT_SUBJECT = 72;
@@ -38,7 +44,7 @@ function firstLine(text) {
 // Games only. A chat gets no preamble at all: every sentence here is about a
 // working tree it does not have, and an agent in a chat is whatever its
 // description says it is, with nothing from the studio layered on top.
-function studioPreamble({ project, canEdit }) {
+function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
   const lines = [
     `You are an agent in Game Studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
@@ -51,7 +57,11 @@ function studioPreamble({ project, canEdit }) {
       'You have file tools. Prefer patch_file over write_file when changing a file that already exists —',
       'it is cheaper and cannot silently lose the parts you did not mean to touch.',
       'Split a game across files (index.html, js/, css/, assets/) rather than emitting one enormous file.',
-      'You may call several tools in a single turn.',
+      '',
+      `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
+      'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',
+      'a turn spent on a single read is a turn you do not get back. If you can see you will not finish,',
+      'stop and say what is left rather than being cut off mid-file.',
     );
   } else {
     lines.push(
@@ -222,7 +232,10 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
   return collapsed;
 }
 
-async function buildContext({ db, project, dir, agent, lastFiredMaxId = 0 }) {
+async function buildContext({
+  db, project, dir, agent, lastFiredMaxId = 0,
+  maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
+}) {
   const turns = historyTurns(db, project, agent, lastFiredMaxId);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
@@ -234,7 +247,9 @@ async function buildContext({ db, project, dir, agent, lastFiredMaxId = 0 }) {
   const isChat = project.kind === 'chat';
   const brief = isChat ? null : await readFileAt(path.join(dir, BRIEF_FILE));
   const system = [
-    isChat ? null : studioPreamble({ project, canEdit: agent.file_tools }),
+    isChat ? null : studioPreamble({
+      project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
+    }),
     brief ? `Project brief (${BRIEF_FILE}):\n${brief.toString('utf8')}` : null,
     agent.description || null,
   ].filter(Boolean).join('\n\n');
@@ -385,6 +400,7 @@ export function createOrchestrator({
         .get(project.id).n;
       const context = await buildContext({
         db, project, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
+        maxAssistantTurns, maxToolCalls,
       });
       if (!context) return;
 

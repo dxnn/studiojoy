@@ -528,8 +528,16 @@ Every tool validates its path per §4 and returns an error string to the model
 on violation rather than throwing — a confused agent gets a correction, not a
 dead turn.
 
-Bounded loop: at most 8 assistant turns and 12 tool calls per fire. On hitting
+Bounded loop: at most 24 assistant turns and 40 tool calls per fire. On hitting
 either limit the turn ends with a `'system'` banner noting it stopped early.
+Both numbers are runaway guards, not a work allowance — the daily token budget
+is what caps cost. The original 8/12 proved too tight in use: the "stopped
+after 8 turns without finishing" banner became routine. DeepSeek usually emits
+one or two calls per turn, so turns bind first and 12 tool calls were rarely
+reached, while a whole small game — an `index.html`, a stylesheet, four or
+five scripts, and a read or two before patching — needs more than eight. The
+preamble states both numbers to the model so it can batch its calls and wrap
+up rather than being cut off mid-file.
 
 `max_tokens` is set to 32768 per request. The model's ceiling is 65536 and
 omitting the parameter uses all of it (§14); an explicit lower value is a cost
