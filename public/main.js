@@ -62,6 +62,10 @@ const S = {
   history: [],
   diff: null,
   historyPath: null,
+  // Set when a commit lands, so the versions list reloads instead of showing
+  // whatever it happened to fetch first.
+  historyStale: false,
+  drafts: new Map(), // slug -> unsent composer text
   live: new Map(), // agent_id -> {reply, trace, tool, error, nodes}
   traces: new Map(), // message_id -> {text, open}; this session only
   dialog: null,
@@ -78,6 +82,53 @@ const S = {
     helpers: prefs.get('sec-helpers', 'open') !== 'closed',
   },
 };
+
+// The composer is built once and reused by every render. render() replaces
+// the whole tree, and an agent starting a reply, finishing one, or touching a
+// file all trigger one — a textarea rebuilt each time would throw away
+// whatever was being typed. Keeping the node keeps the text.
+const composerBox = h('textarea', {
+  onkeydown: (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendComposer();
+    }
+  },
+  oninput: () => { if (S.slug) S.drafts.set(S.slug, composerBox.value); },
+});
+
+async function sendComposer() {
+  const text = composerBox.value.trim();
+  if (!text) return;
+  composerBox.value = '';
+  S.drafts.delete(S.slug);
+  S.autoscroll = true;
+  await sendMessage(text);
+}
+
+// The node surviving is not enough: removing it from the document blurs it
+// and drops the caret. Both are put back after the tree is rebuilt.
+const EDITOR_AREA = 'editor-area';
+
+function focusSnapshot() {
+  const el = document.activeElement;
+  if (el !== composerBox && el?.id !== EDITOR_AREA) return null;
+  return {
+    composer: el === composerBox,
+    start: el.selectionStart,
+    end: el.selectionEnd,
+    scroll: el.scrollTop,
+  };
+}
+
+function restoreFocus(snap) {
+  if (!snap) return;
+  const el = snap.composer ? composerBox : document.getElementById(EDITOR_AREA);
+  if (!el) return;
+  el.focus();
+  el.setSelectionRange(snap.start, snap.end);
+  el.scrollTop = snap.scroll;
+}
 
 const isChat = () => S.project?.kind === 'chat';
 
@@ -145,6 +196,11 @@ async function loadAgents() {
 }
 
 async function openProject(slug, { push = true } = {}) {
+  // Half-typed text belongs to the game it was typed in, so it is parked
+  // here on the way out and put back on the way in.
+  if (S.slug) S.drafts.set(S.slug, composerBox.value);
+  composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
+
   if (!slug) {
     S.slug = null;
     S.project = null;
@@ -166,6 +222,7 @@ async function openProject(slug, { push = true } = {}) {
   S.open = null;
   S.history = [];
   S.diff = null;
+  S.historyStale = false;
   S.live.clear();
   S.traces.clear();
   S.autoscroll = true;
@@ -320,6 +377,10 @@ function onEvent(name, data) {
       refreshFiles();
       // An agent just rewrote the game; show the new version.
       S.previewNonce += 1;
+      // A commit landed, so the versions list is now behind. Reload it if it
+      // is on screen; otherwise let opening the tab do it.
+      S.historyStale = true;
+      if (S.tab === 'versions') loadHistory(S.historyPath);
       if (S.open && data.paths.includes(S.open.path)) {
         if (S.open.dirty) {
           say(`${S.open.path} changed while you were editing it. Your text is still here — saving will ask before overwriting.`);
@@ -371,6 +432,18 @@ async function openFile(path) {
     dirty: false,
   };
   S.tab = 'files';
+  render();
+}
+
+// Closing throws away unsaved text, which is the one thing in the editor that
+// git cannot get back, so it asks first.
+function closeOpenFile() {
+  if (!S.open) return;
+  if (S.open.dirty) {
+    S.dialog = { kind: 'close-file', path: S.open.path };
+  } else {
+    S.open = null;
+  }
   render();
 }
 
@@ -439,6 +512,7 @@ async function loadHistory(path = null) {
   if (res.ok) {
     S.history = res.body;
     S.historyPath = path;
+    S.historyStale = false;
     S.diff = null;
     render();
   }
@@ -867,23 +941,9 @@ function renderChat() {
     },
   }, h('div', { class: 'messages' }, items));
 
-  const box = h('textarea', {
-    placeholder: p.archived ? 'This game is finished (archived).' : 'Ask for something…',
-    disabled: p.archived,
-    onkeydown: (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        submit();
-      }
-    },
-  });
-  const submit = async () => {
-    const text = box.value.trim();
-    if (!text) return;
-    box.value = '';
-    S.autoscroll = true;
-    await sendMessage(text);
-  };
+  const box = composerBox;
+  box.placeholder = p.archived ? 'This game is finished (archived).' : 'Ask for something…';
+  box.disabled = p.archived;
 
   // A chat has no files, so it has nothing to pin and no tip to give.
   let pinNote = '';
@@ -942,7 +1002,7 @@ function renderChat() {
       h('div', { class: 'row' },
         h('span', { class: 'hint', text: pinNote }),
         h('div', { class: 'spacer' }),
-        h('button', { class: 'filled', text: 'Send', disabled: p.archived, onclick: submit }))));
+        h('button', { class: 'filled', text: 'Send', disabled: p.archived, onclick: sendComposer }))));
 }
 
 /* Render: right rail ----------------------------------------------------- */
@@ -970,10 +1030,30 @@ function renderFilesTab() {
 
   const editor = [];
   if (S.open) {
+    // One bar for both cases: a picture has nothing to edit but still has to
+    // be closable, and Close belongs next to Delete either way.
+    const bar = h('div', { class: 'bar' },
+      h('div', { class: 'title mono', text: S.open.path }),
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'quiet tiny', text: 'Versions',
+        onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
+      }),
+      h('button', {
+        class: 'danger tiny', text: 'Delete',
+        onclick: () => { S.dialog = { kind: 'delete-file', path: S.open.path }; render(); },
+      }),
+      h('button', {
+        class: 'icon tiny', text: '✕', title: 'Close this file',
+        onclick: closeOpenFile,
+      }));
+
     if (S.open.content === null) {
-      editor.push(h('div', { class: 'pad muted grow', text: `${S.open.path} is a picture or sound, so there is nothing to edit here.` }));
+      editor.push(h('div', { class: 'editor' }, bar,
+        h('div', { class: 'pad muted grow', text: `${S.open.path} is a picture or sound, so there is nothing to edit here.` })));
     } else {
       const area = h('textarea', {
+        id: EDITOR_AREA,
         spellcheck: 'false',
         oninput: (e) => {
           S.open.content = e.currentTarget.value;
@@ -984,17 +1064,7 @@ function renderFilesTab() {
       });
       area.value = S.open.content;
       editor.push(h('div', { class: 'editor' },
-        h('div', { class: 'bar' },
-          h('div', { class: 'title mono', text: S.open.path }),
-          h('div', { class: 'spacer' }),
-          h('button', {
-            class: 'quiet tiny', text: 'Versions',
-            onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
-          }),
-          h('button', {
-            class: 'danger tiny', text: 'Delete',
-            onclick: () => { S.dialog = { kind: 'delete-file', path: S.open.path }; render(); },
-          })),
+        bar,
         area,
         h('div', { class: 'editor-bar row' },
           h('span', { class: 'hint muted', text: S.open.dirty ? 'Not saved yet' : 'Saved' }),
@@ -1119,7 +1189,9 @@ function renderRail() {
     text: label,
     onclick: () => {
       S.tab = id;
-      if (id === 'versions' && S.history.length === 0) loadHistory(null);
+      if (id === 'versions' && (S.historyStale || S.history.length === 0)) {
+        loadHistory(S.historyPath);
+      }
       render();
     },
   });
@@ -1219,6 +1291,17 @@ function dialogFor(d) {
         class: 'danger', text: 'Delete it',
         onclick: async () => { close(); await deleteFile(d.path); },
       })));
+  }
+
+  if (d.kind === 'close-file') {
+    return wrap(`Close ${d.path}?`,
+      h('p', { text: 'You changed this file and have not saved it yet. Closing loses those changes.' }),
+      h('div', { class: 'actions' },
+        h('button', { class: 'quiet', text: 'Keep editing', onclick: close }),
+        h('button', {
+          class: 'danger', text: 'Close without saving',
+          onclick: () => { S.open = null; close(); },
+        })));
   }
 
   if (d.kind === 'restore') {
@@ -1327,6 +1410,7 @@ function dialogFor(d) {
 /* Render ------------------------------------------------------------------ */
 
 function render() {
+  const focus = focusSnapshot();
   root.replaceChildren();
 
   if (S.loading) {
@@ -1365,6 +1449,7 @@ function render() {
     if (dialog) root.append(dialog);
   }
 
+  restoreFocus(focus);
   stickToBottom();
 }
 
