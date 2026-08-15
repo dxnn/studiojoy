@@ -8,13 +8,10 @@ deliberately deferred.
 - decide whether `BRIEF.md` should be created automatically with a new project
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
-- fork a game — `git clone --no-hardlinks` the working tree into a new slug
-- publish a game — a `published` flag plus an index at `/` on the games origin;
-  reverses the "no public game index" line in spec.md §15
-- let helpers see the game running, not just its source: a runtime error feed
-  from the preview iframe back into agent context
-- ! decide whether an agent may continue itself after hitting the turn limit,
-  bounded per human turn — without it every stall needs a human nudge
+- ! let helpers see the game running: a runtime error feed from the preview
+  iframe into agent context. Screenshots are impossible, not just awkward —
+  DeepSeek v4 rejects every image content shape (spec.md §14), so anything an
+  agent learns about its running game has to arrive as text
 - context management for a long game: history is the pressure, not files
   (measured: all three games total 104 KB, so the 400 KB ambient cap has never
   bound). Options are a rolling summary, a helper-maintained NOTES.md, or
