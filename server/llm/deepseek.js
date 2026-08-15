@@ -10,10 +10,18 @@
 
 export const MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 
-// The model's ceiling is 65536, and omitting max_tokens uses all of it. An
-// explicit lower default is a cost guard, not a capability limit.
+// The model's ceiling is 65536, and omitting max_tokens uses all of it.
+//
+// This is the whole ceiling, not a cost guard set below it, because
+// completion_tokens counts the reasoning trace as well as the reply and the
+// tool call arguments. Measured on "make me a tank game" against
+// deepseek-v4-flash: 25,004 of 32,768 tokens went to reasoning, the fifth
+// write_file was cut off mid-arguments, and the game was committed with a
+// missing file. The same prompt at 65,536 spent 38,590 on reasoning and
+// finished all eight files cleanly. A lower cap mostly rations thinking and
+// leaves the files whatever is left over (spec.md §8, §14).
 export const MAX_OUTPUT_TOKENS = 65536;
-export const DEFAULT_MAX_TOKENS = 32768;
+export const DEFAULT_MAX_TOKENS = MAX_OUTPUT_TOKENS;
 
 export const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
 

@@ -359,16 +359,72 @@ test('a reply charges the budget with the cache discount applied', async (t) => 
 });
 
 test('a truncated tool call is explained rather than silently dropped', async (t) => {
-  const llm = createFakeLlm([truncated({ text: 'Writing the game...' })]);
-  const { app } = await studio(t, { llm });
+  // Cut off every turn, so no retry can succeed and the banner is the outcome.
+  const llm = createFakeLlm(() => truncated({ text: 'Writing the game...' }));
+  const { app } = await studio(t, { llm, maxAssistantTurns: 2, maxContinuations: 0 });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, 'build the whole thing at once');
   const banner = await stream.waitFor(
-    (e) => e.event === 'message.new' && e.data.kind === 'system',
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /ran out of output budget/.test(e.data.body),
   );
-  assert.match(banner.data.body, /ran out of output budget/);
+  assert.match(banner.data.body, /a file may be missing/);
+});
+
+test('a cut-off write is retried instead of ending the turn empty-handed', async (t) => {
+  // Turn 1 is cut mid-write_file; turn 2 writes the file properly. Before the
+  // fix the empty call list ended the loop and the file never existed.
+  const sent = [];
+  const llm = createFakeLlm((opts, turn) => {
+    sent.push(opts.messages.map((m) => ({ role: m.role, content: m.content })));
+    if (turn === 0) return truncated({ text: 'Writing the game...' });
+    if (turn === 1) {
+      return calls(
+        [{ name: 'write_file', input: { path: 'index.html', content: '<h1>tank</h1>' } }],
+        { text: 'Wrote it in smaller pieces.' },
+      );
+    }
+    return says('All done.');
+  });
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build the whole thing at once');
+  await stream.waitFor((e) => e.event === 'files.changed');
+
+  const file = await app.client.get('/api/projects/tank/files/index.html');
+  assert.equal(file.status, 200, 'the file the model was cut off writing exists');
+  assert.equal(await file.text(), '<h1>tank</h1>');
+
+  // The model was told what happened, in terms it can act on.
+  const retry = sent[1];
+  const last = retry[retry.length - 1];
+  assert.equal(last.role, 'user');
+  assert.match(last.content, /was NOT written/);
+});
+
+test('a cut-off call that a later turn rewrote is not reported as missing', async (t) => {
+  const llm = createFakeLlm((opts, turn) => {
+    if (turn === 0) return truncated({ text: 'Writing...' });
+    if (turn === 1) {
+      return calls([{ name: 'write_file', input: { path: 'index.html', content: 'ok' } }]);
+    }
+    return says('All done.');
+  });
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build it');
+  const done = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(done.data.kind, null, 'the reply lands as an ordinary message');
+
+  const history = await app.client.json('GET', '/api/projects/tank/messages');
+  const banners = history.body.messages.filter((m) => m.kind === 'system');
+  assert.deepEqual(banners, [], 'no scary banner for a hole that got filled');
 });
 
 test('the tool call limit stops the loop and says so', async (t) => {
@@ -388,19 +444,85 @@ test('the tool call limit stops the loop and says so', async (t) => {
   assert.equal(listing.body.count, 3, 'exactly the allowance was spent');
 });
 
-test('the assistant turn limit stops the loop and says so', async (t) => {
+test('running out of turns carries on rather than needing a nudge', async (t) => {
   const llm = createFakeLlm((opts, turn) =>
     calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]));
-  const { app } = await studio(t, { llm, maxAssistantTurns: 3, maxToolCalls: 50 });
+  const { app } = await studio(t, {
+    llm, maxAssistantTurns: 3, maxToolCalls: 50, maxContinuations: 1,
+  });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, 'loop please');
-  const banner = await stream.waitFor(
-    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  const carrying = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /carrying on/.test(e.data.body),
   );
-  assert.match(banner.data.body, /stopped after 3 turns/);
-  assert.equal(llm.calls.length, 3);
+  assert.match(carrying.data.body, /not finished yet/);
+
+  // One continuation was allowed, so the second exhaustion is the last word.
+  const stopped = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /stopped after/.test(e.data.body),
+  );
+  assert.match(stopped.data.body, /stopped after 3 turns without finishing/);
+  assert.equal(llm.calls.length, 6, 'three turns, then three more');
+});
+
+test('a continuation is answerable — the agent sees a turn to reply to', async (t) => {
+  // The orchestrator pushes onto the same messages array all fire long, and
+  // the fake keeps it by reference, so what was *sent* has to be copied here.
+  const sent = [];
+  const llm = createFakeLlm((opts, turn) => {
+    sent.push(opts.messages.map((m) => ({ role: m.role, content: m.content })));
+    return calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]);
+  });
+  const { app } = await studio(t, {
+    llm, maxAssistantTurns: 2, maxToolCalls: 50, maxContinuations: 1,
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'loop please');
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /stopped after/.test(e.data.body),
+  );
+
+  // Two turns per fire, so the continuation's first request is the third.
+  // It reached the model at all only because buildContext found a user-role
+  // turn to answer — the studio note is what supplies one.
+  const continuation = sent[2];
+  assert.ok(continuation, 'the continuation reached the model');
+  const last = continuation[continuation.length - 1];
+  assert.equal(last.role, 'user');
+  assert.match(last.content, /carrying on/);
+});
+
+test('a new human message refills the continuation allowance', async (t) => {
+  const llm = createFakeLlm((opts, turn) =>
+    calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]));
+  const { app } = await studio(t, {
+    llm, maxAssistantTurns: 2, maxToolCalls: 50, maxContinuations: 1,
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'first');
+  const exhausted = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /stopped after/.test(e.data.body),
+  );
+  const spent = llm.calls.length;
+
+  // waitFor also matches events that already arrived, so the second round has
+  // to be identified by id rather than by body.
+  await send(app, 'second');
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /carrying on/.test(e.data.body) && e.data.id > exhausted.data.id,
+  );
+  assert.ok(llm.calls.length > spent, 'the allowance came back');
 });
 
 test('an upstream failure ends the stream without a message', async (t) => {

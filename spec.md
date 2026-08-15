@@ -539,19 +539,37 @@ five scripts, and a read or two before patching — needs more than eight. The
 preamble states both numbers to the model so it can batch its calls and wrap
 up rather than being cut off mid-file.
 
-`max_tokens` is set to 32768 per request. The model's ceiling is 65536 and
-omitting the parameter uses all of it (§14); an explicit lower value is a cost
-guard, not a capability limit. At 32 K output tokens a single `write_file` can
-carry roughly 130 KB of markup, so whole-game-in-one-call truncation — a real
-hazard under the 8 K assumption this spec previously carried — is no longer a
-practical concern.
+Running out of turns is not the end of the reply. The agent may **continue**
+itself up to 3 times, counted from the last human message and reset by the
+next one, so a half-built game finishes without a human typing "keep going".
+A continuation is armed by posting the `'system'` banner and setting
+`response_pending` again: a `'system'` row enters the transcript as a user
+turn (§8, Context), which is exactly what gives the next fire something to
+answer — without one, the agent's own reply would be the newest turn and the
+fire would no-op. The daily token budget is rechecked before each one.
 
-Truncation is still detected and reported. When a turn ends with
-`finish_reason = 'length'`, or when streamed tool-call arguments fail to
-parse, the orchestrator posts a `'system'` banner so a missing file never
-reads as a backend bug. Non-streaming truncation drops the tool call entirely;
-the streaming path can deliver partial argument fragments, so both cases are
-handled.
+`max_tokens` is set to the full 65536 ceiling per request, not to a lower cost
+guard. **`completion_tokens` counts the reasoning trace as well as the reply
+and the tool call arguments**, so a cap set below the ceiling mostly rations
+thinking and leaves the files whatever is left over. Measured on "make me a
+tank game" against `deepseek-v4-flash`: at 32768, 25,004 tokens went to
+reasoning, the fifth `write_file` was cut off mid-arguments, and the game
+would have been committed with a missing script. The same prompt at 65536
+spent 38,590 on reasoning and finished all eight files with
+`finish_reason: 'tool_calls'`. The earlier claim here — that 32 K carries
+roughly 130 KB of markup, so truncation is not a practical concern — assumed
+the whole allowance was available to file content, and was wrong.
+
+Truncation is still detected, and now recovered from rather than only
+reported. A tool call cut off mid-arguments wrote **nothing** — the JSON never
+parsed, so there was no path and no content — but the model's own reply says
+it wrote the file. So the orchestrator feeds it a studio note saying the call
+was cut and nothing was saved, and the loop continues so it can write the file
+again in smaller pieces. Only a cut still outstanding when the loop ends
+produces the `'system'` banner; one that a later turn rewrote successfully is
+not a missing file and is not reported. Non-streaming truncation drops the
+tool call entirely; the streaming path can deliver partial argument fragments,
+so both cases are handled.
 
 ### Budget
 
@@ -753,6 +771,16 @@ delivered before the cut.
   with `finish_reason: 'length'`. Oversized `max_tokens` values are clamped
   silently rather than rejected, so the parameter cannot be used to discover
   the ceiling.
+- **`max_tokens` bounds the reasoning trace and the reply together**, because
+  `completion_tokens` includes `completion_tokens_details.reasoning_tokens`.
+  Measured on "make me a tank game" (`deepseek-v4-flash`, reasoning on):
+  25,004 of 32,768 tokens went to reasoning, leaving ~7.7 K for tool call
+  arguments — the fifth `write_file` was cut off mid-arguments. The same
+  prompt at 65,536 spent 38,590 on reasoning and emitted all eight
+  `write_file` calls intact, the largest carrying 17,710 characters of
+  content. Reasoning cost scales with the prompt's ambition, so it cannot be
+  budgeted around; the ceiling is the only safe setting. This is why §8 sets
+  `max_tokens` to 65536 rather than to a lower cost guard.
 - `finish_reason: 'length'` fires reliably on truncation.
 
 ### Usage and caching

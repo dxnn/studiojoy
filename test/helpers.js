@@ -103,6 +103,7 @@ export async function setup({
   dailyTokenBudget = undefined,
   maxAssistantTurns = undefined,
   maxToolCalls = undefined,
+  maxContinuations = undefined,
 } = {}) {
   const db = openDb(':memory:');
   const gamesDir = scratchDir('games');
@@ -121,6 +122,7 @@ export async function setup({
       ...(dailyTokenBudget === undefined ? {} : { dailyTokenBudget }),
       ...(maxAssistantTurns === undefined ? {} : { maxAssistantTurns }),
       ...(maxToolCalls === undefined ? {} : { maxToolCalls }),
+      ...(maxContinuations === undefined ? {} : { maxContinuations }),
     });
   }
   const handler = createApp({

@@ -30,6 +30,19 @@ const DEFAULT_COOLDOWN_MS = 5_000;
 // cost.
 const MAX_ASSISTANT_TURNS = 24;
 const MAX_TOOL_CALLS = 40;
+// Times an agent may pick up where it left off after exhausting its turns,
+// counted from the last human message. Without this a stall needs a human to
+// type "keep going", which is the whole complaint.
+const MAX_CONTINUATIONS = 3;
+
+// A tool call cut off mid-arguments wrote nothing at all — the JSON never
+// parsed, so there was no path and no content. The model does not know that
+// and its reply says the file was written, so it has to be told, or a game
+// gets committed with a hole in it.
+const CUT_NOTICE = '[studio] Your last reply was cut off before a tool call'
+  + ' finished, so that file was NOT written and nothing was saved for it.'
+  + ' Write it again, smaller: one file per call, and split a long file into'
+  + ' several shorter ones.';
 
 const BRIEF_FILE = 'BRIEF.md';
 const MAX_COMMIT_SUBJECT = 72;
@@ -285,6 +298,7 @@ export function createOrchestrator({
   cooldownMs = DEFAULT_COOLDOWN_MS,
   maxAssistantTurns = MAX_ASSISTANT_TURNS,
   maxToolCalls = MAX_TOOL_CALLS,
+  maxContinuations = MAX_CONTINUATIONS,
 }) {
   if (!llm) throw new Error('createOrchestrator requires an llm');
 
@@ -297,6 +311,9 @@ export function createOrchestrator({
   // mid-stream is presented after the reply that never saw it. Lost on
   // restart, which only costs one turn of ordering.
   const lastFired = new Map();
+  // project_agents.id -> continuations spent since the last human message.
+  // A fresh human turn is a fresh allowance, so this is cleared there.
+  const continued = new Map();
 
   function schedule(projectAgentId, readyAtMs) {
     const now = Date.now();
@@ -329,6 +346,7 @@ export function createOrchestrator({
 
     for (const row of attached) {
       if (!agentEligible({ name: row.name, chatty: row.chatty === 1 }, mentions)) continue;
+      continued.delete(row.id);
       db.prepare('UPDATE project_agents SET response_pending = 1 WHERE id = ?').run(row.id);
       if (firing.has(row.id)) continue;
       const readyAt = row.cooldown_until ? new Date(row.cooldown_until).getTime() : 0;
@@ -414,13 +432,16 @@ export function createOrchestrator({
       let replyText = '';
       let charged = 0;
       let toolCallCount = 0;
-      let truncatedTool = false;
+      // Whether the turn that ended the loop left a cut-off call unanswered.
+      // A cut that a later turn rewrote successfully is not worth reporting.
+      let pendingCut = false;
       let hitLength = false;
       let hitLimit = null;
 
       for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
         let text = '';
         const calls = [];
+        let cutCalls = 0;
         try {
           const stream = llm.stream({
             model: agent.model,
@@ -440,7 +461,7 @@ export function createOrchestrator({
             } else if (event.type === 'tool_use') {
               calls.push(event);
             } else if (event.type === 'tool_use_failed') {
-              truncatedTool = true;
+              cutCalls += 1;
             } else if (event.type === 'end') {
               if (event.finish_reason === 'length') hitLength = true;
               charged += tokensCharged(event.usage);
@@ -454,34 +475,46 @@ export function createOrchestrator({
         }
 
         if (text) replyText += replyText ? `\n\n${text}` : text;
-        if (calls.length === 0) break;
+        pendingCut = cutCalls > 0;
 
-        messages.push({
-          role: 'assistant',
-          content: text || null,
-          tool_calls: calls.map((c) => ({
-            id: c.id,
-            type: 'function',
-            function: { name: c.name, arguments: JSON.stringify(c.input) },
-          })),
-        });
+        // Nothing to run and nothing cut off: a plain reply, so the turn is
+        // done. A cut call is not "done" — it is a file that never landed,
+        // and the loop keeps going so the model can write it again.
+        if (calls.length === 0 && cutCalls === 0) break;
 
-        for (const call of calls) {
-          if (toolCallCount >= maxToolCalls) {
-            hitLimit = 'tool';
-            messages.push({
-              role: 'tool',
-              tool_call_id: call.id,
-              content: 'refused: this turn has reached its tool call limit',
-            });
-            continue;
+        if (calls.length > 0) {
+          messages.push({
+            role: 'assistant',
+            content: text || null,
+            tool_calls: calls.map((c) => ({
+              id: c.id,
+              type: 'function',
+              function: { name: c.name, arguments: JSON.stringify(c.input) },
+            })),
+          });
+
+          for (const call of calls) {
+            if (toolCallCount >= maxToolCalls) {
+              hitLimit = 'tool';
+              messages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: 'refused: this turn has reached its tool call limit',
+              });
+              continue;
+            }
+            emit('agent.tool', { tool: call.name, path: call.input?.path ?? null });
+            const result = await toolset.run(call.name, call.input);
+            messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+            toolCallCount += 1;
           }
-          emit('agent.tool', { tool: call.name, path: call.input?.path ?? null });
-          const result = await toolset.run(call.name, call.input);
-          messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-          toolCallCount += 1;
+          if (hitLimit) break;
+        } else if (text) {
+          // No valid call to answer, so this turn's prose stands on its own.
+          messages.push({ role: 'assistant', content: text });
         }
-        if (hitLimit) break;
+
+        if (cutCalls > 0) messages.push({ role: 'user', content: CUT_NOTICE });
         if (turn === maxAssistantTurns - 1) hitLimit = 'turn';
       }
 
@@ -534,8 +567,9 @@ export function createOrchestrator({
       }
 
       // Explain a missing file rather than leaving it looking like a backend
-      // fault (spec.md §8).
-      if (truncatedTool || (hitLength && changed.length === 0)) {
+      // fault (spec.md §8). Only the final turn's cut matters: an earlier one
+      // the model was told about and rewrote is not a missing file.
+      if (pendingCut || (hitLength && changed.length === 0)) {
         postSystemMessage(db, broker, {
           project,
           agentId: agent.id,
@@ -548,11 +582,29 @@ export function createOrchestrator({
           body: `${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`,
         });
       } else if (hitLimit === 'turn') {
-        postSystemMessage(db, broker, {
-          project,
-          agentId: agent.id,
-          body: `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing.`,
-        });
+        // Out of turns mid-build. Rather than making a human type "keep
+        // going", re-arm the agent and let it pick up where it stopped.
+        // The system message is not decoration: a 'system' row enters the
+        // transcript as a user turn, which is what gives the next fire
+        // something to answer — without it the agent's own reply would be
+        // newest and the fire would no-op.
+        const used = continued.get(row.id) ?? 0;
+        if (used < maxContinuations && hasBudget(db, dailyTokenBudget)) {
+          continued.set(row.id, used + 1);
+          postSystemMessage(db, broker, {
+            project,
+            agentId: agent.id,
+            body: `${row.agent_name} is not finished yet — carrying on from where they stopped.`,
+          });
+          db.prepare('UPDATE project_agents SET response_pending = 1 WHERE id = ?')
+            .run(row.id);
+        } else {
+          postSystemMessage(db, broker, {
+            project,
+            agentId: agent.id,
+            body: `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`,
+          });
+        }
       }
     } finally {
       firing.delete(row.id);
