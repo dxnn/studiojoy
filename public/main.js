@@ -504,6 +504,18 @@ async function deleteFile(path) {
   say(`Deleted ${path}. You can get it back from Versions.`);
 }
 
+async function setPublished(published) {
+  const res = await api('POST', `/api/projects/${S.slug}/publish`, { published });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not change that.', true);
+    return;
+  }
+  S.project.published = published;
+  say(published
+    ? 'This game is in the games list now.'
+    : 'Took this game out of the games list.');
+}
+
 /* History ----------------------------------------------------------------- */
 
 async function loadHistory(path = null) {
@@ -1107,7 +1119,26 @@ function renderPlayTab() {
           h('button', { class: 'quiet tiny', text: 'Open in a tab' }))),
       h('iframe', { class: 'preview-frame', src: url, title: 'Game preview' }),
       h('div', { class: 'hint muted', text: 'Anyone with the link can play this. It updates as soon as a file changes.' }),
-      h('div', { class: 'mono muted', text: S.project.play_url })))];
+      h('div', { class: 'mono muted', text: S.project.play_url }),
+      h('div', { class: 'row' },
+        h('button', {
+          class: S.project.published ? 'quiet tiny' : 'filled tiny',
+          text: S.project.published ? 'Take out of the games list' : 'Put in the games list',
+          title: 'The games list is the page everyone sees at the games address',
+          onclick: () => setPublished(!S.project.published),
+        }),
+        h('div', { class: 'spacer' }),
+        h('button', {
+          class: 'quiet tiny', text: 'Make a copy',
+          title: 'Start a new game from a copy of this one',
+          onclick: () => { S.dialog = { kind: 'fork' }; render(); },
+        })),
+      h('div', {
+        class: 'hint muted',
+        text: S.project.published
+          ? 'This game is in the list everyone can see.'
+          : 'Not in the list yet. It still works for anyone with the link.',
+      })))];
 }
 
 function renderDiff(patch) {
@@ -1290,6 +1321,30 @@ function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Delete it',
         onclick: async () => { close(); await deleteFile(d.path); },
+      })));
+  }
+
+  if (d.kind === 'fork') {
+    const name = h('input');
+    name.value = `${S.project.name} copy`;
+    const slug = h('input', { placeholder: 'leave empty to pick one for you' });
+    const err = h('p', { class: 'error' });
+    return wrap('Make a copy of this game',
+      h('p', { text: 'The new game starts with all the same files and helpers. The chat starts fresh.' }),
+      h('label', { text: 'What is the copy called?' }), name,
+      h('label', { text: 'Web address' }), slug,
+      err,
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Make the copy',
+        onclick: async () => {
+          const body = { name: name.value.trim() };
+          if (slug.value.trim()) body.slug = slug.value.trim();
+          const res = await api('POST', `/api/projects/${S.slug}/fork`, body);
+          if (!res.ok) { err.textContent = res.body?.error ?? 'Could not copy that.'; return; }
+          close();
+          await loadProjects();
+          await openProject(res.body.slug);
+        },
       })));
   }
 

@@ -2,12 +2,12 @@ import { json, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { checkSlug, slugify, requireSlug } from '../files/paths.js';
-import { initRepo, isRepo } from '../files/git.js';
+import { initRepo, isRepo, forkRepo } from '../files/git.js';
 import { listTree } from '../files/tree.js';
 import {
   requireProject, projectDirFor, authorFor, requireString, messagePublic,
 } from './helpers.js';
-import { PROJECT_KINDS } from '../db.js';
+import { PROJECT_KINDS, tx } from '../db.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -24,6 +24,7 @@ function projectPublic(db, row) {
     name: row.name,
     kind: row.kind,
     archived: row.archived === 1,
+    published: row.published === 1,
     created_by: row.created_by,
     created_at: row.created_at,
     last_message_at: last?.created_at ?? row.created_at,
@@ -139,6 +140,92 @@ export function projectRoutes(r) {
       slug: project.slug, name, archived: project.archived === 1,
     });
     json(ctx.res, 200, { slug: project.slug, name });
+  });
+
+  // A fork copies the files and their history, not the conversation: the new
+  // game starts with a clean thread and the same helpers already in it, which
+  // is what "make me one like that" means in practice.
+  r.post('/api/projects/:slug/fork', async (ctx) => {
+    const user = requireAuth(ctx);
+    const source = requireProject(ctx);
+    if (source.kind !== 'game') {
+      throw new HttpError(400, 'a chat has no files to fork');
+    }
+    const body = await readJson(ctx.req);
+    const name = requireString(body.name, 'name', { max: MAX_PROJECT_NAME });
+
+    const requested = body.slug === undefined ? slugify(name) : body.slug;
+    const checked = checkSlug(requested);
+    if (!checked.ok) throw new HttpError(400, `${checked.reason} (pass an explicit slug)`);
+    const slug = checked.slug;
+    if (ctx.db.prepare('SELECT 1 FROM projects WHERE slug = ?').get(slug)) {
+      throw new HttpError(409, `the slug '${slug}' is taken`);
+    }
+
+    const srcDir = projectDirFor(ctx, source);
+    const dstDir = projectDirFor(ctx, { slug });
+    // Both directories are locked: the source must not be committed to
+    // mid-clone, and the destination is new but shares the same lock table.
+    await ctx.mutex.run(source.slug, async () => {
+      if (await isRepo(dstDir)) throw new HttpError(409, 'that directory already exists');
+      await forkRepo(srcDir, dstDir);
+    });
+
+    const now = new Date().toISOString();
+    const row = tx(ctx.db, () => {
+      const info = ctx.db
+        .prepare(
+          `INSERT INTO projects (slug, name, kind, created_by, created_at)
+           VALUES (?, ?, 'game', ?, ?)`,
+        )
+        .run(slug, name, user.id, now);
+      const id = Number(info.lastInsertRowid);
+      // The helpers come along; their cooldowns and pending flags do not.
+      const attached = ctx.db
+        .prepare('SELECT agent_id, chatty FROM project_agents WHERE project_id = ?')
+        .all(source.id);
+      for (const a of attached) {
+        ctx.db
+          .prepare(
+            `INSERT INTO project_agents (project_id, agent_id, chatty, attached_by, attached_at)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(id, a.agent_id, a.chatty, user.id, now);
+      }
+      // Says where it came from, in the thread, where a kid will see it.
+      ctx.db
+        .prepare(
+          `INSERT INTO messages (project_id, kind, body, created_at)
+           VALUES (?, 'system', ?, ?)`,
+        )
+        .run(id, `This game started as a copy of "${source.name}".`, now);
+      return ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    });
+
+    ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
+    json(ctx.res, 201, projectPublic(ctx.db, row));
+  });
+
+  // Publishing lists a game in the public catalog. It does not change who can
+  // play it — every game has always been playable by link (spec.md §7); this
+  // is only about being findable.
+  r.post('/api/projects/:slug/publish', async (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx);
+    if (project.kind !== 'game') {
+      throw new HttpError(400, 'a chat has nothing to publish');
+    }
+    const body = await readJson(ctx.req);
+    const published = body.published === undefined ? true : body.published;
+    if (typeof published !== 'boolean') {
+      throw new HttpError(400, 'published must be a boolean');
+    }
+    ctx.db.prepare('UPDATE projects SET published = ? WHERE id = ?')
+      .run(published ? 1 : 0, project.id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: project.archived === 1, published,
+    });
+    json(ctx.res, 200, { slug: project.slug, published });
   });
 
   // Archiving is reversible and never affects the public game, so it takes a

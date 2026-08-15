@@ -18,5 +18,8 @@
 - **pinned file** — a file named by a context path on the current or previous two human turns. Never dropped by the context byte cap, and labelled in the prompt as what the human is pointing at.
 - **ambient context** — the rest of the working tree, sent to an agent on every fire without being asked for. Affordable because DeepSeek's window is 1M tokens; trimmed largest-first when the byte cap binds.
 - **reasoning trace** — DeepSeek's `reasoning_content`. Streamed to the client and rendered collapsed, never persisted to a message and never replayed into a later request.
+- **published** — a game's `projects.published` flag: it appears in the *catalog*. Not an access control — every game has always been playable by link.
+- **catalog** — the page at `/` on the games origin listing published games. The only page there that is not a project's own file.
+- **fork** — a copy of a game: its working tree and full git history under a new slug, carrying the attached agents, starting a fresh thread.
 - **draft** — unsent composer text, held per project in the client and never on the server. It survives a re-render and a switch to another game; only sending it clears it.
 - **project mutex** — the per-project promise chain that serialises write-and-commit, so concurrent agents cannot interleave git operations.

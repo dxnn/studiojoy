@@ -170,6 +170,96 @@ test('archive requires a boolean and an existing project', async (t) => {
 
 // Zero account complexity: a second account has exactly the same authority
 // over a project it did not create (spec.md §3).
+test('a fork copies the files, their history, and the helpers', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  const agent = await app.client.json('POST', '/api/agents', {
+    body: { name: 'Builder', description: 'builds' },
+  });
+  await app.client.json('POST', '/api/projects/tank/agents', {
+    body: { agent_id: agent.body.id, chatty: true },
+  });
+  await app.client.put('/api/projects/tank/files/index.html', {
+    headers: { 'content-type': 'text/plain' }, rawBody: '<h1>tank</h1>',
+  });
+
+  const forked = await app.client.json('POST', '/api/projects/tank/fork', {
+    body: { name: 'Tank Two', slug: 'tank-two' },
+  });
+  assert.equal(forked.status, 201);
+  assert.equal(forked.body.slug, 'tank-two');
+
+  const dir = path.join(app.gamesDir, 'tank-two');
+  assert.equal(await isRepo(dir), true, 'the fork is its own repository');
+  assert.equal(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), '<h1>tank</h1>');
+
+  // History came along, and the remote pointing back at the original did not.
+  const commits = await logCommits(dir);
+  assert.ok(commits.length >= 2, 'the original commits are present');
+  assert.equal(fs.existsSync(path.join(dir, '.git', 'refs', 'remotes', 'origin')), false);
+
+  const detail = await app.client.json('GET', '/api/projects/tank-two');
+  assert.deepEqual(detail.body.agents.map((a) => a.name), ['Builder']);
+  // A fresh thread, saying where it came from.
+  assert.equal(detail.body.messages.length, 1);
+  assert.equal(detail.body.messages[0].kind, 'system');
+  assert.match(detail.body.messages[0].body, /copy of "Tank"/);
+
+  // The two trees are independent from here on.
+  await app.client.put('/api/projects/tank-two/files/index.html', {
+    headers: { 'content-type': 'text/plain' }, rawBody: 'changed',
+  });
+  assert.equal(
+    fs.readFileSync(path.join(app.gamesDir, 'tank', 'index.html'), 'utf8'),
+    '<h1>tank</h1>',
+    'the original is untouched',
+  );
+});
+
+test('a fork refuses a taken slug and refuses a chat', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Chat', slug: 'chat', kind: 'chat' },
+  });
+
+  const taken = await app.client.json('POST', '/api/projects/tank/fork', {
+    body: { name: 'Again', slug: 'tank' },
+  });
+  assert.equal(taken.status, 409);
+
+  const chat = await app.client.json('POST', '/api/projects/chat/fork', {
+    body: { name: 'Nope', slug: 'nope' },
+  });
+  assert.equal(chat.status, 400);
+  assert.equal(fs.existsSync(path.join(app.gamesDir, 'nope')), false);
+});
+
+test('publishing is a boolean, games only, and shows in the payload', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Chat', slug: 'chat', kind: 'chat' },
+  });
+
+  const before = await app.client.json('GET', '/api/projects/tank');
+  assert.equal(before.body.published, false);
+
+  const on = await app.client.json('POST', '/api/projects/tank/publish', { body: {} });
+  assert.equal(on.status, 200);
+  assert.equal(on.body.published, true);
+  const after = await app.client.json('GET', '/api/projects/tank');
+  assert.equal(after.body.published, true);
+
+  const bad = await app.client.json('POST', '/api/projects/tank/publish', {
+    body: { published: 'yes' },
+  });
+  assert.equal(bad.status, 400);
+
+  const chat = await app.client.json('POST', '/api/projects/chat/publish', { body: {} });
+  assert.equal(chat.status, 400);
+});
+
 test('any account can edit any project', async (t) => {
   const app = await setup();
   t.after(() => app.close());

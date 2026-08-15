@@ -111,6 +111,9 @@ export function openDb(dbPath) {
   // A chat is a project with no working tree: same thread, same agents, no
   // files and nothing on disk (spec.md §3).
   addColumnIfMissing(db, 'projects', 'kind', "TEXT NOT NULL DEFAULT 'game'");
+  // Off by default: a game becomes publicly listed only when someone says so.
+  // It was always publicly *playable* — this is about the index, not access.
+  addColumnIfMissing(db, 'projects', 'published', 'INTEGER NOT NULL DEFAULT 0');
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,

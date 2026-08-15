@@ -93,6 +93,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `name` | TEXT NOT NULL | ≤ 200 chars |
 | `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
+| `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
 | `created_by` | INTEGER NOT NULL → users | display only |
 | `created_at` | TEXT NOT NULL | |
 
@@ -312,6 +313,8 @@ There is no signup route. Accounts come from `npm run adduser`.
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name}` | rename (display name only) |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
+| POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
+| POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
 
 #### Agents
 
@@ -783,6 +786,20 @@ delivered before the cut.
   `max_tokens` to 65536 rather than to a lower cost guard.
 - `finish_reason: 'length'` fires reliably on truncation.
 
+### Images
+
+**Not supported.** Both content-part shapes are rejected before the model is
+reached: `{type: 'image_url', image_url: {url}}` returns 400 `unknown variant
+'image_url', expected 'text'`, and the Anthropic-style `{type: 'image',
+source: {...}}` returns 400 `unknown variant 'image'`. The deserializer
+accepts only `text`, so this is not a model capability gate that a different
+model id would lift.
+
+The consequence is architectural: an agent cannot be shown what its game looks
+like. Screenshots are not merely awkward to produce without a headless browser
+— they could not be sent even if we had them. Anything an agent learns about
+its running game has to arrive as text (§8, runtime feed).
+
 ### Usage and caching
 
 ```json
@@ -815,7 +832,10 @@ the test suite never touches the network.
 
 - Viewer counts, message reactions, web push, unread markers (all exist in
   `new-y`). Typing previews are **not** here — they are permanently out (§2).
-- Public read-only chat or a public game index.
+- Public read-only chat. (A public game index is no longer deferred: `/` on
+  the games origin is the catalog, listing games whose `published` flag is
+  set. Publishing changes findability, not access — every game has always
+  been playable by link, §7.)
 - Editing or deleting messages.
 - Full-text search over messages and files.
 - Slug rename with a redirect from the old public URL.

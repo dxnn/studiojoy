@@ -16,11 +16,73 @@ import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
 //
 // The only thing this serves is a regular file from inside a project
 // directory. Nothing here reads a cookie, touches a session, or writes.
+// Names and slugs reach the catalog as text, never as markup.
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 export function createGamesApp({ db, gamesDir }) {
   if (!db) throw new Error('createGamesApp requires a db');
   const root = path.resolve(gamesDir);
 
   const r = createRouter();
+
+  // The catalog. Only published games appear, so an unfinished one stays
+  // unlisted while still being playable by link — the same bargain as before,
+  // just findable now. Names are escaped: they are typed by people and this
+  // page is served to the public with no session anywhere near it.
+  r.get('/', (ctx) => {
+    const games = db
+      .prepare(
+        `SELECT slug, name FROM projects
+          WHERE published = 1 AND kind = 'game' AND archived = 0
+          ORDER BY name`,
+      )
+      .all();
+
+    const cards = games
+      .map((g) => `<li><a href="/${escapeHtml(g.slug)}/">${escapeHtml(g.name)}</a></li>`)
+      .join('\n      ');
+
+    const page = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Games</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 40px 20px;
+         display: flex; justify-content: center; }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.5rem; margin: 0 0 24px; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  a { display: block; padding: 16px 18px; border: 1px solid currentColor;
+      border-radius: 12px; text-decoration: none; font-weight: 600; }
+  a:hover { outline: 2px solid currentColor; }
+  p { opacity: 0.7; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Games</h1>
+    ${games.length ? `<ul>\n      ${cards}\n    </ul>` : '<p>No games yet.</p>'}
+  </main>
+</body>
+</html>
+`;
+    ctx.res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    if (ctx.req.method === 'HEAD') return ctx.res.end();
+    return ctx.res.end(page);
+  });
 
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;
   // `/tank/js/game.js` serves that file.

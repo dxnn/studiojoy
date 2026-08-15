@@ -127,6 +127,21 @@ export async function isRepo(dir) {
   }
 }
 
+// Copy a project's whole repository into a new directory: the working tree
+// and every commit behind it, so a fork can still answer "where did this come
+// from". --no-hardlinks because the two projects must be independent on disk;
+// the default would share object files with the original.
+//
+// The clone's `origin` remote is removed straight away. It would point at
+// another project's directory, and nothing in the studio should hold a path
+// into a sibling working tree.
+export async function forkRepo(src, dst) {
+  await fs.promises.mkdir(dst, { recursive: true });
+  await git(dst, ['clone', '--no-hardlinks', '--', src, '.'], { pinned: false });
+  await git(dst, ['remote', 'remove', 'origin']);
+  return currentSha(dst);
+}
+
 export async function currentSha(dir) {
   return (await git(dir, ['rev-parse', 'HEAD'])).toString('utf8').trim();
 }

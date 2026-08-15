@@ -135,15 +135,50 @@ test('the games origin refuses every traversal attempt', async (t) => {
   assert.equal(fs.existsSync(path.join(dir, '.git', 'config')), true);
 });
 
-test('a directory, a missing file, and a bare slash are all 404', async (t) => {
+test('a directory and a missing file are 404', async (t) => {
   const { app, games } = await bothOrigins(t);
   await put(app, 'js/game.js', 'x');
 
-  for (const url of ['/', '/tank/js', '/tank/js/', '/tank/nope.html', '/tank/js/nope.js']) {
+  for (const url of ['/tank/js', '/tank/js/', '/tank/nope.html', '/tank/js/nope.js']) {
     const res = await games.client.request('GET', url);
     assert.equal(res.status, 404, url);
     await res.text();
   }
+});
+
+test('the catalog lists published games and nothing else', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+
+  const empty = await games.client.request('GET', '/');
+  assert.equal(empty.status, 200, 'the root is a page, not an error');
+  assert.match(await empty.text(), /No games yet/);
+
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  const listed = await games.client.request('GET', '/');
+  const html = await listed.text();
+  assert.match(html, /href="\/tank\/"/);
+
+  // Unpublishing takes it back out; the game itself stays playable.
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: false } });
+  const gone = await games.client.request('GET', '/');
+  assert.doesNotMatch(await gone.text(), /href="\/tank\/"/);
+  const play = await games.client.request('GET', '/tank/');
+  assert.equal(play.status, 200, 'unlisted is not unreachable');
+  await play.text();
+});
+
+test('a game name cannot inject markup into the catalog', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await app.client.json('PATCH', '/api/projects/tank', {
+    body: { name: '<script>alert(1)</script>' },
+  });
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+
+  const res = await games.client.request('GET', '/');
+  const html = await res.text();
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /&lt;script&gt;/);
 });
 
 test('an unknown project is 404 even when a directory exists', async (t) => {
