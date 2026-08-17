@@ -56,6 +56,8 @@ const S = {
   slug: null,
   project: null,
   files: [],
+  // What the game said when it ran, for the version of the files on disk now.
+  errors: [],
   pinned: new Set(),
   tab: 'files',
   open: null, // {path, content, etag, dirty, conflict}
@@ -205,6 +207,7 @@ async function openProject(slug, { push = true } = {}) {
     S.slug = null;
     S.project = null;
     S.files = [];
+    S.errors = [];
     S.open = null;
     if (push) history.pushState({}, '', '/');
     render();
@@ -218,6 +221,7 @@ async function openProject(slug, { push = true } = {}) {
   S.slug = slug;
   S.project = res.body;
   S.files = res.body.files;
+  S.errors = res.body.errors ?? [];
   S.pinned = new Set();
   S.open = null;
   S.history = [];
@@ -237,7 +241,7 @@ window.addEventListener('popstate', () => openProject(slugFromUrl(), { push: fal
 const STREAM_EVENTS = [
   'project.new', 'project.updated', 'message.new',
   'agent.stream.start', 'agent.stream.reasoning', 'agent.stream.chunk',
-  'agent.tool', 'agent.stream.end', 'files.changed',
+  'agent.tool', 'agent.stream.end', 'files.changed', 'game.errors',
 ];
 
 function connectStream() {
@@ -372,11 +376,27 @@ function onEvent(name, data) {
       return;
     }
 
+    case 'game.errors': {
+      if (!mine(data)) return;
+      // The server sends the whole current list, so there is nothing to merge.
+      S.errors = data.errors;
+      // Never a full render: rebuilding the tree rebuilds the preview iframe,
+      // which restarts the game, which reports its problems again — a loop
+      // that never settles. Same reason a streaming reply mutates its nodes.
+      if (problemNodes) paintProblems();
+      else render();
+      return;
+    }
+
     case 'files.changed': {
       if (!mine(data)) return;
       refreshFiles();
       // An agent just rewrote the game; show the new version.
       S.previewNonce += 1;
+      // Those problems belonged to the version that was just replaced. The
+      // reload below re-runs the game, and anything still broken says so
+      // again.
+      S.errors = [];
       // A commit landed, so the versions list is now behind. Reload it if it
       // is on screen; otherwise let opening the tab do it.
       S.historyStale = true;
@@ -406,6 +426,53 @@ function toolLabel(tool) {
   };
   return `${words[verb] ?? verb} ${path}`.trim();
 }
+
+/* Problems the game reported --------------------------------------------- */
+
+// The game runs on the games origin inside the preview iframe, so postMessage
+// is the only way it can say anything at all — and that is deliberate
+// (spec.md §7). Everything arriving here is text written by LLM-authored game
+// code, so it is checked before it is believed: it must come from the games
+// origin, and it must name the game we are actually looking at.
+const MAX_ERROR_BATCH = 20;
+const ERROR_BATCH_MS = 500;
+const errorQueue = [];
+let errorTimer = null;
+// The live nodes of the problems panel, while the Play tab is on screen.
+let problemNodes = null;
+
+function gamesOrigin() {
+  if (!S.project?.play_url) return null;
+  try {
+    return new URL(S.project.play_url).origin;
+  } catch {
+    return null;
+  }
+}
+
+async function flushErrors() {
+  errorTimer = null;
+  const slug = S.slug;
+  const errors = errorQueue.splice(0, errorQueue.length).slice(0, MAX_ERROR_BATCH);
+  if (!slug || errors.length === 0) return;
+  // The reply comes back as a game.errors broadcast, so the list is rendered
+  // from one place whichever tab reported it.
+  await api('POST', `/api/projects/${slug}/errors`, { errors });
+}
+
+window.addEventListener('message', (event) => {
+  const origin = gamesOrigin();
+  if (!origin || event.origin !== origin) return;
+  const data = event.data;
+  if (!data || data.gamestudio !== 'error' || data.slug !== S.slug) return;
+  errorQueue.push({
+    message: String(data.message ?? ''),
+    location: String(data.location ?? ''),
+  });
+  // A game that breaks on load usually breaks several times at once; one
+  // round trip for the burst is enough.
+  if (errorTimer === null) errorTimer = setTimeout(flushErrors, ERROR_BATCH_MS);
+});
 
 /* Files ------------------------------------------------------------------- */
 
@@ -857,7 +924,13 @@ function renderMessage(msg) {
       style: tintStyle(isAgent, isAgent ? msg.agent_id : msg.user_id),
       text: msg.body,
     }),
-    chips.length ? h('div', { class: 'chips' }, chips) : null);
+    chips.length ? h('div', { class: 'chips' }, chips) : null,
+    // What this reply cost. Visible rather than hidden, because a reply that
+    // carried on from itself three times costs three times as much and there
+    // was nothing else saying so.
+    msg.tokens
+      ? h('div', { class: 'tokens', text: `${msg.tokens.toLocaleString()} tokens` })
+      : null);
 }
 
 function renderLive(agentId, entry) {
@@ -1108,6 +1181,35 @@ function renderFilesTab() {
   ];
 }
 
+// What the game reported while someone was playing it. Shown here because
+// this is where you were when it happened; the helpers get the same list as
+// text on the next message, which is the only way they can ever see it.
+//
+// The panel is built empty and filled in place, so a problem arriving mid-game
+// never costs a re-render — see the game.errors event.
+function paintProblems() {
+  if (!problemNodes) return;
+  const { box, list } = problemNodes;
+  box.hidden = S.errors.length === 0;
+  list.replaceChildren(...S.errors.map((e) => h('div', { class: 'problem' },
+    e.location ? h('span', { class: 'where', text: e.location }) : null,
+    h('span', { text: e.message }),
+    e.times > 1 ? h('span', { class: 'muted', text: ` (${e.times} times)` }) : null)));
+  // The only sign of trouble when you are looking at another tab.
+  if (problemNodes.tab) problemNodes.tab.textContent = S.errors.length ? 'Play ⚠' : 'Play';
+}
+
+function renderProblems() {
+  const list = h('div', { class: 'problem-list' });
+  const box = h('div', { class: 'problems' },
+    h('div', { class: 'problems-head', text: 'The game ran into trouble' }),
+    list,
+    h('div', { class: 'hint muted', text: 'Your helpers can see this. Ask them to fix it.' }));
+  problemNodes = { box, list, tab: null };
+  paintProblems();
+  return box;
+}
+
 function renderPlayTab() {
   const url = `${S.project.play_url}?v=${S.previewNonce}`;
   return [h('div', { class: 'scroll' },
@@ -1118,6 +1220,7 @@ function renderPlayTab() {
         h('a', { href: S.project.play_url, target: '_blank', rel: 'noreferrer' },
           h('button', { class: 'quiet tiny', text: 'Open in a tab' }))),
       h('iframe', { class: 'preview-frame', src: url, title: 'Game preview' }),
+      renderProblems(),
       h('div', { class: 'hint muted', text: 'Anyone with the link can play this. It updates as soon as a file changes.' }),
       h('div', { class: 'mono muted', text: S.project.play_url }),
       h('div', { class: 'row' },
@@ -1232,12 +1335,17 @@ function renderRail() {
   else if (S.tab === 'versions') body = renderVersionsTab();
   else body = renderFilesTab();
 
+  // The badge is the only sign of trouble when you are looking at another tab.
+  // Handed to the problems panel so a problem arriving mid-game can update it
+  // without a render.
+  const playTab = tab('play', S.errors.length ? 'Play ⚠' : 'Play');
+  if (problemNodes) problemNodes.tab = playTab;
+
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
     railGrip(),
     h('div', { class: 'bar' },
       h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
-      h('div', { class: 'tabs' },
-        tab('files', 'Files'), tab('play', 'Play'), tab('versions', 'Versions'))),
+      h('div', { class: 'tabs' }, tab('files', 'Files'), playTab, tab('versions', 'Versions'))),
     ...body);
 }
 
@@ -1466,6 +1574,9 @@ function dialogFor(d) {
 
 function render() {
   const focus = focusSnapshot();
+  // Rebuilt by the Play tab if it is on screen; null means an arriving
+  // problem has nothing live to paint into and needs a full render.
+  problemNodes = null;
   root.replaceChildren();
 
   if (S.loading) {

@@ -4,9 +4,22 @@ import { isTextPath } from '../http/static.js';
 import {
   readFileAt, writeFileAt, removeFileAt, assertCapacity, MAX_FILE_BYTES,
 } from '../files/tree.js';
+import { REPORTER_PATH, REPORTER_TAG } from '../reporter.js';
 
 // Cap on what read_file hands back, so one call can't blow the context.
 const MAX_READ_BYTES = 128 * 1024;
+
+const ENTRY_FILE = 'index.html';
+
+// Rewriting index.html is how the reporter tag gets lost, and losing it costs
+// the agent the only channel that ever tells it the game is broken. Said here
+// rather than in the preamble because here it is a fact about the file just
+// written, at the moment there is still something to do about it.
+function reporterNote(rel, text) {
+  if (rel !== ENTRY_FILE || text.includes(REPORTER_PATH)) return '';
+  return `\nnote: ${ENTRY_FILE} does not include ${REPORTER_TAG}, so nothing will`
+    + ' tell you when this game breaks. Put it back in the head.';
+}
 
 // Tool definitions in the OpenAI function-calling shape DeepSeek accepts.
 export const TOOL_DEFINITIONS = [
@@ -117,7 +130,8 @@ export function createToolset({ dir, mutex, slug }) {
       }
       await writeFileAt(target.abs, buffer);
       record(target.rel, existed ? 'update' : 'create', buffer.length);
-      return `${existed ? 'updated' : 'created'} ${target.rel} (${buffer.length} bytes)`;
+      return `${existed ? 'updated' : 'created'} ${target.rel} (${buffer.length} bytes)`
+        + reporterNote(target.rel, content);
     });
   }
 
@@ -153,7 +167,7 @@ export function createToolset({ dir, mutex, slug }) {
       record(target.rel, 'update', out.length);
       const delta = out.length - buffer.length;
       const sign = delta >= 0 ? '+' : '';
-      return `patched ${target.rel} (${sign}${delta} bytes)`;
+      return `patched ${target.rel} (${sign}${delta} bytes)` + reporterNote(target.rel, after);
     });
   }
 

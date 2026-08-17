@@ -6,12 +6,10 @@ deliberately deferred.
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - decide whether `BRIEF.md` should be created automatically with a new project
+- put `<script src="_studio.js"></script>` into the two games that predate the
+  reporter, or ask a helper to — until then those two report nothing
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
-- ! let helpers see the game running: a runtime error feed from the preview
-  iframe into agent context. Screenshots are impossible, not just awkward —
-  DeepSeek v4 rejects every image content shape (spec.md §14), so anything an
-  agent learns about its running game has to arrive as text
 - context management for a long game: history is the pressure, not files
   (measured: all three games total 104 KB, so the 400 KB ambient cap has never
   bound). Options are a rolling summary, a helper-maintained NOTES.md, or

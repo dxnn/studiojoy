@@ -13,6 +13,7 @@ import { agentRoutes } from './routes/agents.js';
 import { fileRoutes } from './routes/files.js';
 import { historyRoutes } from './routes/history.js';
 import { messageRoutes } from './routes/messages.js';
+import { errorRoutes } from './routes/errors.js';
 import { streamRoutes } from './routes/stream.js';
 
 const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
@@ -47,6 +48,7 @@ export function createApp({
   fileRoutes(r);
   historyRoutes(r);
   messageRoutes(r);
+  errorRoutes(r);
   streamRoutes(r);
 
   // Unknown /api paths are 404 for every method. Without this the static

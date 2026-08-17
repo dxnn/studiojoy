@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { tx } from '../db.js';
 import { listTree, readFileAt } from '../files/tree.js';
-import { commitPaths } from '../files/git.js';
+import { commitPaths, currentSha } from '../files/git.js';
+import { hasErrors, listErrors } from '../runtime.js';
+import { REPORTER_PATH, REPORTER_TAG } from '../reporter.js';
 import { tokensCharged, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
 import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
@@ -70,6 +72,11 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       'You have file tools. Prefer patch_file over write_file when changing a file that already exists —',
       'it is cheaper and cannot silently lose the parts you did not mean to touch.',
       'Split a game across files (index.html, js/, css/, assets/) rather than emitting one enormous file.',
+      '',
+      `Put ${REPORTER_TAG} in the head of index.html and leave it there. Those bytes are the studio's,`,
+      `not yours — do not write a file called ${REPORTER_PATH}. It reports errors from the running game`,
+      'back into this conversation, and it is the only way you ever find out the game is broken: nobody',
+      'can show you a picture of it.',
       '',
       `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
       'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',
@@ -177,6 +184,23 @@ async function buildFileBlock(db, project, dir) {
   return parts.join('\n\n');
 }
 
+// What the game said when someone played it. Only the current version's
+// problems: a row is stamped with the commit it happened on, so a fix retires
+// it rather than leaving the agent chasing something it already repaired.
+async function buildErrorBlock(db, project, dir) {
+  if (!hasErrors(db, project.id)) return null;
+  const rows = listErrors(db, project.id, await currentSha(dir));
+  if (rows.length === 0) return null;
+  const lines = rows.map((row) => {
+    const where = row.location ? `${row.location} — ` : '';
+    const repeats = row.times > 1 ? ` (${row.times} times)` : '';
+    return `- ${where}${row.message}${repeats}`;
+  });
+  return 'PROBLEMS THE RUNNING GAME REPORTED\n'
+    + '(from this version of the files, while someone was playing it in the studio)\n'
+    + lines.join('\n');
+}
+
 function historyTurns(db, project, agent, lastFiredMaxId = 0) {
   const rows = db
     .prepare(
@@ -270,8 +294,12 @@ async function buildContext({
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
   if (!isChat) {
     const fileBlock = await buildFileBlock(db, project, dir);
+    const errorBlock = await buildErrorBlock(db, project, dir);
     const last = messages[messages.length - 1];
-    last.content = `${fileBlock}\n\n${last.content}`;
+    // Files first and errors after, next to the message: the file block is
+    // the stable prefix prompt caching pays for, and the errors change on
+    // every playthrough.
+    last.content = [fileBlock, errorBlock, last.content].filter(Boolean).join('\n\n');
   }
   return { system, messages };
 }
@@ -540,10 +568,10 @@ export function createOrchestrator({
         const messageId = tx(db, () => {
           const info = db
             .prepare(
-              `INSERT INTO messages (project_id, agent_id, body, created_at)
-               VALUES (?, ?, ?, ?)`,
+              `INSERT INTO messages (project_id, agent_id, body, created_at, tokens)
+               VALUES (?, ?, ?, ?, ?)`,
             )
-            .run(project.id, agent.id, replyText, now);
+            .run(project.id, agent.id, replyText, now, charged);
           const id = Number(info.lastInsertRowid);
           // A write of identical bytes produces no commit, so there is
           // nothing to record and nothing changed to report.

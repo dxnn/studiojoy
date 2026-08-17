@@ -93,6 +93,21 @@ const MIGRATIONS = [
     PRIMARY KEY (message_id, path)
   )`,
 
+  // What the game said while it was running, posted back by the reporter
+  // inside it. Keyed to the commit it happened on, so a fix retires it
+  // without anything having to clear the table (spec.md §8).
+  `CREATE TABLE IF NOT EXISTS runtime_errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    commit_sha TEXT NOT NULL,
+    message TEXT NOT NULL,
+    location TEXT NOT NULL,
+    times INTEGER NOT NULL DEFAULT 1,
+    at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_runtime_errors_project
+     ON runtime_errors (project_id, commit_sha)`,
+
   // Single row. One studio-wide daily budget, because agents have no owner
   // to bill (spec.md §3).
   `CREATE TABLE IF NOT EXISTS studio_state (
@@ -114,6 +129,9 @@ export function openDb(dbPath) {
   // Off by default: a game becomes publicly listed only when someone says so.
   // It was always publicly *playable* — this is about the index, not access.
   addColumnIfMissing(db, 'projects', 'published', 'INTEGER NOT NULL DEFAULT 0');
+  // What one agent turn cost, charged the same way the daily budget is. Null
+  // on a human or system row, which cost nothing.
+  addColumnIfMissing(db, 'messages', 'tokens', 'INTEGER');
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,

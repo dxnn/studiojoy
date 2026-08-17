@@ -80,7 +80,7 @@ destructive actions confirm first. The UI says **helper** where the code says
 
 ## Current state
 
-v0 is complete and green at 279 tests. Verified live end to end: a message in
+v0 is complete and green at 289 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -98,6 +98,15 @@ one hostname the cookie *is* sent to the games origin; see spec.md §7.
 Play and preview links are derived per request from `Host` (same hostname,
 `GAMES_PORT`), so no hostname is configured anywhere. `GAMES_URL` overrides it
 for the separate-hostname deployment and is normally unset.
+
+Helpers can now see the game break. A game includes `_studio.js` — the
+**reporter**, served by the studio at a reserved path on the games origin —
+which posts uncaught errors, failed loads and `console.error` to the studio
+page; the studio stores them against the current commit and hands them to the
+next fire as text (spec.md §8). Browser-checked end to end. The one trap worth
+remembering: rendering rebuilds the preview iframe, which restarts the game,
+which reports again — so the problems panel is painted in place, never through
+`render()`. What a reply cost is on `messages.tokens` and under the bubble.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

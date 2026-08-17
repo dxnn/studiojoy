@@ -415,6 +415,31 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .chip.delete { color: var(--danger); }
 .chip.pin { cursor: default; }
 
+/* What a reply cost. Present and checkable, never competing with the reply. */
+.tokens { font-size: 11px; color: var(--muted); }
+
+/* Problems the running game reported. Stated plainly and not dressed up as an
+   alarm: a game breaking while you build it is normal. */
+.problems {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+/* An explicit display would otherwise beat the browser's rule for [hidden]. */
+.problems[hidden] { display: none; }
+.problem-list { display: grid; gap: 5px; }
+.problems-head { font-weight: 600; color: var(--danger); }
+.problem { overflow-wrap: anywhere; }
+.problem .where {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
 /* The reasoning trace: present, clearly secondary, and collapsed. */
 details.thinking { font-size: 13px; }
 details.thinking summary {

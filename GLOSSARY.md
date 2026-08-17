@@ -23,3 +23,5 @@
 - **fork** — a copy of a game: its working tree and full git history under a new slug, carrying the attached agents, starting a fresh thread.
 - **draft** — unsent composer text, held per project in the client and never on the server. It survives a re-render and a switch to another game; only sending it clears it.
 - **project mutex** — the per-project promise chain that serialises write-and-commit, so concurrent agents cannot interleave git operations.
+- **reporter** — `_studio.js`, a fixed script the studio serves at a reserved path on the games origin. A game includes it; it posts the game's errors to the studio. Served rather than copied into a working tree, so one fix reaches every game.
+- **runtime error** — something the game said went wrong while it ran: an uncaught error, a resource that would not load, or a `console.error`. Stamped with the commit it happened on, so a fix retires it. The UI calls these *problems*.

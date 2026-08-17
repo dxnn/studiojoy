@@ -358,6 +358,34 @@ test('a reply charges the budget with the cache discount applied', async (t) => 
   assert.equal(state.used, 140);
 });
 
+// The same number the budget was charged, kept on the reply that spent it, so
+// a turn that carried on from itself is visibly more expensive than one that
+// did not.
+test('what a reply cost is recorded on the reply', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
+      { tokens: 25 }),
+    says('Built it.', { tokens: 40 }),
+  ]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+
+  // Both turns of the one fire: (100 + 25) + (100 + 40).
+  assert.equal(reply.data.tokens, 265);
+  assert.equal(budgetState(app.db).used, 265);
+
+  // Nothing a person or the studio wrote costs anything.
+  const posted = await app.client.json('GET', '/api/projects/tank/messages');
+  const human = posted.body.messages.find((m) => m.user_id !== null);
+  assert.equal(human.tokens, null);
+});
+
 test('a truncated tool call is explained rather than silently dropped', async (t) => {
   // Cut off every turn, so no retry can succeed and the banner is the outcome.
   const llm = createFakeLlm(() => truncated({ text: 'Writing the game...' }));

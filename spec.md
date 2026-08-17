@@ -141,6 +141,7 @@ isn't needed here.
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner |
 | `body` | TEXT NOT NULL | utf-8, ≤ 32 KB |
+| `tokens` | INTEGER NULL | what the fire that produced this reply cost; NULL for anything a person or the studio wrote |
 | `created_at` | TEXT NOT NULL | |
 
 `CHECK (NOT (user_id IS NOT NULL AND agent_id IS NOT NULL))` — never both.
@@ -178,6 +179,31 @@ turn. Drives the context chips in the UI and the pin rules in §8.
 PK `(message_id, path)`. Rendered as file chips beneath an agent's reply, each
 linking to that commit's diff for that path. Git holds the same information,
 but recording it keeps the chat render a pure DB read.
+
+`messages.tokens` is charged by the same formula as the daily budget (§8) and
+is shown under the reply in the UI. It exists because a reply that continued
+itself three times costs three times as much and nothing else said so.
+
+### `runtime_errors`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `project_id` | INTEGER NOT NULL → projects | |
+| `commit_sha` | TEXT NOT NULL | the version of the game that produced it |
+| `message` | TEXT NOT NULL | ≤ 500 chars, control characters stripped |
+| `location` | TEXT NOT NULL | project path and line, e.g. `js/game.js:41`; `console` or empty when there is none |
+| `times` | INTEGER NOT NULL DEFAULT 1 | repeats collapse into this rather than new rows |
+| `at` | TEXT NOT NULL | last seen |
+
+What the game said while it was running (§8, runtime error feed). At most 20
+rows per project, oldest evicted first.
+
+Every row is stamped with the commit that was HEAD when it was reported, and
+only rows matching the current HEAD are ever shown. A fix moves HEAD, so the
+broken version's problems retire themselves and no commit path has to remember
+to clear them. Rows for other commits are deleted the next time anything is
+reported for that project.
 
 ### `studio_state`
 
@@ -334,6 +360,7 @@ There is no signup route. Accounts come from `npm run adduser`.
 |---|---|---|---|
 | POST | `/api/projects/:slug/messages` | `{body, context_paths?: string[]}` | post a human message; fires eligible agents (§8) |
 | GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history |
+| POST | `/api/projects/:slug/errors` | `{errors: [{message, location}]}` | record what the running game reported (§8); games only, allowed on an archived one |
 
 #### Files
 
@@ -379,13 +406,20 @@ Other paths serve from `public/`.
 
 | method | path | effect |
 |---|---|---|
+| GET, HEAD | `/` | the catalog: published games, names escaped |
+| GET, HEAD | `/:slug/_studio.js` | the reporter (§8), the studio's own bytes rather than the project's |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 
-No authentication, no cookies read, no `/api` surface, no directory index, no
-project list. Other methods get 405; `/` gets 404. Archived projects stay
-playable. `Cache-Control: no-store` throughout, so iterating on a game shows
-fresh bytes on reload without cache-busting.
+No authentication, no cookies read, no `/api` surface, no directory index.
+Other methods get 405. Archived projects stay playable. `Cache-Control:
+no-store` throughout, so iterating on a game shows fresh bytes on reload
+without cache-busting.
+
+Two of those four are not project files. Both are fixed responses that read at
+most a slug and a published flag; neither reads a cookie, and neither writes
+anything. `_studio.js` is reserved in every project: a working tree that
+happens to contain a file of that name has it shadowed and never served.
 
 ## 7. Origins and the game-code security boundary
 
@@ -496,7 +530,12 @@ The final user message carries, in order:
    files come first and are labelled with who pinned them. Binary files are
    listed as `[binary: <path>, <size>]` — the agent learns they exist without
    receiving bytes it cannot read.
-3. The human's message body.
+3. The **runtime errors** for the current commit, one per line, omitted
+   entirely when there are none (below).
+4. The human's message body.
+
+Files first and errors last is deliberate: the file block is the stable prefix
+prompt caching pays for, and the errors change on every playthrough.
 
 A **pinned file** is a path in the current turn's `context_paths`, or in
 either of the previous two human turns'. Pinned files are never dropped by the
@@ -535,6 +574,47 @@ It is **never persisted** to `messages.body` and **never sent back** in a
 later request's history. Both rules matter: it would bloat the database and
 DeepSeek's own guidance is not to feed traces back as context. What survives a
 turn is the reply text and the file writes.
+
+### Runtime error feed
+
+An agent cannot be shown its game. DeepSeek rejects every image content shape
+(§14), so this is not a matter of producing a screenshot — it could not be
+sent. Everything an agent learns about the running game therefore arrives as
+text, and this is the channel.
+
+The **reporter** is a small script the studio serves at `/<slug>/_studio.js` on
+the games origin (§6). A game includes it with
+`<script src="_studio.js"></script>`; the studio preamble asks for the tag, and
+writing `index.html` without it returns a note on the tool result saying so,
+which is the point where the model can still do something about it. It is
+served rather than copied into each working tree so one fix reaches every game
+and no agent can delete it.
+
+Inside the game it catches uncaught errors, failed resource loads
+(capture phase — a `<script>` that 404s never reaches `window` otherwise) and
+`console.error`, and posts each distinct one to `window.parent`. It reports
+only when framed, never throws, and sends each distinct problem once per page
+load, capped at 20 — a game that throws inside its animation loop would
+otherwise report sixty times a second.
+
+The studio page checks the sender's origin against the games origin and the
+message's slug against the open project, batches for 500 ms, and posts to
+`/api/projects/:slug/errors`. Rows are stamped with HEAD, so they retire when a
+fix lands (§3). The list is broadcast as `game.errors` and painted into the
+Play tab **without a re-render**: rebuilding the tree rebuilds the preview
+iframe, which restarts the game, which reports its problems again — a loop that
+does not settle. This is the same reason a streaming reply mutates its nodes.
+
+Accepted: a problem reported in the few hundred milliseconds between a commit
+and the reload it triggers is stamped with the new commit, so a fixed error can
+survive one turn. Two commits that close together are a human saving twice in a
+row, not the ordinary one-commit-per-turn rhythm.
+
+⚠️ Everything in this feed is text from LLM-written game code, arriving over
+`postMessage` from a public origin. It is capped, stripped of control
+characters, and only ever rendered as text — but it does reach an agent's
+context, so a game can put words in front of its own helpers. It could already
+do that by writing a file, so this adds reach, not a new capability.
 
 ### Tools
 
@@ -636,6 +716,7 @@ broker entirely.
 | `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator |
 | `agent.stream.end` | `{project_slug, agent_id, message_id?, error?}` |
 | `files.changed` | `{project_slug, paths: string[]}` — client refreshes the tree and reloads the preview iframe |
+| `game.errors` | `{project_slug, errors: [{id, message, location, times, at}]}` — the whole current list, not a delta |
 
 `files.changed` is what makes the studio feel live: an agent writes a file and
 the game in your preview pane reloads.
@@ -649,11 +730,15 @@ the game in your preview pane reloads.
 - Project path: 200 chars, 8 segments.
 - Files per project: 500. Bytes per project: 200 MB.
 - Agents attached per project: 10.
+- Runtime errors: 20 per project, 20 per report, 500 chars of message and 200
+  of location each; 20 distinct problems per page load in the reporter itself.
 - Agent cooldown: 5 s per `(project, agent)`.
-- Agent fire: ≤ 8 assistant turns, ≤ 12 tool calls.
+- Agent fire: ≤ 24 assistant turns, ≤ 40 tool calls, ≤ 3 continuations per
+  human message (§8).
 - Context sent per fire: ~700 KB of text (§8), against a 1,048,576-token
   model ceiling.
-- Output per request: `max_tokens = 32768`, model ceiling 65536.
+- Output per request: `max_tokens = 65536`, which is the model ceiling — a
+  lower cap rations the reasoning trace, not the files (§8, §14).
 - Studio token budget: `DAILY_TOKEN_BUDGET`, default 5,000,000 per UTC day.
 - Login lockout: per email 10 failures / 5 min → 5 min lock; per IP 20
   failures / 5 min → 10 min lock. In-memory, resets on restart.
@@ -695,8 +780,9 @@ Tests enforce each of these.
 
 - Every path accepted by the API resolves inside its project directory, and no
   path with a `.git`-prefixed segment is ever read, written, or served. ⚠️
-- The games listener exposes nothing but static reads under a project
-  directory, and never reads a cookie. ⚠️
+- The games listener never reads a cookie, never writes, and serves nothing
+  but a project's own files, the catalog, and the reporter — the last two
+  being fixed responses built from a slug and a published flag. ⚠️
 - No HTTP response reports a successful file mutation before its git commit
   has landed.
 - At most one write+commit runs at a time per project.
@@ -820,7 +906,8 @@ model id would lift.
 The consequence is architectural: an agent cannot be shown what its game looks
 like. Screenshots are not merely awkward to produce without a headless browser
 — they could not be sent even if we had them. Anything an agent learns about
-its running game has to arrive as text (§8, runtime feed).
+its running game has to arrive as text, which is what the runtime error feed
+is for (§8).
 
 ### Usage and caching
 
@@ -890,6 +977,8 @@ server/
     router.js     method + :param/*wildcard matching
     body.js       JSON and raw body readers with caps
     static.js     extension mime table, traversal-safe serve
+  reporter.js     the script a game includes so it can report errors (§8)
+  runtime.js      what the running game reported, per project
   files/
     paths.js      project-path validation (§4)
     tree.js       recursive listing, caps
@@ -901,7 +990,7 @@ server/
   agents/
     orchestrator.js  dirty bit, cooldown, tool loop, context builder
     mentions.js
-  routes/         auth, projects, agents, messages, files, history, stream
+  routes/         auth, projects, agents, messages, errors, files, history, stream
 public/
   index.html      shell
   main.js         the whole SPA

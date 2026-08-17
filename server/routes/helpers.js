@@ -87,6 +87,10 @@ export function messagePublic(db, row, slug) {
     kind: row.kind ?? null,
     body: row.body,
     created_at: row.created_at,
+    // Null on anything a person or the studio wrote: only a fire costs
+    // tokens. Shown in the UI so a reply that continued itself three times is
+    // visibly three times the cost (spec.md §8).
+    tokens: row.tokens ?? null,
     context_paths: contextPaths,
     writes: writes.map((w) => ({ ...w })),
   };

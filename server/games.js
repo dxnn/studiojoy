@@ -3,6 +3,7 @@ import { createRouter } from './http/router.js';
 import { serveFile } from './http/static.js';
 import { HttpError } from './http/respond.js';
 import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
+import { REPORTER_PATH, REPORTER_JS } from './reporter.js';
 
 // ⚠️ The public listener, and the reason the studio is safe (spec.md §7).
 //
@@ -82,6 +83,29 @@ export function createGamesApp({ db, gamesDir }) {
     });
     if (ctx.req.method === 'HEAD') return ctx.res.end();
     return ctx.res.end(page);
+  });
+
+  // The reporter (reporter.js), at a path reserved in every project. It is
+  // the studio's own bytes, not the project's: one copy to fix, and no agent
+  // can delete the thing that tells it the game is broken. A file actually
+  // named `_studio.js` in a working tree is shadowed by this and never served.
+  //
+  // Still nothing but a static response with no session anywhere near it —
+  // the same posture as the rest of this listener.
+  r.get(`/:slug/${REPORTER_PATH}`, (ctx) => {
+    const slug = checkSlug(ctx.params.slug);
+    if (!slug.ok) throw new HttpError(404, 'not found');
+    const project = db
+      .prepare('SELECT kind FROM projects WHERE slug = ?')
+      .get(slug.slug);
+    if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
+
+    ctx.res.writeHead(200, {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    if (ctx.req.method === 'HEAD') return ctx.res.end();
+    return ctx.res.end(REPORTER_JS);
   });
 
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;

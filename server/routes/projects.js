@@ -2,8 +2,11 @@ import { json, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { checkSlug, slugify, requireSlug } from '../files/paths.js';
-import { initRepo, isRepo, forkRepo } from '../files/git.js';
+import {
+  initRepo, isRepo, forkRepo, currentSha,
+} from '../files/git.js';
 import { listTree } from '../files/tree.js';
+import { listErrors, errorPublic } from '../runtime.js';
 import {
   requireProject, projectDirFor, authorFor, requireString, messagePublic,
 } from './helpers.js';
@@ -111,7 +114,13 @@ export function projectRoutes(r) {
       .all(project.id);
     // A chat has no working tree to list and nothing to play.
     const isChat = project.kind === 'chat';
-    const files = isChat ? [] : (await listTree(projectDirFor(ctx, project))).files;
+    const dir = isChat ? null : projectDirFor(ctx, project);
+    const files = isChat ? [] : (await listTree(dir)).files;
+    // Problems the game reported on the version that is on disk now. Older
+    // ones are about code that no longer exists, so they are not sent.
+    const errors = isChat
+      ? []
+      : listErrors(ctx.db, project.id, await currentSha(dir)).map(errorPublic);
 
     json(ctx.res, 200, {
       ...projectPublic(ctx.db, project),
@@ -128,6 +137,7 @@ export function projectRoutes(r) {
         responding: a.response_pending === 1,
       })),
       files,
+      errors,
       messages: messages.map((m) => messagePublic(ctx.db, m, project.slug)),
     });
   });
