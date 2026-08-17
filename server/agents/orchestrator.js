@@ -3,7 +3,6 @@ import { tx } from '../db.js';
 import { listTree, readFileAt } from '../files/tree.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { hasErrors, listErrors } from '../runtime.js';
-import { REPORTER_PATH, REPORTER_TAG } from '../reporter.js';
 import { tokensCharged, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
 import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
@@ -72,11 +71,6 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       'You have file tools. Prefer patch_file over write_file when changing a file that already exists —',
       'it is cheaper and cannot silently lose the parts you did not mean to touch.',
       'Split a game across files (index.html, js/, css/, assets/) rather than emitting one enormous file.',
-      '',
-      `Put ${REPORTER_TAG} in the head of index.html and leave it there. Those bytes are the studio's,`,
-      `not yours — do not write a file called ${REPORTER_PATH}. It reports errors from the running game`,
-      'back into this conversation, and it is the only way you ever find out the game is broken: nobody',
-      'can show you a picture of it.',
       '',
       `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
       'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',

@@ -1,27 +1,35 @@
-// The reporter: the script a game includes so the studio can see it break.
+// The reporter: the script that lets the studio see a game break.
 //
 // DeepSeek cannot be shown a picture (spec.md §14), so everything an agent
 // learns about its running game has to arrive as text. This is where that text
 // comes from: uncaught errors, failed resource loads and console.error calls,
 // posted to the studio window and fed back into the next fire's context.
 //
-// It is served by the studio at a reserved path on the games origin rather
-// than copied into each working tree, so one fix reaches every game, old and
-// new, and no agent can helpfully delete it.
-
-export const REPORTER_PATH = '_studio.js';
-export const REPORTER_TAG = '<script src="_studio.js"></script>';
-
-// Plain ES5 in a string: it runs inside a game written by a language model,
-// which may target anything, and it is never bundled or parsed by us.
+// It is never a file in a working tree and never a tag in a game's markup. The
+// games listener serves the project's own index.html with this script injected
+// at a reserved path (`_studio.html`), and the studio's preview points there.
+// So the bytes the public plays are untouched, every game already has it, and
+// no agent has to remember anything.
 //
-// Two rules it must never break. It reports only when framed — a game opened
-// directly has no studio to talk to, and postMessage to itself would be noise
-// on someone else's page. And it never throws: an exception here would surface
-// inside the game as a bug the game does not have.
-export const REPORTER_JS = `(function () {
+// The version it is built with is the commit that produced the bytes around
+// it. It travels with every report, so a problem is always filed against the
+// code that actually caused it rather than whatever HEAD happens to be when
+// the report lands.
+
+export const WRAPPER_PATH = '_studio.html';
+
+const VERSION_MARK = '__STUDIO_VERSION__';
+
+// Plain ES5: this runs inside a game written by a language model, which may
+// target anything, and it is never bundled or parsed by us.
+//
+// Two rules it must never break. It reports only when framed — the wrapper
+// opened directly has no studio to talk to. And it never throws: an exception
+// here would surface inside the game as a bug the game does not have.
+const REPORTER_JS = `(function () {
   if (window.parent === window) return;
   var slug = location.pathname.split('/')[1] || '';
+  var version = '${VERSION_MARK}';
   var seen = {};
   var sent = 0;
   var MAX = 20;
@@ -48,6 +56,7 @@ export const REPORTER_JS = `(function () {
       window.parent.postMessage({
         gamestudio: 'error',
         slug: slug,
+        version: version,
         message: String(message).slice(0, 500),
         location: String(where).slice(0, 200)
       }, '*');
@@ -84,5 +93,31 @@ export const REPORTER_JS = `(function () {
     } catch (err) { /* never break the game */ }
     return passThrough.apply(console, arguments);
   };
-}());
-`;
+}());`;
+
+// Hex only, and never longer than a sha. The value lands inside a script tag
+// in a document served to the public, so it is not trusted to be what the
+// caller says it is.
+function safeVersion(version) {
+  return String(version ?? '').replace(/[^0-9a-f]/g, '').slice(0, 40);
+}
+
+export function reporterScript(version) {
+  return `<script>${REPORTER_JS.replace(VERSION_MARK, safeVersion(version))}</script>`;
+}
+
+// The game's own index.html with the reporter put in front of it. Placed
+// inside <head> when there is one and after the doctype otherwise, because it
+// has to run before the game's first script to catch an error in it.
+export function wrapHtml(html, version) {
+  const script = `\n${reporterScript(version)}\n`;
+  const lower = html.toLowerCase();
+  for (const opener of ['<head', '<!doctype']) {
+    const at = lower.indexOf(opener);
+    if (at === -1) continue;
+    const close = html.indexOf('>', at);
+    if (close === -1) continue;
+    return html.slice(0, close + 1) + script + html.slice(close + 1);
+  }
+  return script + html;
+}

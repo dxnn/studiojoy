@@ -1,14 +1,15 @@
 import { json, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
-import { currentSha } from '../files/git.js';
-import { recordErrors, errorPublic, MAX_ERRORS_PER_PROJECT } from '../runtime.js';
+import { currentSha, isSha } from '../files/git.js';
+import {
+  recordErrors, listErrors, errorPublic, MAX_ERRORS_PER_PROJECT,
+} from '../runtime.js';
 import { requireProject, projectDirFor } from './helpers.js';
 
 // The studio end of the runtime error feed. A game running in the preview
 // iframe posts its problems to the studio page (reporter.js); the page checks
-// the origin and forwards them here, where they are stamped with the commit
-// they happened on and handed to the helpers on the next fire.
+// the origin and forwards them here.
 //
 // Not restricted to unarchived projects: an archived game is still playable,
 // and a problem seen while playing it is still worth recording. The body is
@@ -21,9 +22,20 @@ export function errorRoutes(r) {
     const body = await readJson(ctx.req);
     if (!Array.isArray(body.errors)) throw new HttpError(400, 'errors must be an array');
 
-    const sha = await currentSha(projectDirFor(ctx, project));
+    const head = await currentSha(projectDirFor(ctx, project));
+    // The reporter carries the commit its own bytes came from. A report from a
+    // version that has since been replaced is dropped rather than filed
+    // against the new one: the preview is already reloading, and anything
+    // still broken will say so again. This is what keeps a fixed problem from
+    // reappearing as a current one.
+    const version = body.version === undefined ? head : body.version;
+    if (!isSha(version) || version !== head) {
+      json(ctx.res, 200, { errors: listErrors(ctx.db, project.id, head).map(errorPublic) });
+      return;
+    }
+
     const rows = recordErrors(
-      ctx.db, project.id, sha, body.errors.slice(0, MAX_ERRORS_PER_PROJECT),
+      ctx.db, project.id, head, body.errors.slice(0, MAX_ERRORS_PER_PROJECT),
     );
     const errors = rows.map(errorPublic);
 

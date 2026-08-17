@@ -3,7 +3,11 @@ import { createRouter } from './http/router.js';
 import { serveFile } from './http/static.js';
 import { HttpError } from './http/respond.js';
 import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
-import { REPORTER_PATH, REPORTER_JS } from './reporter.js';
+import { readFileAt } from './files/tree.js';
+import { currentSha } from './files/git.js';
+import { WRAPPER_PATH, wrapHtml } from './reporter.js';
+
+const ENTRY_FILE = 'index.html';
 
 // ⚠️ The public listener, and the reason the studio is safe (spec.md §7).
 //
@@ -85,27 +89,35 @@ export function createGamesApp({ db, gamesDir }) {
     return ctx.res.end(page);
   });
 
-  // The reporter (reporter.js), at a path reserved in every project. It is
-  // the studio's own bytes, not the project's: one copy to fix, and no agent
-  // can delete the thing that tells it the game is broken. A file actually
-  // named `_studio.js` in a working tree is shadowed by this and never served.
+  // The game's own index.html with the reporter injected (reporter.js), at a
+  // path reserved in every project. Only the studio's preview asks for this;
+  // the public plays `/:slug/`, whose bytes are exactly what is on disk.
   //
-  // Still nothing but a static response with no session anywhere near it —
-  // the same posture as the rest of this listener.
-  r.get(`/:slug/${REPORTER_PATH}`, (ctx) => {
+  // Injecting here rather than asking an agent to carry a script tag means no
+  // game has to be edited, none can lose it, and the commit the bytes came
+  // from can be baked in — which is what files a problem against the code that
+  // actually caused it. HEAD is read before the file, deliberately: a commit
+  // landing in between then makes the version older than the bytes, and an
+  // error filed against a superseded commit is dropped rather than shown.
+  r.get(`/:slug/${WRAPPER_PATH}`, async (ctx) => {
     const slug = checkSlug(ctx.params.slug);
     if (!slug.ok) throw new HttpError(404, 'not found');
     const project = db
-      .prepare('SELECT kind FROM projects WHERE slug = ?')
+      .prepare('SELECT slug, kind FROM projects WHERE slug = ?')
       .get(slug.slug);
     if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
 
+    const dir = path.join(root, project.slug);
+    const version = await currentSha(dir).catch(() => '');
+    const html = await readFileAt(path.join(dir, ENTRY_FILE));
+    if (html === null) throw new HttpError(404, 'not found');
+
     ctx.res.writeHead(200, {
-      'Content-Type': 'text/javascript; charset=utf-8',
+      'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
     });
     if (ctx.req.method === 'HEAD') return ctx.res.end();
-    return ctx.res.end(REPORTER_JS);
+    return ctx.res.end(wrapHtml(html.toString('utf8'), version));
   });
 
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;

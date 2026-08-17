@@ -431,13 +431,19 @@ function toolLabel(tool) {
 
 // The game runs on the games origin inside the preview iframe, so postMessage
 // is the only way it can say anything at all — and that is deliberate
-// (spec.md §7). Everything arriving here is text written by LLM-authored game
-// code, so it is checked before it is believed: it must come from the games
-// origin, and it must name the game we are actually looking at.
+// (spec.md §7): the studio cannot reach into the frame either, which is why
+// the reporter is injected by the server rather than from here. Everything
+// arriving is text written by LLM-authored game code, so it is checked before
+// it is believed: it must come from the games origin, and it must name the
+// game we are actually looking at.
 const MAX_ERROR_BATCH = 20;
 const ERROR_BATCH_MS = 500;
 const errorQueue = [];
 let errorTimer = null;
+// The commit the queued problems came from. The reporter is built with it, so
+// it names the code that actually broke rather than whatever has been
+// committed since.
+let errorVersion = null;
 // The live nodes of the problems panel, while the Play tab is on screen.
 let problemNodes = null;
 
@@ -453,11 +459,12 @@ function gamesOrigin() {
 async function flushErrors() {
   errorTimer = null;
   const slug = S.slug;
+  const version = errorVersion;
   const errors = errorQueue.splice(0, errorQueue.length).slice(0, MAX_ERROR_BATCH);
   if (!slug || errors.length === 0) return;
   // The reply comes back as a game.errors broadcast, so the list is rendered
   // from one place whichever tab reported it.
-  await api('POST', `/api/projects/${slug}/errors`, { errors });
+  await api('POST', `/api/projects/${slug}/errors`, { version, errors });
 }
 
 window.addEventListener('message', (event) => {
@@ -465,6 +472,13 @@ window.addEventListener('message', (event) => {
   if (!origin || event.origin !== origin) return;
   const data = event.data;
   if (!data || data.gamestudio !== 'error' || data.slug !== S.slug) return;
+  const version = String(data.version ?? '');
+  // A different version means the preview reloaded, so anything still queued
+  // describes bytes that are gone.
+  if (version !== errorVersion) {
+    errorQueue.length = 0;
+    errorVersion = version;
+  }
   errorQueue.push({
     message: String(data.message ?? ''),
     location: String(data.location ?? ''),
@@ -1211,7 +1225,11 @@ function renderProblems() {
 }
 
 function renderPlayTab() {
-  const url = `${S.project.play_url}?v=${S.previewNonce}`;
+  // The preview loads the studio's wrapper — the game's own index.html with
+  // the reporter injected — while the link beside it, and everyone playing,
+  // gets the untouched page. That is why no game carries a script tag for
+  // this and why every game already reports.
+  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
   return [h('div', { class: 'scroll' },
     h('div', { class: 'preview-wrap' },
       h('div', { class: 'row' },

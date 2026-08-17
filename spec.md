@@ -199,11 +199,11 @@ itself three times costs three times as much and nothing else said so.
 What the game said while it was running (§8, runtime error feed). At most 20
 rows per project, oldest evicted first.
 
-Every row is stamped with the commit that was HEAD when it was reported, and
-only rows matching the current HEAD are ever shown. A fix moves HEAD, so the
-broken version's problems retire themselves and no commit path has to remember
-to clear them. Rows for other commits are deleted the next time anything is
-reported for that project.
+Every row is stamped with the commit the reporting page's bytes came from (§8),
+and only rows matching the current HEAD are ever shown. A fix moves HEAD, so
+the broken version's problems retire themselves and no commit path has to
+remember to clear them. Rows for other commits are deleted the next time
+anything is reported for that project.
 
 ### `studio_state`
 
@@ -360,7 +360,7 @@ There is no signup route. Accounts come from `npm run adduser`.
 |---|---|---|---|
 | POST | `/api/projects/:slug/messages` | `{body, context_paths?: string[]}` | post a human message; fires eligible agents (§8) |
 | GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history |
-| POST | `/api/projects/:slug/errors` | `{errors: [{message, location}]}` | record what the running game reported (§8); games only, allowed on an archived one |
+| POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
 
 #### Files
 
@@ -407,7 +407,7 @@ Other paths serve from `public/`.
 | method | path | effect |
 |---|---|---|
 | GET, HEAD | `/` | the catalog: published games, names escaped |
-| GET, HEAD | `/:slug/_studio.js` | the reporter (§8), the studio's own bytes rather than the project's |
+| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 
@@ -416,10 +416,15 @@ Other methods get 405. Archived projects stay playable. `Cache-Control:
 no-store` throughout, so iterating on a game shows fresh bytes on reload
 without cache-busting.
 
-Two of those four are not project files. Both are fixed responses that read at
-most a slug and a published flag; neither reads a cookie, and neither writes
-anything. `_studio.js` is reserved in every project: a working tree that
-happens to contain a file of that name has it shadowed and never served.
+Two of those four are not the project's own bytes. Neither reads a cookie and
+neither writes anything: the catalog is built from slugs and published flags,
+and the wrapper is one file plus one `git rev-parse`. `_studio.html` is
+reserved in every project — a working tree containing a file of that name has
+it shadowed and never served.
+
+⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
+cheap and read-only, but it is a bigger amplification than a file read, and it
+sits alongside the "no rate limiting outside login" tradeoff in §11.
 
 ## 7. Origins and the game-code security boundary
 
@@ -582,33 +587,48 @@ An agent cannot be shown its game. DeepSeek rejects every image content shape
 sent. Everything an agent learns about the running game therefore arrives as
 text, and this is the channel.
 
-The **reporter** is a small script the studio serves at `/<slug>/_studio.js` on
-the games origin (§6). A game includes it with
-`<script src="_studio.js"></script>`; the studio preamble asks for the tag, and
-writing `index.html` without it returns a note on the tool result saying so,
-which is the point where the model can still do something about it. It is
-served rather than copied into each working tree so one fix reaches every game
-and no agent can delete it.
+The **reporter** is a small script that runs inside the game. It is not a file
+in the working tree and not a tag in the game's markup: the games listener
+serves the project's own `index.html` with the reporter injected at a reserved
+path, `/<slug>/_studio.html` (§6), and the studio's preview iframe points
+there. The **wrapper** is that document. Nothing else uses it — the public
+plays `/<slug>/`, whose bytes are exactly what is on disk.
 
-Inside the game it catches uncaught errors, failed resource loads
+The studio cannot inject the script from the browser: `contentDocument` is null
+across origins, and anything that let the studio reach into the frame would let
+the frame reach back into the studio (§7). Server-side injection is the only
+place this can happen, which turns out to be the better place anyway — no game
+is edited, none can lose it, no agent has to know it exists, and every game
+that predates the feature reports without being touched.
+
+Inside the game the reporter catches uncaught errors, failed resource loads
 (capture phase — a `<script>` that 404s never reaches `window` otherwise) and
 `console.error`, and posts each distinct one to `window.parent`. It reports
 only when framed, never throws, and sends each distinct problem once per page
 load, capped at 20 — a game that throws inside its animation loop would
 otherwise report sixty times a second.
 
-The studio page checks the sender's origin against the games origin and the
-message's slug against the open project, batches for 500 ms, and posts to
-`/api/projects/:slug/errors`. Rows are stamped with HEAD, so they retire when a
-fix lands (§3). The list is broadcast as `game.errors` and painted into the
-Play tab **without a re-render**: rebuilding the tree rebuilds the preview
-iframe, which restarts the game, which reports its problems again — a loop that
-does not settle. This is the same reason a streaming reply mutates its nodes.
+Each report carries the **commit the wrapper was built from**. That is what
+files a problem against the code that actually caused it rather than against
+whatever HEAD happens to be when the report lands, and it is why a fixed error
+cannot come back as a current one: `POST /errors` drops any report whose
+version is not HEAD, because the preview is already reloading and anything
+still broken will say so again. The wrapper reads HEAD *before* reading
+`index.html`, so a commit landing in between makes the version older than the
+bytes — losing a report, which is safe, rather than mislabelling one, which is
+not.
 
-Accepted: a problem reported in the few hundred milliseconds between a commit
-and the reload it triggers is stamped with the new commit, so a fixed error can
-survive one turn. Two commits that close together are a human saving twice in a
-row, not the ordinary one-commit-per-turn rhythm.
+The studio page checks the sender's origin against the games origin and the
+message's slug against the open project, batches for 500 ms, and posts. The
+list is broadcast as `game.errors` and painted into the Play tab **without a
+re-render**: rebuilding the tree rebuilds the preview iframe, which restarts the
+game, which reports its problems again — a loop that does not settle. This is
+the same reason a streaming reply mutates its nodes.
+
+Two things the wrapper does not cover. A game that navigates its frame to a
+second page leaves the wrapper behind and stops reporting until it returns. And
+what the studio previews differs from what the public plays by exactly one
+injected script — close enough for every practical purpose, not identical.
 
 ⚠️ Everything in this feed is text from LLM-written game code, arriving over
 `postMessage` from a public origin. It is capped, stripped of control
@@ -781,8 +801,8 @@ Tests enforce each of these.
 - Every path accepted by the API resolves inside its project directory, and no
   path with a `.git`-prefixed segment is ever read, written, or served. ⚠️
 - The games listener never reads a cookie, never writes, and serves nothing
-  but a project's own files, the catalog, and the reporter — the last two
-  being fixed responses built from a slug and a published flag. ⚠️
+  but a project's own files, the catalog, and the wrapper — and the wrapper is
+  that project's own `index.html` with a script in front of it. ⚠️
 - No HTTP response reports a successful file mutation before its git commit
   has landed.
 - At most one write+commit runs at a time per project.
@@ -977,7 +997,7 @@ server/
     router.js     method + :param/*wildcard matching
     body.js       JSON and raw body readers with caps
     static.js     extension mime table, traversal-safe serve
-  reporter.js     the script a game includes so it can report errors (§8)
+  reporter.js     the injected script, and the wrapper it goes into (§8)
   runtime.js      what the running game reported, per project
   files/
     paths.js      project-path validation (§4)

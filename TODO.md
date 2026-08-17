@@ -6,8 +6,6 @@ deliberately deferred.
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - decide whether `BRIEF.md` should be created automatically with a new project
-- put `<script src="_studio.js"></script>` into the two games that predate the
-  reporter, or ask a helper to — until then those two report nothing
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
 - context management for a long game: history is the pressure, not files

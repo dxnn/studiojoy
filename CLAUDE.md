@@ -99,14 +99,23 @@ Play and preview links are derived per request from `Host` (same hostname,
 `GAMES_PORT`), so no hostname is configured anywhere. `GAMES_URL` overrides it
 for the separate-hostname deployment and is normally unset.
 
-Helpers can now see the game break. A game includes `_studio.js` — the
-**reporter**, served by the studio at a reserved path on the games origin —
-which posts uncaught errors, failed loads and `console.error` to the studio
-page; the studio stores them against the current commit and hands them to the
-next fire as text (spec.md §8). Browser-checked end to end. The one trap worth
-remembering: rendering rebuilds the preview iframe, which restarts the game,
-which reports again — so the problems panel is painted in place, never through
-`render()`. What a reply cost is on `messages.tokens` and under the bubble.
+Helpers can now see the game break. The preview iframe loads
+`/<slug>/_studio.html` — the **wrapper**: that game's own `index.html` with the
+**reporter** and the current commit injected by the games listener. Nothing is
+added to any working tree, no agent is told about it, and every game already
+has it. The reporter posts uncaught errors, failed loads and `console.error`
+to the studio page, which files them against the commit the wrapper was built
+from; a report whose version is no longer HEAD is dropped rather than
+mislabelled (spec.md §8). Browser-checked end to end, including that the public
+page is byte-identical to the file on disk.
+
+Two traps worth remembering. Rendering rebuilds the preview iframe, which
+restarts the game, which reports again — so the problems panel is painted in
+place, never through `render()`. And the studio cannot inject anything into the
+frame from the browser; that it has to happen server-side is the boundary
+working, not an obstacle.
+
+What a reply cost is on `messages.tokens` and under the bubble.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
