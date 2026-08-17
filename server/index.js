@@ -20,7 +20,10 @@ if (!apiKey) {
 // on, defaults to 8090, and both are expected to run at once.
 const port = Number(process.env.PORT ?? 8100);
 const gamesPort = Number(process.env.GAMES_PORT ?? 8101);
-const gamesUrl = process.env.GAMES_URL ?? `http://localhost:${gamesPort}`;
+// Normally unset: play and preview links then follow whatever hostname the
+// studio was reached by, on the games port. Set it when the two listeners sit
+// behind separate names rather than separate ports (spec.md §7).
+const gamesUrl = process.env.GAMES_URL ?? null;
 const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
 const gamesDir = path.resolve(process.env.GAMES_DIR ?? 'games');
 const dailyTokenBudget = Number(
@@ -50,6 +53,7 @@ const studio = http.createServer(createApp({
   llm,
   orchestrator,
   gamesUrl,
+  gamesPort,
   secureCookies: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === '1',
 }));
@@ -70,9 +74,13 @@ const listenFailed = (label, envVar) => (err) => {
 studio.on('error', listenFailed('studio', 'PORT'));
 games.on('error', listenFailed('games', 'GAMES_PORT'));
 
+// Both listeners bind every interface, so localhost is one way in rather than
+// the address — which is why the games line names a port, not a fixed URL.
 studio.listen(port, () => {
   console.log(`studio   http://localhost:${port}`);
-  console.log(`games    ${gamesUrl}`);
+  console.log(gamesUrl
+    ? `games    ${gamesUrl}`
+    : `games    port ${gamesPort}, on whatever hostname reaches the studio`);
   console.log(`db       ${dbPath}`);
   console.log(`worktree ${gamesDir}`);
 });

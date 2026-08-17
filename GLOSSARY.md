@@ -8,7 +8,7 @@
 - **project path** — a validated relative path inside a working tree. Validation rules are the app's main security boundary.
 - **studio access** — presence of a row in `users`. The only permission bit in the system; every account can edit every project, agent, and file.
 - **studio origin** — the authenticated listener (`PORT`) serving the SPA and `/api`.
-- **games origin** — the unauthenticated listener (`GAMES_PORT`) serving only game files. A separate origin so LLM-written game code cannot reach the studio's session cookie.
+- **games origin** — the unauthenticated listener (`GAMES_PORT`) serving only game files. A separate origin so LLM-written game code cannot read a studio response. On two ports of one hostname the session cookie still travels there, so it is a read boundary, not a write one — spec.md §7.
 - **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context; a plain versioned file rather than a database column.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)

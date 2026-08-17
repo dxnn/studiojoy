@@ -38,13 +38,21 @@ npm run smoke     # one live round trip against DeepSeek; needs the key
 ## Two ports on purpose
 
 ⚠️ Game code is written by an LLM and served to the public. On the studio's
-origin its JavaScript could call `/api/*` with your session cookie and delete
-every project. The games listener is a separate origin so the browser refuses
-to carry the cookie there — and games keep a working `localStorage`, which a
-CSP sandbox would have cost them.
+origin its JavaScript could call `/api/*` with your session cookie and read
+back every project. The games listener is a separate origin, so a game cannot
+read a studio response — and games keep a working `localStorage`, which a CSP
+sandbox would have cost them.
 
-In production put the two behind separate hostnames and point `GAMES_URL` at
-the games one.
+On two ports of one hostname the browser still *carries* the cookie to the
+games origin: cookies aren't port-scoped, and same-host counts as same-site.
+So a game can reach the studio API blindly even though it can't read the
+answer. Separate hostnames close that, and spec.md §7 and §11 spell out what
+it costs until then.
+
+Play and preview links follow whatever hostname you reached the studio by, on
+`GAMES_PORT` — so `chunk.local:8100` plays games at `chunk.local:8101` with
+nothing configured. In production put the two behind separate hostnames and
+point `GAMES_URL` at the games one.
 
 ## Configuration
 
@@ -54,7 +62,7 @@ the games one.
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | |
 | `PORT` | `8100` | studio |
 | `GAMES_PORT` | `8101` | public games |
-| `GAMES_URL` | `http://localhost:<GAMES_PORT>` | used for play and preview links |
+| `GAMES_URL` | unset | play and preview links; unset means the studio's own hostname on `GAMES_PORT` |
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | one directory and one git repo per project |
 | `DAILY_TOKEN_BUDGET` | `5000000` | studio-wide, resets at UTC midnight |

@@ -395,14 +395,36 @@ session cookie and delete every project.
 
 So the studio and the games are served on **separate origins** by two
 listeners in the same process. `localhost:8100` and `localhost:8101` are
-distinct origins to the browser: the session cookie does not travel to the
-games listener, `fetch('/api/…')` from a game hits the games server (which has
-no such route), and each origin gets its own `localStorage` — so games keep
-working save state, which a `CSP: sandbox` approach would have cost.
+distinct origins to the browser: `fetch('/api/…')` from a game hits the games
+server (which has no such route), each origin gets its own `localStorage` — so
+games keep working save state, which a `CSP: sandbox` approach would have cost
+— and no studio response is *readable* from a game, because the studio sends
+no `Access-Control-Allow-Origin`. There is no CORS configuration here to
+loosen, and adding one is what would turn a blind write into a read.
+
+⚠️ What two ports on one hostname do **not** buy is a withheld cookie.
+Cookies are not port-scoped (RFC 6265 §8.5), so a session set for `localhost`
+is sent to `localhost:8101` as well; and `SameSite` keys on scheme plus
+registrable domain while ignoring port, so `:8101` → `:8100` counts as
+same-site and `Lax` does not restrain it. Game code therefore cannot read the
+studio API, but it can reach it with the operator's session attached. Two
+things bound that today: the games listener has no route that reads a cookie,
+so a replayed session drives nothing there (tested), and a forged studio write
+is blind — which limits disclosure but not damage, since a blind `POST` can
+still delete a project. This is the concrete shape of the missing CSRF token
+in §11. Separate hostnames in production remove the shared cookie domain that
+makes it reachable at all.
 
 In production the two listeners sit behind separate hostnames
-(`studio.example.com`, `games.example.com`). `GAMES_URL` tells the studio how
-to build play and preview links.
+(`studio.example.com`, `games.example.com`), and `GAMES_URL` names the games
+one. Left unset — the default — the studio derives the games origin from each
+request's own `Host`: same hostname, `GAMES_PORT` in place of `PORT`. So no
+hostname is configured anywhere and the studio answers correctly at every name
+it can be reached by; reached at `chunk.local:8100`, it plays games at
+`chunk.local:8101`. Only the hostname is taken from `Host` — the scheme is
+always `http`, the port is always `GAMES_PORT` — and a `Host` that is not a
+plausible hostname yields no games origin at all, making `play_url` `null`
+rather than a URL built around a guess.
 
 Header posture:
 
@@ -702,7 +724,7 @@ Tests enforce each of these.
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | the host also answers without the `/v1` prefix |
 | `PORT` | `8100` | studio listener; 8090 is left free for `new-y`, which both defaults to and is expected to run alongside this |
 | `GAMES_PORT` | `8101` | games listener |
-| `GAMES_URL` | `http://localhost:<GAMES_PORT>` | used to build play/preview links |
+| `GAMES_URL` | unset | overrides play/preview links; unset derives them from each request's `Host` on `GAMES_PORT` |
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | |
 | `DAILY_TOKEN_BUDGET` | `5000000` | |

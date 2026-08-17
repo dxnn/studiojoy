@@ -2,6 +2,7 @@ import path from 'node:path';
 import { createRouter } from './http/router.js';
 import { serveFile } from './http/static.js';
 import { HttpError } from './http/respond.js';
+import { gamesUrlFrom } from './http/origin.js';
 import { resolveInside } from './files/paths.js';
 import { createBroker } from './broker.js';
 import { createMutex } from './files/mutex.js';
@@ -26,7 +27,8 @@ export function createApp({
   gamesDir = 'games',
   llm = null,
   orchestrator = null,
-  gamesUrl = 'http://localhost:8101',
+  gamesUrl = null,
+  gamesPort = 8101,
   secureCookies = false,
   trustProxy = false,
   publicDir = DEFAULT_PUBLIC_DIR,
@@ -75,7 +77,7 @@ export function createApp({
   });
 
   const base = {
-    db, broker, mutex, gamesDir, llm, orchestrator, gamesUrl,
+    db, broker, mutex, gamesDir, llm, orchestrator,
     secureCookies, trustProxy, emailLockout, ipLockout,
   };
 
@@ -86,6 +88,13 @@ export function createApp({
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    return r.handle(req, res, base);
+    // Resolved per request, not once at startup: an explicit `gamesUrl` wins
+    // (separate hostnames in production), and without one the games origin is
+    // this request's own hostname on the games port — so the studio answers
+    // correctly at every name it can be reached by, with none configured.
+    return r.handle(req, res, {
+      ...base,
+      gamesUrl: gamesUrl ?? gamesUrlFrom(req, gamesPort),
+    });
   };
 }

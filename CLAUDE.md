@@ -16,7 +16,7 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — 263 tests. `node:test` against `:memory:` SQLite, a temp
+- `npm test` — 279 tests. `node:test` against `:memory:` SQLite, a temp
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
@@ -80,7 +80,7 @@ destructive actions confirm first. The UI says **helper** where the code says
 
 ## Current state
 
-v0 is complete and green at 263 tests. Verified live end to end: a message in
+v0 is complete and green at 279 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -91,7 +91,13 @@ the agent's tools and context all refuse or omit it.
 
 Browser-checked, not just intended: on the games origin `document.cookie` is
 empty and `localStorage` works, and the studio cannot read into the preview
-iframe.
+iframe. ⚠️ Read that first one narrowly — `document.cookie` is empty because
+the session is `HttpOnly`, not because the browser withheld it. On two ports of
+one hostname the cookie *is* sent to the games origin; see spec.md §7.
+
+Play and preview links are derived per request from `Host` (same hostname,
+`GAMES_PORT`), so no hostname is configured anywhere. `GAMES_URL` overrides it
+for the separate-hostname deployment and is normally unset.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

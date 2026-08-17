@@ -115,7 +115,9 @@ export function projectRoutes(r) {
 
     json(ctx.res, 200, {
       ...projectPublic(ctx.db, project),
-      play_url: isChat ? null : `${ctx.gamesUrl}/${project.slug}/`,
+      // No games origin means the request carried no usable hostname to build
+      // one from, which is a null play url rather than a URL around a guess.
+      play_url: isChat || !ctx.gamesUrl ? null : `${ctx.gamesUrl}/${project.slug}/`,
       agents: agents.map((a) => ({
         agent_id: a.agent_id,
         name: a.name,
