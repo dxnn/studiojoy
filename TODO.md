@@ -7,6 +7,7 @@ deliberately deferred.
   bot-to-bot dampening makes the second one useless in practice
 - watch a live helper build with the new prompt: does it actually write
   `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page
+- decide on `config/` and a studio form view over it — ideas/config-directory.md
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
