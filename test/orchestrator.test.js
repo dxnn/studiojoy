@@ -326,12 +326,15 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(system, /SPEC\.md — what the game is/);
   assert.match(system, /TODO\.md — one task per line/);
 
-  const finalUser = messages.at(-1).content;
-  assert.match(finalUser, /PROJECT FILES/);
-  assert.match(finalUser, /js\/game\.js \(10 bytes\)/);
-  assert.match(finalUser, /\[pinned by the user\]/);
-  assert.match(finalUser, /\[binary: sprite\.png, 4 bytes\]/, 'binaries are named, not sent');
-  assert.match(finalUser, /look at this$/);
+  // The files sit in the system prompt, ahead of the transcript, so the prefix
+  // a second fire matches on includes them (spec.md §8).
+  assert.match(system, /PROJECT FILES/);
+  assert.match(system, /js\/game\.js \(10 bytes\)/);
+  assert.match(system, /\[pinned by the user\]/);
+  assert.match(system, /\[binary: sprite\.png, 4 bytes\]/, 'binaries are named, not sent');
+
+  // The last user message is the human's, and nothing else here.
+  assert.equal(messages.at(-1).content, '[Dann] look at this');
 });
 
 // The brief is the one project file that goes into the system prompt whole, so
@@ -348,10 +351,16 @@ test('an oversized brief is cut, and says where', async (t) => {
   await send(app, 'go');
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
+  // Only the system-prompt copy is cut. The file block carries BRIEF.md like
+  // any other file, so the tail is still reachable — it is kept out of the
+  // preamble, not withheld.
   const { system } = llm.lastCall();
-  assert.match(system, /cut here: BRIEF\.md is 52013 bytes/);
-  assert.ok(!system.includes('the last line'), 'the tail is not sent');
-  assert.ok(system.length < 40 * 1024, `system prompt is ${system.length} bytes`);
+  const briefSection = system.slice(
+    system.indexOf('Project brief'), system.indexOf('PROJECT FILES'),
+  );
+  assert.match(briefSection, /cut here: BRIEF\.md is 52013 bytes/);
+  assert.ok(!briefSection.includes('the last line'), 'the tail is not in that copy');
+  assert.ok(briefSection.length < 34 * 1024, `the brief section is ${briefSection.length} bytes`);
 });
 
 test('pinning takes priority but does not exempt a file from the cap', async (t) => {
@@ -371,12 +380,12 @@ test('pinning takes priority but does not exempt a file from the cap', async (t)
   await send(app, 'look at all of these', sizes.map((kb) => `js/f${kb}.js`));
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
-  const finalUser = llm.lastCall().messages.at(-1).content;
+  const { system } = llm.lastCall();
   // Smallest-first, so the largest pinned file is the one left out — named, as
   // a dropped file always is.
-  assert.match(finalUser, /--- FILE: js\/f90\.js \(90000 bytes\) \[pinned by the user\] ---/);
-  assert.ok(!finalUser.includes('--- FILE: js/f94.js'), 'the largest is not sent');
-  assert.match(finalUser, /left out for size[^\n]*js\/f94\.js/);
+  assert.match(system, /--- FILE: js\/f90\.js \(90000 bytes\) \[pinned by the user\] ---/);
+  assert.ok(!system.includes('--- FILE: js/f94.js'), 'the largest is not sent');
+  assert.match(system, /left out for size[^\n]*js\/f94\.js/);
 });
 
 test('a file the validator refuses is listed but never opened', async (t) => {
@@ -391,9 +400,9 @@ test('a file the validator refuses is listed but never opened', async (t) => {
   await send(app, 'what is in here?');
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
-  const finalUser = llm.lastCall().messages.at(-1).content;
-  assert.match(finalUser, /stray\.js {2}\(10 bytes\) \[cannot be opened/);
-  assert.ok(!finalUser.includes('--- FILE: stray.js'), 'and its bytes are not sent');
+  const { system } = llm.lastCall();
+  assert.match(system, /stray\.js {2}\(10 bytes\) \[cannot be opened/);
+  assert.ok(!system.includes('--- FILE: stray.js'), 'and its bytes are not sent');
 });
 
 test('a trimmed transcript says where it was trimmed', async (t) => {

@@ -207,5 +207,5 @@ test('an agent in a game still gets its file tools', async (t) => {
 
   const call = llm.lastCall();
   assert.ok(call.tools?.length, 'a game still offers file tools');
-  assert.match(call.messages[call.messages.length - 1].content, /PROJECT FILES/);
+  assert.match(call.system, /PROJECT FILES/);
 });

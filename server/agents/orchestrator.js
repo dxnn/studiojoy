@@ -15,13 +15,14 @@ import { createToolset } from './tools.js';
 // these caps are about cost and latency rather than capability — roughly
 // 200K tokens against a 1M ceiling.
 //
-// Measured against the live API, not assumed: prompt caching hits ~99%
-// between the turns of one fire, because everything ahead of the appended tool
-// exchange is unchanged. Between two fires it hits 0% — the file block rides
-// on the last user message, so the history that arrives in front of it moves
-// it, and the whole prompt is charged as a miss. A stable emission order is
-// what makes the in-fire hits possible; it does not make re-sending the files
-// on the next fire cheap.
+// Measured against the live API, not assumed. Prompt caching hits ~99% between
+// the turns of one fire, and ~100% between two fires as long as no file
+// changed — but only because the file block is in the system prompt, ahead of
+// the transcript. On the last user message, where it used to be, the history
+// arriving in front of it moved it and every fire was charged as a full miss:
+// 0%, not even the preamble. A file changing is a total miss either way, so
+// this position is never worse. Stable emission order is what makes both
+// numbers possible.
 const AMBIENT_BYTES = 400 * 1024;
 const HISTORY_BYTES = 200 * 1024;
 const MAX_HISTORY_MESSAGES = 200;
@@ -335,23 +336,26 @@ async function buildContext({
   // nothing else; empty is allowed, and sends no system message at all.
   const isChat = project.kind === 'chat';
   const brief = isChat ? null : await readFileAt(path.join(dir, BRIEF_FILE));
+  // Ahead of the transcript, most stable part first: the preamble never
+  // changes, the brief and the description rarely do, the files often. Putting
+  // the files here rather than on the last message is what turns a 0% cache
+  // hit between fires into a 100% one whenever no file changed (spec.md §8).
   const system = [
     isChat ? null : studioPreamble({
       project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
     }),
     brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null,
     agent.description || null,
+    isChat ? null : await buildFileBlock(db, project, dir),
   ].filter(Boolean).join('\n\n');
 
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
-  if (!isChat) {
-    const fileBlock = await buildFileBlock(db, project, dir);
-    const errorBlock = await buildErrorBlock(db, project, dir);
+  // Errors stay next to the human's message: they change on every playthrough,
+  // so in the system prompt they would invalidate the files behind them.
+  const errorBlock = isChat ? null : await buildErrorBlock(db, project, dir);
+  if (errorBlock) {
     const last = messages[messages.length - 1];
-    // Files first and errors after, next to the message: the file block is
-    // the stable prefix prompt caching pays for, and the errors change on
-    // every playthrough.
-    last.content = [fileBlock, errorBlock, last.content].filter(Boolean).join('\n\n');
+    last.content = `${errorBlock}\n\n${last.content}`;
   }
   return { system, messages };
 }

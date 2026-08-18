@@ -520,6 +520,9 @@ remembered to attach. Pinning becomes emphasis, not the sole channel.
 
 The system prompt is, in order:
 
+The system prompt is, in order, **most stable part first** — the ordering is
+what prompt caching pays for (below):
+
 1. A fixed studio preamble: what this app is, the project slug, the path rules
    from §4, how each tool behaves, a nudge to prefer `patch_file` over
    rewriting whole files, the project documents and file layout it is expected
@@ -528,24 +531,31 @@ The system prompt is, in order:
 2. `BRIEF.md`'s content, if the file exists, cut to `BRIEF_BYTES` with a note
    saying where it was cut.
 3. The agent's `description`.
-
-The final user message carries, in order:
-
-1. The **file tree**: every path with its size. A path already on disk that §4
+4. The **file tree**: every path with its size. A path already on disk that §4
    validation refuses is listed and marked `[cannot be opened: …]`: no tool can
    touch it and the games origin will not serve it, so an agent that could not
    see it would have no way to explain why it 404s at runtime.
-2. The **files**, each emitted exactly once between
+5. The **files**, each emitted exactly once between
    `--- FILE: <path> (<size>) ---` and `--- END FILE ---` markers. Pinned
    files come first and are labelled with who pinned them. Binary files are
    listed as `[binary: <path>, <size>]` — the agent learns they exist without
    receiving bytes it cannot read.
-3. The **runtime errors** for the current commit, one per line, omitted
-   entirely when there are none (below).
-4. The human's message body.
 
-Files before errors is deliberate: the errors change on every playthrough, so
-they sit next to the message body rather than in the middle of the files.
+`BRIEF.md` therefore arrives twice: once as item 2, capped, and once in the
+file block as an ordinary file. That is deliberate rather than an oversight —
+one filename special-cased out of the file block would be a silent omission of
+exactly the kind §8 otherwise refuses to make, and a typical brief is 2 KB
+duplicated at a 100% cache hit rate.
+
+The final user message carries, in order:
+
+1. The **runtime errors** for the current commit, one per line, omitted
+   entirely when there are none (below).
+2. The human's message body.
+
+Errors sit here rather than with the files because they change on every
+playthrough: in the system prompt they would invalidate the file block behind
+them on every fire.
 
 A **pinned file** is a path in the current turn's `context_paths`, or in
 either of the previous two human turns'. Pinning is **priority, not
@@ -580,22 +590,24 @@ independent and additive: nothing counts tokens or checks the sum against the
 caps that matter are the last two — before them, `BRIEF.md` and the tool loop
 were the two places one fire could grow without limit.
 
-Prompt caching does less than this section used to claim. Measured against the
-live API with a 62 KB project (`tmp/probe-cache.mjs`), on 24.5 K-token prompts:
+Prompt caching is why the file block is in the system prompt and not on the
+last user message, where it used to be. Measured against the live API with a
+62 KB project (`tmp/probe-cache.mjs`), on 24.5 K-token prompts:
 
 | case | cache hit |
 |---|---|
 | turn 2 of one fire, file block on the last user message | 99% |
 | the next fire, file block on the last user message | **0%** |
-| the next fire, file block in the system prompt, no file changed | 100% |
+| the next fire, file block in the system prompt, no file changed | **100%** |
 | the next fire, file block in the system prompt, one file changed | 0% |
 
-So a stable emission order is what pays for a 24-turn tool loop, and it buys
-nothing between fires: today's file block sits behind the whole transcript, and
-the history that arrives in front of it moves it, so the entire prompt is
-charged as a miss. Moving the block into the system prompt would flip that —
-free whenever no file changed, no worse than today when one did — and is the
-one open decision here (§15).
+On the last user message the block sat behind the whole transcript, so the
+history arriving in front of it moved it and every fire was charged as a full
+miss — 0%, not even the preamble, because the surviving prefix was too short to
+register. In the system prompt the prefix a second fire matches on includes the
+files. A file changing is a total miss in either position, so this one is never
+worse. The 62 KB measured is well under `AMBIENT_BYTES`; a 400 KB system prompt
+has not been tried.
 
 ### Project documents
 
@@ -1027,10 +1039,6 @@ the test suite never touches the network.
 
 ## 15. Deferred to v1
 
-- Moving the ambient file block from the last user message into the system
-  prompt. Measured, it is free whenever no file changed and no worse than
-  today when one did (§8) — but it reorders every context an agent sees, so it
-  wants its own change rather than riding along with the byte guards.
 - Counting tokens rather than bytes. The byte caps bound the request, but a
   request's real cost is only visible after the fact, in `usage`.
 - Viewer counts, message reactions, web push, unread markers (all exist in

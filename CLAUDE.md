@@ -130,10 +130,12 @@ and many small source files rather than one enormous `index.html`. Prompt only:
 nothing scaffolds those files. Not yet seen against a live model — two of the
 four existing games are still single-file.
 
-Prompt caching, measured (`tmp/probe-cache.mjs`): 99% hit between the turns of
-one fire, **0% between fires**, because the file block rides behind the whole
-transcript. In the system prompt it would be 100% / 0-on-change. Not moved yet
-(spec.md §15).
+The ambient file block lives in the **system prompt**, after the brief and the
+agent description, not on the last user message. Measured
+(`tmp/probe-cache.mjs`): behind the transcript it cached 0% between fires,
+ahead of it 100% when no file changed. Runtime errors stay on the last user
+message — they change every playthrough. `BRIEF.md` is in both places by
+design; spec.md §8 says why.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
