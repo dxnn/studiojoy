@@ -7,7 +7,10 @@ deliberately deferred.
   bot-to-bot dampening makes the second one useless in practice
 - watch a live helper build with the new prompt: does it actually write
   `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page
-- decide on `config/` and a studio form view over it — ideas/config-directory.md
+- pull space-racer's colours out of its drawing code into `config/look.js` (a
+  game refactor, so ask a helper to do it rather than doing it by hand)
+- migrate `fun-slide` and `redwolf-radness` — both are still one big file, so
+  this is a rebuild rather than a move; good first test of the new preamble
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list

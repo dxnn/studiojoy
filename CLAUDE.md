@@ -125,10 +125,25 @@ carries a `[studio]` marker saying how many messages are missing. Still bytes,
 not tokens — spec.md §8 has the table that shows the sum cannot reach the
 window.
 
-Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`)
-and many small source files rather than one enormous `index.html`. Prompt only:
-nothing scaffolds those files. Not yet seen against a live model — two of the
-four existing games are still single-file.
+Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`),
+a `config/` directory, and many small source files rather than one enormous
+`index.html`. Prompt only: nothing scaffolds those files. Not yet seen against a
+live model — two of the four games are still single-file, and both agents with
+file tools had descriptions ordering a layout of their own until this session.
+
+A `config/*.js` file opens as a **config form** — a field per value, the
+value's comment beside it — parsed by `public/config-file.js` without being
+executed, and saved by splicing the one value so comments survive. Anything
+outside the plain-value subset falls back to the text editor with a reason.
+Browser-checked end to end, including a nested edit inside a table: one
+character changed on disk, one commit.
+
+`space-racer` and `flip-for-what` are migrated (their own repos, committed as
+`Daddy`): settings moved into `config/`, and space-racer's on-screen words moved
+into `config/words.js`. Colours are still inline in its drawing code — pulling
+those out is a game refactor, not a migration. Both verified in a browser via
+the static server at `localhost:8080/fam/gamestudio/games/<slug>/index.html`,
+which needs no studio running.
 
 The ambient file block lives in the **system prompt**, after the brief and the
 agent description, not on the last user message. Measured

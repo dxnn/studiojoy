@@ -399,6 +399,27 @@ returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
+A file matching `config/<name>.js` opens as a **config form** — one labelled
+field per value, with the value's own comment beside it — instead of as text.
+Entirely client-side: `public/config-file.js` reads the `const NAME = value;`
+subset (§8) and returns each value with its span in the source, and an edit
+splices that span, so comments, alignment and every other byte survive. Three
+rules hold it together:
+
+- **Nothing is executed.** No `eval`, no `new Function`. Config files are
+  written by LLMs and by kids and are served from the games origin; running one
+  in the studio would hand game code the studio's own context (§7).
+- **All or nothing.** A file holding anything outside the subset — a function, a
+  sum, a template literal — opens as text with a line number, rather than a form
+  showing the part it understood and hiding the rest.
+- **A value it writes is a value it can read.** A number field validates against
+  the same pattern the reader accepts, so the form cannot produce a file it would
+  then refuse to open.
+
+Each edit re-reads the file and finds the value by path rather than reusing the
+last render's offsets: a splice moves every offset behind it, and re-rendering
+the pane per keystroke would replace the Save button under the pointer.
+
 #### History
 
 | method | path | notes |
@@ -637,6 +658,21 @@ to guess one, because left to guess it writes a single enormous
 62 KB in one file, which is also the file most likely to be cut off
 half-written (§14). So it asks for `index.html` holding markup only, `css/`,
 and one file per part of the game under `js/`, a few hundred lines each.
+
+`config/` is the part a person tunes without reading code: `play.js` for
+movement and timings, `world.js` for level or board data, `look.js` for colours
+and sizes, `words.js` for every string the player sees. The preamble asks for
+plain `const NAME = value;` declarations — numbers, strings, booleans, and
+lists or groups of those, with a comment on each value — because the studio
+opens these files as a **config form** rather than as text (§6, Files).
+
+Agents change config files whenever the game needs it; the earlier idea that
+they should never rewrite one was wrong, since adding a level or a line of
+dialogue *is* the job. Two narrower rules replace it: keep the comment when you
+change a value, because that comment is what makes the file readable by a
+ten-year-old; and prefer `patch_file` for a single value. A human editing at the
+same time is not a prompt problem at all — it is the `If-Match` conflict already
+in the file routes (§6), which the form uses like the text editor does.
 
 Three **project documents** live at the root, next to the code. They are notes
 for the people and agents working on the game and never part of the game
