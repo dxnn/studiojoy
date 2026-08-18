@@ -16,7 +16,7 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — 279 tests. `node:test` against `:memory:` SQLite, a temp
+- `npm test` — 309 tests. `node:test` against `:memory:` SQLite, a temp
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
@@ -88,7 +88,7 @@ appearing.
 
 ## Current state
 
-v0 is complete and green at 295 tests. Verified live end to end: a message in
+v0 is complete and green at 309 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -138,6 +138,17 @@ a `config/` directory, and many small source files rather than one enormous
 `index.html`. Prompt only: nothing scaffolds those files. Not yet seen against a
 live model — two of the four games are still single-file, and both agents with
 file tools had descriptions ordering a layout of their own until this session.
+
+Art can be put in from the studio: `+ Picture or sound` beside `+ New file`, or
+a drop onto the file tree, both landing in a dialog that shows the path each
+file will take before anything is sent. Client-side only — the `PUT` route
+already took raw bytes. Files go to `assets/`, one commit each, and the
+preamble now names that folder so a helper references art rather than inventing
+a path. An **asset** opens in the pane as the picture, sound or video itself.
+Browser-checked end to end, including drag-and-drop, a name collision and an
+oversized file being refused before upload, one commit per new file and none for
+an identical replace, and the bytes coming back byte-identical on the public
+games origin.
 
 A `config/*.js` file opens as a **config form** — a field per value, the
 value's comment beside it — parsed by `public/config-file.js` without being

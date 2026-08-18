@@ -399,6 +399,28 @@ returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
+An **asset** — a picture, sound or video — arrives the same way: the studio
+reads the dropped or picked `File` and `PUT`s its bytes, one request and one
+commit per file. Client-side only; no route knows an upload from an edit. Three
+choices worth naming:
+
+- **`assets/` by default, and the agent preamble says so.** A folder the
+  helpers already reference is worth more than a folder nobody agreed on. The
+  dialog shows the path each file will take before anything is sent, so where
+  the art lands is a decision rather than something to undo.
+- **The filename is tidied, not trusted.** Lowercased, runs of non-alphanumerics
+  to one dash, extension kept, and `checkProjectPath` validates the result
+  regardless. Two files that tidy to one name are refused rather than one
+  quietly overwriting the other.
+- **One commit per file.** A dozen sprites make a dozen versions, exactly as a
+  dozen agent writes would. Batching them would need a route that takes several
+  files, and nothing else in the app wants one.
+
+An asset opens in the pane as the thing itself — `img`, `audio` or `video`
+pointed at the studio's own read route — because there is nothing to edit. An
+agent never sees its bytes (§8), and `write_file` takes text, so a helper can
+point a game at `assets/hero.png` but cannot create or change it.
+
 A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
 Entirely client-side: `public/config-file.js` reads the `const NAME = value;`

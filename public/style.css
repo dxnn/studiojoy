@@ -244,6 +244,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .pad { padding: 12px 14px; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; gap: 8px; align-items: center; }
+.row.wrap { flex-wrap: wrap; row-gap: 6px; }
 
 /* Sidebar ----------------------------------------------------------------- */
 
@@ -534,6 +535,13 @@ details.thinking .trace {
 .file .fsize { font-size: 11px; color: var(--muted); }
 .file.open .fname { color: var(--accent); font-weight: 600; }
 .file.unreachable .fname { color: var(--muted); text-decoration: line-through; cursor: default; }
+/* Dragging a picture over the list. Inset outline rather than a border so the
+   rows below don't shift by two pixels as the highlight comes and goes. */
+.tree.dropping {
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+}
 
 .editor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .editor textarea {
@@ -548,6 +556,26 @@ details.thinking .trace {
   border-right: none;
 }
 .editor .editor-bar { padding: 8px 14px; border-top: 1px solid var(--border); }
+
+/* A picture, sound or video where the text editor would be. The checkerboard
+   is so a transparent sprite reads as transparent rather than as white. */
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+  background:
+    repeating-conic-gradient(var(--hover) 0% 25%, var(--panel) 0% 50%) 0 0 / 16px 16px;
+}
+.media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.media audio { width: 100%; }
+
+/* What an upload is about to do, one row per file, before anything is sent. */
+.plan { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
+.plan-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.plan-row.skip .mono { color: var(--muted); text-decoration: line-through; }
 
 /* A config file shown as fields instead of code. One row per value, the
    comment beside it, and nesting for lists and groups so a table of tracks or

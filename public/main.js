@@ -136,6 +136,14 @@ function restoreFocus(snap) {
 
 const isChat = () => S.project?.kind === 'chat';
 
+// A picture is the first file whose byte count nobody can read, so sizes are
+// rounded once they leave kilobyte territory.
+const sizeText = (bytes) => (bytes < 1024
+  ? `${bytes} bytes`
+  : bytes < 1024 * 1024
+    ? `${Math.round(bytes / 1024)} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`);
+
 const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
   ?? S.agents.find((a) => a.id === id)?.name
   ?? 'Helper';
@@ -514,10 +522,13 @@ async function openFile(path) {
     say(`Could not open ${path}.`, true);
     return;
   }
-  const isText = S.files.find((f) => f.path === path)?.text;
+  // The listing already said whether this is text and what it is; a picture
+  // opens with content null and is shown rather than edited.
+  const entry = S.files.find((f) => f.path === path);
   S.open = {
     path,
-    content: isText ? await res.text() : null,
+    mime: entry?.mime ?? null,
+    content: entry?.text ? await res.text() : null,
     etag: res.headers.get('etag'),
     dirty: false,
   };
@@ -581,6 +592,139 @@ async function createFile(path) {
   await refreshFiles();
   await openFile(path);
 }
+
+/* Uploads ----------------------------------------------------------------- */
+
+// Where a picture or sound lands unless you say otherwise. The agent preamble
+// names the same folder, so a dropped sprite is already at the path a helper
+// will write in its code.
+const ASSET_DIR = 'assets';
+
+// Mirrors MAX_FILE_BYTES in server/files/tree.js. Checked here too so an
+// oversized file is named in the dialog rather than failing halfway up.
+const MAX_UPLOAD_MB = 10;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+// A dropped file's name becomes a project path: lowercased, runs of anything
+// that isn't a letter or digit become one dash, the extension kept. The server
+// validates the result regardless — this is so `My Hero (2).PNG` lands
+// somewhere a ten-year-old can say out loud.
+function assetPath(folder, filename) {
+  const dot = filename.lastIndexOf('.');
+  const ext = dot > 0 ? filename.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, '') : '';
+  const stem = (dot > 0 ? filename.slice(0, dot) : filename)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    // A name of nothing but punctuation would otherwise leave `.png` alone,
+    // which is a hidden file rather than a picture.
+    || 'file';
+  return folder ? `${folder}/${stem}${ext}` : `${stem}${ext}`;
+}
+
+// What an upload would do, worked out before anything is sent so the dialog can
+// show it: where each file lands, whether it replaces one already there, and
+// the reason a file is being left out.
+function uploadPlan(folder, files) {
+  const taken = new Set();
+  return files.map((file) => {
+    const path = assetPath(folder, file.name);
+    let problem = null;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      problem = `too big — ${MAX_UPLOAD_MB} MB is the most`;
+    } else if (taken.has(path)) {
+      // Two dropped files can tidy down to one name. Letting the second
+      // overwrite the first is the kind of loss nobody thinks to look for.
+      problem = 'another one of these wants the same name';
+    } else {
+      // Only a file that is actually going to be sent holds the name — a
+      // rejected one must not block the next file that wants it.
+      taken.add(path);
+    }
+    return {
+      file,
+      path,
+      problem,
+      note: S.files.some((f) => f.path === path)
+        ? 'replaces the one there now'
+        : file.type
+          ? sizeText(file.size)
+          : `${sizeText(file.size)} — the game may not be able to use this`,
+    };
+  });
+}
+
+// One PUT per file, one commit each — the same thing a helper does when it
+// writes several files. No If-Match: an upload replaces on purpose, and the
+// dialog already said which files it would replace.
+async function uploadFiles(plan) {
+  if (plan.length > 1) say(`Adding ${plan.length} things…`);
+  let done = 0;
+  let failure = null;
+  for (const { path, file } of plan) {
+    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+      method: 'PUT', body: file,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      failure = uploadProblem(res.status, path, body?.error);
+      // Whatever stopped this one stops the rest, and a banner per file would
+      // bury the reason.
+      break;
+    }
+    done += 1;
+  }
+
+  S.previewNonce += 1;
+  await refreshFiles();
+  if (failure) {
+    say(done ? `${failure} ${done} of ${plan.length} got added.` : failure, true);
+    return;
+  }
+  say(plan.length === 1 ? `Added ${plan[0].path}.` : `Added ${plan.length} files.`);
+  // One file is something you want to look at; twelve sprites are not.
+  if (plan.length === 1) await openFile(plan[0].path);
+}
+
+// The server's limits are exact and in bytes; the same fact has to arrive in
+// words. Which cap was hit doesn't change what you'd do about it, so both
+// 409s read the same. Anything unmapped keeps the server's own sentence.
+function uploadProblem(status, path, error) {
+  if (status === 413) {
+    return `${path} is too big to add. One file can be up to ${MAX_UPLOAD_MB} MB.`;
+  }
+  if (status === 409) return `There is no room for ${path} — this game is full.`;
+  return error ?? `Could not add ${path}.`;
+}
+
+const openUpload = (files) => { S.dialog = { kind: 'upload', files }; render(); };
+
+// Dropping onto the list is the quickest way in on a laptop; the button beside
+// New file is the one that works on a tablet. Both end in the same dialog.
+// The highlight is toggled on the node rather than through render(), which
+// would rebuild the element mid-drag and lose the drop.
+function makeDropTarget(el) {
+  const mark = (on) => el.classList.toggle('dropping', on);
+  el.addEventListener('dragover', (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    mark(true);
+  });
+  el.addEventListener('dragleave', (e) => { if (e.target === el) mark(false); });
+  el.addEventListener('drop', (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    mark(false);
+    const files = [...e.dataTransfer.files];
+    if (files.length) openUpload(files);
+  });
+}
+
+const isFileDrag = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
 
 async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
@@ -1298,6 +1442,26 @@ function renderConfigForm(decls) {
   ];
 }
 
+// A picture or sound has nothing to edit, so the pane shows the thing itself.
+// The source is the same authenticated read the editor uses, and that route
+// sends no-store, so a replaced file never shows the bytes it had before.
+function renderMedia({ path, mime }) {
+  const src = `/api/projects/${S.slug}/files/${encodePath(path)}`;
+  if (mime?.startsWith('image/')) {
+    return h('div', { class: 'media grow' }, h('img', { src, alt: path }));
+  }
+  if (mime?.startsWith('audio/')) {
+    return h('div', { class: 'media grow' }, h('audio', { src, controls: true }));
+  }
+  if (mime?.startsWith('video/')) {
+    return h('div', { class: 'media grow' }, h('video', { src, controls: true }));
+  }
+  return h('div', {
+    class: 'pad muted grow',
+    text: 'The studio cannot show this one, but it is still part of the game.',
+  });
+}
+
 function renderFilesTab() {
   const rows = S.files.map((f) => h('div', {
     class: `file${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}`,
@@ -1317,7 +1481,7 @@ function renderFilesTab() {
     class: 'fname', text: f.path, disabled: f.unreachable,
     onclick: () => openFile(f.path),
   }),
-  h('span', { class: 'fsize', text: `${f.size}b` })));
+  h('span', { class: 'fsize', text: sizeText(f.size) })));
 
   const editor = [];
   if (S.open) {
@@ -1346,8 +1510,7 @@ function renderFilesTab() {
       : null;
 
     if (S.open.content === null) {
-      editor.push(h('div', { class: 'editor' }, bar,
-        h('div', { class: 'pad muted grow', text: `${S.open.path} is a picture or sound, so there is nothing to edit here.` })));
+      editor.push(h('div', { class: 'editor' }, bar, renderMedia(S.open)));
     } else if (parsed?.ok && !S.open.asText) {
       editor.push(h('div', { class: 'editor' }, bar, renderConfigForm(parsed.decls)));
     } else {
@@ -1387,21 +1550,46 @@ function renderFilesTab() {
     }
   }
 
+  // The picker is what makes uploading work on a tablet, where there is
+  // nothing to drag from. Hidden because the styled button opens it.
+  const picker = h('input', {
+    type: 'file', multiple: true, hidden: true,
+    onchange: (e) => {
+      const files = [...e.currentTarget.files];
+      // Cleared so picking the same file twice in a row still fires.
+      e.currentTarget.value = '';
+      if (files.length) openUpload(files);
+    },
+  });
+
+  // With a file open the list shrinks to about five rows and the editor takes
+  // everything else; with nothing open the list fills the pane.
+  const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}` },
+    rows.length ? rows : h('div', {
+      class: 'pad muted',
+      text: 'No files yet. Ask a helper to make one, or drop a picture here.',
+    }));
+  if (!S.project.archived) makeDropTarget(tree);
+
   return [
-    h('div', { class: 'pad row' },
+    h('div', { class: 'pad row wrap' },
       h('button', {
         class: 'quiet tiny', text: '+ New file',
         disabled: S.project.archived,
         onclick: () => { S.dialog = { kind: 'new-file' }; render(); },
       }),
+      h('button', {
+        class: 'quiet tiny', text: '+ Picture or sound',
+        title: 'Add a picture or sound from this device',
+        disabled: S.project.archived,
+        onclick: () => picker.click(),
+      }),
+      picker,
       h('div', { class: 'spacer' }),
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })
         : null),
-    // With a file open the list shrinks to about five rows and the editor
-    // takes everything else; with nothing open the list fills the pane.
-    h('div', { class: `tree scroll${S.open ? ' short' : ''}` },
-      rows.length ? rows : h('div', { class: 'pad muted', text: 'No files yet. Ask a helper to make one.' })),
+    tree,
     ...editor,
   ];
 }
@@ -1717,6 +1905,38 @@ function dialogFor(d) {
       })));
   }
 
+  // Nothing is sent until this is confirmed, so where the art lands is visible
+  // before it lands there rather than being something to undo afterwards.
+  if (d.kind === 'upload') {
+    const folder = h('input', { placeholder: 'leave empty for the top of the game' });
+    folder.value = ASSET_DIR;
+    const list = h('div', { class: 'plan' });
+    const ok = h('button', { class: 'filled', text: 'Add it' });
+
+    const paint = () => {
+      const plan = uploadPlan(folder.value.trim(), d.files);
+      list.replaceChildren(...plan.map((it) => h('div', {
+        class: `plan-row${it.problem ? ' skip' : ''}`,
+      },
+      h('span', { class: 'mono', text: it.path }),
+      h('div', { class: 'spacer' }),
+      h('span', { class: 'hint muted', text: it.problem ?? it.note }))));
+      ok.disabled = plan.every((it) => it.problem);
+    };
+    paint();
+    folder.addEventListener('input', paint);
+    ok.addEventListener('click', async () => {
+      const plan = uploadPlan(folder.value.trim(), d.files).filter((it) => !it.problem);
+      close();
+      await uploadFiles(plan);
+    });
+
+    return wrap(d.files.length === 1 ? 'Add this to the game' : `Add ${d.files.length} things`,
+      h('label', { text: 'Which folder?' }), folder,
+      list,
+      h('div', { class: 'actions' }, cancel, ok));
+  }
+
   if (d.kind === 'delete-file') {
     return wrap(`Delete ${d.path}?`,
       h('p', { text: 'You can always bring it back from Versions.' }),
@@ -1921,6 +2141,13 @@ function render() {
 
   restoreFocus(focus);
   stickToBottom();
+}
+
+// A file dropped anywhere but the list would otherwise be opened by the
+// browser, navigating away from the studio and taking any unsaved edit with it.
+// Missing the list has to mean nothing happened.
+for (const type of ['dragover', 'drop']) {
+  window.addEventListener(type, (e) => { if (isFileDrag(e)) e.preventDefault(); });
 }
 
 start();

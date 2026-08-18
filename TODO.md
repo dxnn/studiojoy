@@ -11,8 +11,6 @@ deliberately deferred.
   game refactor, so ask a helper to do it rather than doing it by hand)
 - migrate `fun-slide` and `redwolf-radness` — both are still one big file, so
   this is a rebuild rather than a move; good first test of the new preamble
-- upload files from the studio (drag onto the file tree; the PUT route already
-  takes raw bytes, so this is client-side only)
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec.md §11: no CSRF token, in-memory lockouts, no rate limit outside login
 - ⚠️ make `readJson` require `Content-Type: application/json`. It parses any
