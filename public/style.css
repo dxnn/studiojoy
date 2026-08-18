@@ -541,6 +541,38 @@ details.thinking .trace {
 }
 .editor .editor-bar { padding: 8px 14px; border-top: 1px solid var(--border); }
 
+/* A config file shown as fields instead of code. One row per value, the
+   comment beside it, and nesting for lists and groups so a table of tracks or
+   levels reads the way it does in the file. */
+.cfg { padding: 8px 14px 14px; }
+/* Name and field on one line, the comment on its own line under them. A third
+   column for the comment turns every row four lines tall in a narrow rail. */
+.cfg .cfg-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 8.5rem) 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cfg .cfg-row:last-child { border-bottom: none; }
+.cfg .cfg-name { overflow-wrap: anywhere; }
+.cfg .cfg-num { width: 7rem; }
+.cfg .cfg-text { width: 100%; }
+.cfg textarea.cfg-text { font-family: inherit; font-size: inherit; resize: vertical; }
+.cfg .cfg-row .hint { grid-column: 2; }
+.cfg .cfg-group { margin: 10px 0; }
+/* A group's comment is often the several lines explaining a whole table, so it
+   gets the full width under the name rather than a squeezed side column. */
+.cfg .cfg-group-head { display: block; }
+.cfg .cfg-group-head .hint { display: block; margin-top: 2px; }
+.cfg .cfg-group-body {
+  margin: 4px 0 0 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent-soft);
+}
+.cfg input[type="color"] { width: 2.4rem; height: 1.7rem; padding: 0; }
+
 .preview-wrap { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .preview-frame {
   width: 100%;
