@@ -23,6 +23,7 @@
 - **reasoning trace** — DeepSeek's `reasoning_content`. Streamed to the client and rendered collapsed, never persisted to a message and never replayed into a later request.
 - **published** — a game's `projects.published` flag: it appears in the *catalog*. Not an access control — every game has always been playable by link.
 - **catalog** — the page at `/` on the games origin listing published games. The only page there that is not a project's own file.
+- **rollback** — putting a project's whole working tree back to how it was at an earlier commit, committed as a new commit: files restored, anything made since removed, nothing rewritten. The UI says *bring everything back*. Not `git revert` — see spec.md §5.
 - **fork** — a copy of a game: its working tree and full git history under a new slug, carrying the attached agents, starting a fresh thread.
 - **draft** — unsent composer text, held per project in the client and never on the server. It survives a re-render and a switch to another game; only sending it clears it.
 - **project mutex** — the per-project promise chain that serialises write-and-commit, so concurrent agents cannot interleave git operations.

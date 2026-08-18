@@ -206,6 +206,85 @@ test('history reads keep working on an archived project', async (t) => {
   await old.text();
 });
 
+test('rollback puts the whole tree back and takes newer files away', async (t) => {
+  const { app, dir } = await project(t);
+  await put(app, 'index.html', '<h1>one</h1>');
+  const good = await put(app, 'js/game.js', 'let a = 1;');
+  // Everything after the version we roll back to: an edit, a new file, and a
+  // deletion, so all three directions are covered by one call.
+  await put(app, 'js/game.js', 'let a = 2; // broken');
+  await put(app, 'js/extra.js', 'made later');
+  await app.client.json('DELETE', '/api/projects/tank/files/index.html');
+
+  const res = await app.client.json('POST', '/api/projects/tank/rollback', {
+    body: { sha: good.body.commit },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.restored_from, good.body.commit);
+  assert.equal(res.body.restored, 2);
+  assert.equal(res.body.removed, 1);
+
+  assert.equal(fs.readFileSync(path.join(dir, 'js/game.js'), 'utf8'), 'let a = 1;');
+  assert.equal(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), '<h1>one</h1>');
+  assert.equal(fs.existsSync(path.join(dir, 'js/extra.js')), false, 'and its directory tidied');
+
+  // One new commit, nothing rewritten, and the rolled-back-from state is still
+  // reachable — a rollback is itself undoable.
+  const commits = await logCommits(dir, { limit: 100 });
+  assert.equal(commits[0].subject, `restore everything to ${good.body.commit.slice(0, 7)}`);
+  assert.ok(commits.some((c) => c.subject === 'create js/extra.js'));
+});
+
+test('rollback to the current version changes nothing', async (t) => {
+  const { app, dir } = await project(t);
+  const head = await put(app, 'game.js', 'v1');
+  const before = (await logCommits(dir, { limit: 100 })).length;
+
+  const res = await app.client.json('POST', '/api/projects/tank/rollback', {
+    body: { sha: head.body.commit },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.commit, null, 'no empty commit');
+  assert.equal((await logCommits(dir, { limit: 100 })).length, before);
+});
+
+test('rollback to the initial commit empties the tree', async (t) => {
+  const { app, dir } = await project(t);
+  await put(app, 'game.js', 'v1');
+  const [init] = (await logCommits(dir, { limit: 100 })).slice(-1);
+
+  const res = await app.client.json('POST', '/api/projects/tank/rollback', {
+    body: { sha: init.sha },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.restored, 0);
+  assert.equal(res.body.removed, 1);
+  assert.equal(fs.existsSync(path.join(dir, 'game.js')), false);
+  // Still recoverable: the commit that held it is untouched.
+  const files = await app.client.json('GET', '/api/projects/tank/files');
+  assert.deepEqual(files.body.files, []);
+});
+
+test('rollback validates its argument and respects archiving', async (t) => {
+  const { app } = await project(t);
+  const first = await put(app, 'game.js', 'v1');
+
+  for (const body of [{}, { sha: 'HEAD' }, { sha: 'not-a-sha' }]) {
+    const res = await app.client.json('POST', '/api/projects/tank/rollback', { body });
+    assert.equal(res.status, 400, JSON.stringify(body));
+  }
+  const absent = await app.client.json('POST', '/api/projects/tank/rollback', {
+    body: { sha: 'b'.repeat(40) },
+  });
+  assert.equal(absent.status, 404);
+
+  await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
+  const archived = await app.client.json('POST', '/api/projects/tank/rollback', {
+    body: { sha: first.body.commit },
+  });
+  assert.equal(archived.status, 409);
+});
+
 test('a deleted file is still recoverable from history', async (t) => {
   const { app, dir } = await project(t);
   const created = await put(app, 'doomed.txt', 'still here');

@@ -195,6 +195,32 @@ export async function diffCommit(dir, sha, filePath = null) {
   return (await git(dir, args)).toString('utf8');
 }
 
+// Every blob in a commit's tree, with its size. -z because a path may hold
+// anything but NUL, and -l for the size so the project caps can be checked
+// before a rollback writes anything.
+export async function treeAtCommit(dir, sha) {
+  const out = await git(dir, ['ls-tree', '-r', '-l', '-z', requireSha(sha)]);
+  const entries = [];
+  for (const entry of out.toString('utf8').split('\0')) {
+    if (entry.length === 0) continue;
+    // "<mode> <type> <sha> <size>\t<path>"
+    const tab = entry.indexOf('\t');
+    const [, type, , size] = entry.slice(0, tab).split(/\s+/);
+    if (type !== 'blob') continue;
+    entries.push({ path: entry.slice(tab + 1), size: Number(size) });
+  }
+  return entries;
+}
+
+// Write every file in a commit back into the working tree. One git call rather
+// than a blob read per path, and git cannot write outside the pinned work tree.
+// Paths in the commit that path validation would now refuse come back too, and
+// land in the same "listed, unreachable, untouchable" state as any other such
+// file (spec.md §4) — losing them silently would be worse.
+export async function restoreTree(dir, sha) {
+  await git(dir, ['checkout', requireSha(sha), '--', '.']);
+}
+
 // Paths touched by a commit, used to render the file chips under an agent
 // reply and to label a history entry.
 export async function commitPathsTouched(dir, sha) {

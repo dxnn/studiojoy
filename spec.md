@@ -298,6 +298,16 @@ One git repository per project, at the project directory root.
   saves are one commit each.
 - Restore never rewrites history: read the old blob, write it to the working
   tree, commit as a new commit.
+- **Rollback** is restore one scope up: every file goes back to how it was at
+  some commit, anything made since is removed, and the lot lands as one new
+  commit. Same rule — history is never rewritten, which is what makes a
+  rollback itself undoable by rolling back again. The tree is written with a
+  single `git checkout <sha> -- .` rather than a blob read per path; the
+  deletions go through `removeFileAt` so they tidy the directories they empty.
+  Rolling back to a commit whose tree already matches is a no-op, not an empty
+  commit. What it deliberately is *not* is `git revert`: undoing one commit in
+  the middle of history can conflict, and a merge conflict has no answer in an
+  interface used by kids.
 
 ### Serialization
 
@@ -397,6 +407,7 @@ write.
 | GET | `/api/projects/:slug/history/:sha/*path` | file content at that commit |
 | GET | `/api/projects/:slug/diff/:sha` | `?path=` — unified diff text |
 | POST | `/api/projects/:slug/restore` | `{sha, path}` — write the old content, new commit |
+| POST | `/api/projects/:slug/rollback` | `{sha}` — the whole tree back to that commit, new commit; returns `{commit, restored, removed}`, with `commit: null` when the tree already matched |
 
 #### Stream
 

@@ -632,6 +632,29 @@ async function restore(sha, path) {
   say(`Brought ${path} back to an earlier version.`);
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// Whole-tree rollback. The result is reported rather than the confirmation
+// predicted: the server is the one that knows how many files moved.
+async function rollback(sha) {
+  const res = await api('POST', `/api/projects/${S.slug}/rollback`, { sha });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not bring that version back.', true);
+    return;
+  }
+  S.previewNonce += 1;
+  await refreshFiles();
+  if (S.open?.path) await openFile(S.open.path);
+  await loadHistory(S.historyPath);
+  const { commit, restored, removed } = res.body;
+  if (!commit) {
+    say('Everything already looked like that version, so nothing changed.');
+    return;
+  }
+  const gone = removed > 0 ? `, ${plural(removed, 'newer file')} taken away` : '';
+  say(`Everything is back to ${sha.slice(0, 7)} — ${plural(restored, 'file')} put back${gone}.`);
+}
+
 /* Helpers ----------------------------------------------------------------- */
 
 // Attaching, detaching and toggling all edit the open project's own copy of
@@ -1304,13 +1327,24 @@ function renderVersionsTab() {
       h('button', { class: 'quiet tiny', text: 'What changed?', onclick: () => loadDiff(c.sha) }),
       S.historyPath && !S.project.archived
         ? h('button', {
-          class: 'quiet tiny', text: 'Bring this back',
+          class: 'quiet tiny', text: 'Bring this file back',
           onclick: () => {
             S.dialog = { kind: 'restore', sha: c.sha, path: S.historyPath, short: c.short };
             render();
           },
         })
-        : null)));
+        : null,
+      // Ungated, unlike the per-file button: this is the one you want when a
+      // whole version worked and the one after it did not.
+      S.project.archived
+        ? null
+        : h('button', {
+          class: 'quiet tiny', text: 'Bring everything back',
+          onclick: () => {
+            S.dialog = { kind: 'rollback', sha: c.sha, short: c.short };
+            render();
+          },
+        }))));
 
   return [header, h('div', { class: 'scroll' },
     rows.length ? rows : h('div', { class: 'pad muted', text: 'No versions yet.' }),
@@ -1505,6 +1539,16 @@ function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Bring it back',
         onclick: async () => { close(); await restore(d.sha, d.path); },
+      })));
+  }
+
+  if (d.kind === 'rollback') {
+    return wrap('Bring the whole game back?',
+      h('p', { text: `Every file goes back to how it was at ${d.short}. Anything made since then is taken away.` }),
+      h('p', { text: 'Nothing is lost — this adds a new version, so you can come back from it too.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Bring it all back',
+        onclick: async () => { close(); await rollback(d.sha); },
       })));
   }
 

@@ -3,9 +3,13 @@ import { readJson } from '../http/body.js';
 import { mimeForPath, OCTET_STREAM } from '../http/static.js';
 import { requireAuth } from '../auth.js';
 import { resolveProjectPath, checkProjectPath } from '../files/paths.js';
-import { writeFileAt, etagFor } from '../files/tree.js';
 import {
-  logCommits, showFile, diffCommit, commitPaths, commitPathsTouched, GitError, isSha,
+  writeFileAt, etagFor, listTree, removeFileAt,
+  MAX_PROJECT_BYTES, MAX_PROJECT_FILES,
+} from '../files/tree.js';
+import {
+  logCommits, showFile, diffCommit, commitPaths, commitPathsTouched,
+  treeAtCommit, restoreTree, GitError, isSha,
 } from '../files/git.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
 
@@ -118,6 +122,65 @@ export function historyRoutes(r) {
       });
       json(ctx.res, 200, {
         path: rel, size: buffer.length, restored_from: sha, commit,
+      });
+    });
+  });
+
+  // Rollback is restore one scope up: every file goes back to how it was at
+  // that commit, anything made since is removed, and the lot lands as a single
+  // new commit. History is never rewritten, so a rollback is itself undoable
+  // by rolling back to the commit before it (spec.md §5).
+  //
+  // Its own route rather than `path` becoming optional on /restore: a client
+  // that dropped a field would otherwise escalate from one file to the whole
+  // tree, which is the one mistake here that would be expensive.
+  r.post('/api/projects/:slug/rollback', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    const dir = projectDirFor(ctx, project);
+    const body = await readJson(ctx.req);
+    const sha = requireShaParam(body.sha);
+
+    await ctx.mutex.run(project.slug, async () => {
+      let entries;
+      try {
+        entries = await treeAtCommit(dir, sha);
+      } catch (err) {
+        if (err instanceof GitError) throw new HttpError(404, 'no such commit');
+        throw err;
+      }
+      // The caps could have been lowered since, so an old tree is not
+      // automatically allowed back in. Checked before anything is written.
+      const totalBytes = entries.reduce((sum, e) => sum + e.size, 0);
+      if (entries.length > MAX_PROJECT_FILES || totalBytes > MAX_PROJECT_BYTES) {
+        throw new HttpError(409, 'that version is bigger than a project may be');
+      }
+
+      const wanted = new Set(entries.map((e) => e.path));
+      const { files } = await listTree(dir);
+      const removed = files.map((f) => f.path).filter((p) => !wanted.has(p));
+
+      // An empty tree is a legitimate destination — the initial commit — and
+      // `checkout <sha> -- .` fails on a pathspec that matches nothing.
+      if (entries.length > 0) await restoreTree(dir, sha);
+      for (const rel of removed) await removeFileAt(dir, rel);
+
+      const touched = [...wanted, ...removed];
+      const short = sha.slice(0, 7);
+      const commit = touched.length > 0
+        ? await commitPaths(dir, touched, `restore everything to ${short}`, authorFor(user))
+        : null;
+      if (commit) {
+        ctx.broker.broadcast('files.changed', {
+          project_slug: project.slug, paths: touched,
+        });
+      }
+      json(ctx.res, 200, {
+        restored_from: sha,
+        commit,
+        // Counts for the toast: null commit means the tree already matched.
+        restored: entries.length,
+        removed: removed.length,
       });
     });
   });
