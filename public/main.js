@@ -227,6 +227,9 @@ async function openProject(slug, { push = true } = {}) {
   S.pinned = new Set();
   S.open = null;
   S.history = [];
+  // Cleared as well as the list: a path from the game you just left would
+  // filter this game's history by a file it may not even have.
+  S.historyPath = null;
   S.diff = null;
   S.historyStale = false;
   S.live.clear();
@@ -234,6 +237,10 @@ async function openProject(slug, { push = true } = {}) {
   S.autoscroll = true;
   if (push) history.pushState({}, '', `/p/${slug}`);
   render();
+  // The rail keeps whichever tab you were on, so arriving at a game with
+  // Versions already open has to fetch now. Waiting for the next click on the
+  // tab is what made the list look empty until you left it and came back.
+  if (S.tab === 'versions' && !isChat()) await loadHistory(null);
 }
 
 window.addEventListener('popstate', () => openProject(slugFromUrl(), { push: false }));
@@ -1549,8 +1556,11 @@ function renderRail() {
     text: label,
     onclick: () => {
       S.tab = id;
-      if (id === 'versions' && (S.historyStale || S.history.length === 0)) {
-        loadHistory(S.historyPath);
+      // Clicking Versions means all of them, the same as Show all. A list
+      // filtered to one file is somewhere you arrive from that file, not a
+      // state the tab should hold on to.
+      if (id === 'versions' && (S.historyPath || S.historyStale || S.history.length === 0)) {
+        loadHistory(null);
       }
       render();
     },
