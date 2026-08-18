@@ -328,6 +328,107 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(finalUser, /look at this$/);
 });
 
+// The brief is the one project file that goes into the system prompt whole, so
+// it is the one an agent can grow until it crowds out everything else.
+test('an oversized brief is cut, and says where', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/BRIEF.md', {
+    rawBody: `${'a brief line\n'.repeat(4000)}the last line`,
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /cut here: BRIEF\.md is 52013 bytes/);
+  assert.ok(!system.includes('the last line'), 'the tail is not sent');
+  assert.ok(system.length < 40 * 1024, `system prompt is ${system.length} bytes`);
+});
+
+test('pinning takes priority but does not exempt a file from the cap', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app } = await studio(t, { llm });
+  // 460 KB pinned against the 400 KB ambient cap. A pin used to bypass the cap
+  // outright, so 50 paths a turn across three turns could carry 10 MB each.
+  const sizes = [90, 91, 92, 93, 94];
+  for (const kb of sizes) {
+    await app.client.json('PUT', `/api/projects/tank/files/js/f${kb}.js`, {
+      rawBody: `// ${'x'.repeat(kb * 1000 - 4)}\n`,
+    });
+  }
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'look at all of these', sizes.map((kb) => `js/f${kb}.js`));
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const finalUser = llm.lastCall().messages.at(-1).content;
+  // Smallest-first, so the largest pinned file is the one left out — named, as
+  // a dropped file always is.
+  assert.match(finalUser, /--- FILE: js\/f90\.js \(90000 bytes\) \[pinned by the user\] ---/);
+  assert.ok(!finalUser.includes('--- FILE: js/f94.js'), 'the largest is not sent');
+  assert.match(finalUser, /left out for size[^\n]*js\/f94\.js/);
+});
+
+test('a file the validator refuses is listed but never opened', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app, dir } = await studio(t, { llm });
+  // A trailing space is legal on disk and refused by path validation, so no
+  // tool can touch it and the games origin will not serve it either.
+  fs.writeFileSync(path.join(dir, 'stray.js '), 'let a = 1;');
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'what is in here?');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const finalUser = llm.lastCall().messages.at(-1).content;
+  assert.match(finalUser, /stray\.js {2}\(10 bytes\) \[cannot be opened/);
+  assert.ok(!finalUser.includes('--- FILE: stray.js'), 'and its bytes are not sent');
+});
+
+test('a trimmed transcript says where it was trimmed', async (t) => {
+  const llm = createFakeLlm([says('Caught up.')]);
+  const { app } = await studio(t, { llm, chatty: false });
+  // Nine messages of 31 KB is over the 200 KB history budget. A quiet agent
+  // means none of them fires, so the whole pile is there when one does.
+  const long = 'w'.repeat(31 * 1024);
+  for (let i = 0; i < 9; i += 1) {
+    await send(app, `${i} ${long}`);
+  }
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'catch up @Designer');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  // The marker sits where the seam is: right before the oldest surviving turn.
+  const first = llm.lastCall().messages[0].content;
+  assert.match(first, /\[studio\] Earlier messages are not shown \(3 trimmed to fit\)\.\n\n\[Dann\] 3 /);
+  assert.ok(!first.includes('[Dann] 2 '), 'and the trimmed ones are gone');
+});
+
+test('a fire that grows too big stops instead of walking the window', async (t) => {
+  // 200 KB of file content echoed back per turn, against a 512 KB loop budget.
+  const big = 'x'.repeat(200_000);
+  const llm = createFakeLlm((opts, turn) => calls([
+    { name: 'write_file', input: { path: `js/part${turn}.js`, content: big } },
+  ]));
+  const { app } = await studio(t, { llm, maxContinuations: 0 });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'write the whole engine');
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  assert.match(banner.data.body, /too much to hold in one reply/);
+  assert.equal(llm.calls.length, 3, 'three turns of growth, not twenty-four');
+});
+
 test('the studio budget stops a fire before the API is called', async (t) => {
   const llm = createFakeLlm([says('should never run')]);
   const { app } = await studio(t, { llm, dailyTokenBudget: 10 });

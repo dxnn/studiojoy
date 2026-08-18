@@ -522,14 +522,19 @@ The system prompt is, in order:
 
 1. A fixed studio preamble: what this app is, the project slug, the path rules
    from §4, how each tool behaves, a nudge to prefer `patch_file` over
-   rewriting whole files, and a note that games run on a separate origin so
-   absolute URLs back to the studio will not resolve.
-2. `BRIEF.md`'s content, if the file exists.
+   rewriting whole files, the project documents and file layout it is expected
+   to keep (below), and a note that games run on a separate origin so absolute
+   URLs back to the studio will not resolve.
+2. `BRIEF.md`'s content, if the file exists, cut to `BRIEF_BYTES` with a note
+   saying where it was cut.
 3. The agent's `description`.
 
 The final user message carries, in order:
 
-1. The **file tree**: every path with its size.
+1. The **file tree**: every path with its size. A path already on disk that §4
+   validation refuses is listed and marked `[cannot be opened: …]`: no tool can
+   touch it and the games origin will not serve it, so an agent that could not
+   see it would have no way to explain why it 404s at runtime.
 2. The **files**, each emitted exactly once between
    `--- FILE: <path> (<size>) ---` and `--- END FILE ---` markers. Pinned
    files come first and are labelled with who pinned them. Binary files are
@@ -539,35 +544,58 @@ The final user message carries, in order:
    entirely when there are none (below).
 4. The human's message body.
 
-Files first and errors last is deliberate: the file block is the stable prefix
-prompt caching pays for, and the errors change on every playthrough.
+Files before errors is deliberate: the errors change on every playthrough, so
+they sit next to the message body rather than in the middle of the files.
 
 A **pinned file** is a path in the current turn's `context_paths`, or in
-either of the previous two human turns'. Pinned files are never dropped by the
-byte cap; unpinned ones are dropped largest-first when the cap binds. Content
-is always read fresh from disk at fire time, never from the message the human
-sent.
+either of the previous two human turns'. Pinning is **priority, not
+exemption**: pinned files are offered to the byte cap first, then the rest,
+each group smallest-first, so the largest files are the ones dropped and the
+whole block is bounded by `AMBIENT_BYTES`. Content is always read fresh from
+disk at fire time, never from the message the human sent. Dropped files are
+named in the prompt with a note to call `read_file`.
 
 Earlier chat turns map to OpenAI roles: this agent's own messages become
 `assistant`, everyone else's become `user` prefixed with `[Name] `. History is
-trimmed oldest-first to fit its budget. Past turns' tool calls are not
-replayed — only the persisted reply text — so history stays compact and no
-stale `tool_call_id` can dangle.
+trimmed oldest-first to fit its budget, and the seam is marked — a `[studio]`
+turn at the front saying how many messages are not shown. Silence there was
+the one drop in the whole context that nobody was told about: a dropped file is
+named, a trimmed conversation just began later than it had before. Past turns'
+tool calls are not replayed — only the persisted reply text — so history stays
+compact and no stale `tool_call_id` can dangle.
 
 Budgets, in one constants block so they are easy to retune:
 
-| constant | value | ≈ tokens |
-|---|---|---|
-| `AMBIENT_BYTES` | 400 KB | ~115 K |
-| `HISTORY_BYTES` | 200 KB | ~57 K |
-| total request | ~700 KB | ~200 K |
+| constant | value | ≈ tokens | governs |
+|---|---|---|---|
+| `AMBIENT_BYTES` | 400 KB | ~115 K | the whole file block, pinned included |
+| `HISTORY_BYTES` | 200 KB | ~57 K | replayed chat turns |
+| `BRIEF_BYTES` | 32 KB | ~9 K | `BRIEF.md` in the system prompt |
+| `LOOP_GROWTH_BYTES` | 512 KB | ~146 K | what the tool loop may add per fire |
+| total request | ~1.2 MB | ~350 K | worst case, everything binding at once |
 
-That leaves the 1 M-token ceiling four-fifths unused, deliberately: the cap
-here is about cost and latency, not capability. Prompt caching (§14) makes a
-stable prefix cost a tenth on subsequent turns, so a large ambient context is
-cheap to keep re-sending as long as the tree is unchanged — which argues for
-emitting files in a stable order, and the tree listing before the volatile
-message body.
+Every one of these is measured in **bytes, not tokens**, and they are
+independent and additive: nothing counts tokens or checks the sum against the
+1 M-token ceiling. The table is the proof that the sum cannot reach it. The
+caps that matter are the last two — before them, `BRIEF.md` and the tool loop
+were the two places one fire could grow without limit.
+
+Prompt caching does less than this section used to claim. Measured against the
+live API with a 62 KB project (`tmp/probe-cache.mjs`), on 24.5 K-token prompts:
+
+| case | cache hit |
+|---|---|
+| turn 2 of one fire, file block on the last user message | 99% |
+| the next fire, file block on the last user message | **0%** |
+| the next fire, file block in the system prompt, no file changed | 100% |
+| the next fire, file block in the system prompt, one file changed | 0% |
+
+So a stable emission order is what pays for a 24-turn tool loop, and it buys
+nothing between fires: today's file block sits behind the whole transcript, and
+the history that arrives in front of it moves it, so the entire prompt is
+charged as a miss. Moving the block into the system prompt would flip that —
+free whenever no file changed, no worse than today when one did — and is the
+one open decision here (§15).
 
 ### Reasoning traces
 
@@ -653,8 +681,9 @@ Every tool validates its path per §4 and returns an error string to the model
 on violation rather than throwing — a confused agent gets a correction, not a
 dead turn.
 
-Bounded loop: at most 24 assistant turns and 40 tool calls per fire. On hitting
-either limit the turn ends with a `'system'` banner noting it stopped early.
+Bounded loop: at most 24 assistant turns, 40 tool calls, and
+`LOOP_GROWTH_BYTES` of appended messages per fire. On hitting any of the three
+the turn ends with a `'system'` banner noting it stopped early.
 Both numbers are runaway guards, not a work allowance — the daily token budget
 is what caps cost. The original 8/12 proved too tight in use: the "stopped
 after 8 turns without finishing" banner became routine. DeepSeek usually emits
@@ -663,6 +692,15 @@ reached, while a whole small game — an `index.html`, a stylesheet, four or
 five scripts, and a read or two before patching — needs more than eight. The
 preamble states both numbers to the model so it can batch its calls and wrap
 up rather than being cut off mid-file.
+
+The byte guard is the one that bounds the request itself. Everything else in
+the context is capped once per fire; the loop is the part that grows as it runs
+— 40 reads at 128 KB each, plus every file it writes echoed back in the
+assistant turn that wrote it, which is the only route by which a single fire
+could have walked the model's window. On hitting it the loop stops rather than
+dropping earlier messages: a dropped message orphans a `tool_call_id`, and the
+recovery is a continuation, which rebuilds its context from disk and so starts
+light again.
 
 Running out of turns is not the end of the reply. The agent may **continue**
 itself up to 3 times, counted from the last human message and reset by the
@@ -753,10 +791,11 @@ the game in your preview pane reloads.
 - Runtime errors: 20 per project, 20 per report, 500 chars of message and 200
   of location each; 20 distinct problems per page load in the reporter itself.
 - Agent cooldown: 5 s per `(project, agent)`.
-- Agent fire: ≤ 24 assistant turns, ≤ 40 tool calls, ≤ 3 continuations per
-  human message (§8).
-- Context sent per fire: ~700 KB of text (§8), against a 1,048,576-token
-  model ceiling.
+- Agent fire: ≤ 24 assistant turns, ≤ 40 tool calls, ≤ 512 KB of messages
+  appended by the tool loop, ≤ 3 continuations per human message (§8).
+- Context sent per fire: ~700 KB of text before the tool loop and ~1.2 MB with
+  it, all of it bounded (§8), against a 1,048,576-token model ceiling.
+- Brief injected into the system prompt: 32 KB, cut with a note (§8).
 - Output per request: `max_tokens = 65536`, which is the model ceiling — a
   lower cap rations the reasoning trace, not the files (§8, §14).
 - Studio token budget: `DAILY_TOKEN_BUDGET`, default 5,000,000 per UTC day.
@@ -959,6 +998,12 @@ the test suite never touches the network.
 
 ## 15. Deferred to v1
 
+- Moving the ambient file block from the last user message into the system
+  prompt. Measured, it is free whenever no file changed and no worse than
+  today when one did (§8) — but it reorders every context an agent sees, so it
+  wants its own change rather than riding along with the byte guards.
+- Counting tokens rather than bytes. The byte caps bound the request, but a
+  request's real cost is only visible after the fact, in `usage`.
 - Viewer counts, message reactions, web push, unread markers (all exist in
   `new-y`). Typing previews are **not** here — they are permanently out (§2).
 - Public read-only chat. (A public game index is no longer deferred: `/` on

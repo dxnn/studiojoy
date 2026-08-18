@@ -80,7 +80,7 @@ destructive actions confirm first. The UI says **helper** where the code says
 
 ## Current state
 
-v0 is complete and green at 289 tests. Verified live end to end: a message in
+v0 is complete and green at 295 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -116,6 +116,19 @@ frame from the browser; that it has to happen server-side is the boundary
 working, not an obstacle.
 
 What a reply cost is on `messages.tokens` and under the bubble.
+
+Every part of a request is now bounded, and nothing is dropped in silence: the
+brief is cut at 32 KB with a note, a pin is priority rather than exemption so
+the file block cannot exceed `AMBIENT_BYTES`, the tool loop stops at 512 KB of
+appended messages and continues from a fresh context, and a trimmed transcript
+carries a `[studio]` marker saying how many messages are missing. Still bytes,
+not tokens — spec.md §8 has the table that shows the sum cannot reach the
+window.
+
+Prompt caching, measured (`tmp/probe-cache.mjs`): 99% hit between the turns of
+one fire, **0% between fires**, because the file block rides behind the whole
+transcript. In the system prompt it would be 100% / 0-on-change. Not moved yet
+(spec.md §15).
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

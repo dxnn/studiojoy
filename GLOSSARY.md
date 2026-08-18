@@ -9,13 +9,13 @@
 - **studio access** — presence of a row in `users`. The only permission bit in the system; every account can edit every project, agent, and file.
 - **studio origin** — the authenticated listener (`PORT`) serving the SPA and `/api`.
 - **games origin** — the unauthenticated listener (`GAMES_PORT`) serving only game files. A separate origin so LLM-written game code cannot read a studio response. On two ports of one hostname the session cookie still travels there, so it is a read boundary, not a write one — spec.md §7.
-- **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context; a plain versioned file rather than a database column.
+- **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context, capped at 32 KB and cut with a note rather than sent whole; a plain versioned file rather than a database column.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
 - **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
 - **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)
 - **context path** — a project path a human attaches to a message, handing that file's current content to the agents on that turn.
-- **pinned file** — a file named by a context path on the current or previous two human turns. Never dropped by the context byte cap, and labelled in the prompt as what the human is pointing at.
+- **pinned file** — a file named by a context path on the current or previous two human turns. Offered to the context byte cap first, and labelled in the prompt as what the human is pointing at. Priority, not exemption: a pin that does not fit is dropped and named like any other.
 - **ambient context** — the rest of the working tree, sent to an agent on every fire without being asked for. Affordable because DeepSeek's window is 1M tokens; trimmed largest-first when the byte cap binds.
 - **reasoning trace** — DeepSeek's `reasoning_content`. Streamed to the client and rendered collapsed, never persisted to a message and never replayed into a later request.
 - **published** — a game's `projects.published` flag: it appears in the *catalog*. Not an access control — every game has always been playable by link.

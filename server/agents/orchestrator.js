@@ -13,11 +13,26 @@ import { createToolset } from './tools.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
 // these caps are about cost and latency rather than capability — roughly
-// 200K tokens against a 1M ceiling. Prompt caching makes re-sending a stable
-// prefix cheap, which is why files are emitted in a deterministic order.
+// 200K tokens against a 1M ceiling.
+//
+// Measured against the live API, not assumed: prompt caching hits ~99%
+// between the turns of one fire, because everything ahead of the appended tool
+// exchange is unchanged. Between two fires it hits 0% — the file block rides
+// on the last user message, so the history that arrives in front of it moves
+// it, and the whole prompt is charged as a miss. A stable emission order is
+// what makes the in-fire hits possible; it does not make re-sending the files
+// on the next fire cheap.
 const AMBIENT_BYTES = 400 * 1024;
 const HISTORY_BYTES = 200 * 1024;
 const MAX_HISTORY_MESSAGES = 200;
+// The brief is the one project file that goes into the system prompt whole, so
+// it is the one an agent can grow until it crowds out everything else.
+const BRIEF_BYTES = 32 * 1024;
+// Bytes the tool loop may add to a request before the fire has to stop.
+// Everything else here is capped once per fire; the loop is the part that
+// grows as it runs — 40 reads at 128 KB each, plus every file it writes echoed
+// back in the assistant turn that wrote it.
+const LOOP_GROWTH_BYTES = 512 * 1024;
 
 // How many recent human turns' context_paths count as pinned.
 const PINNED_TURNS = 3;
@@ -93,8 +108,18 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
   return lines.join('\n');
 }
 
-// Paths the humans pointed at recently. Pinned files are never dropped by the
-// byte cap and are labelled in the prompt.
+// The brief, cut to its budget and told where it was cut. Truncating in
+// silence would read as the whole file, which is how a brief with the
+// important part at the bottom becomes a mystery.
+function briefText(buffer) {
+  if (buffer.length <= BRIEF_BYTES) return buffer.toString('utf8');
+  return `${buffer.subarray(0, BRIEF_BYTES).toString('utf8')}\n\n`
+    + `(cut here: ${BRIEF_FILE} is ${buffer.length} bytes and only the first`
+    + ` ${BRIEF_BYTES} are shown. Shorten it, or read the rest with read_file.)`;
+}
+
+// Paths the humans pointed at recently. Pinned files are taken first and are
+// labelled in the prompt.
 function pinnedPaths(db, projectId) {
   const recentTurns = db
     .prepare(
@@ -116,31 +141,30 @@ async function buildFileBlock(db, project, dir) {
   const { files } = await listTree(dir);
   const pinned = pinnedPaths(db, project.id);
   // A file already on disk that path validation refuses is listed but never
-  // opened — no tool could act on it anyway.
-  const usable = files.filter((f) => !f.unreachable);
-  const texts = usable.filter((f) => f.text);
-  const binaries = usable.filter((f) => !f.text);
+  // opened: no tool can act on it and the games origin will not serve it, so
+  // an agent needs to know it is there to explain why it 404s at runtime.
+  const texts = files.filter((f) => f.text && !f.unreachable);
+  const binaries = files.filter((f) => !f.text && !f.unreachable);
 
-  // Pinned files are included unconditionally. Unpinned ones are taken
-  // smallest-first, which means the largest are the ones the cap drops.
+  // Pinned files first, then the rest, each group smallest-first so the largest
+  // are what the cap drops. Pinning is priority, not exemption: it used to
+  // bypass the cap outright, which let 50 paths a turn across three turns
+  // through at up to 10 MB each. The cap now bounds the whole block.
+  const bySize = (a, b) => a.size - b.size;
+  const byPriority = [
+    ...texts.filter((f) => pinned.has(f.path)).sort(bySize),
+    ...texts.filter((f) => !pinned.has(f.path)).sort(bySize),
+  ];
   const included = new Set();
   let used = 0;
-  for (const file of texts) {
-    if (!pinned.has(file.path)) continue;
-    included.add(file.path);
-    used += file.size;
-  }
-  const unpinned = texts
-    .filter((f) => !pinned.has(f.path))
-    .sort((a, b) => a.size - b.size);
-  for (const file of unpinned) {
+  for (const file of byPriority) {
     if (used + file.size > AMBIENT_BYTES) continue;
     included.add(file.path);
     used += file.size;
   }
 
-  // Deterministic emission order — pinned first, then alphabetical — so the
-  // prompt prefix stays stable between turns and the cache keeps hitting.
+  // Emission is pinned first, then alphabetical: editing a file changes its
+  // size but not its place, so the block only moves when the tree does.
   const ordered = [...texts].sort((a, b) => {
     const rank = (f) => (pinned.has(f.path) ? 0 : 1);
     if (rank(a) !== rank(b)) return rank(a) - rank(b);
@@ -150,8 +174,11 @@ async function buildFileBlock(db, project, dir) {
   const parts = [];
   parts.push(
     'PROJECT FILES\n'
-    + (usable.length
-      ? usable.map((f) => `${f.path} (${f.size} bytes)`).join('\n')
+    + (files.length
+      ? files
+        .map((f) => `${f.path} (${f.size} bytes)`
+          + (f.unreachable ? ' [cannot be opened: the name is not a valid project path]' : ''))
+        .join('\n')
       : '(the project has no files yet)'),
   );
 
@@ -252,6 +279,23 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
     turns.shift();
   }
 
+  // Mark the seam. A file the cap leaves out is named in the prompt, but
+  // history used to be trimmed silently — by the byte cap here or by the row
+  // limit in the query above — so a conversation simply began later than it
+  // used to with nothing saying where the join was.
+  const oldest = turns[0]?.id ?? 0;
+  const older = oldest > 0
+    ? db.prepare('SELECT COUNT(*) AS n FROM messages WHERE project_id = ? AND id < ?')
+      .get(project.id, oldest).n
+    : 0;
+  if (older > 0) {
+    turns.unshift({
+      id: 0,
+      role: 'user',
+      text: `[studio] Earlier messages are not shown (${older} trimmed to fit).`,
+    });
+  }
+
   // Collapse consecutive same-role turns; past tool calls are never replayed,
   // so no stale tool_call_id can dangle.
   const collapsed = [];
@@ -281,7 +325,7 @@ async function buildContext({
     isChat ? null : studioPreamble({
       project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
     }),
-    brief ? `Project brief (${BRIEF_FILE}):\n${brief.toString('utf8')}` : null,
+    brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null,
     agent.description || null,
   ].filter(Boolean).join('\n\n');
 
@@ -451,6 +495,13 @@ export function createOrchestrator({
       emit('agent.stream.start');
 
       const messages = [...context.messages];
+      // Everything the loop appends is counted, so a fire cannot grow past
+      // LOOP_GROWTH_BYTES however many files it reads or writes.
+      let grown = 0;
+      const append = (message) => {
+        messages.push(message);
+        grown += JSON.stringify(message).length;
+      };
       let replyText = '';
       let charged = 0;
       let toolCallCount = 0;
@@ -505,7 +556,7 @@ export function createOrchestrator({
         if (calls.length === 0 && cutCalls === 0) break;
 
         if (calls.length > 0) {
-          messages.push({
+          append({
             role: 'assistant',
             content: text || null,
             tool_calls: calls.map((c) => ({
@@ -518,7 +569,7 @@ export function createOrchestrator({
           for (const call of calls) {
             if (toolCallCount >= maxToolCalls) {
               hitLimit = 'tool';
-              messages.push({
+              append({
                 role: 'tool',
                 tool_call_id: call.id,
                 content: 'refused: this turn has reached its tool call limit',
@@ -527,17 +578,22 @@ export function createOrchestrator({
             }
             emit('agent.tool', { tool: call.name, path: call.input?.path ?? null });
             const result = await toolset.run(call.name, call.input);
-            messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+            append({ role: 'tool', tool_call_id: call.id, content: result });
             toolCallCount += 1;
           }
           if (hitLimit) break;
         } else if (text) {
           // No valid call to answer, so this turn's prose stands on its own.
-          messages.push({ role: 'assistant', content: text });
+          append({ role: 'assistant', content: text });
         }
 
-        if (cutCalls > 0) messages.push({ role: 'user', content: CUT_NOTICE });
-        if (turn === maxAssistantTurns - 1) hitLimit = 'turn';
+        if (cutCalls > 0) append({ role: 'user', content: CUT_NOTICE });
+        // Stop rather than truncate: dropping an earlier message would orphan
+        // a tool_call_id, and a continuation resumes from a context built
+        // fresh from disk, which is the recovery anyway.
+        if (grown > LOOP_GROWTH_BYTES) hitLimit = 'context';
+        if (turn === maxAssistantTurns - 1 && !hitLimit) hitLimit = 'turn';
+        if (hitLimit) break;
       }
 
       consumeBudget(db, charged);
@@ -603,9 +659,11 @@ export function createOrchestrator({
           agentId: agent.id,
           body: `${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`,
         });
-      } else if (hitLimit === 'turn') {
-        // Out of turns mid-build. Rather than making a human type "keep
-        // going", re-arm the agent and let it pick up where it stopped.
+      } else if (hitLimit === 'turn' || hitLimit === 'context') {
+        // Out of room mid-build: out of turns, or the loop grew past what one
+        // request may carry. Rather than making a human type "keep going",
+        // re-arm the agent and let it pick up where it stopped — a fresh fire
+        // rebuilds its context from disk, which is what clears the weight.
         // The system message is not decoration: a 'system' row enters the
         // transcript as a user turn, which is what gives the next fire
         // something to answer — without it the agent's own reply would be
@@ -624,7 +682,9 @@ export function createOrchestrator({
           postSystemMessage(db, broker, {
             project,
             agentId: agent.id,
-            body: `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`,
+            body: hitLimit === 'context'
+              ? `${row.agent_name} had too much to hold in one reply and stopped. Ask them to keep going if you want more.`
+              : `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`,
           });
         }
       }
