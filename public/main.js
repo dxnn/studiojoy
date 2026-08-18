@@ -1287,7 +1287,7 @@ function renderConfigForm(decls) {
       }),
       h('div', { class: 'spacer' }),
       h('button', {
-        class: 'quiet', text: 'Show the text',
+        class: 'link', text: 'Show the text',
         onclick: () => { S.open.asText = true; render(); },
       }),
       h('button', {
@@ -1327,7 +1327,7 @@ function renderFilesTab() {
       h('div', { class: 'title mono', text: S.open.path }),
       h('div', { class: 'spacer' }),
       h('button', {
-        class: 'quiet tiny', text: 'Versions',
+        class: 'link tiny', text: 'Versions',
         onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
       }),
       h('button', {
@@ -1375,7 +1375,7 @@ function renderFilesTab() {
           h('div', { class: 'spacer' }),
           parsed?.ok
             ? h('button', {
-              class: 'quiet', text: 'Show the fields',
+              class: 'link', text: 'Show the fields',
               onclick: () => { S.open.asText = false; render(); },
             })
             : null,
@@ -1488,8 +1488,20 @@ function renderDiff(patch) {
 // open, because opening a second replaces S.diff — which is also what makes
 // "the last one closes itself" true without any bookkeeping.
 function diffDrawer() {
+  // Each path goes to that file in the editor: the usual reason to read a diff
+  // is to go and change the file it is about. A path that is no longer in the
+  // game is plain text — there is nothing to open — and says so on hover.
+  const paths = S.diff.paths.length === 0
+    ? ['nothing']
+    : S.diff.paths.map((p, i) => [
+      i ? ', ' : null,
+      S.files.some((f) => f.path === p)
+        ? h('button', { class: 'link', text: p, onclick: () => openFile(p) })
+        : h('span', { text: p, title: 'This file is not in the game any more' }),
+    ]);
+
   return h('div', { class: 'drawer' },
-    h('div', { class: 'hint muted', text: `Changed: ${S.diff.paths.join(', ') || 'nothing'}` }),
+    h('div', { class: 'hint muted' }, 'Changed: ', paths),
     S.diff.patch.trim()
       ? renderDiff(S.diff.patch)
       : h('div', { class: 'muted', text: 'Nothing to show for this one.' }));
@@ -1516,7 +1528,9 @@ function renderVersionsTab() {
       h('div', { class: 'row', style: 'margin-top:5px' },
         h('button', {
           class: 'link tiny',
-          text: open ? 'Hide the changes' : 'What changed?',
+          // One control in one place, its label saying which way it goes,
+          // rather than a second control appearing beside it once it is open.
+          text: open ? 'Hide changes' : 'Show changes',
           onclick: () => {
             if (open) {
               S.diff = null;

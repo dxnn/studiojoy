@@ -92,7 +92,15 @@ button.link {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-button.link:hover:not(:disabled) { background: none; filter: brightness(1.1); }
+/* The general button hover swaps the text to accent-ink — the colour of text
+   sitting *on* the accent, so nearly black in dark mode and white in light. On
+   a borderless link that is invisible against the page either way, so the
+   colour has to be restated here, not just the background. */
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--accent);
+  filter: brightness(1.18);
+}
 button.tiny { padding: 2px 8px; font-size: 13px; }
 /* A borderless button that only shows itself on hover: for the pencils, the
    ✕s, and the sidebar toggles, where a full outline would be noise. */

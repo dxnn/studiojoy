@@ -79,10 +79,12 @@ destructive actions confirm first. The UI says **helper** where the code says
 **agent** — see GLOSSARY.md, and don't let "helper" leak into the code.
 
 Two conventions to keep: **a link looks at something, a button changes
-something** (`What changed?`, `All files`, `See the whole version` are
-`button.link`; `Bring this file back` is a bordered button), and anything a
+something** (`Show changes`, `All files`, `See the whole version`, `Versions`
+are `button.link`; `Bring this file back` is a bordered button), and anything a
 control reveals opens **in the row it belongs to**, not at the foot of the list
-— one open at a time.
+— one open at a time, and the same control closes it again with its label
+flipped (`Show changes` / `Hide changes`) rather than a second control
+appearing.
 
 ## Current state
 
