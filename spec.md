@@ -142,6 +142,7 @@ isn't needed here.
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner |
 | `body` | TEXT NOT NULL | utf-8, ≤ 32 KB |
 | `tokens` | INTEGER NULL | what the fire that produced this reply cost; NULL for anything a person or the studio wrote |
+| `trimmed` | INTEGER NULL | how many earlier messages the history budget kept out of this reply's context; NULL when none were, and on anything but an agent reply |
 | `created_at` | TEXT NOT NULL | |
 
 `CHECK (NOT (user_id IS NOT NULL AND agent_id IS NOT NULL))` — never both.
@@ -183,6 +184,12 @@ but recording it keeps the chat render a pure DB read.
 `messages.tokens` is charged by the same formula as the daily budget (§8) and
 is shown under the reply in the UI. It exists because a reply that continued
 itself three times costs three times as much and nothing else said so.
+
+`messages.trimmed` shares that line under the bubble — "1,204 tokens · did not
+see the first 3 messages". Same principle: the agent is told where its
+transcript was cut (§8), and this is how the person is told. Recorded per reply
+rather than per project because the trim is a property of the fire, and stating
+it retrospectively is the only version that is exactly true.
 
 ### `runtime_errors`
 
@@ -567,10 +574,12 @@ named in the prompt with a note to call `read_file`.
 
 Earlier chat turns map to OpenAI roles: this agent's own messages become
 `assistant`, everyone else's become `user` prefixed with `[Name] `. History is
-trimmed oldest-first to fit its budget, and the seam is marked — a `[studio]`
-turn at the front saying how many messages are not shown. Silence there was
-the one drop in the whole context that nobody was told about: a dropped file is
-named, a trimmed conversation just began later than it had before. Past turns'
+trimmed oldest-first to fit its budget, and the seam is marked twice — a
+`[studio]` turn at the front of the transcript saying how many messages are not
+shown, and `messages.trimmed` on the reply, which the UI renders under the
+bubble (§3). Silence there was the one drop in the whole context that nobody was
+told about, agent or human: a dropped file is named, a trimmed conversation just
+began later than it had before. Past turns'
 tool calls are not replayed — only the persisted reply text — so history stays
 compact and no stale `tool_call_id` can dangle.
 
@@ -808,7 +817,7 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, agent_id, kind, body, created_at, context_paths, writes}` |
+| `message.new` | full message: `{id, project_slug, user_id, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes}` |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |

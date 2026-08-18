@@ -294,7 +294,8 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
     turns.shift();
   }
 
-  // Mark the seam. A file the cap leaves out is named in the prompt, but
+  // Mark the seam, for the agent here and for the human on the reply itself
+  // (`messages.trimmed`). A file the cap leaves out is named in the prompt, but
   // history used to be trimmed silently — by the byte cap here or by the row
   // limit in the query above — so a conversation simply began later than it
   // used to with nothing saying where the join was.
@@ -319,14 +320,14 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
     if (last && last.role === turn.role) last.text += `\n\n${turn.text}`;
     else collapsed.push({ ...turn });
   }
-  return collapsed;
+  return { turns: collapsed, trimmed: older };
 }
 
 async function buildContext({
   db, project, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
 }) {
-  const turns = historyTurns(db, project, agent, lastFiredMaxId);
+  const { turns, trimmed } = historyTurns(db, project, agent, lastFiredMaxId);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
@@ -357,7 +358,7 @@ async function buildContext({
     const last = messages[messages.length - 1];
     last.content = `${errorBlock}\n\n${last.content}`;
   }
-  return { system, messages };
+  return { system, messages, trimmed };
 }
 
 function postSystemMessage(db, broker, { project, agentId, body }) {
@@ -636,10 +637,12 @@ export function createOrchestrator({
         const messageId = tx(db, () => {
           const info = db
             .prepare(
-              `INSERT INTO messages (project_id, agent_id, body, created_at, tokens)
-               VALUES (?, ?, ?, ?, ?)`,
+              `INSERT INTO messages (project_id, agent_id, body, created_at, tokens, trimmed)
+               VALUES (?, ?, ?, ?, ?, ?)`,
             )
-            .run(project.id, agent.id, replyText, now, charged);
+            // Null rather than 0 when nothing was trimmed: the column is a
+            // report of something having happened, not a running total.
+            .run(project.id, agent.id, replyText, now, charged, context.trimmed || null);
           const id = Number(info.lastInsertRowid);
           // A write of identical bytes produces no commit, so there is
           // nothing to record and nothing changed to report.

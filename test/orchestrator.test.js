@@ -418,12 +418,31 @@ test('a trimmed transcript says where it was trimmed', async (t) => {
   t.after(() => stream.close());
 
   await send(app, 'catch up @Designer');
-  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
 
   // The marker sits where the seam is: right before the oldest surviving turn.
   const first = llm.lastCall().messages[0].content;
   assert.match(first, /\[studio\] Earlier messages are not shown \(3 trimmed to fit\)\.\n\n\[Dann\] 3 /);
   assert.ok(!first.includes('[Dann] 2 '), 'and the trimmed ones are gone');
+
+  // And the person is told too, on the reply that could not see them.
+  assert.equal(reply.data.trimmed, 3);
+});
+
+test('a reply that saw the whole conversation says nothing about trimming', async (t) => {
+  const llm = createFakeLlm([says('All of it.')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'hello');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  // Null rather than 0: the field reports something having happened.
+  assert.equal(reply.data.trimmed, null);
 });
 
 test('a fire that grows too big stops instead of walking the window', async (t) => {

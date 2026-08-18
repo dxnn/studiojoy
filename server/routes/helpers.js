@@ -91,6 +91,9 @@ export function messagePublic(db, row, slug) {
     // tokens. Shown in the UI so a reply that continued itself three times is
     // visibly three times the cost (spec.md §8).
     tokens: row.tokens ?? null,
+    // How many earlier messages the history budget kept out of this reply's
+    // context. The agent is told in its prompt; this is how the person is.
+    trimmed: row.trimmed ?? null,
     context_paths: contextPaths,
     writes: writes.map((w) => ({ ...w })),
   };

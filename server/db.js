@@ -132,6 +132,10 @@ export function openDb(dbPath) {
   // What one agent turn cost, charged the same way the daily budget is. Null
   // on a human or system row, which cost nothing.
   addColumnIfMissing(db, 'messages', 'tokens', 'INTEGER');
+  // How many earlier messages the history budget kept out of this reply's
+  // context. Null on anything but an agent reply, and on a reply that saw the
+  // whole conversation (spec.md §8).
+  addColumnIfMissing(db, 'messages', 'trimmed', 'INTEGER');
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,

@@ -895,6 +895,21 @@ function tintStyle(agent, id) {
   ].join(';');
 }
 
+// The small grey line under a reply. Plain language: the thread is long, so
+// this helper was given the recent part of it and not the beginning.
+function footnote(msg) {
+  const parts = [];
+  if (msg.tokens) parts.push(`${msg.tokens.toLocaleString()} tokens`);
+  if (msg.trimmed) {
+    parts.push(msg.trimmed === 1
+      ? 'did not see the first message'
+      : `did not see the first ${msg.trimmed} messages`);
+  }
+  return parts.length
+    ? h('div', { class: 'tokens', text: parts.join(' · ') })
+    : null;
+}
+
 function renderMessage(msg) {
   if (msg.kind === 'system') {
     return h('div', { class: 'msg system' }, h('div', { class: 'bubble', text: msg.body }));
@@ -939,12 +954,11 @@ function renderMessage(msg) {
       text: msg.body,
     }),
     chips.length ? h('div', { class: 'chips' }, chips) : null,
-    // What this reply cost. Visible rather than hidden, because a reply that
-    // carried on from itself three times costs three times as much and there
-    // was nothing else saying so.
-    msg.tokens
-      ? h('div', { class: 'tokens', text: `${msg.tokens.toLocaleString()} tokens` })
-      : null);
+    // What this reply cost, and what it could not see. Both visible rather
+    // than hidden: a reply that carried on from itself three times costs three
+    // times as much, and a reply written without the start of a long
+    // conversation explains itself much better if you know that.
+    footnote(msg));
 }
 
 function renderLive(agentId, entry) {
