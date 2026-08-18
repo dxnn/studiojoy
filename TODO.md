@@ -5,7 +5,8 @@ deliberately deferred.
 
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
-- decide whether `BRIEF.md` should be created automatically with a new project
+- watch a live helper build with the new prompt: does it actually write
+  `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page
 - upload files from the studio (drag onto the file tree; the PUT route already
   takes raw bytes, so this is client-side only)
 - move the ambient file block into the system prompt (spec.md §15). Measured:

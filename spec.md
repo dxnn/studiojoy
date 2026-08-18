@@ -597,6 +597,35 @@ charged as a miss. Moving the block into the system prompt would flip that —
 free whenever no file changed, no worse than today when one did — and is the
 one open decision here (§15).
 
+### Project documents
+
+The preamble asks an agent with file tools for a shape rather than leaving it
+to guess one, because left to guess it writes a single enormous
+`index.html` — two of the four games built here are exactly that, one of them
+62 KB in one file, which is also the file most likely to be cut off
+half-written (§14). So it asks for `index.html` holding markup only, `css/`,
+and one file per part of the game under `js/`, a few hundred lines each.
+
+Three **project documents** live at the root, next to the code. They are notes
+for the people and agents working on the game and never part of the game
+itself:
+
+| file | what it holds | when it is written |
+|---|---|---|
+| `BRIEF.md` | the file map: what each file is for, how the pieces fit | whenever a file is added, moved, or repurposed |
+| `SPEC.md` | what the game is and how it works: rules, controls, screens, settled decisions | when a decision changes |
+| `TODO.md` | one task per line | only when the list is long enough to be worth staging |
+
+`BRIEF.md` is the only one injected into the system prompt (above), which is
+why it is capped and why the preamble asks for it to stay short. `SPEC.md` and
+`TODO.md` ride in the ambient file block like any other file — small, so
+smallest-first selection always includes them, and pinnable when a human wants
+to point at one.
+
+Nothing scaffolds these files. An agent writes them when the project is worth
+them, which is also the answer to whether a new project should be created with
+a `BRIEF.md`: no.
+
 ### Reasoning traces
 
 Both models emit `reasoning_content` — a **reasoning trace** — alongside the

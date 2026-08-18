@@ -125,6 +125,11 @@ carries a `[studio]` marker saying how many messages are missing. Still bytes,
 not tokens — spec.md §8 has the table that shows the sum cannot reach the
 window.
 
+Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`)
+and many small source files rather than one enormous `index.html`. Prompt only:
+nothing scaffolds those files. Not yet seen against a live model — two of the
+four existing games are still single-file.
+
 Prompt caching, measured (`tmp/probe-cache.mjs`): 99% hit between the turns of
 one fire, **0% between fires**, because the file block rides behind the whole
 transcript. In the system prompt it would be 100% / 0-on-change. Not moved yet

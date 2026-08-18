@@ -320,6 +320,12 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(system, /You design games\./, 'the agent description is injected');
   assert.match(system, /prefer patch_file/i);
 
+  // The studio asks for many small files and the three project documents.
+  assert.match(system, /many small files/);
+  assert.match(system, /BRIEF\.md — the file map/);
+  assert.match(system, /SPEC\.md — what the game is/);
+  assert.match(system, /TODO\.md — one task per line/);
+
   const finalUser = messages.at(-1).content;
   assert.match(finalUser, /PROJECT FILES/);
   assert.match(finalUser, /js\/game\.js \(10 bytes\)/);

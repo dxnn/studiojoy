@@ -9,7 +9,10 @@
 - **studio access** — presence of a row in `users`. The only permission bit in the system; every account can edit every project, agent, and file.
 - **studio origin** — the authenticated listener (`PORT`) serving the SPA and `/api`.
 - **games origin** — the unauthenticated listener (`GAMES_PORT`) serving only game files. A separate origin so LLM-written game code cannot read a studio response. On two ports of one hostname the session cookie still travels there, so it is a read boundary, not a write one — spec.md §7.
-- **brief** — `BRIEF.md` at a project's root. Standing instructions injected into every agent's context, capped at 32 KB and cut with a note rather than sent whole; a plain versioned file rather than a database column.
+- **project documents** — the three files an agent keeps at a project's root alongside the code: the *brief*, the *game spec*, and the *task list*. Notes for the people and agents working on the game, never part of the game itself. Nothing scaffolds them; an agent writes one when the project is worth it.
+- **brief** — `BRIEF.md` at a project's root: the file map, plus any standing instructions. The one project document injected into every agent's system prompt, so it is capped at 32 KB and cut with a note rather than sent whole. A plain versioned file rather than a database column.
+- **game spec** — `SPEC.md` at a project's root: what the game is and how it is meant to work — rules, controls, screens, settled decisions. An ordinary ambient file, unlike the *brief*. (Not `spec.md`, which is this studio's own design-of-record.)
+- **task list** — `TODO.md` at a project's root: one task per line, written only when the list is long enough to be worth staging.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
 - **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
