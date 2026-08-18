@@ -586,6 +586,10 @@ details.thinking .trace {
 .commit .subject { font-size: 13px; overflow-wrap: anywhere; }
 .commit .meta { font-size: 11px; color: var(--muted); }
 .commit .meta .sha { font-family: var(--mono); }
+/* The open one is tinted so a long diff still reads as belonging to the row
+   above it rather than to the list. */
+.commit.open { background: var(--accent-soft); }
+.commit .drawer { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 
 pre.diff {
   margin: 0;

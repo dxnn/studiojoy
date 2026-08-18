@@ -961,7 +961,14 @@ function renderMessage(msg) {
       class: `chip ${w.action}`,
       text: `${marks[w.action] ?? ''} ${w.path}`,
       title: 'See what changed',
-      onclick: () => { S.tab = 'versions'; loadDiff(w.commit_sha); },
+      // The changes open inside their own row in the list, so the list has to
+      // be there — arriving here from a chip used to skip loading it entirely.
+      onclick: async () => {
+        S.tab = 'versions';
+        render();
+        if (S.historyPath || S.historyStale || S.history.length === 0) await loadHistory(null);
+        await loadDiff(w.commit_sha);
+      },
     }));
   }
 
@@ -1477,51 +1484,88 @@ function renderDiff(patch) {
   return h('pre', { class: 'diff' }, lines);
 }
 
+// The changes for one commit, opened inside its own row. Only ever one is
+// open, because opening a second replaces S.diff — which is also what makes
+// "the last one closes itself" true without any bookkeeping.
+function diffDrawer() {
+  return h('div', { class: 'drawer' },
+    h('div', { class: 'hint muted', text: `Changed: ${S.diff.paths.join(', ') || 'nothing'}` }),
+    S.diff.patch.trim()
+      ? renderDiff(S.diff.patch)
+      : h('div', { class: 'muted', text: 'Nothing to show for this one.' }));
+}
+
+// Links are for looking at something, buttons are for changing something. The
+// distinction is the whole vocabulary of this list: What changed, All files and
+// See this in all versions are links; bringing a version back is a button.
 function renderVersionsTab() {
   const header = h('div', { class: 'pad row' },
     h('span', { class: 'hint muted', text: S.historyPath ? `Versions of ${S.historyPath}` : 'All versions' }),
     h('div', { class: 'spacer' }),
     S.historyPath
-      ? h('button', { class: 'quiet tiny', text: 'Show all', onclick: () => loadHistory(null) })
+      ? h('button', { class: 'link tiny', text: 'All files', onclick: () => loadHistory(null) })
       : null);
 
-  const rows = S.history.map((c) => h('div', { class: 'commit' },
-    h('div', { class: 'subject', text: c.subject }),
-    h('div', { class: 'meta' },
-      h('span', { class: 'sha', text: c.short }), ' · ', c.author, ' · ',
-      new Date(c.at).toLocaleString()),
-    h('div', { class: 'row', style: 'margin-top:5px' },
-      h('button', { class: 'quiet tiny', text: 'What changed?', onclick: () => loadDiff(c.sha) }),
-      S.historyPath && !S.project.archived
-        ? h('button', {
-          class: 'quiet tiny', text: 'Bring this file back',
+  const rows = S.history.map((c) => {
+    const open = S.diff?.sha === c.sha;
+    return h('div', { class: `commit${open ? ' open' : ''}` },
+      h('div', { class: 'subject', text: c.subject }),
+      h('div', { class: 'meta' },
+        h('span', { class: 'sha', text: c.short }), ' · ', c.author, ' · ',
+        new Date(c.at).toLocaleString()),
+      h('div', { class: 'row', style: 'margin-top:5px' },
+        h('button', {
+          class: 'link tiny',
+          text: open ? 'Hide the changes' : 'What changed?',
           onclick: () => {
-            S.dialog = { kind: 'restore', sha: c.sha, path: S.historyPath, short: c.short };
-            render();
+            if (open) {
+              S.diff = null;
+              render();
+            } else {
+              loadDiff(c.sha);
+            }
           },
-        })
-        : null,
-      // Ungated, unlike the per-file button: this is the one you want when a
-      // whole version worked and the one after it did not.
-      S.project.archived
-        ? null
-        : h('button', {
-          class: 'quiet tiny', text: 'Bring everything back',
-          onclick: () => {
-            S.dialog = { kind: 'rollback', sha: c.sha, short: c.short };
-            render();
-          },
-        }))));
+        }),
+        S.historyPath
+          // From one file's history, the useful move is to go and look at the
+          // whole version this file changed in — not to roll the project back,
+          // which is a decision you make from the full list.
+          ? h('button', {
+            class: 'link tiny', text: 'See the whole version',
+            onclick: async () => {
+              await loadHistory(null);
+              await loadDiff(c.sha);
+            },
+          })
+          : null,
+        S.historyPath && !S.project.archived
+          ? h('button', {
+            class: 'quiet tiny', text: 'Bring this file back',
+            onclick: () => {
+              S.dialog = { kind: 'restore', sha: c.sha, path: S.historyPath, short: c.short };
+              render();
+            },
+          })
+          : null,
+        !S.historyPath && !S.project.archived
+          ? h('button', {
+            class: 'quiet tiny', text: 'Bring everything back',
+            onclick: () => {
+              S.dialog = { kind: 'rollback', sha: c.sha, short: c.short };
+              render();
+            },
+          })
+          : null),
+      open ? diffDrawer() : null);
+  });
 
+  // A diff whose commit is not in the list — older than the fifty this shows —
+  // has nowhere to open, so it falls back to the foot of the list rather than
+  // vanishing.
+  const inList = S.history.some((c) => c.sha === S.diff?.sha);
   return [header, h('div', { class: 'scroll' },
     rows.length ? rows : h('div', { class: 'pad muted', text: 'No versions yet.' }),
-    S.diff
-      ? h('div', { class: 'pad stack' },
-        h('div', { class: 'hint muted', text: `Changed: ${S.diff.paths.join(', ') || 'nothing'}` }),
-        S.diff.patch.trim()
-          ? renderDiff(S.diff.patch)
-          : h('div', { class: 'muted', text: 'Nothing to show for this one.' }))
-      : null)];
+    S.diff && !inList ? h('div', { class: 'pad' }, diffDrawer()) : null)];
 }
 
 // Drag the rail's left edge. Pointer capture keeps the drag on this element,

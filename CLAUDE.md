@@ -78,6 +78,12 @@ traces, model choice), but user-facing strings are plain language and
 destructive actions confirm first. The UI says **helper** where the code says
 **agent** — see GLOSSARY.md, and don't let "helper" leak into the code.
 
+Two conventions to keep: **a link looks at something, a button changes
+something** (`What changed?`, `All files`, `See the whole version` are
+`button.link`; `Bring this file back` is a bordered button), and anything a
+control reveals opens **in the row it belongs to**, not at the foot of the list
+— one open at a time.
+
 ## Current state
 
 v0 is complete and green at 295 tests. Verified live end to end: a message in
