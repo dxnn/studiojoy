@@ -3,6 +3,9 @@
 // place so a long reply doesn't rebuild the thread on every chunk.
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
+import {
+  SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
+} from './sound-maker.js';
 
 const root = document.getElementById('root');
 
@@ -801,6 +804,41 @@ async function addControls(steps) {
     return;
   }
   say('Controls are ready. Open config/controls.js to change the buttons, and ask a helper to use them.');
+}
+
+/* Sounds ------------------------------------------------------------------ */
+
+// Plain words for the four shapes, with the real name kept: a ten-year-old
+// picks "buzzy", and the one who wants to know what a square wave is can see
+// it. Same bargain as helper/agent.
+const WAVE_WORDS = {
+  square: 'Buzzy (square)', saw: 'Sharp (saw)', sine: 'Smooth (sine)', noise: 'Noisy (noise)',
+};
+
+const SOUND_WORDS = {
+  pickup: 'Pick up', laser: 'Laser', explosion: 'Explosion', powerup: 'Power up',
+  hit: 'Hit', jump: 'Jump', blip: 'Blip',
+};
+
+let soundUrl = null;
+
+// The bytes played are the bytes that would be saved, so there is no way to
+// hear one thing and keep another. The last URL is let go on the next play
+// rather than on a timer: an object URL held forever is a leak, and one
+// revoked too early is a sound that will not play twice.
+function playSound(params) {
+  if (soundUrl) URL.revokeObjectURL(soundUrl);
+  soundUrl = URL.createObjectURL(new Blob([soundBytes(params)], { type: 'audio/wav' }));
+  new Audio(soundUrl).play().catch(() => { /* a browser that will not autoplay */ });
+}
+
+async function saveSound(params, name) {
+  const path = assetPath(ASSET_DIR, `${name || 'sound'}.wav`);
+  const body = new Blob([soundBytes(params)], { type: 'audio/wav' });
+  const { failure } = await writeFiles([{ path, body }]);
+  if (failure) { say(failure, true); return; }
+  say(`Saved ${path}.`);
+  await openFile(path);
 }
 
 async function deleteFile(path) {
@@ -1663,6 +1701,15 @@ function renderFilesTab() {
       }),
       picker,
       h('button', {
+        class: 'quiet tiny', text: '+ Make a sound',
+        title: 'Make a sound effect and put it in assets/',
+        disabled: S.project.archived,
+        onclick: () => {
+          S.dialog = { kind: 'sound', sound: soundFrom('pickup'), name: 'pickup' };
+          render();
+        },
+      }),
+      h('button', {
         class: 'quiet tiny', text: '+ Controls',
         title: 'Keyboard, game controller and touchscreen, for one player or two',
         disabled: S.project.archived,
@@ -1926,6 +1973,13 @@ function dialogFor(d) {
   const wrap = (title, ...body) => h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
     h('div', { class: 'dialog' }, h('h2', { text: title }), ...body));
   const cancel = h('button', { class: 'quiet', text: 'Cancel', onclick: close });
+  // Room for a row of sliders. Everything else is a question with one answer
+  // and stays narrow.
+  const wide = (title, ...body) => {
+    const node = wrap(title, ...body);
+    node.firstChild.classList.add('wide');
+    return node;
+  };
 
   if (d.kind === 'new-project') {
     const chat = d.chat === true;
@@ -2043,6 +2097,84 @@ function dialogFor(d) {
         disabled: nothing,
         onclick: async () => { close(); await addControls(d.steps); },
       })));
+  }
+
+  if (d.kind === 'sound') {
+    const sliders = new Map();
+    const readouts = new Map();
+
+    const wave = h('select', {
+      onchange: (e) => { d.sound.wave = e.currentTarget.value; playSound(d.sound); },
+    }, WAVES.map((w) => h('option', { value: w, text: WAVE_WORDS[w] })));
+
+    const name = h('input', { placeholder: 'laser' });
+    name.addEventListener('input', () => { d.name = name.value; d.named = true; });
+
+    const shown = (p) => (p.step >= 1 ? String(Math.round(d.sound[p.key])) : d.sound[p.key].toFixed(2));
+
+    // Painted in place rather than through render(), which would rebuild the
+    // slider under the thumb that is dragging it — the same trap as the
+    // problems panel.
+    const paint = () => {
+      for (const p of SOUND_PARAMS) {
+        sliders.get(p.key).value = d.sound[p.key];
+        readouts.get(p.key).textContent = shown(p);
+      }
+      wave.value = d.sound.wave;
+      name.value = d.name;
+    };
+
+    const knobs = h('div', { class: 'knobs' }, SOUND_PARAMS.map((p) => {
+      const readout = h('span', { class: 'knob-value mono' });
+      const slider = h('input', {
+        type: 'range', min: p.min, max: p.max, step: p.step,
+        // Dragging moves the number beside it; letting go is what plays the
+        // sound, so a slow drag is not forty overlapping sounds.
+        oninput: (e) => {
+          d.sound[p.key] = Number(e.currentTarget.value);
+          readout.textContent = shown(p);
+        },
+        onchange: () => playSound(d.sound),
+      });
+      sliders.set(p.key, slider);
+      readouts.set(p.key, readout);
+      return h('label', { class: 'knob' },
+        h('span', { class: 'knob-name', text: p.label }),
+        slider,
+        readout,
+        h('span', { class: 'knob-note hint muted', text: p.comment }));
+    }));
+
+    // A preset renames the file too, until someone types a name of their own.
+    const load = (sound, called) => {
+      d.sound = sound;
+      if (called && !d.named) d.name = called;
+      paint();
+      playSound(d.sound);
+    };
+    paint();
+
+    return wide('Make a sound',
+      h('div', { class: 'row wrap' },
+        Object.keys(SOUND_PRESETS).map((n) => h('button', {
+          class: 'quiet tiny', text: SOUND_WORDS[n] ?? n, onclick: () => load(soundFrom(n), n),
+        })),
+        h('button', { class: 'quiet tiny', text: 'Surprise me', onclick: () => load(randomSound()) })),
+      h('label', { text: 'Shape' }), wave,
+      knobs,
+      h('label', { text: 'Call it' }), name,
+      h('p', { class: 'hint muted', text: 'It lands in assets/ as a .wav, one version like anything else.' }),
+      h('div', { class: 'actions' },
+        cancel,
+        h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(d.sound) }),
+        h('button', {
+          class: 'filled', text: 'Save it',
+          onclick: async () => {
+            const { sound, name: called } = d;
+            close();
+            await saveSound(sound, called);
+          },
+        })));
   }
 
   if (d.kind === 'delete-file') {

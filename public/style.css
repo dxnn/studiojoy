@@ -678,6 +678,23 @@ pre.diff .hunk { color: var(--accent); }
 .dialog h2 { margin: 0; font-size: 19px; }
 .dialog label { display: block; margin: 8px 0 3px; font-size: 13px; color: var(--muted); }
 .dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.dialog.wide { max-width: 560px; }
+
+/* A row per parameter: what it is called, the slider, where it is now, and the
+   comment saying what it does — the config form's bargain, without a file. */
+.knobs { display: flex; flex-direction: column; }
+.knob {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 0;
+  padding: 4px 0;
+}
+.knob-name { font-size: 13px; color: var(--text); }
+.knob-value { font-size: 12px; text-align: right; color: var(--muted); }
+.knob-note { grid-column: 2 / -1; font-size: 11px; margin-top: -2px; }
+.knob input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 
 /* Narrow ------------------------------------------------------------------ */
 

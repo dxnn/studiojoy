@@ -421,6 +421,15 @@ pointed at the studio's own read route — because there is nothing to edit. An
 agent never sees its bytes (§8), and `write_file` takes text, so a helper can
 point a game at `assets/hero.png` but cannot create or change it.
 
+An asset can also be **made** here rather than added. `+ Make a sound` opens
+the **sound maker**: a preset, a row of sliders with a comment on each, and a
+`.wav` written to the same tidied path by the same `PUT`, in one commit. The
+render is arithmetic in `public/sound-maker.js` rather than Web Audio — a few
+hundred samples per millisecond of blip, then the 44 bytes of a PCM header —
+which buys two things. The studio plays the encoded bytes, so what is heard is
+what is saved rather than a live approximation of it; and the whole thing is
+checked in `npm test` without a browser, which no `AudioContext` would allow.
+
 A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
 Entirely client-side: `public/config-file.js` reads the `const NAME = value;`
