@@ -48,14 +48,22 @@ const Input = (function () {
   // because nobody has written the bindings down yet.
   const FALLBACK = {
     player1: {
-      left: ["key:left", "key:a", "pad:left", "pad:stick-left", "touch:left"],
-      right: ["key:right", "key:d", "pad:right", "pad:stick-right", "touch:right"],
-      up: ["key:up", "key:w", "pad:up", "pad:stick-up", "touch:up"],
-      down: ["key:down", "key:s", "pad:down", "pad:stick-down", "touch:down"],
-      fire: ["key:space", "pad:a", "touch:GO"],
-      start: ["key:enter", "pad:start"],
+      left: "key:left key:a pad:left pad:stick-left touch:left",
+      right: "key:right key:d pad:right pad:stick-right touch:right",
+      up: "key:up key:w pad:up pad:stick-up touch:up",
+      down: "key:down key:s pad:down pad:stick-down touch:down",
+      fire: "key:space pad:a touch:GO",
+      start: "key:enter pad:start",
     },
   };
+
+  // One line of bindings, split up. A list is accepted too: a helper writing
+  // this file by hand is as likely to reach for one, and refusing it would
+  // make the game silently unplayable.
+  function listOf(value) {
+    if (typeof value === "string") return value.split(/\s+/).filter(Boolean);
+    return Array.isArray(value) ? value.filter((b) => typeof b === "string") : [];
+  }
 
   // config/controls.js and this file are separate <script> tags, and a game
   // may not have the first one at all. Reading it through try/catch means a
@@ -76,8 +84,7 @@ const Input = (function () {
 
   function bindingsFor(player, action) {
     const who = bindings()["player" + (player || 1)];
-    const list = who && who[action];
-    return Array.isArray(list) ? list : [];
+    return who ? listOf(who[action]) : [];
   }
 
   /* What is down right now ------------------------------------------------ */
@@ -100,8 +107,8 @@ const Input = (function () {
       const all = bindings();
       for (const who of Object.keys(all)) {
         for (const action of Object.keys(all[who] || {})) {
-          for (const binding of all[who][action] || []) {
-            if (typeof binding !== "string" || !binding.startsWith("key:")) continue;
+          for (const binding of listOf(all[who][action])) {
+            if (!binding.startsWith("key:")) continue;
             const key = binding.slice(4).toLowerCase();
             boundKeys.add(KEY_NAMES[key] || key);
           }
@@ -177,10 +184,8 @@ const Input = (function () {
       const player = Number(who.replace(/[^0-9]/g, "")) || 1;
       const actions = all[who] || {};
       for (const action of Object.keys(actions)) {
-        const list = actions[action];
-        if (!Array.isArray(list)) continue;
-        for (const binding of list) {
-          if (typeof binding === "string" && isDown(binding, player)) {
+        for (const binding of listOf(actions[action])) {
+          if (isDown(binding, player)) {
             now.add(stamp(action, player));
             break;
           }
@@ -202,7 +207,7 @@ const Input = (function () {
     if (!pad) return 0;
     for (const [action, way] of [[positive, 1], [negative, -1]]) {
       for (const binding of bindingsFor(player, action)) {
-        if (typeof binding !== "string" || !binding.startsWith("pad:")) continue;
+        if (!binding.startsWith("pad:")) continue;
         const stick = PAD_STICKS[binding.slice(4).toLowerCase()];
         if (!stick) continue;
         const value = (pad.axes[stick[0]] || 0) * stick[1] * way;
@@ -229,8 +234,8 @@ const Input = (function () {
     const out = [];
     const actions = bindings().player1 || {};
     for (const action of Object.keys(actions)) {
-      for (const binding of actions[action] || []) {
-        if (typeof binding === "string" && binding.startsWith("touch:")) out.push(binding.slice(6));
+      for (const binding of listOf(actions[action])) {
+        if (binding.startsWith("touch:")) out.push(binding.slice(6));
       }
     }
     return out;
@@ -238,17 +243,23 @@ const Input = (function () {
 
   const ARROWS = { left: "←", right: "→", up: "↑", down: "↓" };
 
+  // Dark inside, light outline. A game can be any colour behind these, so a
+  // pale button on a pale background is a control nobody can find.
+  const REST = "rgba(18,18,26,.42)";
+  const PUSHED = "rgba(18,18,26,.78)";
+
   function padButton(name, label, size) {
     const el = document.createElement("button");
     el.textContent = label;
     el.setAttribute("aria-label", name);
     el.style.cssText = "pointer-events:auto;width:" + size + "px;height:" + size + "px;"
-      + "border-radius:50%;border:2px solid rgba(255,255,255,.55);"
-      + "background:rgba(255,255,255,.18);color:#fff;font:600 18px/1 system-ui,sans-serif;"
+      + "border-radius:50%;border:2px solid rgba(255,255,255,.8);background:" + REST + ";"
+      + "color:#fff;font:600 18px/1 system-ui,sans-serif;"
+      + "box-shadow:0 1px 4px rgba(0,0,0,.45);"
       + "touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;";
     const down = (on) => {
       if (on) touchDown.add(name); else touchDown.delete(name);
-      el.style.background = on ? "rgba(255,255,255,.42)" : "rgba(255,255,255,.18)";
+      el.style.background = on ? PUSHED : REST;
     };
     // No pointer capture: sliding a thumb off a button should release it,
     // which is what a player expects and what a d-pad needs to feel right.
@@ -271,7 +282,9 @@ const Input = (function () {
 
     overlay = document.createElement("div");
     overlay.id = "touch-controls";
-    overlay.style.cssText = "position:fixed;left:0;right:0;bottom:0;height:190px;z-index:9999;"
+    // Tall enough for the whole arrow pad: three 64px rows and the gaps
+    // between them, plus the padding under it.
+    overlay.style.cssText = "position:fixed;left:0;right:0;bottom:0;height:218px;z-index:9999;"
       + "display:flex;align-items:flex-end;justify-content:space-between;"
       + "padding:0 18px 18px;pointer-events:none;";
 

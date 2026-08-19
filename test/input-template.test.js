@@ -180,6 +180,22 @@ test('typing in a box is not playing the game', () => {
   assert.equal(g.Input.held('left'), false);
 });
 
+// The template writes one line per action because the config form shows that
+// as one field. A helper writing the file by hand is as likely to reach for a
+// list, and a game that stopped taking input over that would be a bad trade.
+test('bindings written as a list work as well as a line', () => {
+  const g = boot({
+    controls: 'const CONTROLS = { player1: { fire: ["key:z", "pad:a"], left: "key:q" } };',
+  });
+  g.key('z');
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), true);
+  g.key('z', false);
+  g.key('q');
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true);
+});
+
 test('a game with no controls file still plays', () => {
   const g = boot({ controls: null });
   g.key('w');
