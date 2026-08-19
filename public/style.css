@@ -245,6 +245,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row.wrap { flex-wrap: wrap; row-gap: 6px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
 
 /* Sidebar ----------------------------------------------------------------- */
 
@@ -572,6 +573,35 @@ details.thinking .trace {
 .media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .media audio { width: 100%; }
 
+/* Drawing on one. The canvas keeps the picture's own pixels and is scaled up
+   without smoothing, so a 32-square sprite stays 32 squares however big the
+   pane is.
+
+   The element fills its box and `contain` fits the picture inside it. Letting
+   width and height do the fitting instead does not work: a canvas has an
+   intrinsic size, so a definite width with a capped height squashes it rather
+   than shrinking it, which is a 16-square sprite drawn as 16 by 7. The empty
+   strip that `contain` leaves is what the pointer maths corrects for. */
+.drawing { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.pixels {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+  touch-action: none;
+  cursor: crosshair;
+}
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.swatch { width: 24px; height: 24px; padding: 0; border: 2px solid var(--border); border-radius: 6px; }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.swatches input[type="color"] {
+  width: 32px; height: 26px; padding: 0;
+  border: 1px solid var(--border); border-radius: 6px; background: none;
+}
+button.quiet.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
 /* What an upload is about to do, one row per file, before anything is sent. */
 .plan { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
 .plan-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
@@ -681,9 +711,11 @@ pre.diff .hunk { color: var(--accent); }
 .dialog.wide { max-width: 560px; }
 
 /* A row per parameter: what it is called, the slider, where it is now, and the
-   comment saying what it does — the config form's bargain, without a file. */
+   comment saying what it does — the config form's bargain, without a file.
+   Written as `.dialog label.knob` because `.dialog label` above is a class and
+   an element, and would otherwise win and stack the four parts vertically. */
 .knobs { display: flex; flex-direction: column; }
-.knob {
+.dialog label.knob {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) 46px;
   align-items: center;

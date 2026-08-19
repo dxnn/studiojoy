@@ -421,14 +421,35 @@ pointed at the studio's own read route — because there is nothing to edit. An
 agent never sees its bytes (§8), and `write_file` takes text, so a helper can
 point a game at `assets/hero.png` but cannot create or change it.
 
-An asset can also be **made** here rather than added. `+ Make a sound` opens
-the **sound maker**: a preset, a row of sliders with a comment on each, and a
-`.wav` written to the same tidied path by the same `PUT`, in one commit. The
-render is arithmetic in `public/sound-maker.js` rather than Web Audio — a few
-hundred samples per millisecond of blip, then the 44 bytes of a PCM header —
-which buys two things. The studio plays the encoded bytes, so what is heard is
-what is saved rather than a live approximation of it; and the whole thing is
-checked in `npm test` without a browser, which no `AudioContext` would allow.
+An asset can also be **made** here rather than added, by two tools that end in
+the same `PUT`, at the same tidied path, in one commit each.
+
+`+ Make a sound` opens the **sound maker**: a preset, a row of sliders with a
+comment on each, and a `.wav`. The render is arithmetic in
+`public/sound-maker.js` rather than Web Audio — a few hundred samples per
+millisecond of blip, then the 44 bytes of a PCM header — which buys two things.
+The studio plays the encoded bytes, so what is heard is what is saved rather
+than a live approximation of it; and the whole thing is checked in `npm test`
+without a browser, which no `AudioContext` would allow.
+
+`+ Draw a picture` makes a transparent PNG and opens it in the **pixel
+editor**; `Draw on this` opens one that is already there, up to 128 a side.
+Pixels are RGBA, exactly as a canvas keeps them, so opening an uploaded sprite
+loses nothing. The tools are in `public/pixel-editor.js` and are arithmetic
+over bytes for the same reason the sound maker is; the canvas, the pointer and
+`toBlob` stay in `main.js`. Three choices worth naming:
+
+- **The picture comes out of the file, not out of the studio's memory.** Every
+  open re-reads the bytes, so a version brought back from history is what gets
+  drawn on.
+- **The canvas element fills its box and the picture is fitted inside it.**
+  Sizing it by width and height instead squashes it: a canvas has an intrinsic
+  size, so a definite width with a capped height gives a 16-square sprite drawn
+  16 by 7. The pointer maths takes the resulting empty strip back off.
+- **A conflict is reported, not merged.** The save carries `If-Match` like the
+  text editor, but two pictures cannot be offered side by side in a dialog, and
+  nothing but a person writes a PNG — so a 409 says what happened and changes
+  nothing.
 
 A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
