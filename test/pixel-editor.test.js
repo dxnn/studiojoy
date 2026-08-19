@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PALETTE, SIZES, MAX_SIDE, CLEAR,
-  blankPicture, copyPicture, pixelAt, setPixel, drawLine, floodFill,
+  PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
   rgbaOf, hexOf, isBlank, clampSide,
 } from '../public/pixel-editor.js';
 
@@ -128,12 +128,61 @@ test('colours survive the trip to text and back', () => {
   for (const hex of PALETTE) assert.equal(hexOf(rgbaOf(hex)), hex);
 });
 
-test('a size is brought back to one a sprite can be', () => {
+test('a size is brought back to one a picture can be', () => {
   assert.equal(clampSide(0), 1);
   assert.equal(clampSide(-30), 1);
-  assert.equal(clampSide(999), MAX_SIDE);
+  assert.equal(clampSide(MAX_SIDE + 1), MAX_SIDE);
+  assert.equal(clampSide(99999), MAX_SIDE);
   assert.equal(clampSide('32'), 32);
   assert.equal(clampSide('what'), 1);
   assert.equal(clampSide(16.4), 16);
   for (const size of SIZES) assert.equal(clampSide(size), size);
+  assert.equal(SIZES.every((n) => n <= MAX_SIDE), true, 'every offered size fits');
+});
+
+test('a wide brush paints a square, and one pixel paints one pixel', () => {
+  const picture = blankPicture(9, 9);
+  assert.equal(stamp(picture, 4, 4, RED), 1);
+  assert.deepEqual(marks(picture), ['4,4']);
+
+  const wide = blankPicture(9, 9);
+  assert.equal(stamp(wide, 4, 4, RED, 3), 9);
+  assert.deepEqual(marks(wide), [
+    '3,3', '4,3', '5,3',
+    '3,4', '4,4', '5,4',
+    '3,5', '4,5', '5,5',
+  ]);
+});
+
+test('every brush on offer paints its own size', () => {
+  for (const size of BRUSHES) {
+    const picture = blankPicture(MAX_SIDE > 64 ? 80 : MAX_SIDE, 80);
+    const painted = stamp(picture, 40, 40, RED, size);
+    assert.equal(painted, size * size, `brush ${size}`);
+  }
+});
+
+test('a brush at the edge paints only what is on the picture', () => {
+  const picture = blankPicture(4, 4);
+  assert.equal(stamp(picture, 0, 0, RED, 3), 4, 'the quarter of it that is inside');
+  assert.deepEqual(marks(picture), ['0,0', '1,0', '0,1', '1,1']);
+});
+
+test('a wide line is a wide line, not a wide dot', () => {
+  const picture = blankPicture(12, 12);
+  drawLine(picture, 2, 6, 9, 6, RED, 3);
+  // Three rows deep for its whole length, and nothing outside them.
+  for (const y of [5, 6, 7]) {
+    for (let x = 1; x <= 10; x += 1) assert.equal(pixelAt(picture, x, y)[3], 255, `${x},${y}`);
+  }
+  assert.equal(pixelAt(picture, 6, 4)[3], 0);
+  assert.equal(pixelAt(picture, 6, 8)[3], 0);
+});
+
+// A step back is a whole copy of the picture, so a fixed number of steps
+// would be a fixed multiple of however big that happens to be.
+test('the undo budget is bytes, so a big picture gets fewer steps', () => {
+  const stepsFor = (side) => Math.floor(UNDO_BYTES / (side * side * 4));
+  assert.equal(stepsFor(32) > 1000, true, 'a sprite gets more steps than anyone will use');
+  assert.equal(stepsFor(MAX_SIDE) >= 8, true, 'the biggest picture still gets a usable stack');
 });

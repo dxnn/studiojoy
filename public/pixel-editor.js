@@ -8,11 +8,24 @@
 // camera put in the file is still there afterwards, apart from the pixels
 // somebody meant to change.
 
-export const MAX_SIDE = 128;
+// Big enough for a background or a photo somebody dropped in, not just a
+// sprite. The cost is bytes: a picture this size is 4 MB, and a step back is
+// another copy of it, which is why undo is bounded by bytes below.
+export const MAX_SIDE = 1024;
 
-// Square by default, and every one of these is a size a game sprite is
-// actually drawn at.
-export const SIZES = [8, 16, 24, 32, 48, 64, 96, 128];
+// Square, because a sprite usually is. Anything rectangular arrives by being
+// opened rather than by being made here.
+export const SIZES = [16, 32, 64, 128, 256, 512, 1024];
+
+// How many pixels across the pencil paints. One is right for a 32-square
+// sprite and useless on a 700-wide picture, where a single pixel is smaller
+// than the pane can show.
+export const BRUSHES = [1, 2, 4, 8, 16, 32];
+
+// The whole undo stack, in bytes. A step is a copy of the picture, so the
+// number of steps has to fall as the picture grows: 24 steps of a sprite is
+// nothing, and 24 steps of a 1024-square picture is 100 MB.
+export const UNDO_BYTES = 64 * 1024 * 1024;
 
 // Sixteen colours: a grey ramp, then warm, then cool. Enough to draw with and
 // few enough to pick from without a colour wheel — there is a colour well for
@@ -77,9 +90,24 @@ export function setPixel(picture, x, y, rgba) {
   return true;
 }
 
+// A square of pixels centred on one, which is what a brush wider than a pixel
+// is. Odd sizes land on the middle; even ones lean up and left, because they
+// have to lean somewhere.
+export function stamp(picture, x, y, rgba, size = 1) {
+  if (size <= 1) return setPixel(picture, x, y, rgba) ? 1 : 0;
+  const before = Math.floor((size - 1) / 2);
+  let changed = 0;
+  for (let dy = 0; dy < size; dy += 1) {
+    for (let dx = 0; dx < size; dx += 1) {
+      if (setPixel(picture, x - before + dx, y - before + dy, rgba)) changed += 1;
+    }
+  }
+  return changed;
+}
+
 // Bresenham, because a pointer moving quickly reports a handful of positions
 // across the whole canvas and a game sprite drawn in dots is not a drawing.
-export function drawLine(picture, x0, y0, x1, y1, rgba) {
+export function drawLine(picture, x0, y0, x1, y1, rgba, size = 1) {
   let x = x0;
   let y = y0;
   const dx = Math.abs(x1 - x0);
@@ -89,7 +117,7 @@ export function drawLine(picture, x0, y0, x1, y1, rgba) {
   let error = dx + dy;
   let changed = 0;
   for (;;) {
-    if (setPixel(picture, x, y, rgba)) changed += 1;
+    changed += stamp(picture, x, y, rgba, size);
     if (x === x1 && y === y1) return changed;
     const doubled = 2 * error;
     if (doubled >= dy) { error += dy; x += stepX; }
