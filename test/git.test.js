@@ -34,6 +34,39 @@ test('a fresh project is a repo with one commit', async () => {
   assert.ok(isSha(await currentSha(dir)));
 });
 
+// The list carries what each commit touched, so the client can show a picture
+// in a version without asking for a diff first. One git process, not one per
+// commit — fifty extra invocations to find out a version has no picture in it
+// would cost more than the feature is worth.
+test('a commit in the list says which files it touched', async () => {
+  const dir = await repo('git-log-paths');
+  write(dir, 'assets/hero.png', 'not really a png');
+  write(dir, 'js/game.js', 'let x = 1;');
+  await commitPaths(dir, ['assets/hero.png', 'js/game.js'], 'add the hero', AGENT);
+  write(dir, 'js/game.js', 'let x = 2;');
+  await commitPaths(dir, ['js/game.js'], 'tweak', AGENT);
+
+  const [head, before, first] = await logCommits(dir);
+  assert.deepEqual(head.paths, ['js/game.js']);
+  assert.deepEqual(before.paths.sort(), ['assets/hero.png', 'js/game.js']);
+  assert.equal(Array.isArray(first.paths), true, 'the first commit still has a list');
+  assert.equal(head.subject, 'tweak', 'the subject survives the extra parsing');
+  assert.equal(head.author, 'Level Designer');
+});
+
+test('filtering the log by path leaves the commits it returns intact', async () => {
+  const dir = await repo('git-log-filter');
+  write(dir, 'assets/hero.png', 'bytes');
+  await commitPaths(dir, ['assets/hero.png'], 'add the hero', AGENT);
+  write(dir, 'js/game.js', 'let x = 1;');
+  await commitPaths(dir, ['js/game.js'], 'add the code', AGENT);
+
+  const commits = await logCommits(dir, { path: 'assets/hero.png' });
+  assert.equal(commits.length, 1);
+  assert.equal(commits[0].subject, 'add the hero');
+  assert.deepEqual(commits[0].paths, ['assets/hero.png']);
+});
+
 // The point of passing identity per invocation: this must work with no
 // global git config at all, which is how the deployed server runs.
 test('the commit author is the identity passed in, not the host config', async () => {

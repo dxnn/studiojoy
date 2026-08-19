@@ -8,6 +8,7 @@ const run = promisify(execFile);
 // Field separator for --format output. A unit separator can't appear in a
 // commit subject or an author name, so splitting on it is unambiguous.
 const US = String.fromCharCode(31);
+const RS = String.fromCharCode(30);
 
 const MAX_GIT_OUTPUT = 32 * 1024 * 1024;
 
@@ -169,17 +170,35 @@ export async function movePath(dir, from, to, message, author) {
   return currentSha(dir);
 }
 
+// `paths` comes from --name-only in the same process rather than a `show` per
+// commit: the list is what tells the client a version touched a picture, and
+// fifty extra git invocations to find that out would be worse than the feature.
+// Each commit is prefixed with a record separator, so a commit's own paths are
+// whatever follows it up to the next one.
 export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}) {
-  const fmt = ['%H', '%h', '%an', '%ae', '%aI', '%s'].join('%x1f');
-  const args = ['log', `--max-count=${Number(limit) || 50}`, `--format=${fmt}`];
+  const fmt = ['%x1e%H', '%h', '%an', '%ae', '%aI', '%s'].join('%x1f');
+  const args = [
+    'log', `--max-count=${Number(limit) || 50}`, `--format=${fmt}`, '--name-only',
+  ];
   if (filePath) args.push('--', filePath);
   const out = (await git(dir, args)).toString('utf8');
   return out
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      const [sha, short, author, email, at, subject] = line.split(US);
-      return { sha, short, author, email, at, subject: subject ?? '' };
+    .split(RS)
+    .filter((record) => record.trim().length > 0)
+    .map((record) => {
+      const [head, ...rest] = record.split('\n');
+      const [sha, short, author, email, at, subject] = head.split(US);
+      return {
+        sha,
+        short,
+        author,
+        email,
+        at,
+        subject: subject ?? '',
+        // A merge shows no names and the first commit shows all of them; both
+        // are just a list, and an empty one is honest about saying nothing.
+        paths: rest.map((line) => line.trim()).filter((line) => line.length > 0),
+      };
     });
 }
 
