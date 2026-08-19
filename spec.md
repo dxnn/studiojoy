@@ -733,7 +733,8 @@ and one file per part of the game under `js/`, a few hundred lines each.
 
 `config/` is the part a person tunes without reading code: `play.js` for
 movement and timings, `world.js` for level or board data, `look.js` for colours
-and sizes, `words.js` for every string the player sees. The preamble asks for
+and sizes, `words.js` for every string the player sees, `controls.js` for which
+button does what (§6, Files). The preamble asks for
 plain `const NAME = value;` declarations — numbers, strings, booleans, and
 lists or groups of those, with a comment on each value — because the studio
 opens these files as a **config form** rather than as text (§6, Files).
@@ -745,6 +746,23 @@ change a value, because that comment is what makes the file readable by a
 ten-year-old; and prefer `patch_file` for a single value. A human editing at the
 same time is not a prompt problem at all — it is the `If-Match` conflict already
 in the file routes (§6), which the form uses like the text editor does.
+
+The preamble also names **every studio affordance an agent cannot reach on its
+own**, by the words on the button. An agent that does not know a person can draw
+a sprite in one click writes the game without one, and an agent that does not
+know `js/input.js` exists writes its own `keydown` handler beside it — so the
+capability may as well not exist. That makes the preamble the place these are
+kept in step, and `test/orchestrator.test.js` asserts each one is present:
+
+| what an agent cannot do | what it is told to say |
+|---|---|
+| make or change a picture or a sound | ask for the path by name, and name the button: `+ Draw a picture`, `+ Make a sound`, `+ Picture or sound` |
+| add the *input module* | `+ Controls`, and meanwhile call `Input.held` rather than reading keys |
+
+One exception is worth stating, because it is easy to get wrong in both
+directions: `.svg` is in the text extensions, so `write_file` and `patch_file`
+do work on it and an agent *can* make that one kind of picture. The preamble
+says so, and says a sprite is still a person's job.
 
 Three **project documents** live at the root, next to the code. They are notes
 for the people and agents working on the game and never part of the game

@@ -330,6 +330,18 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(system, /SPEC\.md — what the game is/);
   assert.match(system, /TODO\.md — one task per line/);
 
+  // Everything the studio can do that an agent cannot do for itself has to be
+  // named here, or it may as well not exist: an agent that does not know a
+  // person can draw a sprite in one click writes the game without one.
+  assert.match(system, /Input\.update\(\)/);
+  assert.match(system, /Input\.axis\("left", "right"\)/);
+  assert.match(system, /config\/controls\.js/);
+  assert.match(system, /"\+ Controls"/);
+  assert.match(system, /"\+ Draw a picture"/);
+  assert.match(system, /"\+ Make a sound"/);
+  assert.match(system, /"\+ Picture or sound"/);
+  assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
+
   // The files sit in the system prompt, ahead of the transcript, so the prefix
   // a second fire matches on includes them (spec.md §8).
   assert.match(system, /PROJECT FILES/);
