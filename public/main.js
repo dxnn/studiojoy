@@ -595,6 +595,9 @@ async function refreshFiles() {
 }
 
 async function openFile(path) {
+  // Colours changed in the editor ride along with whatever leaves it, so
+  // switching files saves them instead of dropping them.
+  await flushPalette();
   const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (!res.ok) {
     say(`Could not open ${path}.`, true);
@@ -633,10 +636,11 @@ function closeOpenFile(then = null) {
     render();
     return;
   }
+  if (then) { openFile(then); return; }
+  flushPalette();
   S.open = null;
   S.draw = null;
   S.drawRefused = null;
-  if (then) { openFile(then); return; }
   render();
 }
 
@@ -1032,35 +1036,60 @@ async function loadPalette() {
   S.palette.from = LOOK_FILE;
 }
 
-// One colour, spliced in place so every comment and every other colour in the
-// file survives — the same bargain as the config form.
-async function writePaletteColour(index, hex) {
+// Changing a colour is a change in memory. Eyedropping half a dozen colours
+// while drawing would otherwise be half a dozen commits on the game, which is
+// the versioning working against the drawing rather than for it.
+function setPaletteColour(index, hex) {
   const colours = [...paletteColours()];
   colours[index] = hex;
-
-  let text;
-  if (S.palette?.text === null || S.palette?.text === undefined) {
-    text = lookFileText(colours);
-  } else {
-    const parsed = parseConfigFile(S.palette.text);
-    const found = parsed.ok ? parsed.decls.find((d) => d.name === 'PALETTE') : null;
-    const item = found?.node.items?.[index];
-    if (item) {
-      text = spliceValue(S.palette.text, found.node.items[index], literalFor('string', hex));
-    } else if (parsed.ok) {
-      // The file exists and is readable but has no PALETTE, so add one rather
-      // than refusing or overwriting what is already in there.
-      text = `${S.palette.text.replace(/\n*$/, '\n')}\n${lookFileText(colours)}`;
-    } else {
-      say(`${LOOK_FILE} has something in it the studio cannot read, so the colours were left alone.`, true);
-      return;
-    }
-  }
-
-  const { failure } = await writeFiles([{ path: LOOK_FILE, body: text }]);
-  if (failure) { say(failure, true); return; }
-  S.palette = { colours, text, from: LOOK_FILE };
+  S.palette = { ...S.palette, colours, dirty: true };
   render();
+}
+
+// The text the file should hold now: one value spliced in place so every
+// comment and every other colour survives, or the whole file when there is not
+// one yet. Null when the file is there but unreadable — the colours are then
+// left alone rather than being written over something nobody can parse.
+function lookFileWith(colours) {
+  const before = S.palette?.text;
+  if (before === null || before === undefined) return lookFileText(colours);
+
+  const parsed = parseConfigFile(before);
+  if (!parsed.ok) return null;
+  const found = parsed.decls.find((d) => d.name === 'PALETTE');
+  // The file exists and is readable but has no PALETTE — a game's own drawing
+  // colours belong in there too — so add one rather than replacing anything.
+  if (!found?.node.items) return `${before.replace(/\n*$/, '\n')}\n${lookFileText(colours)}`;
+
+  // One splice at a time, re-parsing between: a splice moves every offset behind
+  // it, which is the same reason the config form applies one edit per read.
+  let text = before;
+  for (let i = 0; i < colours.length; i += 1) {
+    const current = parseConfigFile(text);
+    const item = current.ok
+      ? current.decls.find((d) => d.name === 'PALETTE')?.node.items?.[i]
+      : null;
+    if (!item || item.value === colours[i]) continue;
+    text = spliceValue(text, item, literalFor('string', colours[i]));
+  }
+  return text;
+}
+
+// Called when the picture is saved and whenever the editor is left behind, so
+// the colours ride along with the work rather than needing a save of their own.
+async function flushPalette() {
+  if (!S.palette?.dirty) return true;
+  const colours = [...S.palette.colours];
+  const text = lookFileWith(colours);
+  if (text === null) {
+    say(`${LOOK_FILE} has something in it the studio cannot read, so the colours were left alone.`, true);
+    S.palette.dirty = false;
+    return false;
+  }
+  const { failure } = await writeFiles([{ path: LOOK_FILE, body: text }]);
+  if (failure) { say(failure, true); return false; }
+  S.palette = { colours, text, from: LOOK_FILE, dirty: false };
+  return true;
 }
 
 // Module scope rather than inside the pane, because the keyboard reaches it
@@ -1077,6 +1106,18 @@ function stepDrawing(back) {
   render();
 }
 
+// Closing the tab is not a switch and nothing else would catch it, so the last
+// chance to keep the colours is here. `keepalive` is what lets a request outlive
+// the page — a plain fetch is cancelled on unload, and sendBeacon cannot PUT.
+window.addEventListener('pagehide', () => {
+  if (!S.palette?.dirty || !S.slug) return;
+  const text = lookFileWith(S.palette.colours);
+  if (text === null) return;
+  fetch(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`, {
+    method: 'PUT', body: text, keepalive: true,
+  }).catch(() => { /* the page is going away regardless */ });
+});
+
 // A drawing is the one place in the studio where ⌘Z means something, so the
 // listener asks whether one is open rather than being wired up and torn down
 // with the pane. Ctrl for a keyboard without a ⌘.
@@ -1092,33 +1133,45 @@ window.addEventListener('keydown', (event) => {
   stepDrawing(!event.shiftKey);
 });
 
+// Saves whichever of the two has changed — the picture, the colours, or both —
+// so one button covers the work in the pane.
 async function saveDrawing() {
   const { path } = S.open;
   const drawing = S.draw;
-  const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
-    method: 'PUT', headers, body: await pictureBlob(drawing.picture),
-  });
-  const body = await res.json().catch(() => null);
-  // The text conflict dialog offers to keep one side or the other. Two
-  // pictures cannot be compared in a dialog, and nothing but a person writes a
-  // PNG, so this says what happened and touches nothing.
-  if (res.status === 409) {
-    say(`Someone changed ${path} while you were drawing. Close it and open it again to see theirs.`, true);
-    return;
+  const drew = !!drawing?.dirty;
+  const recoloured = !!S.palette?.dirty;
+
+  if (drew) {
+    const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
+    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+      method: 'PUT', headers, body: await pictureBlob(drawing.picture),
+    });
+    const body = await res.json().catch(() => null);
+    // The text conflict dialog offers to keep one side or the other. Two
+    // pictures cannot be compared in a dialog, and nothing but a person writes a
+    // PNG, so this says what happened and touches nothing.
+    if (res.status === 409) {
+      say(`Someone changed ${path} while you were drawing. Close it and open it again to see theirs.`, true);
+      return;
+    }
+    if (!res.ok) { say(body?.error ?? 'Could not save that picture.', true); return; }
+    // This write is a commit, and a commit is a files.changed on the stream like
+    // any other, so the pane may already have been rebuilt underneath by the
+    // time the response lands. Only the editor that made the request may finish
+    // the job.
+    if (S.draw === drawing && S.open?.path === path) {
+      S.open.etag = body.etag;
+      S.draw.dirty = false;
+    }
   }
-  if (!res.ok) { say(body?.error ?? 'Could not save that picture.', true); return; }
-  // This write is a commit, and a commit is a files.changed on the stream like
-  // any other, so the pane may already have been rebuilt underneath by the
-  // time the response lands. Only the editor that made the request may finish
-  // the job.
-  if (S.draw === drawing && S.open?.path === path) {
-    S.open.etag = body.etag;
-    S.draw.dirty = false;
-  }
+
+  const colours = await flushPalette();
   S.previewNonce += 1;
   await refreshFiles();
-  say(`Saved ${path}.`);
+  if (!colours) return;
+  if (drew && recoloured) say(`Saved ${path} and the colours.`);
+  else if (recoloured) say(`Saved the colours in ${LOOK_FILE}.`);
+  else say(`Saved ${path}.`);
 }
 
 /* Sounds ------------------------------------------------------------------ */
@@ -1910,17 +1963,21 @@ function renderDrawing() {
     class: `pixels${chunky ? '' : ' smooth'}`, width: picture.width, height: picture.height,
   });
   const state = h('span', { class: 'hint muted' });
-  const save = h('button', {
-    class: 'filled', text: 'Save',
-    disabled: !S.draw.dirty || S.project.archived,
-    onclick: () => saveDrawing(),
-  });
+  // The picture and the game's colours are both work in this pane, so one
+  // button covers both and the words say which of them is waiting.
+  const unsaved = () => {
+    if (S.draw.dirty && S.palette?.dirty) return 'Picture and colours not saved yet';
+    if (S.draw.dirty) return 'Not saved yet';
+    if (S.palette?.dirty) return 'Colours not saved yet';
+    return 'Saved';
+  };
+  const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveDrawing() });
 
   const paint = () => {
     canvas.getContext('2d')
       .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
-    state.textContent = S.draw.dirty ? 'Not saved yet' : 'Saved';
-    save.disabled = !S.draw.dirty || S.project.archived;
+    state.textContent = unsaved();
+    save.disabled = (!S.draw.dirty && !S.palette?.dirty) || S.project.archived;
   };
 
   const touched = () => {
@@ -1975,7 +2032,7 @@ function renderDrawing() {
       // eyedropper being broken rather than as an empty pixel.
       // Into the chosen square, so picking a colour off the picture is how you
       // build the palette up rather than something separate from it.
-      if (found && found[3] !== 0) writePaletteColour(S.drawPrefs.slot, hexOf(found));
+      if (found && found[3] !== 0) setPaletteColour(S.drawPrefs.slot, hexOf(found));
       return;
     }
     // A pointerup that never arrived — released off-window with no capture —
@@ -2072,7 +2129,7 @@ function renderDrawing() {
     const chip = chips[S.drawPrefs.slot];
     if (chip) chip.style.background = well.value;
   });
-  well.addEventListener('change', () => writePaletteColour(S.drawPrefs.slot, well.value));
+  well.addEventListener('change', () => setPaletteColour(S.drawPrefs.slot, well.value));
 
   const swatches = h('div', { class: 'col' },
     h('div', { class: 'swatches' }, chips),
@@ -2080,9 +2137,11 @@ function renderDrawing() {
       well,
       h('span', {
         class: 'hint muted',
-        text: S.palette?.from
-          ? `Colours from ${LOOK_FILE}`
-          : `The studio's colours — changing one writes ${LOOK_FILE}`,
+        text: S.palette?.dirty
+          ? `Colours change ${LOOK_FILE} when you save`
+          : S.palette?.from
+            ? `Colours from ${LOOK_FILE}`
+            : `The studio's colours — changing one writes ${LOOK_FILE}`,
       }),
       h('div', { class: 'spacer' }),
       S.palette?.from

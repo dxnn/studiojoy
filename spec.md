@@ -481,8 +481,16 @@ choices worth naming:
   A game with no `look.js` is shown the studio's own thirty-two and the first
   change writes the file. A `look.js` that exists but holds no `PALETTE` — a
   game's own drawing colours belong there too — has one appended rather than
-  being overwritten. Otherwise the change is a splice of that one value, so
-  every comment and the other thirty-one colours survive.
+  being overwritten. Otherwise each changed colour is a splice of that one
+  value, so every comment and every colour nobody touched survive.
+
+  **Colour changes are batched.** They are held in memory and written when the
+  picture is saved, when the editor is left for another file, or on `pagehide`
+  with `keepalive` for the tab simply closing — because a plain `fetch` is
+  cancelled on unload and `sendBeacon` cannot `PUT`. Writing each one as it
+  happened turned eyedropping six colours into six commits, which is the
+  versioning working against the drawing rather than for it. One Save covers the
+  picture, the colours, or both, and the pane says which is waiting.
 
   The four tools are icons; the words stay on `title` and `aria-label`, so
   nothing is only a picture.
