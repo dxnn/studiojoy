@@ -466,13 +466,26 @@ choices worth naming:
   Sizing it by width and height instead squashes it: a canvas has an intrinsic
   size, so a definite width with a capped height gives a 16-square sprite drawn
   16 by 7. The pointer maths takes the resulting empty strip back off.
-- **The palette is built, not chosen from.** Sixteen squares, and the chosen one
+- **The palette is the game's, and it is built rather than chosen from.**
+  Thirty-two colours in `PALETTE` in the game's own `config/look.js` — two rows
+  of sixteen, greys then rainbow then the ones with character. The chosen square
   is both what the pencil draws with and what the colour box and the eyedropper
-  write into — so taking a colour off the picture is how the palette fills up
-  rather than something separate from it. Kept per person in `localStorage`
-  beside the rail width, with a Reset, because a palette that vanished on reload
-  would make building one pointless. The four tools are icons; the words stay on
-  `title` and `aria-label`, so nothing is only a picture.
+  write into, so taking a colour off a picture is how the palette fills up.
+
+  Being a *config file* is the point rather than an implementation detail: a
+  colour change is a commit on the game, it appears in Versions, a helper reads
+  the same list, and the file opens as a config form of thirty-two colour
+  fields. The first draft kept it in `localStorage`, which made a game's colours
+  a property of whichever browser had drawn in it.
+
+  A game with no `look.js` is shown the studio's own thirty-two and the first
+  change writes the file. A `look.js` that exists but holds no `PALETTE` — a
+  game's own drawing colours belong there too — has one appended rather than
+  being overwritten. Otherwise the change is a splice of that one value, so
+  every comment and the other thirty-one colours survive.
+
+  The four tools are icons; the words stay on `title` and `aria-label`, so
+  nothing is only a picture.
 
 - **A step is the pixels it changed, not a copy of the picture.** One gesture —
   a stroke from pointer down to up, or a fill — records each pixel it touched

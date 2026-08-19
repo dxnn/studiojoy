@@ -7,10 +7,10 @@ import {
   SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
 } from './sound-maker.js';
 import {
-  PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  PALETTE, PALETTE_COLUMNS, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
-  rgbaOf, hexOf, clampSide,
+  rgbaOf, hexOf, clampSide, isColour,
 } from './pixel-editor.js';
 
 const root = document.getElementById('root');
@@ -98,21 +98,6 @@ const prefs = {
   },
 };
 
-// A palette someone mixed is worth more than the one shipped with the studio,
-// and rebuilding it every time the tab reloads would make setting one up
-// pointless. Per person and per device, like the rail width — not per game,
-// which would be a file and a decision nobody asked for.
-function savedPalette() {
-  try {
-    const saved = JSON.parse(prefs.get('palette', 'null'));
-    if (Array.isArray(saved) && saved.length === PALETTE.length
-      && saved.every((c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c))) {
-      return saved;
-    }
-  } catch { /* nothing usable stored */ }
-  return [...PALETTE];
-}
-
 const RAIL_MIN = 280;
 const RAIL_MAX = 900;
 
@@ -146,10 +131,14 @@ const S = {
   // file's, so they outlive opening a different picture — and outlive the file
   // being re-read underneath the editor, which a save itself causes.
   //
-  // The palette is sixteen squares a person builds up, not a fixed list: the
-  // colour well and the eyedropper both write into whichever square is chosen,
-  // and `slot` is which one that is.
-  drawPrefs: { tool: 'pencil', brush: 1, palette: savedPalette(), slot: 0 },
+  // `slot` is which colour square is chosen. The colours themselves are the
+  // game's, not this browser's — see S.palette.
+  drawPrefs: { tool: 'pencil', brush: 1, slot: 0 },
+  // The open project's colours, read from its own config/look.js so that
+  // changing one is a change to the game with a version behind it, rather than
+  // a setting that lives in whichever browser happened to make it.
+  // {colours, text, from} — text is null when the game has no look.js yet.
+  palette: null,
   // Why a picture is not open for drawing on, when it is not.
   drawRefused: null,
   history: [],
@@ -972,6 +961,11 @@ async function startDrawing() {
     redo: [],
     dirty: false,
   };
+  // Read fresh each time: a helper may have changed the game's colours, or
+  // Versions may have brought an older look.js back, since the editor was last
+  // open.
+  await loadPalette();
+  if (S.drawPrefs.slot >= paletteColours().length) S.drawPrefs.slot = 0;
   render();
 }
 
@@ -984,12 +978,90 @@ async function createPicture(name, width, height) {
   await startDrawing();
 }
 
-const keepPalette = () => prefs.set('palette', JSON.stringify(S.drawPrefs.palette));
+/* The game's colours ------------------------------------------------------- */
+
+// The palette is a *config file* like any other, which is the whole point:
+// changing a colour is a commit on the game, it shows up in Versions, and a
+// helper can read the same list the drawing tools offer.
+const LOOK_FILE = 'config/look.js';
+
+const paletteColours = () => S.palette?.colours ?? PALETTE;
 
 // The colour being drawn with is whatever is in the chosen square, so putting a
 // new colour in that square changes what the pencil does — which is what makes
 // the well and the eyedropper edit the palette rather than sit beside it.
-const chosenColour = () => S.drawPrefs.palette[S.drawPrefs.slot];
+const chosenColour = () => paletteColours()[S.drawPrefs.slot] ?? PALETTE[0];
+
+// The file the studio writes when a game has no look.js yet. Laid out in two
+// rows of sixteen because that is how the studio shows it, and commented
+// because every config file is.
+// Eight to a source line: short enough to read, and short enough that changing
+// one colour shows up in Versions as a line you can take in at a glance.
+const lookFileText = (colours) => {
+  const rows = [];
+  for (let i = 0; i < colours.length; i += 8) {
+    // Double quotes, matching literalFor and the config files the games already
+    // have — otherwise the first colour edited stands out from the other 31.
+    rows.push(`  ${colours.slice(i, i + 8).map((c) => `"${c}"`).join(', ')},`);
+  }
+  return `// How the game looks: the colours it is drawn from.
+//
+// These are the squares the studio offers when someone draws a picture for this
+// game, so changing one here changes what the drawing tools hand out. Greys
+// first, then the rainbow, then the ones with more character.
+const PALETTE = [
+${rows.join('\n')}
+];
+`;
+};
+
+async function loadPalette() {
+  S.palette = { colours: [...PALETTE], text: null, from: null };
+  if (!S.files.some((f) => f.path === LOOK_FILE)) return;
+  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`);
+  if (!res.ok) return;
+  const text = await res.text();
+  S.palette.text = text;
+  const parsed = parseConfigFile(text);
+  const found = parsed.ok ? parsed.decls.find((d) => d.name === 'PALETTE') : null;
+  // A look.js that holds other things but no PALETTE is normal — a game's own
+  // colours belong in there too. The studio's list is then still the default,
+  // and writing one appends rather than replaces.
+  if (!Array.isArray(found?.node.value) || !found.node.value.every(isColour)) return;
+  S.palette.colours = found.node.value;
+  S.palette.from = LOOK_FILE;
+}
+
+// One colour, spliced in place so every comment and every other colour in the
+// file survives — the same bargain as the config form.
+async function writePaletteColour(index, hex) {
+  const colours = [...paletteColours()];
+  colours[index] = hex;
+
+  let text;
+  if (S.palette?.text === null || S.palette?.text === undefined) {
+    text = lookFileText(colours);
+  } else {
+    const parsed = parseConfigFile(S.palette.text);
+    const found = parsed.ok ? parsed.decls.find((d) => d.name === 'PALETTE') : null;
+    const item = found?.node.items?.[index];
+    if (item) {
+      text = spliceValue(S.palette.text, found.node.items[index], literalFor('string', hex));
+    } else if (parsed.ok) {
+      // The file exists and is readable but has no PALETTE, so add one rather
+      // than refusing or overwriting what is already in there.
+      text = `${S.palette.text.replace(/\n*$/, '\n')}\n${lookFileText(colours)}`;
+    } else {
+      say(`${LOOK_FILE} has something in it the studio cannot read, so the colours were left alone.`, true);
+      return;
+    }
+  }
+
+  const { failure } = await writeFiles([{ path: LOOK_FILE, body: text }]);
+  if (failure) { say(failure, true); return; }
+  S.palette = { colours, text, from: LOOK_FILE };
+  render();
+}
 
 // Module scope rather than inside the pane, because the keyboard reaches it
 // too and the pane is rebuilt on every render.
@@ -1903,11 +1975,7 @@ function renderDrawing() {
       // eyedropper being broken rather than as an empty pixel.
       // Into the chosen square, so picking a colour off the picture is how you
       // build the palette up rather than something separate from it.
-      if (found && found[3] !== 0) {
-        S.drawPrefs.palette[S.drawPrefs.slot] = hexOf(found);
-        keepPalette();
-        render();
-      }
+      if (found && found[3] !== 0) writePaletteColour(S.drawPrefs.slot, hexOf(found));
       return;
     }
     // A pointerup that never arrived — released off-window with no capture —
@@ -1976,13 +2044,13 @@ function renderDrawing() {
       onclick: () => { S.drawPrefs.brush = n; render(); },
     })));
 
-  // Sixteen squares that belong to the person, not to the studio. Choosing one
-  // says both "draw with this" and "this is the one the well and the eyedropper
-  // will change".
-  const chips = S.drawPrefs.palette.map((hex, i) => h('button', {
+  // The game's colours, two rows of sixteen. Choosing one says both "draw with
+  // this" and "this is the one the colour box and the eyedropper will change".
+  const colours = paletteColours();
+  const chips = colours.map((hex, i) => h('button', {
     class: `swatch${S.drawPrefs.slot === i ? ' on' : ''}`,
     style: `background:${hex}`,
-    title: `${hex} — click to draw with it, then use the colour box or the eyedropper to change it`,
+    title: `${hex} — click to draw with it; the colour box and the eyedropper change the one you have chosen`,
     'aria-label': `Colour ${i + 1}, ${hex}`,
     onclick: () => {
       S.drawPrefs.slot = i;
@@ -1993,36 +2061,38 @@ function renderDrawing() {
 
   const well = h('input', {
     type: 'color',
-    title: 'Change the square you have chosen to any colour at all',
+    title: `Change the square you have chosen — this edits ${LOOK_FILE}`,
     'aria-label': 'Change the chosen colour',
   });
-  well.value = S.drawPrefs.palette[S.drawPrefs.slot];
-  // Dragging around a colour picker fires input continuously, and a render per
-  // step would replace the picker while it is open. The square is repainted in
-  // place; only letting go writes the choice down.
+  well.value = colours[S.drawPrefs.slot] ?? PALETTE[0];
+  // Dragging around a colour picker fires input continuously. The square is
+  // repainted in place so the picker is not replaced under the pointer, and
+  // only letting go writes the file.
   well.addEventListener('input', () => {
-    S.drawPrefs.palette[S.drawPrefs.slot] = well.value;
     const chip = chips[S.drawPrefs.slot];
     if (chip) chip.style.background = well.value;
   });
-  well.addEventListener('change', () => {
-    keepPalette();
-    render();
-  });
+  well.addEventListener('change', () => writePaletteColour(S.drawPrefs.slot, well.value));
 
-  const swatches = h('div', { class: 'swatches' },
-    chips,
-    well,
-    h('button', {
-      class: 'link tiny',
-      text: 'Reset',
-      title: 'Put the sixteen starting colours back',
-      onclick: () => {
-        S.drawPrefs.palette = [...PALETTE];
-        keepPalette();
-        render();
-      },
-    }));
+  const swatches = h('div', { class: 'col' },
+    h('div', { class: 'swatches' }, chips),
+    h('div', { class: 'row wrap' },
+      well,
+      h('span', {
+        class: 'hint muted',
+        text: S.palette?.from
+          ? `Colours from ${LOOK_FILE}`
+          : `The studio's colours — changing one writes ${LOOK_FILE}`,
+      }),
+      h('div', { class: 'spacer' }),
+      S.palette?.from
+        ? h('button', {
+          class: 'link tiny',
+          text: 'See them',
+          title: `Open ${LOOK_FILE}`,
+          onclick: () => openFile(LOOK_FILE),
+        })
+        : null));
 
   paint();
   return h('div', { class: 'drawing grow' },

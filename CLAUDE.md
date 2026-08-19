@@ -186,12 +186,13 @@ A version that touched a picture shows it as a thumbnail in Versions without
 being asked, and opening the row shows it whole; a unified diff of a PNG was
 only ever git talking about itself.
 
-The four tools and undo/redo are icons with the words on `title`/`aria-label`,
-and the sixteen-square **palette** is built rather than chosen from: the colour
-box and the eyedropper both write into the chosen square, kept per person in
-`localStorage`. `+ Upload` takes any file — nothing on the server ever cared
-about extensions — and `MEDIA_KINDS` in `main.js` is the one list to extend when
-the studio should show a new kind.
+The four tools and undo/redo are icons with the words on `title`/`aria-label`.
+The **palette** is `PALETTE` in the game's own `config/look.js` — 32 colours, two
+rows of 16 — so changing a colour is a commit on the game rather than a setting
+in one browser. The colour box and the eyedropper both write into the chosen
+square. All four games now carry the file. `+ Upload` takes any file — nothing on
+the server ever cared about extensions — and `MEDIA_KINDS` in `main.js` is the
+one list to extend when the studio should show a new kind.
 
 Undo and redo work a gesture at a time and store the pixels a gesture changed,
 not a copy of the picture — kilobytes per stroke at any size. ⚠️ Undo walks its

@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  PALETTE, PALETTE_COLUMNS, GREYS, RAINBOW, FUN, isColour,
+  SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   rgbaOf, hexOf, isBlank, clampSide,
@@ -128,6 +129,28 @@ test('colours survive the trip to text and back', () => {
   assert.equal(hexOf([255, 138, 61, 255]), '#ff8a3d');
   assert.equal(hexOf([0, 0, 0, 255]), '#000000');
   for (const hex of PALETTE) assert.equal(hexOf(rgbaOf(hex)), hex);
+});
+
+// The studio's starting colours are what a game's config/look.js gets written
+// with, so a duplicate or a malformed one would land in a game's history.
+test('the starting palette is two full rows of usable colours', () => {
+  assert.equal(PALETTE.length, PALETTE_COLUMNS * 2);
+  assert.deepEqual(PALETTE, [...GREYS, ...RAINBOW, ...FUN]);
+  assert.equal(GREYS.length + RAINBOW.length + FUN.length, PALETTE.length);
+  for (const hex of PALETTE) assert.equal(isColour(hex), true, `${hex} is not a colour`);
+  assert.equal(new Set(PALETTE).size, PALETTE.length, 'no colour appears twice');
+  assert.equal(GREYS[0], '#000000');
+  assert.equal(GREYS.at(-1), '#ffffff');
+});
+
+test('isColour accepts what the palette holds and nothing else', () => {
+  assert.equal(isColour('#ff8fbf'), true);
+  assert.equal(isColour('#FF8FBF'), true);
+  assert.equal(isColour('#abc'), false, 'short form is not written by the studio');
+  assert.equal(isColour('red'), false);
+  assert.equal(isColour('#ff8fbf88'), false);
+  assert.equal(isColour(null), false);
+  assert.equal(isColour(16), false);
 });
 
 test('a size is brought back to one a picture can be', () => {

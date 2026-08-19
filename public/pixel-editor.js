@@ -30,15 +30,32 @@ export const BRUSHES = [1, 2, 4, 8, 16, 32];
 // two of those fit and a third pushes the oldest out.
 export const UNDO_BYTES = 32 * 1024 * 1024;
 
-// Sixteen colours: a grey ramp, then warm, then cool. Enough to draw with and
-// few enough to pick from without a colour wheel — there is a colour well for
-// anything else.
-export const PALETTE = [
-  '#000000', '#3c3c50', '#6a6a80', '#a0a0b4', '#e6e6f0', '#ffffff',
-  '#7a2f2f', '#d63a3a', '#ff8a3d', '#ffd23f',
-  '#2f7a3c', '#4ec25a', '#2f5f9e', '#4aa8e8',
-  '#6b3fa0', '#e05fb0',
+// Thirty-two colours in two rows of sixteen: a grey ramp to draw shapes with,
+// a rainbow to colour them in, and a row of the ones that make a game look like
+// somebody chose it. What a game actually uses lives in its own
+// config/look.js — this is only the set a game starts from.
+export const GREYS = [
+  '#000000', '#2c2c38', '#4c4c5e', '#6e6e84', '#9494a8', '#bcbcca', '#e2e2ec', '#ffffff',
 ];
+
+export const RAINBOW = [
+  '#e33b3b', '#ea6a2a', '#f0932b', '#f7cf3d', '#c4d92e', '#5cc648',
+  '#2fb783', '#28b3c4', '#2f86d4', '#3a5fd0', '#7a4fd0', '#c247c0',
+];
+
+export const FUN = [
+  '#ff8fbf', '#ffc9a3', '#8a5a3c', '#d2b48c', '#7ee0c0', '#c9b6ff',
+  '#e8c34a', '#7a2f4a', '#1f2a5a', '#6b7a2f', '#ff6f5e', '#8e5d9e',
+];
+
+// Row one is the greys and the first eight of the rainbow; row two is the rest
+// of it and all the fun ones. Sixteen to a row, so the order matters as much as
+// the colours.
+export const PALETTE = [...GREYS, ...RAINBOW.slice(0, 8), ...RAINBOW.slice(8), ...FUN];
+
+export const PALETTE_COLUMNS = 16;
+
+export const isColour = (value) => typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 
 export const CLEAR = [0, 0, 0, 0];
 
