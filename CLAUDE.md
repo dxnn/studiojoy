@@ -51,9 +51,12 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
 ## Dev-environment gotchas
 
 - **`GAMES_DIR` must live outside this checkout when running locally.** The
-  sandbox refuses writes to any `.git` directory beneath the project root, so
+  sandbox refuses to *create* a `.git` directory beneath the project root, so
   `git init` inside `./games/` fails with EPERM. Use
   `GAMES_DIR=$TMPDIR/gamestudio-games`. Deployed, `./games` is fine.
+  Narrower than it used to read here: committing into a game repo that already
+  exists under `games/<slug>/` does work, which is how a helper's result gets
+  carried back from a temp `GAMES_DIR` into this checkout.
 - Outbound network goes through a CONNECT proxy and DNS does not resolve.
   `curl` reads `$https_proxy` on its own; Node's `fetch` needs
   `node --use-env-proxy`. `npm run smoke` carries the flag; `npm test` never
@@ -178,6 +181,19 @@ pad paths are covered by fake pads in `test/input-template.test.js`.
 Couch multiplayer is what the input module buys. Networked multiplayer and
 scoreboards are not built and both need the games origin to hold state and take
 its first write — see `ideas/next-five.md`.
+
+The preamble names every one of these by the words on the button, because a
+capability an agent is not told about may as well not exist. `orchestrator.js`
+carries the text and `orchestrator.test.js` asserts each name, so renaming a
+button without updating the prompt fails a test.
+
+Tested live, once, and it worked: `space-racer` was handed to a helper with
+nothing but *"should work with a game controller and on a tablet, not just the
+arrow keys"*. It deleted its own `keydown` listeners, moved to `Input.axis`,
+`held` and `pressed`, and added menu and result-screen navigation — which is
+what a controller actually needs and what nobody asked for. 40k tokens, three
+files, one commit (`e1fcbeb` in that repo). Browser-checked afterwards on both
+origins: keyboard and a fake pad each drive it, and steering is analog now.
 
 `space-racer` and `flip-for-what` are migrated (their own repos, committed as
 `Daddy`): settings moved into `config/`, and space-racer's on-screen words moved

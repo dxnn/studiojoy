@@ -6,11 +6,11 @@ deliberately deferred.
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - watch a live helper build with the new prompt: does it actually write
-  `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page, and
-  does it use `js/input.js` when it is in the file list rather than listening
-  for keys beside it
-- ask a helper to move space-racer and flip-for-what onto the input module, so
-  a controller and a tablet work on the two games that are already migrated
+  `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page. (The
+  input half of this question is answered — see space-racer's `e1fcbeb`.)
+- ask a helper to move flip-for-what onto the input module, the way space-racer
+  went; then check whether either game wants a sound effect now that one can be
+  made without leaving the studio
 - scoreboards and networked multiplayer both need the games origin to hold
   state and to take its first write — see ideas/next-five.md. Scoreboards is
   the cheap pilot: it settles the rules (no cookie, its own rate limit, caps)
