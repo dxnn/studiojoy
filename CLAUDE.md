@@ -160,6 +160,13 @@ A version that touched a picture shows it as a thumbnail in Versions without
 being asked, and opening the row shows it whole; a unified diff of a PNG was
 only ever git talking about itself.
 
+Undo and redo work a gesture at a time and store the pixels a gesture changed,
+not a copy of the picture — kilobytes per stroke at any size. ⚠️ Undo walks its
+entries backwards, and that is load-bearing: a stroke crossing itself records
+the same pixel twice, and in record order it would stop at the mid-stroke
+colour. spec.md §6 has the argument, and why replaying an action stack was the
+other option.
+
 A `config/*.js` file opens as a **config form** — a field per value, the
 value's comment beside it — parsed by `public/config-file.js` without being
 executed, and saved by splicing the one value so comments survive. Anything

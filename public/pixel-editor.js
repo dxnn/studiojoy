@@ -22,10 +22,13 @@ export const SIZES = [16, 32, 64, 128, 256, 512, 1024];
 // than the pane can show.
 export const BRUSHES = [1, 2, 4, 8, 16, 32];
 
-// The whole undo stack, in bytes. A step is a copy of the picture, so the
-// number of steps has to fall as the picture grows: 24 steps of a sprite is
-// nothing, and 24 steps of a 1024-square picture is 100 MB.
-export const UNDO_BYTES = 64 * 1024 * 1024;
+// Both history stacks together, in bytes. A step holds the pixels it changed
+// rather than a copy of the picture, so this buys thousands of strokes on a
+// picture of any size. The bound is here for the one case that is genuinely
+// large: flooding a whole 1024-square picture costs twelve bytes a pixel — a
+// 4-byte index and 4 bytes of colour on each side of it — which is 12 MB, so
+// two of those fit and a third pushes the oldest out.
+export const UNDO_BYTES = 32 * 1024 * 1024;
 
 // Sixteen colours: a grey ramp, then warm, then cool. Enough to draw with and
 // few enough to pick from without a colour wheel — there is a colour well for
@@ -72,6 +75,9 @@ export function pixelAt(picture, x, y) {
 
 // Returns whether anything actually moved, so a stroke that changes nothing
 // does not become a version.
+//
+// Recording happens here, in the one function every tool goes through, so a
+// tool added later gets undo by existing rather than by remembering to.
 export function setPixel(picture, x, y, rgba) {
   if (!inside(picture, x, y)) return false;
   const at = (y * picture.width + x) * 4;
@@ -83,11 +89,62 @@ export function setPixel(picture, x, y, rgba) {
     : data[at] === rgba[0] && data[at + 1] === rgba[1]
       && data[at + 2] === rgba[2] && data[at + 3] === rgba[3];
   if (same) return false;
+  if (picture.step) {
+    picture.step.at.push(at / 4);
+    picture.step.before.push(data[at], data[at + 1], data[at + 2], data[at + 3]);
+    picture.step.after.push(rgba[0], rgba[1], rgba[2], rgba[3]);
+  }
   data[at] = rgba[0];
   data[at + 1] = rgba[1];
   data[at + 2] = rgba[2];
   data[at + 3] = rgba[3];
   return true;
+}
+
+/* One step back ----------------------------------------------------------- */
+
+// A step is one gesture — a stroke from putting the pointer down to lifting it,
+// or a single fill — held as the pixels it changed and their colour on each
+// side of it. That is a few kilobytes for a stroke whatever the picture's size,
+// where a copy of the picture would be four megabytes, and it is what makes
+// redo possible at all.
+export function beginStep(picture) {
+  picture.step = { at: [], before: [], after: [] };
+}
+
+// Returns the step, or null when the gesture changed nothing — a dab of the
+// colour that was already there is not something to undo.
+export function endStep(picture) {
+  const open = picture.step;
+  picture.step = null;
+  if (!open || open.at.length === 0) return null;
+  return {
+    at: Uint32Array.from(open.at),
+    before: Uint8ClampedArray.from(open.before),
+    after: Uint8ClampedArray.from(open.after),
+  };
+}
+
+export const stepBytes = (step) => step.at.byteLength + step.before.byteLength + step.after.byteLength;
+
+// ⚠️ Backwards for undo, forwards for redo, and the direction is the whole
+// correctness argument. A stroke that crosses itself writes the same pixel
+// twice, so that pixel has two entries: the first holding the colour it really
+// started as, the second holding the colour the first entry left. Undoing in
+// order would stop at the middle colour. Applied last-to-first, the earliest
+// entry has the final say, which is the original.
+export function applyStep(picture, step, back) {
+  const colours = back ? step.before : step.after;
+  const { data } = picture;
+  const count = step.at.length;
+  for (let n = 0; n < count; n += 1) {
+    const i = back ? count - 1 - n : n;
+    const at = step.at[i] * 4;
+    data[at] = colours[i * 4];
+    data[at + 1] = colours[i * 4 + 1];
+    data[at + 2] = colours[i * 4 + 2];
+    data[at + 3] = colours[i * 4 + 3];
+  }
 }
 
 // A square of pixels centred on one, which is what a brush wider than a pixel

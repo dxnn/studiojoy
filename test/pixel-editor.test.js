@@ -6,11 +6,13 @@ import assert from 'node:assert/strict';
 import {
   PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
+  beginStep, endStep, applyStep, stepBytes,
   rgbaOf, hexOf, isBlank, clampSide,
 } from '../public/pixel-editor.js';
 
 const RED = [255, 0, 0, 255];
 const BLUE = [0, 0, 255, 255];
+const GREEN = [0, 200, 0, 255];
 
 // Every pixel that is not transparent, as "x,y" — the shape of a drawing
 // without caring what colour it came out.
@@ -179,10 +181,99 @@ test('a wide line is a wide line, not a wide dot', () => {
   assert.equal(pixelAt(picture, 6, 8)[3], 0);
 });
 
-// A step back is a whole copy of the picture, so a fixed number of steps
-// would be a fixed multiple of however big that happens to be.
-test('the undo budget is bytes, so a big picture gets fewer steps', () => {
-  const stepsFor = (side) => Math.floor(UNDO_BYTES / (side * side * 4));
-  assert.equal(stepsFor(32) > 1000, true, 'a sprite gets more steps than anyone will use');
-  assert.equal(stepsFor(MAX_SIDE) >= 8, true, 'the biggest picture still gets a usable stack');
+/* One step back ----------------------------------------------------------- */
+
+// Recorded in setPixel, which every tool goes through, so this holds for tools
+// that do not exist yet.
+test('a step remembers only the pixels it changed, both sides of them', () => {
+  const picture = blankPicture(8, 8);
+  beginStep(picture);
+  drawLine(picture, 1, 1, 3, 1, RED);
+  const step = endStep(picture);
+  assert.equal(step.at.length, 3);
+  assert.deepEqual([...step.at], [1 * 8 + 1, 1 * 8 + 2, 1 * 8 + 3]);
+  assert.deepEqual([...step.before.slice(0, 4)], [0, 0, 0, 0]);
+  assert.deepEqual([...step.after.slice(0, 4)], RED);
+  assert.equal(picture.step, null, 'the step is closed');
+});
+
+test('a gesture that changed nothing is not a step', () => {
+  const picture = blankPicture(8, 8);
+  beginStep(picture);
+  drawLine(picture, 1, 1, 3, 1, CLEAR);
+  assert.equal(endStep(picture), null);
+
+  drawLine(picture, 1, 1, 3, 1, RED);
+  beginStep(picture);
+  drawLine(picture, 1, 1, 3, 1, RED);
+  assert.equal(endStep(picture), null, 'painting the colour already there');
+});
+
+test('a step goes back and comes forward again', () => {
+  const picture = blankPicture(8, 8);
+  drawLine(picture, 0, 0, 7, 0, BLUE);
+  const original = [...picture.data];
+
+  beginStep(picture);
+  drawLine(picture, 0, 0, 7, 0, RED);
+  const step = endStep(picture);
+  const painted = [...picture.data];
+
+  applyStep(picture, step, true);
+  assert.deepEqual([...picture.data], original, 'back to the blue line');
+  applyStep(picture, step, false);
+  assert.deepEqual([...picture.data], painted, 'forward to the red one');
+  applyStep(picture, step, true);
+  assert.deepEqual([...picture.data], original, 'and back again');
+});
+
+// ⚠️ The case the direction of the loop exists for. A stroke that crosses
+// itself records the same pixel twice: the first entry holds the colour it
+// really started as, the second holds what the first left behind. Undone in
+// order, that pixel would stop at the middle colour.
+test('a stroke that crosses itself still undoes to what was there before', () => {
+  const picture = blankPicture(8, 8);
+  floodFill(picture, 0, 0, BLUE);
+  const original = [...picture.data];
+
+  beginStep(picture);
+  drawLine(picture, 1, 4, 6, 4, RED);       // across
+  drawLine(picture, 4, 1, 4, 6, GREEN);     // down through it, over 4,4
+  const step = endStep(picture);
+  assert.deepEqual(pixelAt(picture, 4, 4), GREEN);
+  const crossings = [...step.at].filter((n) => n === 4 * 8 + 4).length;
+  assert.equal(crossings, 2, 'the crossing point really was written twice');
+
+  applyStep(picture, step, true);
+  assert.deepEqual([...picture.data], original);
+  assert.deepEqual(pixelAt(picture, 4, 4), BLUE, 'not the red it was mid-stroke');
+
+  applyStep(picture, step, false);
+  assert.deepEqual(pixelAt(picture, 4, 4), GREEN, 'redo ends where the gesture did');
+});
+
+test('a step costs what it touched, not what the picture costs', () => {
+  const small = blankPicture(16, 16);
+  const huge = blankPicture(MAX_SIDE, MAX_SIDE);
+  const strokeOn = (picture) => {
+    beginStep(picture);
+    drawLine(picture, 1, 1, 12, 1, RED);
+    return stepBytes(endStep(picture));
+  };
+  // Once each: drawing the same red line twice changes nothing the second
+  // time, so there would be no second step to measure.
+  const onSmall = strokeOn(small);
+  const onHuge = strokeOn(huge);
+  assert.equal(onSmall, onHuge, 'the same stroke costs the same either way');
+  assert.equal(onHuge < 1000, true, 'and it is nothing like a copy of the picture');
+
+  // The one genuinely large step: filling a whole big picture. Twelve bytes a
+  // pixel — a 4-byte index, and 4 bytes of colour on each side of it — so the
+  // budget has to be able to hold at least one of them.
+  const blank = blankPicture(MAX_SIDE, MAX_SIDE);
+  beginStep(blank);
+  floodFill(blank, 0, 0, BLUE);
+  const fill = stepBytes(endStep(blank));
+  assert.equal(fill, MAX_SIDE * MAX_SIDE * 12);
+  assert.equal(fill < UNDO_BYTES, true, 'a whole-picture fill fits in the budget');
 });

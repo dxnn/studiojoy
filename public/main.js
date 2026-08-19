@@ -9,6 +9,7 @@ import {
 import {
   PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
+  beginStep, endStep, applyStep, stepBytes,
   rgbaOf, hexOf, clampSide,
 } from './pixel-editor.js';
 
@@ -888,7 +889,12 @@ async function startDrawing() {
   const canvas = pictureCanvas(blankPicture(bitmap.width, bitmap.height));
   canvas.getContext('2d').drawImage(bitmap, 0, 0);
   const { data } = canvas.getContext('2d').getImageData(0, 0, bitmap.width, bitmap.height);
-  S.draw = { picture: pictureFrom(bitmap.width, bitmap.height, data), undo: [], dirty: false };
+  S.draw = {
+    picture: pictureFrom(bitmap.width, bitmap.height, data),
+    undo: [],
+    redo: [],
+    dirty: false,
+  };
   render();
 }
 
@@ -1732,16 +1738,35 @@ function renderDrawing() {
     paint();
   };
 
-  // A stroke is one step back, however many pixels it covered, so undoing
+  // A gesture is one step back, however many pixels it covered, so undoing
   // feels like undoing a thing you did rather than a pixel you passed over.
-  // Bounded by bytes rather than by steps: one copy of a big picture is 4 MB,
-  // and a fixed number of steps would be a fixed number of megabytes times
-  // however large the picture happens to be.
-  const remember = () => {
-    S.draw.undo.push(new Uint8ClampedArray(picture.data));
-    while (S.draw.undo.length > 1 && S.draw.undo.length * picture.data.length > UNDO_BYTES) {
-      S.draw.undo.shift();
-    }
+  const opened = () => beginStep(picture);
+
+  const used = () => [...S.draw.undo, ...S.draw.redo].reduce((n, s) => n + stepBytes(s), 0);
+
+  const closed = () => {
+    const step = endStep(picture);
+    if (!step) return;
+    S.draw.undo.push(step);
+    // A new gesture is a new branch of history: whatever was undone is not
+    // coming back, and keeping it would let redo paste it over this.
+    S.draw.redo = [];
+    // One step is always kept, however large — a flood fill of a whole big
+    // picture is the only thing that can reach the budget on its own, and
+    // refusing to remember it would mean it could not be undone.
+    while (S.draw.undo.length > 1 && used() > UNDO_BYTES) S.draw.undo.shift();
+    S.draw.dirty = true;
+  };
+
+  const step = (back) => {
+    const from = back ? S.draw.undo : S.draw.redo;
+    const to = back ? S.draw.redo : S.draw.undo;
+    const move = from.pop();
+    if (!move) return;
+    applyStep(picture, move, back);
+    to.push(move);
+    S.draw.dirty = true;
+    render();
   };
 
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(S.drawPrefs.colour));
@@ -1772,19 +1797,30 @@ function renderDrawing() {
       if (found && found[3] !== 0) { S.drawPrefs.colour = hexOf(found); render(); }
       return;
     }
-    remember();
+    // A pointerup that never arrived — released off-window with no capture —
+    // would otherwise leave the last gesture open and lose it to this one.
+    if (picture.step) closed();
+    opened();
     // Capture keeps a stroke going when the pointer leaves the canvas, so
     // drawing to the edge does not stop halfway. Failing to get it is not a
     // reason to refuse the stroke.
     try { canvas.setPointerCapture(event.pointerId); } catch { /* no capture */ }
     last = [x, y];
-    if (S.drawPrefs.tool === 'fill') floodFill(picture, x, y, colour());
-    else drawLine(picture, x, y, x, y, colour(), S.drawPrefs.brush);
+    if (S.drawPrefs.tool === 'fill') {
+      floodFill(picture, x, y, colour());
+      // A fill is over the moment it is done; there is no dragging it. Through
+      // render() rather than paint() so Undo stops looking greyed out.
+      last = null;
+      closed();
+      render();
+      return;
+    }
+    drawLine(picture, x, y, x, y, colour(), S.drawPrefs.brush);
     touched();
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (!last || S.drawPrefs.tool === 'fill' || S.drawPrefs.tool === 'pick') return;
+    if (!last || S.drawPrefs.tool === 'pick') return;
     const [x, y] = spotOf(event);
     if (last[0] === x && last[1] === y) return;
     drawLine(picture, last[0], last[1], x, y, colour(), S.drawPrefs.brush);
@@ -1792,7 +1828,14 @@ function renderDrawing() {
     touched();
   });
 
-  const stop = () => { last = null; };
+  // Lifting the pointer is what ends a stroke, and therefore what makes it one
+  // step back rather than a hundred.
+  const stop = () => {
+    if (!last) return;
+    last = null;
+    closed();
+    render();
+  };
   canvas.addEventListener('pointerup', stop);
   canvas.addEventListener('pointercancel', stop);
 
@@ -1845,12 +1888,15 @@ function renderDrawing() {
       h('div', { class: 'spacer' }),
       h('button', {
         class: 'quiet tiny', text: 'Undo',
+        title: 'Take back the last thing you drew',
         disabled: !S.draw.undo.length,
-        onclick: () => {
-          const before = S.draw.undo.pop();
-          if (before) picture.data.set(before);
-          render();
-        },
+        onclick: () => step(true),
+      }),
+      h('button', {
+        class: 'quiet tiny', text: 'Redo',
+        title: 'Put back what you just took back',
+        disabled: !S.draw.redo.length,
+        onclick: () => step(false),
       }),
       save));
 }

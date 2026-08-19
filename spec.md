@@ -457,9 +457,29 @@ choices worth naming:
   Sizing it by width and height instead squashes it: a canvas has an intrinsic
   size, so a definite width with a capped height gives a 16-square sprite drawn
   16 by 7. The pointer maths takes the resulting empty strip back off.
-- **Undo is bounded by bytes, not by steps.** A step is a copy of the picture,
-  so a fixed number of steps is a fixed number of megabytes times however large
-  the picture happens to be: 24 steps of a 1024-square picture is 100 MB.
+- **A step is the pixels it changed, not a copy of the picture.** One gesture —
+  a stroke from pointer down to up, or a fill — records each pixel it touched
+  with its colour on both sides. That is a few kilobytes for a stroke at any
+  picture size, where a copy would be 4 MB, and it is what makes redo possible
+  at all: undo writes the old colours back, redo writes the new ones. The
+  recording happens inside `setPixel`, the one function every tool goes through,
+  so a tool added later gets undo by existing.
+
+  The alternative was a stack of actions replayed over the base image. It stores
+  less, but `floodFill` is O(area) — replaying thirty fills to step back one is
+  seconds of work, which is why it would have needed periodic keyframes.
+  Diffing costs O(pixels changed) in both directions: measured in a browser, a
+  fill of a 670×330 background took 57 ms and undoing it took 8 ms.
+
+  ⚠️ Undo applies its entries **last to first**. A stroke that crosses itself
+  writes the same pixel twice, so that pixel has two entries: the first holds
+  the colour it really started as, the second holds what the first left behind.
+  In record order, undo would stop at the middle colour.
+
+- **Both stacks together are bounded by bytes**, because one case is genuinely
+  large: flooding a whole 1024-square picture is twelve bytes a pixel — a 4-byte
+  index and 4 bytes of colour each side — so 12 MB. One step is always kept
+  however big, since the alternative is a fill that cannot be undone.
 
 A conflict is reported rather than merged. The save carries `If-Match` like the
 text editor, but two pictures cannot be offered side by side in a dialog, and
