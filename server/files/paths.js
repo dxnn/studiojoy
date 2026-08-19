@@ -10,6 +10,20 @@ export const MAX_PATH_CHARS = 200;
 export const MAX_SEGMENTS = 8;
 export const MAX_SLUG_CHARS = 40;
 
+// Reserved: the studio's own libraries, copied into every game that asks for one
+// (spec.md §4). Real files on disk, so a game's repository is complete on its
+// own and the games origin serves them with no route of its own — and so a game
+// still runs when it is cloned or published somewhere else, which a symlink or a
+// submodule would not survive.
+//
+// The rule that makes it a library rather than just a folder: an agent may read
+// it and may not write it. A person may, because that is how it is installed and
+// updated, and because it is their tree.
+export const LIBRARY_DIR = 'studio';
+export const LIBRARY_MANIFEST = `${LIBRARY_DIR}/studio.json`;
+
+export const isLibraryPath = (rel) => rel === LIBRARY_DIR || rel.startsWith(`${LIBRARY_DIR}/`);
+
 // Codepoint ranges rather than a regex on purpose: a character class holding
 // these would be a run of invisible bytes in the source, which greps badly
 // and dies silently if an editor normalises the file. Hex literals are plain

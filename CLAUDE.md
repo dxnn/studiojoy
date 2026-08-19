@@ -39,7 +39,9 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
 ## Invariants worth keeping
 
 - `server/files/paths.js` is the security boundary. Everything touching a file
-  goes through it. It returns a reason for tools, throws a 400 for routes.
+  goes through it. It returns a reason for tools, throws a 400 for routes. It
+  also owns `isLibraryPath`: `studio/` is readable by agents and never writable
+  by them.
 - Every git command except `init` is pinned with `--git-dir`/`--work-tree`.
   Unpinned, git walks upward and finds whatever repo encloses `GAMES_DIR` —
   in development that's this checkout.
@@ -208,12 +210,17 @@ outside the plain-value subset falls back to the text editor with a reason.
 Browser-checked end to end, including a nested edit inside a table: one
 character changed on disk, one commit.
 
-Three things can now be made in the studio rather than found. `+ Controls`
-copies the **input module** into a game — `js/input.js` and
-`config/controls.js` from `public/templates/`, plus the two `<script>` tags in
-`index.html` — so one call, `Input.held("left")`, covers the keyboard, a game
-controller and a touchscreen, for one player or two. Copied, not injected like
-the reporter: the game owns it on the public origin. `+ Make a sound` renders a
+`studio/` in a game's tree is the **studio library**: the studio's own code,
+copied in rather than shared, with `studio/studio.json` recording which version
+each game has. Copied because a symlink is a path out of the sandbox that git
+stores as a dangling blob, and a submodule gives a broken game to anyone who
+clones without `--recursive`. Two rules carry it, both tested: ⚠️ a helper may
+read it and never write it, and it is *named* to an agent rather than sent — so
+an engine costs the ambient block one line, not its source. `+ Controls` installs
+or updates it and disappears once the game is current. spec.md §4 has the
+argument. The **input module** is the first library: one call,
+`Input.held("left")`, covers the keyboard, a game controller and a touchscreen,
+for one player or two. `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or
 a live canvas API, so what is played or shown is what gets saved, and both are

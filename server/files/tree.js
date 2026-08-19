@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { HttpError } from '../http/respond.js';
 import { mimeForPath, isTextPath, OCTET_STREAM } from '../http/static.js';
-import { checkProjectPath, resolveInside } from './paths.js';
+import { checkProjectPath, resolveInside, isLibraryPath } from './paths.js';
 
 // Caps from spec.md §4. A personal studio, not a CDN.
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -46,6 +46,9 @@ export async function listTree(dir) {
         mime: mimeForPath(rel) ?? OCTET_STREAM,
         text: isTextPath(rel),
         modified_at: st.mtime.toISOString(),
+        // A studio library, not the game's own code: served and readable, but
+        // summarised rather than sent to an agent and refused by its tools.
+        ...(isLibraryPath(rel) ? { library: true } : {}),
         ...(valid ? {} : { unreachable: true }),
       });
     }

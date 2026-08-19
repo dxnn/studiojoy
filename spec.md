@@ -553,24 +553,55 @@ Each edit re-reads the file and finds the value by path rather than reusing the
 last render's offsets: a splice moves every offset behind it, and re-rendering
 the pane per keystroke would replace the Save button under the pointer.
 
-`+ Controls` puts the **input module** into a game: `js/input.js` and
-`config/controls.js`, copied from templates under `public/templates/`, plus the
-two `<script>` tags in `index.html` when they are missing. Client-side like the
-uploads — three `PUT`s, three commits, no route that knows what a template is.
-Three choices worth naming:
+### The studio library
 
-- **Copied, not injected.** The reporter is injected because it is the studio's
-  own instrument and no game should carry it (§8). Input is the opposite: it
-  has to work on the public origin with nobody watching, and a helper has to be
-  able to read and change it. So it is an ordinary file, in the history.
-- **Bindings are never overwritten.** A second press replaces `js/input.js` —
-  that is the part worth keeping current — but leaves a `config/controls.js`
-  that already exists alone, because it holds buttons somebody chose.
-- **No dialog in front of it**, unlike an upload. An upload asks first because
-  it has a decision in it — which folder — and files it is about to replace.
-  This has neither: the paths are fixed, existing bindings are kept, and every
-  write is a commit that Versions can undo. The banner afterwards names the
-  files it wrote. A confirmation with nothing to confirm is just a click.
+`studio/` is a reserved directory in a game's working tree holding the studio's
+own **libraries** — the input module today, a sprite library or an engine later.
+It is served like any other file, committed like any other file, and cloned with
+the repository. `studio/studio.json` is its **manifest**: library name to the
+version this game has.
+
+**Copied, not shared.** The alternatives were considered and rejected on
+evidence:
+
+- A **symlink** into a shared directory fails twice. `listTree` uses `lstat` and
+  refuses to follow one on purpose — a symlink in a tree served from a public
+  origin is a path out of the sandbox — and git stores it as a blob holding the
+  target path, so a clone elsewhere gets a dangling link.
+- A **submodule** records the version in history, which is the good part, but a
+  plain `git clone` without `--recursive` yields empty directories: a broken
+  game, for games meant to be copied and published. It would also grow a case in
+  every git call the app makes — `listTree`, the write routes, `restoreTree`,
+  `fork`, project creation — and needs network at create time.
+- A **shared route** on the games origin is one copy always current, and makes a
+  game that only runs inside this studio.
+
+So: real bytes, in the tree, in the history. The cost is drift — four games can
+sit on four versions — and the manifest is what makes drift visible instead of
+silent. `+ Controls` reads `public/studio-lib/index.json`, writes the library's
+files under `studio/`, records the version, and adds the `<script>` tags. The
+same button says **Update controls** when the game holds an older version, and
+**is not there at all** once the game is current: it used to sit with nothing to
+do, which reads as a button that does not work.
+
+Two rules make it a library rather than a folder, and both are load-bearing:
+
+- ⚠️ **A helper may read it and may not write it.** `isLibraryPath` in
+  `paths.js` — the security boundary — and `write_file`, `patch_file` and
+  `delete_file` refuse with a reason it can act on. A helper that could write it
+  would fork a shared engine into one game, and the drift would be invisible
+  because nothing else reads that copy. A person may write it: that is how it is
+  installed, and it is their tree.
+- **It is named to an agent, never sent.** `listTree` flags library files, and
+  the ambient block lists them under `STUDIO LIBRARY` with a total size instead
+  of their contents (§8). An engine an agent cannot edit is also one it does not
+  need in front of it, and sending it would eat the budget the game's own code is
+  competing for. `read_file` still reaches it. Pinning a library file is
+  disabled in the file tree for the same reason.
+
+`config/controls.js` is **not** part of the library: it is the game's own
+bindings, seeded once from `public/templates/` and never replaced, because it
+holds buttons somebody chose. `seeds` in the index is that distinction.
 
 The module reads its bindings through `try`/`catch` rather than assuming
 `CONTROLS` is there, so a game whose `index.html` loads only one of the two

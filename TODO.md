@@ -11,6 +11,10 @@ deliberately deferred.
 - ask a helper to move flip-for-what onto the input module, the way space-racer
   went; then check whether either game wants a sound effect now that one can be
   made without leaving the studio
+- second library, to prove `studio/` is a shape and not a special case for
+  input.js — a sprite sheet reader or a sound player is the small end of it
+- a studio-wide "which games are behind" view. Per-project the button already
+  says Update; across games there is nowhere that shows it
 - scoreboards and networked multiplayer both need the games origin to hold
   state and to take its first write — see ideas/next-five.md. Scoreboards is
   the cheap pilot: it settles the rules (no cookie, its own rate limit, caps)

@@ -10,9 +10,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { parseConfigFile } from '../public/config-file.js';
 
-const read = (name) => fs.readFileSync(new URL(`../public/templates/${name}`, import.meta.url), 'utf8');
-const INPUT = read('input.js');
-const CONTROLS = read('controls.js');
+const read = (rel) => fs.readFileSync(new URL(`../public/${rel}`, import.meta.url), 'utf8');
+// The module is a studio library; the bindings are the game's own, seeded once.
+const INPUT = read('studio-lib/input/input.js');
+const CONTROLS = read('templates/controls.js');
 
 const button = (pressed) => ({ pressed, value: pressed ? 1 : 0 });
 

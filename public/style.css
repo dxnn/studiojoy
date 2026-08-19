@@ -506,6 +506,11 @@ details.thinking .trace {
 .tabs button { border-color: var(--border); color: var(--muted); }
 .tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
+/* A studio library: in the game, served by it, not written by it. Muted so the
+   tree reads as the game's own files plus something that came with the studio. */
+.file.library .fname { color: var(--muted); }
+.file.library .fname::after { content: ' · library'; font-size: 11px; }
+
 .tree { padding: 6px 0; }
 /* With a file open the list keeps about five rows — a row is 13px/1.55 text
    plus 8px of padding — and the editor below it gets the rest of the pane. */

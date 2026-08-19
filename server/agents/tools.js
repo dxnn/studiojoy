@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { checkProjectPath, resolveInside } from '../files/paths.js';
+import { checkProjectPath, resolveInside, isLibraryPath } from '../files/paths.js';
 import { isTextPath } from '../http/static.js';
 import {
   readFileAt, writeFileAt, removeFileAt, assertCapacity, MAX_FILE_BYTES,
@@ -91,6 +91,22 @@ export function createToolset({ dir, mutex, slug }) {
     return { rel: checked.path, abs };
   }
 
+  // The library is the studio's, not the game's. An agent reads it — it has to,
+  // to call what it provides — and cannot write it, so an engine shared by every
+  // game cannot be quietly forked into one of them. Installing and updating is a
+  // person's move, from the studio.
+  function resolveForWrite(input) {
+    const target = resolve(input);
+    if (target.error) return target;
+    if (isLibraryPath(target.rel)) {
+      return {
+        error: `refused: ${target.rel} belongs to the studio library. You can read it and call what it `
+          + 'provides, but not change it. If it needs to be different, say so and ask for it to be updated.',
+      };
+    }
+    return target;
+  }
+
   function record(rel, action, bytes) {
     const existing = changes.get(rel);
     // A file created and then edited in the same turn is still a create.
@@ -101,7 +117,7 @@ export function createToolset({ dir, mutex, slug }) {
   }
 
   async function writeFile({ path: p, content }) {
-    const target = resolve(p);
+    const target = resolveForWrite(p);
     if (target.error) return target.error;
     if (typeof content !== 'string') return 'content must be a string';
     const buffer = Buffer.from(content, 'utf8');
@@ -122,7 +138,7 @@ export function createToolset({ dir, mutex, slug }) {
   }
 
   async function patchFile({ path: p, old_text: oldText, new_text: newText }) {
-    const target = resolve(p);
+    const target = resolveForWrite(p);
     if (target.error) return target.error;
     if (typeof oldText !== 'string' || oldText === '') {
       return 'old_text must be a non-empty string';
@@ -173,7 +189,7 @@ export function createToolset({ dir, mutex, slug }) {
   }
 
   async function deleteFile({ path: p }) {
-    const target = resolve(p);
+    const target = resolveForWrite(p);
     if (target.error) return target.error;
     return mutex.run(slug, async () => {
       if ((await readFileAt(target.abs)) === null) return `no such file: ${target.rel}`;

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { tx } from '../db.js';
 import { listTree, readFileAt } from '../files/tree.js';
+import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { hasErrors, listErrors } from '../runtime.js';
 import { tokensCharged, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
@@ -116,15 +117,19 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       '- Change them whenever the game needs it — a new level, a new line, a rebalance — and keep the',
       '  comments when you do. Use patch_file for a single value so the rest of the file stays untouched.',
       '',
-      'If js/input.js is in the file list, that is how the game reads its controls, and it already covers the',
+      `${LIBRARY_DIR}/ is the studio's library, copied into this game so it runs anywhere, and it is the one`,
+      'part of the tree you cannot write: your file tools refuse it. Read it, call it, and say so if it needs',
+      `to change. ${LIBRARY_MANIFEST} says which libraries this game has and at what version.`,
+      '',
+      `If ${LIBRARY_DIR}/input.js is there, that is how the game reads its controls, and it already covers the`,
       'keyboard, a game controller and a touchscreen, for one player or two. Call Input.update() once at the',
       'top of each frame, then Input.held("left"), Input.pressed("fire") for one press, Input.released("fire"),',
       'or Input.axis("left", "right") for -1 to 1, analog on a stick. A last argument of 2 reads player two,',
       'and Input.pads() is how many controllers are plugged in. The action names — left, fire, boost — are the',
       'game\'s own words, and they live in config/controls.js next to everything that sets them off, so change',
       'them there rather than in the code. Do not listen for keys yourself alongside it, and make sure',
-      'index.html loads config/controls.js and js/input.js. If they are missing and the game wants a',
-      'controller or a touchscreen, say so: the button is "+ Controls", above the file list.',
+      `index.html loads config/controls.js and ${LIBRARY_DIR}/input.js. If they are missing and the game wants`,
+      'a controller or a touchscreen, say so: the button is "+ Controls", above the file list.',
       '',
       'Keep the project documents at the root, next to the code. They are notes for the people and agents',
       'working on the game, and never part of the game itself:',
@@ -186,14 +191,30 @@ function pinnedPaths(db, projectId) {
   return new Set(rows.map((r) => r.path));
 }
 
+// A library is named and its size given, never sent. That is the whole reason
+// the studio directory is reserved: an engine an agent cannot edit is also an
+// engine it does not need in front of it, and sending one would eat the ambient
+// budget that the game's own code is competing for. read_file still reaches it
+// for the rare case of actually needing to look.
+function libraryLines(files) {
+  const library = files.filter((f) => f.library && !f.unreachable);
+  if (library.length === 0) return null;
+  const bytes = library.reduce((n, f) => n + f.size, 0);
+  return `STUDIO LIBRARY (${library.length} files, ${bytes} bytes) — yours to call, not to change:\n`
+    + `${library.map((f) => f.path).join('\n')}\n`
+    + `Read ${LIBRARY_MANIFEST} for what each one is and which version this game has. `
+    + 'Use read_file if you need to see inside one.';
+}
+
 async function buildFileBlock(db, project, dir) {
   const { files } = await listTree(dir);
   const pinned = pinnedPaths(db, project.id);
   // A file already on disk that path validation refuses is listed but never
   // opened: no tool can act on it and the games origin will not serve it, so
   // an agent needs to know it is there to explain why it 404s at runtime.
-  const texts = files.filter((f) => f.text && !f.unreachable);
-  const binaries = files.filter((f) => !f.text && !f.unreachable);
+  // Library files are listed on their own, above, and never opened.
+  const texts = files.filter((f) => f.text && !f.unreachable && !f.library);
+  const binaries = files.filter((f) => !f.text && !f.unreachable && !f.library);
 
   // Pinned files first, then the rest, each group smallest-first so the largest
   // are what the cap drops. Pinning is priority, not exemption: it used to
@@ -225,11 +246,14 @@ async function buildFileBlock(db, project, dir) {
     'PROJECT FILES\n'
     + (files.length
       ? files
+        .filter((f) => !f.library)
         .map((f) => `${f.path} (${f.size} bytes)`
           + (f.unreachable ? ' [cannot be opened: the name is not a valid project path]' : ''))
         .join('\n')
       : '(the project has no files yet)'),
   );
+  const library = libraryLines(files);
+  if (library) parts.push(library);
 
   const omitted = [];
   for (const file of ordered) {

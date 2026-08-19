@@ -134,6 +134,9 @@ const S = {
   // `slot` is which colour square is chosen. The colours themselves are the
   // game's, not this browser's — see S.palette.
   drawPrefs: { tool: 'pencil', brush: 1, slot: 0 },
+  // What the studio offers and what this game already has, so the Controls
+  // button can say "update", or say nothing at all when there is nothing to do.
+  libraries: { studio: null, game: {} },
   // The open project's colours, read from its own config/look.js so that
   // changing one is a change to the game with a version behind it, rather than
   // a setting that lives in whichever browser happened to make it.
@@ -291,12 +294,18 @@ async function openProject(slug, { push = true } = {}) {
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
 
+  // Colours changed in the editor belong to the game being left, so they go in
+  // before the slug does.
+  await flushPalette();
+
   if (!slug) {
     S.slug = null;
     S.project = null;
     S.files = [];
     S.errors = [];
     S.open = null;
+    S.palette = null;
+    S.libraries = { studio: S.libraries.studio, game: {} };
     if (push) history.pushState({}, '', '/');
     render();
     return;
@@ -321,8 +330,13 @@ async function openProject(slug, { push = true } = {}) {
   S.live.clear();
   S.traces.clear();
   S.autoscroll = true;
+  S.palette = null;
   if (push) history.pushState({}, '', `/p/${slug}`);
   render();
+  if (!isChat()) {
+    await loadLibraries();
+    render();
+  }
   // The rail keeps whichever tab you were on, so arriving at a game with
   // Versions already open has to fetch now. Waiting for the next click on the
   // tab is what made the list look empty until you left it and came back.
@@ -827,86 +841,126 @@ function makeDropTarget(el) {
 
 const isFileDrag = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
 
-/* Controls ---------------------------------------------------------------- */
+/* The studio library ------------------------------------------------------- */
 
-// The input module goes into a game as two ordinary files rather than being
-// injected the way the reporter is (spec.md §8). A game that has it owns it:
-// the file is in the tree, it is in the history, a helper can change it, and
-// it keeps working with nobody looking at the studio.
-const CONTROLS_TEMPLATES = [
-  { url: '/templates/controls.js', path: 'config/controls.js' },
-  { url: '/templates/input.js', path: 'js/input.js' },
-];
+// A library is copied into a game, under studio/, rather than shared from one
+// place. That is what keeps each game's repository complete: clone it, publish
+// it, hand it to somebody, and it still runs, which neither a symlink nor a
+// submodule survives. What it costs is drift, and the manifest is what makes
+// drift visible — studio/studio.json records the version this game has, so the
+// studio can say when one is behind instead of the two quietly diverging.
+//
+// The rule that makes it a library and not just a folder is in
+// server/files/paths.js: a helper reads it and cannot write it.
+const LIBRARY_DIR = 'studio';
+const LIBRARY_MANIFEST = `${LIBRARY_DIR}/studio.json`;
+const LIBRARY_INDEX = '/studio-lib/index.json';
 
-const CONTROLS_TAGS = '<script src="config/controls.js"></script>\n<script src="js/input.js"></script>\n';
+const libraryFile = (name, file) => `/studio-lib/${name}/${file}`;
 
-// In front of the game's own scripts, so anything reading CONTROLS on its
-// first line finds it. Neither file does anything until the game calls it, so
-// this is tidiness rather than a requirement.
-function withControlTags(markup) {
+// In front of the game's own scripts, so anything reading a library's globals on
+// its first line finds them.
+function withScriptTags(markup, srcs) {
+  const tags = `${srcs.map((src) => `<script src="${src}"></script>`).join('\n')}\n`;
   const script = markup.search(/<script\b/i);
-  if (script !== -1) return markup.slice(0, script) + CONTROLS_TAGS + markup.slice(script);
+  if (script !== -1) return markup.slice(0, script) + tags + markup.slice(script);
   const body = markup.search(/<\/body>/i);
-  if (body !== -1) return markup.slice(0, body) + CONTROLS_TAGS + markup.slice(body);
-  return `${markup}\n${CONTROLS_TAGS}`;
+  if (body !== -1) return markup.slice(0, body) + tags + markup.slice(body);
+  return `${markup}\n${tags}`;
 }
 
-// What setting the controls up would write. A `content` of null is a file
-// already in the right state, which is what makes pressing this twice cost
-// nothing. Null instead of a list means a template would not load.
-async function controlsPlan() {
-  const steps = [];
-  for (const { url, path } of CONTROLS_TEMPLATES) {
-    // Replacing controls.js would throw away buttons someone chose. The module
-    // is the part worth keeping up to date; the bindings belong to the game.
-    if (path === 'config/controls.js' && S.files.some((f) => f.path === path)) {
-      steps.push({ path, content: null });
-      continue;
-    }
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    steps.push({ path, content: await res.text() });
+async function studioLibraries() {
+  const res = await fetch(LIBRARY_INDEX);
+  if (!res.ok) return null;
+  return (await res.json()).libraries ?? null;
+}
+
+// What this game has, by library name. Absent or unreadable reads as "none",
+// which is the same thing as far as installing goes.
+async function gameLibraries() {
+  if (!S.files.some((f) => f.path === LIBRARY_MANIFEST)) return {};
+  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(LIBRARY_MANIFEST)}`);
+  if (!res.ok) return {};
+  try {
+    const held = JSON.parse(await res.text());
+    return held && typeof held === 'object' ? held : {};
+  } catch {
+    return {};
+  }
+}
+
+// No dialog in front of this. An upload asks first because it has a decision in
+// it — which folder — and files it is about to replace. This has neither: the
+// paths come from the manifest, a game's own seeded files are never replaced,
+// and every write is a commit that Versions can undo.
+async function loadLibraries() {
+  S.libraries = { studio: await studioLibraries(), game: await gameLibraries() };
+}
+
+// null when there is nothing to offer: installed and current, so no button.
+function libraryOffer(name) {
+  const library = S.libraries.studio?.[name];
+  if (!library) return null;
+  const held = S.libraries.game?.[name];
+  if (held === undefined) return { library, label: `+ ${library.title}`, updating: false };
+  if (held !== library.version) return { library, label: `Update ${library.title.toLowerCase()}`, updating: true };
+  return null;
+}
+
+async function installLibrary(name) {
+  const libraries = await studioLibraries();
+  const library = libraries?.[name];
+  if (!library) { say('Could not read the studio library.', true); return; }
+
+  const held = await gameLibraries();
+  const updating = held[name] !== undefined && held[name] !== library.version;
+  const writes = [];
+
+  // The library's own files, always written: this is the part worth keeping
+  // current, and a helper cannot have changed it.
+  for (const file of library.files) {
+    const res = await fetch(libraryFile(name, file));
+    if (!res.ok) { say(`Could not read ${file} from the studio library.`, true); return; }
+    writes.push({ path: `${LIBRARY_DIR}/${file}`, body: await res.text() });
   }
 
-  if (S.files.some((f) => f.path === 'index.html')) {
+  // The game's own companion files, written once. Replacing config/controls.js
+  // would throw away buttons somebody chose.
+  const kept = [];
+  for (const seed of library.seeds ?? []) {
+    if (S.files.some((f) => f.path === seed.to)) { kept.push(seed.to); continue; }
+    const res = await fetch(seed.from);
+    if (!res.ok) { say(`Could not read ${seed.to} from the studio library.`, true); return; }
+    writes.push({ path: seed.to, body: await res.text() });
+  }
+
+  writes.push({ path: LIBRARY_MANIFEST, body: `${JSON.stringify({ ...held, [name]: library.version }, null, 2)}\n` });
+
+  if (S.files.some((f) => f.path === 'index.html') && library.scripts?.length) {
     const res = await fetch(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
     const markup = res.ok ? await res.text() : null;
-    if (markup !== null) {
-      steps.push({
-        path: 'index.html',
-        content: markup.includes('js/input.js') ? null : withControlTags(markup),
-      });
+    const missing = (library.scripts ?? []).filter((src) => !markup?.includes(src));
+    if (markup !== null && missing.length) {
+      writes.push({ path: 'index.html', body: withScriptTags(markup, missing) });
     }
   }
-  return steps;
-}
 
-// No dialog in front of this one. An upload asks first because it has a
-// decision in it — which folder — and files that are about to be overwritten.
-// This has neither: the two paths are fixed, an existing controls.js is kept,
-// and every write is a commit that Versions can undo. A confirmation with
-// nothing to confirm is just a click.
-async function addControls() {
-  const steps = await controlsPlan();
-  if (!steps) { say('Could not read the controls to add.', true); return; }
-  const writes = steps.filter((s) => s.content !== null);
-  if (!writes.length) { say('The controls were already set up.'); return; }
-
-  say('Setting up the controls…');
-  const { done, failure } = await writeFiles(writes.map(({ path, content }) => ({ path, body: content })));
+  say(updating ? `Updating ${library.title}…` : `Setting up ${library.title}…`);
+  const { done, failure } = await writeFiles(writes);
   if (failure) {
     say(done ? `${failure} ${done} of ${writes.length} got through.` : failure, true);
     return;
   }
-  const kept = steps.some((s) => s.path === 'config/controls.js' && s.content === null);
-  say(`Controls are ready: ${writes.map((w) => w.path).join(', ')}.`
-    + (kept ? ' Your own config/controls.js was left alone.' : '')
-    + ' Ask a helper to use them.');
+  say(`${library.title} ${updating ? 'updated' : 'is ready'}: version ${library.version} in ${LIBRARY_DIR}/.`
+    + (kept.length ? ` Your own ${kept.join(', ')} was left alone.` : '')
+    + ' Ask a helper to use it.');
   // A banner is easy to miss, and with the files already in place nothing else
-  // on screen moves — which makes a button that did three commits look like a
-  // button that did nothing. Opening the buttons file is the visible proof, and
-  // it is the part a person actually wants to change.
-  await openFile('config/controls.js');
+  // on screen moves — which makes a button that did four commits look like a
+  // button that did nothing. The seeded file is the visible proof and the part a
+  // person actually wants to change.
+  const landing = library.seeds?.[0]?.to ?? LIBRARY_MANIFEST;
+  await loadLibraries();
+  await openFile(landing);
 }
 
 /* Drawing ----------------------------------------------------------------- */
@@ -2179,14 +2233,19 @@ function renderDrawing() {
 }
 
 function renderFilesTab() {
+  const controls = libraryOffer('input');
   const rows = S.files.map((f) => h('div', {
-    class: `file${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}`,
+    class: `file${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
   },
   h('input', {
     type: 'checkbox',
-    title: 'Pin this file so helpers look at it',
+    // Pinning a library file would push the thing deliberately kept out of a
+    // helper's context straight back into it.
+    title: f.library
+      ? 'A studio library — helpers can call it without being shown it'
+      : 'Pin this file so helpers look at it',
     checked: S.pinned.has(f.path),
-    disabled: f.unreachable,
+    disabled: f.unreachable || f.library,
     onchange: (e) => {
       if (e.currentTarget.checked) S.pinned.add(f.path);
       else S.pinned.delete(f.path);
@@ -2320,12 +2379,16 @@ function renderFilesTab() {
           render();
         },
       }),
-      h('button', {
-        class: 'quiet tiny', text: '+ Controls',
-        title: 'Keyboard, game controller and touchscreen, for one player or two',
+      // Gone once the game has it and it is current. It used to sit there with
+      // nothing to do, which reads as a button that does not work.
+      controls ? h('button', {
+        class: 'quiet tiny', text: controls.label,
+        title: controls.updating
+          ? `${controls.library.what} This game has an older one.`
+          : controls.library.what,
         disabled: S.project.archived,
-        onclick: () => addControls(),
-      }),
+        onclick: () => installLibrary('input'),
+      }) : null,
       h('div', { class: 'spacer' }),
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })

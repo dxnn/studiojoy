@@ -7,6 +7,9 @@ import {
   resolveProjectPath,
   checkSlug,
   slugify,
+  isLibraryPath,
+  LIBRARY_DIR,
+  LIBRARY_MANIFEST,
   MAX_PATH_CHARS,
   MAX_SEGMENTS,
   MAX_SLUG_CHARS,
@@ -182,5 +185,33 @@ test('slugify produces valid slugs or nothing', () => {
   for (const input of ['Tank Game', '???', '', 'a'.repeat(80), '---']) {
     const out = slugify(input);
     if (out !== '') assert.equal(checkSlug(out).ok, true, `slugify(${input}) => ${out}`);
+  }
+});
+
+// The studio library is a normal part of a game's tree — served, committed,
+// cloned with it — and the one part a helper may read but not write. This is the
+// predicate the tools refuse on, so a hole here is a helper quietly forking an
+// engine into one game.
+test('a library path is recognised, and a lookalike is not', () => {
+  assert.equal(isLibraryPath(LIBRARY_DIR), true);
+  assert.equal(isLibraryPath(LIBRARY_MANIFEST), true);
+  assert.equal(isLibraryPath(`${LIBRARY_DIR}/input.js`), true);
+  assert.equal(isLibraryPath(`${LIBRARY_DIR}/engine/three.js`), true);
+
+  // Names that merely start the same way are the game's own.
+  assert.equal(isLibraryPath('studiofolder/x.js'), false);
+  assert.equal(isLibraryPath('studio-notes.md'), false);
+  assert.equal(isLibraryPath('js/studio/x.js'), false);
+  assert.equal(isLibraryPath('index.html'), false);
+  assert.equal(isLibraryPath(''), false);
+});
+
+// It has to survive path validation like anything else, or it could be written
+// but never read back.
+test('the library directory and its manifest are valid project paths', () => {
+  for (const p of [LIBRARY_MANIFEST, `${LIBRARY_DIR}/input.js`]) {
+    const checked = checkProjectPath(p);
+    assert.equal(checked.ok, true, `${p}: ${checked.reason}`);
+    assert.equal(checked.path, p);
   }
 });

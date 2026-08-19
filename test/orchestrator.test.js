@@ -204,6 +204,72 @@ test('a tool refusal comes back to the model as text it can act on', async (t) =
   assert.equal((await logCommits(dir, { limit: 50 })).length, 1);
 });
 
+// ⚠️ The rule that makes studio/ a library rather than a folder. A helper that
+// could write it would fork a shared engine into one game, and the drift would
+// be invisible because nothing else reads that copy.
+test('a helper can read the studio library but not write it', async (t) => {
+  const seen = [];
+  const llm = createFakeLlm((opts, turn) => {
+    const results = opts.messages.filter((m) => m.role === 'tool');
+    if (results.length > 0) seen.push(results.at(-1).content);
+    if (turn === 0) {
+      return calls([{ name: 'write_file', input: { path: 'studio/input.js', content: 'mine now' } }]);
+    }
+    if (turn === 1) {
+      return calls([{ name: 'patch_file', input: { path: 'studio/input.js', old_text: 'Input', new_text: 'Nope' } }]);
+    }
+    if (turn === 2) {
+      return calls([{ name: 'delete_file', input: { path: 'studio/input.js' } }]);
+    }
+    if (turn === 3) return calls([{ name: 'read_file', input: { path: 'studio/input.js' } }]);
+    return says('Understood, I will call it rather than change it.');
+  });
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await app.client.json('PUT', '/api/projects/tank/files/studio/input.js', { rawBody: 'const Input = 1;' });
+
+  await send(app, 'rewrite the controls library');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  for (const refusal of seen.slice(0, 3)) assert.match(refusal, /studio library/);
+  assert.match(seen[3], /const Input = 1;/, 'reading it is allowed');
+  // Still exactly what the studio put there.
+  assert.equal(fs.readFileSync(path.join(dir, 'studio', 'input.js'), 'utf8'), 'const Input = 1;');
+});
+
+// A library is named and sized, never sent: an engine an agent cannot edit is
+// also one it does not need in front of it, and sending it would eat the ambient
+// budget the game's own code competes for.
+test('the library is named to a helper, not poured into its context', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/studio/input.js', {
+    rawBody: `// a library\n${'x'.repeat(4000)}`,
+  });
+  await app.client.json('PUT', '/api/projects/tank/files/studio/studio.json', { rawBody: '{"input":1}' });
+  await app.client.json('PUT', '/api/projects/tank/files/js/game.js', { rawBody: 'let speed = 1;' });
+
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, 'what is in this game?');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /STUDIO LIBRARY/);
+  assert.match(system, /studio\/input\.js/, 'named');
+  assert.match(system, /studio\/studio\.json/);
+  assert.equal(system.includes('x'.repeat(4000)), false, 'not sent');
+  // The game's own code still is.
+  assert.match(system, /let speed = 1;/);
+  // And it is listed once, as a library — not again among the game's own files.
+  // (The preamble names the path too, which is why this looks at the listing
+  // rather than counting matches in the whole prompt.)
+  const listing = system.split('\n\n').find((part) => part.startsWith('PROJECT FILES'));
+  assert.match(listing, /js\/game\.js/);
+  assert.equal(listing.includes('studio/'), false, 'the library is not among the game files');
+});
+
 test('read_file reaches a file that was left out of context', async (t) => {
   const observed = [];
   const llm = createFakeLlm((opts, turn) => {
