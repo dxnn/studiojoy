@@ -907,6 +907,35 @@ async function createPicture(name, width, height) {
   await startDrawing();
 }
 
+// Module scope rather than inside the pane, because the keyboard reaches it
+// too and the pane is rebuilt on every render.
+function stepDrawing(back) {
+  if (!S.draw) return;
+  const from = back ? S.draw.undo : S.draw.redo;
+  const to = back ? S.draw.redo : S.draw.undo;
+  const move = from.pop();
+  if (!move) return;
+  applyStep(S.draw.picture, move, back);
+  to.push(move);
+  S.draw.dirty = true;
+  render();
+}
+
+// A drawing is the one place in the studio where ⌘Z means something, so the
+// listener asks whether one is open rather than being wired up and torn down
+// with the pane. Ctrl for a keyboard without a ⌘.
+window.addEventListener('keydown', (event) => {
+  if (!S.draw || S.dialog) return;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+  if (event.key.toLowerCase() !== 'z') return;
+  // Typing a filename into a box is not drawing, and ⌘Z there belongs to the
+  // box.
+  const el = event.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  event.preventDefault();
+  stepDrawing(!event.shiftKey);
+});
+
 async function saveDrawing() {
   const { path } = S.open;
   const drawing = S.draw;
@@ -1758,17 +1787,6 @@ function renderDrawing() {
     S.draw.dirty = true;
   };
 
-  const step = (back) => {
-    const from = back ? S.draw.undo : S.draw.redo;
-    const to = back ? S.draw.redo : S.draw.undo;
-    const move = from.pop();
-    if (!move) return;
-    applyStep(picture, move, back);
-    to.push(move);
-    S.draw.dirty = true;
-    render();
-  };
-
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(S.drawPrefs.colour));
 
   // The canvas element fills its box and the picture is fitted inside it, so
@@ -1888,15 +1906,15 @@ function renderDrawing() {
       h('div', { class: 'spacer' }),
       h('button', {
         class: 'quiet tiny', text: 'Undo',
-        title: 'Take back the last thing you drew',
+        title: 'Take back the last thing you drew (⌘Z)',
         disabled: !S.draw.undo.length,
-        onclick: () => step(true),
+        onclick: () => stepDrawing(true),
       }),
       h('button', {
         class: 'quiet tiny', text: 'Redo',
-        title: 'Put back what you just took back',
+        title: 'Put back what you just took back (⇧⌘Z)',
         disabled: !S.draw.redo.length,
-        onclick: () => step(false),
+        onclick: () => stepDrawing(false),
       }),
       save));
 }

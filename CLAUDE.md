@@ -65,13 +65,32 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   DeepSeek. Deployed, none of this applies.
 - `node:sqlite` has no `db.transaction()` and rejects a nested `BEGIN`; use
   `tx()` from `server/db.js`, which guards against nesting.
-- **The sandbox denies `kill`**, and each Bash call is a fresh shell, so a
-  server backgrounded with `&` in one call cannot be stopped in a later one —
-  it squats on its port until the operator kills it. Don't background
-  long-lived servers. For a browser check, start it on an unused port, report
-  the PID immediately, and expect to hand cleanup over. `pkill -f` also
-  matches against the *relative* command line (`server/index.js`), so a
-  pattern containing the full path silently matches nothing.
+- **Start a server as a tracked background task. Never with `&`.** The sandbox
+  denies `kill` and every Bash call is a fresh shell, so a server started with
+  `&` cannot be stopped afterwards by anything in the session — it squats on
+  its port until a human kills it, and the operator ends up chasing PIDs.
+
+  Instead run it as one Bash call with `run_in_background: true` and **no** `&`.
+  The harness owns the process, and `TaskStop` with the task id it hands back
+  really does terminate it and release the port — verified, not assumed:
+
+  ```
+  Bash({ command: "... node server/index.js", run_in_background: true })
+    -> "Command running in background with ID: buircfi4s"
+  ...do the browser check...
+  TaskStop({ task_id: "buircfi4s" })   # process gone, port free
+  ```
+
+  Stop it in the same turn that started it. Quote the **task id**, not the PID,
+  in anything you report: the id is the handle that works, and `kill <pid>` is
+  denied. (`pkill -f` matches the *relative* command line, `server/index.js`, so
+  a pattern with the full path in it silently matches nothing — worth knowing
+  for the cleanup instructions a human will have to run.)
+
+- **Pick the port after looking, not before.** This machine accumulates
+  orphaned studios from past sessions, so `PORT` collisions are normal and the
+  "already in use" message is telling the truth. `lsof -nP -iTCP -sTCP:LISTEN |
+  grep node` lists them. 8090 is `new-y` and is left alone.
 
 ## Audience
 
