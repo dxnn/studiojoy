@@ -442,6 +442,26 @@ Each edit re-reads the file and finds the value by path rather than reusing the
 last render's offsets: a splice moves every offset behind it, and re-rendering
 the pane per keystroke would replace the Save button under the pointer.
 
+`+ Controls` puts the **input module** into a game: `js/input.js` and
+`config/controls.js`, copied from templates under `public/templates/`, plus the
+two `<script>` tags in `index.html` when they are missing. Client-side like the
+uploads — three `PUT`s, three commits, no route that knows what a template is.
+Three choices worth naming:
+
+- **Copied, not injected.** The reporter is injected because it is the studio's
+  own instrument and no game should carry it (§8). Input is the opposite: it
+  has to work on the public origin with nobody watching, and a helper has to be
+  able to read and change it. So it is an ordinary file, in the history.
+- **Bindings are never overwritten.** A second press replaces `js/input.js` —
+  that is the part worth keeping current — but leaves a `config/controls.js`
+  that already exists alone, because it holds buttons somebody chose.
+- **The plan is shown first**, exactly like an upload: every file it would
+  write, with the note beside it, before anything is sent.
+
+The module reads its bindings through `try`/`catch` rather than assuming
+`CONTROLS` is there, so a game whose `index.html` loads only one of the two
+files falls back to a playable default instead of throwing on the first frame.
+
 #### History
 
 | method | path | notes |

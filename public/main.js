@@ -658,19 +658,18 @@ function uploadPlan(folder, files) {
 }
 
 // One PUT per file, one commit each — the same thing a helper does when it
-// writes several files. No If-Match: an upload replaces on purpose, and the
-// dialog already said which files it would replace.
-async function uploadFiles(plan) {
-  if (plan.length > 1) say(`Adding ${plan.length} things…`);
+// writes several files. No If-Match: these replace on purpose, and whatever
+// asked for them already said which files it would replace.
+async function writeFiles(plan) {
   let done = 0;
   let failure = null;
-  for (const { path, file } of plan) {
+  for (const { path, body } of plan) {
     const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
-      method: 'PUT', body: file,
+      method: 'PUT', body,
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      failure = uploadProblem(res.status, path, body?.error);
+      const parsed = await res.json().catch(() => null);
+      failure = uploadProblem(res.status, path, parsed?.error);
       // Whatever stopped this one stops the rest, and a banner per file would
       // bury the reason.
       break;
@@ -680,6 +679,12 @@ async function uploadFiles(plan) {
 
   S.previewNonce += 1;
   await refreshFiles();
+  return { done, failure };
+}
+
+async function uploadFiles(plan) {
+  if (plan.length > 1) say(`Adding ${plan.length} things…`);
+  const { done, failure } = await writeFiles(plan.map(({ path, file }) => ({ path, body: file })));
   if (failure) {
     say(done ? `${failure} ${done} of ${plan.length} got added.` : failure, true);
     return;
@@ -725,6 +730,78 @@ function makeDropTarget(el) {
 }
 
 const isFileDrag = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+
+/* Controls ---------------------------------------------------------------- */
+
+// The input module goes into a game as two ordinary files rather than being
+// injected the way the reporter is (spec.md §8). A game that has it owns it:
+// the file is in the tree, it is in the history, a helper can change it, and
+// it keeps working with nobody looking at the studio.
+const CONTROLS_TEMPLATES = [
+  { url: '/templates/controls.js', path: 'config/controls.js' },
+  { url: '/templates/input.js', path: 'js/input.js' },
+];
+
+const CONTROLS_TAGS = '<script src="config/controls.js"></script>\n<script src="js/input.js"></script>\n';
+
+// In front of the game's own scripts, so anything reading CONTROLS on its
+// first line finds it. Neither file does anything until the game calls it, so
+// this is tidiness rather than a requirement.
+function withControlTags(markup) {
+  const script = markup.search(/<script\b/i);
+  if (script !== -1) return markup.slice(0, script) + CONTROLS_TAGS + markup.slice(script);
+  const body = markup.search(/<\/body>/i);
+  if (body !== -1) return markup.slice(0, body) + CONTROLS_TAGS + markup.slice(body);
+  return `${markup}\n${CONTROLS_TAGS}`;
+}
+
+// Worked out before anything is sent, so the dialog can show it: which files
+// would be written, which are left alone, and whether index.html still needs
+// the two lines that load them.
+async function controlsPlan() {
+  const steps = [];
+  for (const { url, path } of CONTROLS_TEMPLATES) {
+    // Replacing controls.js would throw away buttons someone chose. The module
+    // is the part worth keeping up to date; the bindings belong to the game.
+    if (path === 'config/controls.js' && S.files.some((f) => f.path === path)) {
+      steps.push({ path, note: 'already there — your buttons are kept', content: null });
+      continue;
+    }
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    steps.push({
+      path,
+      note: S.files.some((f) => f.path === path) ? 'replaces the one there now' : 'new file',
+      content: await res.text(),
+    });
+  }
+
+  if (S.files.some((f) => f.path === 'index.html')) {
+    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
+    const markup = res.ok ? await res.text() : null;
+    if (markup !== null) {
+      steps.push(markup.includes('js/input.js')
+        ? { path: 'index.html', note: 'already loads them', content: null }
+        : { path: 'index.html', note: 'two lines added so the game loads them', content: withControlTags(markup) });
+    }
+  }
+  return steps;
+}
+
+async function addControls(steps) {
+  const writes = steps.filter((s) => s.content !== null);
+  if (!writes.length) {
+    say('The controls were already set up.');
+    return;
+  }
+  say('Setting up the controls…');
+  const { done, failure } = await writeFiles(writes.map(({ path, content }) => ({ path, body: content })));
+  if (failure) {
+    say(done ? `${failure} ${done} of ${writes.length} got through.` : failure, true);
+    return;
+  }
+  say('Controls are ready. Open config/controls.js to change the buttons, and ask a helper to use them.');
+}
 
 async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
@@ -1585,6 +1662,17 @@ function renderFilesTab() {
         onclick: () => picker.click(),
       }),
       picker,
+      h('button', {
+        class: 'quiet tiny', text: '+ Controls',
+        title: 'Keyboard, game controller and touchscreen, for one player or two',
+        disabled: S.project.archived,
+        onclick: async () => {
+          const steps = await controlsPlan();
+          if (!steps) { say('Could not read the controls to add.', true); return; }
+          S.dialog = { kind: 'controls', steps };
+          render();
+        },
+      }),
       h('div', { class: 'spacer' }),
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })
@@ -1935,6 +2023,26 @@ function dialogFor(d) {
       h('label', { text: 'Which folder?' }), folder,
       list,
       h('div', { class: 'actions' }, cancel, ok));
+  }
+
+  // Same shape as the upload dialog: everything it would write is on screen
+  // before any of it is sent.
+  if (d.kind === 'controls') {
+    const nothing = d.steps.every((s) => s.content === null);
+    return wrap('Set up the controls',
+      h('p', { text: 'This adds one way in for the keyboard, a game controller and a touchscreen, for one player or two. Arrow buttons appear by themselves on a phone or tablet.' }),
+      h('div', { class: 'plan' }, d.steps.map((s) => h('div', {
+        class: `plan-row${s.content === null ? ' skip' : ''}`,
+      },
+      h('span', { class: 'mono', text: s.path }),
+      h('div', { class: 'spacer' }),
+      h('span', { class: 'hint muted', text: s.note })))),
+      h('p', { class: 'hint muted', text: 'Then ask a helper to use it: Input.held("left") instead of reading keys itself.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: nothing ? 'Already done' : 'Set them up',
+        disabled: nothing,
+        onclick: async () => { close(); await addControls(d.steps); },
+      })));
   }
 
   if (d.kind === 'delete-file') {
