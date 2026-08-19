@@ -16,7 +16,7 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — 309 tests. `node:test` against `:memory:` SQLite, a temp
+- `npm test` — 347 tests. `node:test` against `:memory:` SQLite, a temp
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
@@ -88,7 +88,7 @@ appearing.
 
 ## Current state
 
-v0 is complete and green at 309 tests. Verified live end to end: a message in
+v0 is complete and green at 347 tests. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -156,6 +156,28 @@ executed, and saved by splicing the one value so comments survive. Anything
 outside the plain-value subset falls back to the text editor with a reason.
 Browser-checked end to end, including a nested edit inside a table: one
 character changed on disk, one commit.
+
+Three things can now be made in the studio rather than found. `+ Controls`
+copies the **input module** into a game — `js/input.js` and
+`config/controls.js` from `public/templates/`, plus the two `<script>` tags in
+`index.html` — so one call, `Input.held("left")`, covers the keyboard, a game
+controller and a touchscreen, for one player or two. Copied, not injected like
+the reporter: the game owns it on the public origin. `+ Make a sound` renders a
+`.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
+as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or
+a live canvas API, so what is played or shown is what gets saved, and both are
+checked in `npm test` with no browser.
+
+Browser-checked end to end: three commits from `+ Controls` with the tags in
+front of the game's own script, a real `.wav` and a real 16×16 PNG on disk,
+`held`/`pressed`/`axis` and player two on the games origin, `pressed` true for
+exactly one frame, and the touch overlay appearing on a coarse pointer and
+driving the game. Not checked with a real controller — no hardware here; the
+pad paths are covered by fake pads in `test/input-template.test.js`.
+
+Couch multiplayer is what the input module buys. Networked multiplayer and
+scoreboards are not built and both need the games origin to hold state and take
+its first write — see `ideas/next-five.md`.
 
 `space-racer` and `flip-for-what` are migrated (their own repos, committed as
 `Daddy`): settings moved into `config/`, and space-racer's on-screen words moved
