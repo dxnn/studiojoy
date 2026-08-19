@@ -87,10 +87,17 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   a pattern with the full path in it silently matches nothing — worth knowing
   for the cleanup instructions a human will have to run.)
 
-- **Pick the port after looking, not before.** This machine accumulates
-  orphaned studios from past sessions, so `PORT` collisions are normal and the
-  "already in use" message is telling the truth. `lsof -nP -iTCP -sTCP:LISTEN |
-  grep node` lists them. 8090 is `new-y` and is left alone.
+- **Pick the port after looking, not before.** `PORT` collisions are normal
+  here and the "already in use" message is telling the truth. `lsof -nP -iTCP
+  -sTCP:LISTEN | grep node` lists what is up.
+
+  ⚠️ **Two of those are the operator's and must never be killed or reused:**
+  8090 is `new-y`, and **8100/8101 is the operator's own running studio** — the
+  defaults, which is exactly why they look like an abandoned test. `ps` is
+  restricted to this session's own processes, so a PID from `lsof` cannot be
+  identified by reading its command line: do not tell the operator to kill
+  something on the strength of its port number. Only ever offer up a task id
+  this session started.
 
 ## Audience
 
@@ -161,7 +168,7 @@ a `config/` directory, and many small source files rather than one enormous
 live model — two of the four games are still single-file, and both agents with
 file tools had descriptions ordering a layout of their own until this session.
 
-Art can be put in from the studio: `+ Picture or sound` beside `+ New file`, or
+Art can be put in from the studio: `+ Upload` beside `+ New file`, or
 a drop onto the file tree, both landing in a dialog that shows the path each
 file will take before anything is sent. Client-side only — the `PUT` route
 already took raw bytes. Files go to `assets/`, one commit each, and the
@@ -178,6 +185,13 @@ backdrop is as editable as a sprite, and saved at exactly the size it arrived.
 A version that touched a picture shows it as a thumbnail in Versions without
 being asked, and opening the row shows it whole; a unified diff of a PNG was
 only ever git talking about itself.
+
+The four tools and undo/redo are icons with the words on `title`/`aria-label`,
+and the sixteen-square **palette** is built rather than chosen from: the colour
+box and the eyedropper both write into the chosen square, kept per person in
+`localStorage`. `+ Upload` takes any file — nothing on the server ever cared
+about extensions — and `MEDIA_KINDS` in `main.js` is the one list to extend when
+the studio should show a new kind.
 
 Undo and redo work a gesture at a time and store the pixels a gesture changed,
 not a copy of the picture — kilobytes per stroke at any size. ⚠️ Undo walks its
