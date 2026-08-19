@@ -593,6 +593,9 @@ details.thinking .trace {
   touch-action: none;
   cursor: crosshair;
 }
+/* Blocky is right for a sprite blown up and wrong for a photograph, so the
+   pane picks per picture rather than once for all of them. */
+.pixels.smooth { image-rendering: auto; }
 .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .swatch { width: 24px; height: 24px; padding: 0; border: 2px solid var(--border); border-radius: 6px; }
 .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
@@ -656,6 +659,41 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
    above it rather than to the list. */
 .commit.open { background: var(--accent-soft); }
 .commit .drawer { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+/* Pictures a version changed, shown in the row without being asked for. The
+   checkerboard is the same one the pane uses, so a see-through sprite reads as
+   see-through here too. */
+.shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.shot {
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 0;
+  background: repeating-conic-gradient(var(--hover) 0% 25%, var(--panel) 0% 50%) 0 0 / 10px 10px;
+}
+/* Keeping the checkerboard on hover, because the button rule above would
+   otherwise paint the whole tile accent and hide the picture that is the
+   entire point of it. */
+.shot:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: repeating-conic-gradient(var(--hover) 0% 25%, var(--panel) 0% 50%) 0 0 / 10px 10px;
+}
+.shot img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
+
+/* Shown as big as the pane allows rather than at its own size: a 16-square
+   sprite at its own size is a smudge, which is the opposite of what opening
+   the details is for. A fixed box with `contain` keeps every shape right —
+   a definite width with a capped height squashes it, the same trap as the
+   editor's own canvas. */
+.shot-big { display: flex; flex-direction: column; gap: 3px; }
+.shot-big img {
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  background: repeating-conic-gradient(var(--hover) 0% 25%, var(--panel) 0% 50%) 0 0 / 14px 14px;
+}
 
 pre.diff {
   margin: 0;

@@ -153,6 +153,13 @@ oversized file being refused before upload, one commit per new file and none for
 an identical replace, and the bytes coming back byte-identical on the public
 games origin.
 
+A picture opens as the **pixel editor** — there is no separate look-only view,
+because it showed the same picture at the same size. Up to 1024 a side, so a
+backdrop is as editable as a sprite, and saved at exactly the size it arrived.
+A version that touched a picture shows it as a thumbnail in Versions without
+being asked, and opening the row shows it whole; a unified diff of a PNG was
+only ever git talking about itself.
+
 A `config/*.js` file opens as a **config form** — a field per value, the
 value's comment beside it — parsed by `public/config-file.js` without being
 executed, and saved by splicing the one value so comments survive. Anything

@@ -7,8 +7,8 @@ import {
   SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
 } from './sound-maker.js';
 import {
-  PALETTE, SIZES, MAX_SIDE, CLEAR,
-  blankPicture, pictureFrom, copyPicture, pixelAt, drawLine, floodFill,
+  PALETTE, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
   rgbaOf, hexOf, clampSide,
 } from './pixel-editor.js';
 
@@ -72,8 +72,14 @@ const S = {
   tab: 'files',
   open: null, // {path, content, etag, dirty, conflict}
   // Set only while the open file is being drawn on, and thrown away with it:
-  // {picture, tool, colour, undo, dirty}
+  // {picture, undo, dirty}
   draw: null,
+  // Which tool, how wide and what colour are a person's choice, not the
+  // file's, so they outlive opening a different picture — and outlive the file
+  // being re-read underneath the editor, which a save itself causes.
+  drawPrefs: { tool: 'pencil', brush: 1, colour: PALETTE[0] },
+  // Why a picture is not open for drawing on, when it is not.
+  drawRefused: null,
   history: [],
   diff: null,
   historyPath: null,
@@ -430,8 +436,8 @@ function onEvent(name, data) {
       S.historyStale = true;
       if (S.tab === 'versions') loadHistory(S.historyPath);
       if (S.open && data.paths.includes(S.open.path)) {
-        if (S.open.dirty) {
-          say(`${S.open.path} changed while you were editing it. Your text is still here — saving will ask before overwriting.`);
+        if (S.open.dirty || S.draw?.dirty) {
+          say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
         } else {
           openFile(S.open.path);
         }
@@ -544,20 +550,32 @@ async function openFile(path) {
     dirty: false,
   };
   S.draw = null;
+  S.drawRefused = null;
   S.tab = 'files';
   render();
+  // A picture opens as a picture you can draw on. There was a second way to
+  // look at one and it showed it at exactly the same size, so it was a control
+  // that did nothing but cost a click.
+  if (isDrawable(S.open)) await startDrawing();
 }
 
 // Closing throws away unsaved text, which is the one thing in the editor that
 // git cannot get back, so it asks first.
-function closeOpenFile() {
+// `then` is the file to open once this one is out of the way, so choosing
+// another file in the list asks the same question rather than throwing the
+// work away silently. Now that every picture opens ready to draw on, that
+// stray click is a great deal easier to make.
+function closeOpenFile(then = null) {
   if (!S.open) return;
   if (S.open.dirty || S.draw?.dirty) {
-    S.dialog = { kind: 'close-file', path: S.open.path };
-  } else {
-    S.open = null;
-    S.draw = null;
+    S.dialog = { kind: 'close-file', path: S.open.path, then };
+    render();
+    return;
   }
+  S.open = null;
+  S.draw = null;
+  S.drawRefused = null;
+  if (then) { openFile(then); return; }
   render();
 }
 
@@ -768,52 +786,57 @@ function withControlTags(markup) {
   return `${markup}\n${CONTROLS_TAGS}`;
 }
 
-// Worked out before anything is sent, so the dialog can show it: which files
-// would be written, which are left alone, and whether index.html still needs
-// the two lines that load them.
+// What setting the controls up would write. A `content` of null is a file
+// already in the right state, which is what makes pressing this twice cost
+// nothing. Null instead of a list means a template would not load.
 async function controlsPlan() {
   const steps = [];
   for (const { url, path } of CONTROLS_TEMPLATES) {
     // Replacing controls.js would throw away buttons someone chose. The module
     // is the part worth keeping up to date; the bindings belong to the game.
     if (path === 'config/controls.js' && S.files.some((f) => f.path === path)) {
-      steps.push({ path, note: 'already there — your buttons are kept', content: null });
+      steps.push({ path, content: null });
       continue;
     }
     const res = await fetch(url);
     if (!res.ok) return null;
-    steps.push({
-      path,
-      note: S.files.some((f) => f.path === path) ? 'replaces the one there now' : 'new file',
-      content: await res.text(),
-    });
+    steps.push({ path, content: await res.text() });
   }
 
   if (S.files.some((f) => f.path === 'index.html')) {
     const res = await fetch(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
     const markup = res.ok ? await res.text() : null;
     if (markup !== null) {
-      steps.push(markup.includes('js/input.js')
-        ? { path: 'index.html', note: 'already loads them', content: null }
-        : { path: 'index.html', note: 'two lines added so the game loads them', content: withControlTags(markup) });
+      steps.push({
+        path: 'index.html',
+        content: markup.includes('js/input.js') ? null : withControlTags(markup),
+      });
     }
   }
   return steps;
 }
 
-async function addControls(steps) {
+// No dialog in front of this one. An upload asks first because it has a
+// decision in it — which folder — and files that are about to be overwritten.
+// This has neither: the two paths are fixed, an existing controls.js is kept,
+// and every write is a commit that Versions can undo. A confirmation with
+// nothing to confirm is just a click.
+async function addControls() {
+  const steps = await controlsPlan();
+  if (!steps) { say('Could not read the controls to add.', true); return; }
   const writes = steps.filter((s) => s.content !== null);
-  if (!writes.length) {
-    say('The controls were already set up.');
-    return;
-  }
+  if (!writes.length) { say('The controls were already set up.'); return; }
+
   say('Setting up the controls…');
   const { done, failure } = await writeFiles(writes.map(({ path, content }) => ({ path, body: content })));
   if (failure) {
     say(done ? `${failure} ${done} of ${writes.length} got through.` : failure, true);
     return;
   }
-  say('Controls are ready. Open config/controls.js to change the buttons, and ask a helper to use them.');
+  const kept = steps.some((s) => s.path === 'config/controls.js' && s.content === null);
+  say(`Controls are ready: ${writes.map((w) => w.path).join(', ')}.`
+    + (kept ? ' Your own config/controls.js was left alone.' : '')
+    + ' Ask a helper to use them.');
 }
 
 /* Drawing ----------------------------------------------------------------- */
@@ -822,14 +845,14 @@ async function addControls(steps) {
 // change what kind of file it is; a game sprite wants the transparency.
 const isDrawable = (open) => open?.mime === 'image/png';
 
+// Every label says what the tool does to the picture, because a name you have
+// to try before you understand it is a name that failed.
 const DRAW_TOOLS = [
-  { key: 'pencil', label: 'Draw' },
-  { key: 'eraser', label: 'Rub out' },
-  { key: 'fill', label: 'Fill' },
-  { key: 'pick', label: 'Pick colour' },
+  { key: 'pencil', label: 'Draw', title: 'Paint with the chosen colour' },
+  { key: 'eraser', label: 'Erase', title: 'Take the colour out again, back to see-through' },
+  { key: 'fill', label: 'Fill', title: 'Flood everything joined to the pixel you click' },
+  { key: 'pick', label: 'Copy a colour', title: 'Click any pixel to draw with the colour that is already there' },
 ];
-
-const UNDO_STEPS = 24;
 
 function pictureCanvas(picture) {
   const canvas = document.createElement('canvas');
@@ -844,26 +867,28 @@ const pictureBlob = (picture) => new Promise((resolve) => {
 });
 
 // The picture comes back out of the file rather than out of anything the
-// studio kept, so what is drawn on is what is actually on disk.
+// studio kept, so what is drawn on is what is actually on disk. Anything it
+// will not open stays on screen as the picture, with the reason underneath —
+// there is no second way to look at one, so refusing has to leave something.
 async function startDrawing() {
   const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`);
   if (!res.ok) { say('Could not open that picture.', true); return; }
   const bitmap = await createImageBitmap(await res.blob()).catch(() => null);
-  if (!bitmap) { say('That file is not a picture this can open.', true); return; }
+  if (!bitmap) {
+    S.drawRefused = 'This one will not open as a picture, so there is nothing to draw on.';
+    render();
+    return;
+  }
   if (bitmap.width > MAX_SIDE || bitmap.height > MAX_SIDE) {
-    say(`That picture is ${bitmap.width} by ${bitmap.height}. Drawing works up to ${MAX_SIDE} across.`, true);
+    S.drawRefused = `This is ${bitmap.width} by ${bitmap.height}. Drawing works up to `
+      + `${MAX_SIDE} across, so this one is here to look at.`;
+    render();
     return;
   }
   const canvas = pictureCanvas(blankPicture(bitmap.width, bitmap.height));
   canvas.getContext('2d').drawImage(bitmap, 0, 0);
   const { data } = canvas.getContext('2d').getImageData(0, 0, bitmap.width, bitmap.height);
-  S.draw = {
-    picture: pictureFrom(bitmap.width, bitmap.height, data),
-    tool: 'pencil',
-    colour: PALETTE[0],
-    undo: [],
-    dirty: false,
-  };
+  S.draw = { picture: pictureFrom(bitmap.width, bitmap.height, data), undo: [], dirty: false };
   render();
 }
 
@@ -877,24 +902,32 @@ async function createPicture(name, width, height) {
 }
 
 async function saveDrawing() {
+  const { path } = S.open;
+  const drawing = S.draw;
   const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`, {
-    method: 'PUT', headers, body: await pictureBlob(S.draw.picture),
+  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+    method: 'PUT', headers, body: await pictureBlob(drawing.picture),
   });
   const body = await res.json().catch(() => null);
   // The text conflict dialog offers to keep one side or the other. Two
   // pictures cannot be compared in a dialog, and nothing but a person writes a
   // PNG, so this says what happened and touches nothing.
   if (res.status === 409) {
-    say(`Someone changed ${S.open.path} while you were drawing. Close it and open it again to see theirs.`, true);
+    say(`Someone changed ${path} while you were drawing. Close it and open it again to see theirs.`, true);
     return;
   }
   if (!res.ok) { say(body?.error ?? 'Could not save that picture.', true); return; }
-  S.open.etag = body.etag;
-  S.draw.dirty = false;
+  // This write is a commit, and a commit is a files.changed on the stream like
+  // any other, so the pane may already have been rebuilt underneath by the
+  // time the response lands. Only the editor that made the request may finish
+  // the job.
+  if (S.draw === drawing && S.open?.path === path) {
+    S.open.etag = body.etag;
+    S.draw.dirty = false;
+  }
   S.previewNonce += 1;
   await refreshFiles();
-  say(`Saved ${S.open.path}.`);
+  say(`Saved ${path}.`);
 }
 
 /* Sounds ------------------------------------------------------------------ */
@@ -1673,7 +1706,13 @@ function renderMedia({ path, mime }) {
 // drawing on it — the same reason the problems panel is painted in place.
 function renderDrawing() {
   const { picture } = S.draw;
-  const canvas = h('canvas', { class: 'pixels', width: picture.width, height: picture.height });
+  // Blocking up the pixels is what a sprite wants and what a photograph does
+  // not: past a few hundred across, a picture is being shown at or below its
+  // own size and hard edges just make it look broken.
+  const chunky = picture.width <= 256 && picture.height <= 256;
+  const canvas = h('canvas', {
+    class: `pixels${chunky ? '' : ' smooth'}`, width: picture.width, height: picture.height,
+  });
   const state = h('span', { class: 'hint muted' });
   const save = h('button', {
     class: 'filled', text: 'Save',
@@ -1695,12 +1734,17 @@ function renderDrawing() {
 
   // A stroke is one step back, however many pixels it covered, so undoing
   // feels like undoing a thing you did rather than a pixel you passed over.
+  // Bounded by bytes rather than by steps: one copy of a big picture is 4 MB,
+  // and a fixed number of steps would be a fixed number of megabytes times
+  // however large the picture happens to be.
   const remember = () => {
     S.draw.undo.push(new Uint8ClampedArray(picture.data));
-    if (S.draw.undo.length > UNDO_STEPS) S.draw.undo.shift();
+    while (S.draw.undo.length > 1 && S.draw.undo.length * picture.data.length > UNDO_BYTES) {
+      S.draw.undo.shift();
+    }
   };
 
-  const colour = () => (S.draw.tool === 'eraser' ? CLEAR : rgbaOf(S.draw.colour));
+  const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(S.drawPrefs.colour));
 
   // The canvas element fills its box and the picture is fitted inside it, so
   // the picture is centred with an empty strip on two sides. Both have to come
@@ -1721,11 +1765,11 @@ function renderDrawing() {
     if (S.project.archived) return;
     event.preventDefault();
     const [x, y] = spotOf(event);
-    if (S.draw.tool === 'pick') {
+    if (S.drawPrefs.tool === 'pick') {
       const found = pixelAt(picture, x, y);
       // Picking nothing would set the colour to invisible, which reads as the
       // eyedropper being broken rather than as an empty pixel.
-      if (found && found[3] !== 0) { S.draw.colour = hexOf(found); render(); }
+      if (found && found[3] !== 0) { S.drawPrefs.colour = hexOf(found); render(); }
       return;
     }
     remember();
@@ -1734,16 +1778,16 @@ function renderDrawing() {
     // reason to refuse the stroke.
     try { canvas.setPointerCapture(event.pointerId); } catch { /* no capture */ }
     last = [x, y];
-    if (S.draw.tool === 'fill') floodFill(picture, x, y, colour());
-    else drawLine(picture, x, y, x, y, colour());
+    if (S.drawPrefs.tool === 'fill') floodFill(picture, x, y, colour());
+    else drawLine(picture, x, y, x, y, colour(), S.drawPrefs.brush);
     touched();
   });
 
   canvas.addEventListener('pointermove', (event) => {
-    if (!last || S.draw.tool === 'fill' || S.draw.tool === 'pick') return;
+    if (!last || S.drawPrefs.tool === 'fill' || S.drawPrefs.tool === 'pick') return;
     const [x, y] = spotOf(event);
     if (last[0] === x && last[1] === y) return;
-    drawLine(picture, last[0], last[1], x, y, colour());
+    drawLine(picture, last[0], last[1], x, y, colour(), S.drawPrefs.brush);
     last = [x, y];
     touched();
   });
@@ -1753,31 +1797,48 @@ function renderDrawing() {
   canvas.addEventListener('pointercancel', stop);
 
   const tools = h('div', { class: 'row wrap' }, DRAW_TOOLS.map((t) => h('button', {
-    class: `quiet tiny${S.draw.tool === t.key ? ' on' : ''}`,
+    class: `quiet tiny${S.drawPrefs.tool === t.key ? ' on' : ''}`,
     text: t.label,
-    onclick: () => { S.draw.tool = t.key; render(); },
+    title: t.title,
+    onclick: () => { S.drawPrefs.tool = t.key; render(); },
   })));
+
+  // Only worth offering where it changes something: on a 32-square sprite a
+  // 16-wide brush is most of the picture. The brush is a standing choice, so
+  // one carried over from a big picture is brought back down here rather than
+  // painting a whole small one in a single dab.
+  const available = BRUSHES.filter((n) => n === 1 || n <= Math.min(picture.width, picture.height) / 4);
+  if (!available.includes(S.drawPrefs.brush)) S.drawPrefs.brush = available[available.length - 1];
+
+  const brushes = h('div', { class: 'row wrap' },
+    h('span', { class: 'hint muted', text: 'Brush' }),
+    available.map((n) => h('button', {
+      class: `quiet tiny${S.drawPrefs.brush === n ? ' on' : ''}`,
+      text: n === 1 ? '1 pixel' : `${n}`,
+      title: `Paint ${n} pixel${n === 1 ? '' : 's'} across`,
+      onclick: () => { S.drawPrefs.brush = n; render(); },
+    })));
 
   const well = h('input', {
     type: 'color',
     title: 'Any other colour',
-    oninput: (e) => { S.draw.colour = e.currentTarget.value; S.draw.tool = 'pencil'; render(); },
+    oninput: (e) => { S.drawPrefs.colour = e.currentTarget.value; S.drawPrefs.tool = 'pencil'; render(); },
   });
-  well.value = S.draw.colour;
+  well.value = S.drawPrefs.colour;
 
   const swatches = h('div', { class: 'swatches' },
     PALETTE.map((hex) => h('button', {
-      class: `swatch${S.draw.colour === hex && S.draw.tool !== 'eraser' ? ' on' : ''}`,
+      class: `swatch${S.drawPrefs.colour === hex && S.drawPrefs.tool !== 'eraser' ? ' on' : ''}`,
       style: `background:${hex}`,
       title: hex,
-      onclick: () => { S.draw.colour = hex; if (S.draw.tool === 'eraser') S.draw.tool = 'pencil'; render(); },
+      onclick: () => { S.drawPrefs.colour = hex; if (S.drawPrefs.tool === 'eraser') S.drawPrefs.tool = 'pencil'; render(); },
     })),
     well);
 
   paint();
   return h('div', { class: 'drawing grow' },
     h('div', { class: 'media grow' }, canvas),
-    h('div', { class: 'pad col' }, tools, swatches),
+    h('div', { class: 'pad col' }, tools, brushes, swatches),
     h('div', { class: 'editor-bar row' },
       state,
       h('span', { class: 'hint muted', text: `${picture.width} × ${picture.height}` }),
@@ -1811,7 +1872,9 @@ function renderFilesTab() {
   }),
   h('button', {
     class: 'fname', text: f.path, disabled: f.unreachable,
-    onclick: () => openFile(f.path),
+    // Through closeOpenFile so unsaved work in the file you are leaving gets
+    // the same question the ✕ asks.
+    onclick: () => (S.open ? closeOpenFile(f.path) : openFile(f.path)),
   }),
   h('span', { class: 'fsize', text: sizeText(f.size) })));
 
@@ -1822,17 +1885,6 @@ function renderFilesTab() {
     const bar = h('div', { class: 'bar' },
       h('div', { class: 'title mono', text: S.open.path }),
       h('div', { class: 'spacer' }),
-      // Opening the editor looks at the picture a different way, so it is a
-      // link, and the same one closes it again with its words flipped.
-      isDrawable(S.open) ? h('button', {
-        class: 'link tiny', text: S.draw ? 'Just look' : 'Draw on this',
-        onclick: () => {
-          if (!S.draw) { startDrawing(); return; }
-          if (S.draw.dirty) { S.dialog = { kind: 'stop-drawing' }; render(); return; }
-          S.draw = null;
-          render();
-        },
-      }) : null,
       h('button', {
         class: 'link tiny', text: 'Versions',
         onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
@@ -1853,7 +1905,9 @@ function renderFilesTab() {
       : null;
 
     if (S.open.content === null) {
-      editor.push(h('div', { class: 'editor' }, bar, S.draw ? renderDrawing() : renderMedia(S.open)));
+      editor.push(h('div', { class: 'editor' }, bar,
+        S.draw ? renderDrawing() : renderMedia(S.open),
+        S.drawRefused ? h('div', { class: 'pad hint muted', text: S.drawRefused }) : null));
     } else if (parsed?.ok && !S.open.asText) {
       editor.push(h('div', { class: 'editor' }, bar, renderConfigForm(parsed.decls)));
     } else {
@@ -1932,7 +1986,7 @@ function renderFilesTab() {
         class: 'quiet tiny', text: '+ Draw a picture',
         title: 'Draw a sprite and put it in assets/',
         disabled: S.project.archived,
-        onclick: () => { S.dialog = { kind: 'draw-new', size: 32, name: 'sprite' }; render(); },
+        onclick: () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); },
       }),
       h('button', {
         class: 'quiet tiny', text: '+ Make a sound',
@@ -1947,12 +2001,7 @@ function renderFilesTab() {
         class: 'quiet tiny', text: '+ Controls',
         title: 'Keyboard, game controller and touchscreen, for one player or two',
         disabled: S.project.archived,
-        onclick: async () => {
-          const steps = await controlsPlan();
-          if (!steps) { say('Could not read the controls to add.', true); return; }
-          S.dialog = { kind: 'controls', steps };
-          render();
-        },
+        onclick: () => addControls(),
       }),
       h('div', { class: 'spacer' }),
       S.pinned.size
@@ -2041,6 +2090,25 @@ function renderDiff(patch) {
   return h('pre', { class: 'diff' }, lines);
 }
 
+const IMAGE_PATH = /\.(png|jpe?g|gif|webp|svg)$/i;
+const imagesIn = (commit) => (commit?.paths ?? []).filter((p) => IMAGE_PATH.test(p));
+
+// A picture as it was at one commit. git names a path in a commit that deleted
+// it too, and there is nothing to show for that version, so a picture that
+// will not load takes itself out rather than leaving a broken frame.
+const versionImage = (sha, path, cls) => h('img', {
+  class: cls,
+  src: `/api/projects/${S.slug}/history/${sha}/${encodePath(path)}`,
+  alt: path,
+  loading: 'lazy',
+  onerror: (e) => e.currentTarget.closest('.shot, .shot-big')?.remove(),
+});
+
+// A unified diff of a picture is the sentence "Binary files differ", which is
+// git talking about itself rather than about the game. Text still gets its
+// patch; pictures get shown.
+const hasTextChanges = (patch) => patch.split('\n').some((line) => line.startsWith('@@'));
+
 // The changes for one commit, opened inside its own row. Only ever one is
 // open, because opening a second replaces S.diff — which is also what makes
 // "the last one closes itself" true without any bookkeeping.
@@ -2057,11 +2125,18 @@ function diffDrawer() {
         : h('span', { text: p, title: 'This file is not in the game any more' }),
     ]);
 
+  const pictures = imagesIn(S.diff);
+  const text = hasTextChanges(S.diff.patch);
+
   return h('div', { class: 'drawer' },
     h('div', { class: 'hint muted' }, 'Changed: ', paths),
-    S.diff.patch.trim()
-      ? renderDiff(S.diff.patch)
-      : h('div', { class: 'muted', text: 'Nothing to show for this one.' }));
+    pictures.map((p) => h('div', { class: 'shot-big' },
+      h('div', { class: 'hint muted mono', text: p }),
+      versionImage(S.diff.sha, p))),
+    text ? renderDiff(S.diff.patch) : null,
+    !text && !pictures.length
+      ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
+      : null);
 }
 
 // Links are for looking at something, buttons are for changing something. The
@@ -2077,11 +2152,24 @@ function renderVersionsTab() {
 
   const rows = S.history.map((c) => {
     const open = S.diff?.sha === c.sha;
+    const pictures = imagesIn(c);
     return h('div', { class: `commit${open ? ' open' : ''}` },
       h('div', { class: 'subject', text: c.subject }),
       h('div', { class: 'meta' },
         h('span', { class: 'sha', text: c.short }), ' · ', c.author, ' · ',
         new Date(c.at).toLocaleString()),
+      // A picture in a version is worth seeing without asking for it: the
+      // question about a sprite is always "which one is that", and no amount
+      // of reading a commit subject answers it.
+      pictures.length
+        ? h('div', { class: 'shots' }, pictures.map((p) => h('button', {
+          class: 'shot',
+          title: open ? `${p} — hide the details` : `${p} — see it big, and what else changed`,
+          onclick: () => {
+            if (open) { S.diff = null; render(); } else loadDiff(c.sha);
+          },
+        }, versionImage(c.sha, p))))
+        : null,
       h('div', { class: 'row', style: 'margin-top:5px' },
         h('button', {
           class: 'link tiny',
@@ -2315,33 +2403,18 @@ function dialogFor(d) {
 
   // Same shape as the upload dialog: everything it would write is on screen
   // before any of it is sent.
-  if (d.kind === 'controls') {
-    const nothing = d.steps.every((s) => s.content === null);
-    return wrap('Set up the controls',
-      h('p', { text: 'This adds one way in for the keyboard, a game controller and a touchscreen, for one player or two. Arrow buttons appear by themselves on a phone or tablet.' }),
-      h('div', { class: 'plan' }, d.steps.map((s) => h('div', {
-        class: `plan-row${s.content === null ? ' skip' : ''}`,
-      },
-      h('span', { class: 'mono', text: s.path }),
-      h('div', { class: 'spacer' }),
-      h('span', { class: 'hint muted', text: s.note })))),
-      h('p', { class: 'hint muted', text: 'Then ask a helper to use it: Input.held("left") instead of reading keys itself.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: nothing ? 'Already done' : 'Set them up',
-        disabled: nothing,
-        onclick: async () => { close(); await addControls(d.steps); },
-      })));
-  }
-
   if (d.kind === 'draw-new') {
     const name = h('input', { placeholder: 'sprite' });
     name.value = d.name;
     const size = h('select', {}, SIZES.map((n) => h('option', { value: n, text: `${n} × ${n}` })));
     size.value = String(d.size);
     return wrap('Draw a picture',
-      h('label', { text: 'How big? Small squares are easier to draw and look right in a game.' }), size,
+      // Naming the unit is the whole point of this line: 32 means the file is
+      // 32 pixels across, and a game usually draws a sprite that size much
+      // bigger on screen. Picking a number here is picking the real size.
+      h('label', { text: 'How big, in real pixels?' }), size,
       h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png.' }),
+      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; big ones are for backgrounds and title screens.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Start drawing',
         onclick: async () => {
@@ -2351,17 +2424,6 @@ function dialogFor(d) {
           await createPicture(called, side, side);
         },
       })));
-  }
-
-  if (d.kind === 'stop-drawing') {
-    return wrap('Stop drawing?',
-      h('p', { text: 'You have drawn things that are not saved yet. Stopping loses them.' }),
-      h('div', { class: 'actions' },
-        h('button', { class: 'quiet', text: 'Keep drawing', onclick: close }),
-        h('button', {
-          class: 'danger', text: 'Stop without saving',
-          onclick: () => { S.draw = null; close(); },
-        })));
   }
 
   if (d.kind === 'sound') {
@@ -2482,7 +2544,14 @@ function dialogFor(d) {
         h('button', { class: 'quiet', text: 'Keep editing', onclick: close }),
         h('button', {
           class: 'danger', text: 'Close without saving',
-          onclick: () => { S.open = null; S.draw = null; close(); },
+          onclick: () => {
+            S.open = null;
+            S.draw = null;
+            S.drawRefused = null;
+            S.dialog = null;
+            if (d.then) { openFile(d.then); return; }
+            render();
+          },
         })));
   }
 

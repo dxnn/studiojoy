@@ -432,24 +432,47 @@ The studio plays the encoded bytes, so what is heard is what is saved rather
 than a live approximation of it; and the whole thing is checked in `npm test`
 without a browser, which no `AudioContext` would allow.
 
-`+ Draw a picture` makes a transparent PNG and opens it in the **pixel
-editor**; `Draw on this` opens one that is already there, up to 128 a side.
-Pixels are RGBA, exactly as a canvas keeps them, so opening an uploaded sprite
-loses nothing. The tools are in `public/pixel-editor.js` and are arithmetic
-over bytes for the same reason the sound maker is; the canvas, the pointer and
-`toBlob` stay in `main.js`. Three choices worth naming:
+`+ Draw a picture` makes a transparent PNG at the size asked for and opens it
+in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
+side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas keeps
+them, so opening an uploaded picture loses nothing. The tools are in
+`public/pixel-editor.js` and are arithmetic over bytes for the same reason the
+sound maker is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
+choices worth naming:
 
+- **There is no look-only view of a picture.** There was, behind a link, and it
+  showed the picture at exactly the same size as the editor did — a control
+  whose only effect was to cost a click. A PNG too big to draw on stays on
+  screen as a picture with the reason underneath, which is the one case where
+  the two differ.
 - **The picture comes out of the file, not out of the studio's memory.** Every
   open re-reads the bytes, so a version brought back from history is what gets
   drawn on.
+- **Which tool, how wide and what colour live outside the open file.** A save
+  is a commit, a commit is a `files.changed`, and that re-opens the file
+  underneath the editor — so anything held per-file is thrown away every time
+  someone saves. The picture and its undo stack are per-file; the choices are
+  not.
 - **The canvas element fills its box and the picture is fitted inside it.**
   Sizing it by width and height instead squashes it: a canvas has an intrinsic
   size, so a definite width with a capped height gives a 16-square sprite drawn
   16 by 7. The pointer maths takes the resulting empty strip back off.
-- **A conflict is reported, not merged.** The save carries `If-Match` like the
-  text editor, but two pictures cannot be offered side by side in a dialog, and
-  nothing but a person writes a PNG — so a 409 says what happened and changes
-  nothing.
+- **Undo is bounded by bytes, not by steps.** A step is a copy of the picture,
+  so a fixed number of steps is a fixed number of megabytes times however large
+  the picture happens to be: 24 steps of a 1024-square picture is 100 MB.
+
+A conflict is reported rather than merged. The save carries `If-Match` like the
+text editor, but two pictures cannot be offered side by side in a dialog, and
+nothing but a person writes a PNG — so a 409 says what happened and changes
+nothing.
+
+In **Versions**, a commit that touched a picture shows it as a thumbnail
+without being asked, and opening the row shows it whole. The unified diff of a
+PNG is the sentence "Binary files differ", which is git talking about itself
+rather than about the game; the patch is now rendered only when it has a hunk
+in it. `logCommits` carries the paths each commit touched — from `--name-only`
+in the same process, because fifty extra git invocations to discover that a
+version has no picture in it would cost more than the feature is worth.
 
 A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
@@ -485,8 +508,11 @@ Three choices worth naming:
 - **Bindings are never overwritten.** A second press replaces `js/input.js` —
   that is the part worth keeping current — but leaves a `config/controls.js`
   that already exists alone, because it holds buttons somebody chose.
-- **The plan is shown first**, exactly like an upload: every file it would
-  write, with the note beside it, before anything is sent.
+- **No dialog in front of it**, unlike an upload. An upload asks first because
+  it has a decision in it — which folder — and files it is about to replace.
+  This has neither: the paths are fixed, existing bindings are kept, and every
+  write is a commit that Versions can undo. The banner afterwards names the
+  files it wrote. A confirmation with nothing to confirm is just a click.
 
 The module reads its bindings through `try`/`catch` rather than assuming
 `CONTROLS` is there, so a game whose `index.html` loads only one of the two
@@ -1198,7 +1224,9 @@ the test suite never touches the network.
 - Slug rename with a redirect from the old public URL.
 - Session expiry and rotation; CSRF tokens; persistent lockout state.
 - Per-file locking so two agents can't lose an update on the same file.
-- Diff view for binary files (images render as before/after rather than text).
+- Before-and-after for a changed picture. A version's pictures now show as
+  thumbnails and open whole (§6), but each is the picture *at that commit*, not
+  a comparison with the one before it.
 - A dependency-free in-browser code editor with syntax highlighting; v0 ships a
   plain `<textarea>`.
 - Asset pipeline: sprite sheets, audio conversion, minification.
