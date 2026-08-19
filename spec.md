@@ -399,15 +399,24 @@ returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
-An **asset** — a picture, sound or video — arrives the same way: the studio
-reads the dropped or picked `File` and `PUT`s its bytes, one request and one
-commit per file. Client-side only; no route knows an upload from an edit. Three
+`+ Upload` puts **any** file into the game the same way: the studio reads the
+dropped or picked `File` and `PUT`s its bytes, one request and one commit per
+file. Client-side only; no route knows an upload from an edit, and no route
+knows one kind of file from another — `checkProjectPath` validates the shape of
+a path and never its extension, so nothing had to change to accept a `.zip`
+beyond the button that used to claim it took pictures and sounds.
+
+What the pane can *show* is the separate question, answered by `MEDIA_KINDS` in
+`main.js`: one entry per kind, matched in order, and the only place a new kind
+gets added. A file no entry matches is described plainly with a link to save it,
+since the server already serves an unknown extension as a download (§4). Three
 choices worth naming:
 
 - **`assets/` by default, and the agent preamble says so.** A folder the
   helpers already reference is worth more than a folder nobody agreed on. The
   dialog shows the path each file will take before anything is sent, so where
-  the art lands is a decision rather than something to undo.
+  the file lands is a decision rather than something to undo — which matters
+  more now that an upload is not necessarily art.
 - **The filename is tidied, not trusted.** Lowercased, runs of non-alphanumerics
   to one dash, extension kept, and `checkProjectPath` validates the result
   regardless. Two files that tidy to one name are refused rather than one
@@ -457,6 +466,14 @@ choices worth naming:
   Sizing it by width and height instead squashes it: a canvas has an intrinsic
   size, so a definite width with a capped height gives a 16-square sprite drawn
   16 by 7. The pointer maths takes the resulting empty strip back off.
+- **The palette is built, not chosen from.** Sixteen squares, and the chosen one
+  is both what the pencil draws with and what the colour box and the eyedropper
+  write into — so taking a colour off the picture is how the palette fills up
+  rather than something separate from it. Kept per person in `localStorage`
+  beside the rail width, with a Reset, because a palette that vanished on reload
+  would make building one pointless. The four tools are icons; the words stay on
+  `title` and `aria-label`, so nothing is only a picture.
+
 - **A step is the pixels it changed, not a copy of the picture.** One gesture —
   a stroke from pointer down to up, or a fill — records each pixel it touched
   with its colour on both sides. That is a few kilobytes for a stroke at any
@@ -802,7 +819,7 @@ kept in step, and `test/orchestrator.test.js` asserts each one is present:
 
 | what an agent cannot do | what it is told to say |
 |---|---|
-| make or change a picture or a sound | ask for the path by name, and name the button: `+ Draw a picture`, `+ Make a sound`, `+ Picture or sound` |
+| make or change a picture or a sound | ask for the path by name, and name the button: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
 | add the *input module* | `+ Controls`, and meanwhile call `Input.held` rather than reading keys |
 
 One exception is worth stating, because it is easy to get wrong in both

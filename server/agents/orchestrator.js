@@ -97,7 +97,7 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       'it is for — "assets/laser.wav, the shooting noise" — and say which button makes it:',
       '- "+ Draw a picture" draws a sprite square by square and saves a .png, up to 128 across.',
       '- "+ Make a sound" builds a sound effect from a preset and a row of sliders and saves a .wav.',
-      '- "+ Picture or sound" adds one from their own device.',
+      '- "+ Upload" puts any file from their own device into the game.',
       'Writing the game to use a file that is not there yet is fine as long as you have asked for it in the',
       'same reply. Pointing at one nobody has heard of is not: it just fails to load while the game runs.',
       '',

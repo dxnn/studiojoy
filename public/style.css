@@ -129,6 +129,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline-offset: 1px;
 }
 
+/* The studio has almost no real links — a button.link looks at something
+   in-place. This is for the few that genuinely leave, like saving a file the
+   pane cannot show. */
+a { color: var(--accent); }
+
 .mono { font-family: var(--mono); font-size: 13px; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
@@ -596,6 +601,29 @@ details.thinking .trace {
 /* Blocky is right for a sprite blown up and wrong for a photograph, so the
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
+/* A square button holding one icon. The words live on its title and its
+   aria-label, so nothing here is only a picture. */
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  border-color: var(--border);
+}
+button.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+button.icon-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
 .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .swatch { width: 24px; height: 24px; padding: 0; border: 2px solid var(--border); border-radius: 6px; }
 .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }

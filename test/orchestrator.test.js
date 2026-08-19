@@ -339,7 +339,7 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(system, /"\+ Controls"/);
   assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /"\+ Make a sound"/);
-  assert.match(system, /"\+ Picture or sound"/);
+  assert.match(system, /"\+ Upload"/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
 
   // The files sit in the system prompt, ahead of the transcript, so the prefix

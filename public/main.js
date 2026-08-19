@@ -33,6 +33,58 @@ function h(tag, props, ...kids) {
   return el;
 }
 
+/* Icons -------------------------------------------------------------------- */
+
+// h() makes HTML elements, and an <svg> built with createElement is inert —
+// SVG needs its own namespace. Small enough to keep separate rather than
+// teaching h() about namespaces it would use nowhere else.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Drawn in outline from currentColor, so a tool that is on inherits the filled
+// button's ink without a second copy of the icon.
+const ICONS = {
+  pencil: ['M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'],
+  eraser: ['M9 20H6l-3-3 10-10 6 6-7 7z', 'M4 21h16', 'M8 10l6 6'],
+  bucket: ['M6 13l7-7 6.5 6.5-7 7L6 13z', 'M13 6 9.5 2.5', 'M19.5 15.5c1.2 1.7 1.2 3.5 0 3.5s-1.2-1.8 0-3.5z'],
+  // A round bulb, because the first draft was a tapered diagonal body and read
+  // as a second pencil sitting next to the pencil.
+  dropper: ['M3 21l1-3.6 7.8-7.8 2.6 2.6L6.6 20 3 21z', 'M12.8 9.6l2.6 2.6', 'M14.5 6.5a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0-6.4 0'],
+  undo: ['M2 5v6h6', 'M4.6 15.5a9 9 0 1 0 1.9-9.2L2 11'],
+  redo: ['M22 5v6h-6', 'M19.4 15.5a9 9 0 1 1-1.9-9.2L22 11'],
+};
+
+function icon(name, size = 17) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.9');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  // The words are on the button's title and aria-label; the picture is
+  // decoration on top of them.
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ICONS[name] ?? []) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+// An icon button always carries the words too: a picture nobody recognises is
+// only a button you have to press to find out about.
+const iconButton = ({ name, label, hint, on = false, disabled = false, onclick }) => h('button', {
+  class: `icon-btn${on ? ' on' : ''}`,
+  title: hint ? `${label} — ${hint}` : label,
+  'aria-label': label,
+  'aria-pressed': on ? 'true' : null,
+  disabled,
+  onclick,
+}, icon(name));
+
 /* Saved preferences -------------------------------------------------------- */
 
 // Layout is a per-person, per-device choice, so it lives in localStorage
@@ -45,6 +97,21 @@ const prefs = {
     try { localStorage.setItem(`gs.${key}`, String(value)); } catch { /* private mode */ }
   },
 };
+
+// A palette someone mixed is worth more than the one shipped with the studio,
+// and rebuilding it every time the tab reloads would make setting one up
+// pointless. Per person and per device, like the rail width — not per game,
+// which would be a file and a decision nobody asked for.
+function savedPalette() {
+  try {
+    const saved = JSON.parse(prefs.get('palette', 'null'));
+    if (Array.isArray(saved) && saved.length === PALETTE.length
+      && saved.every((c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c))) {
+      return saved;
+    }
+  } catch { /* nothing usable stored */ }
+  return [...PALETTE];
+}
 
 const RAIL_MIN = 280;
 const RAIL_MAX = 900;
@@ -75,10 +142,14 @@ const S = {
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
   draw: null,
-  // Which tool, how wide and what colour are a person's choice, not the
+  // Which tool, how wide and which colours are a person's choice, not the
   // file's, so they outlive opening a different picture — and outlive the file
   // being re-read underneath the editor, which a save itself causes.
-  drawPrefs: { tool: 'pencil', brush: 1, colour: PALETTE[0] },
+  //
+  // The palette is sixteen squares a person builds up, not a fixed list: the
+  // colour well and the eyedropper both write into whichever square is chosen,
+  // and `slot` is which one that is.
+  drawPrefs: { tool: 'pencil', brush: 1, palette: savedPalette(), slot: 0 },
   // Why a picture is not open for drawing on, when it is not.
   drawRefused: null,
   history: [],
@@ -838,6 +909,11 @@ async function addControls() {
   say(`Controls are ready: ${writes.map((w) => w.path).join(', ')}.`
     + (kept ? ' Your own config/controls.js was left alone.' : '')
     + ' Ask a helper to use them.');
+  // A banner is easy to miss, and with the files already in place nothing else
+  // on screen moves — which makes a button that did three commits look like a
+  // button that did nothing. Opening the buttons file is the visible proof, and
+  // it is the part a person actually wants to change.
+  await openFile('config/controls.js');
 }
 
 /* Drawing ----------------------------------------------------------------- */
@@ -846,13 +922,14 @@ async function addControls() {
 // change what kind of file it is; a game sprite wants the transparency.
 const isDrawable = (open) => open?.mime === 'image/png';
 
-// Every label says what the tool does to the picture, because a name you have
-// to try before you understand it is a name that failed.
+// A picture each, since these four are the ones every drawing program in the
+// world draws the same way. The words stay on the title and the aria-label, so
+// nothing is only a picture.
 const DRAW_TOOLS = [
-  { key: 'pencil', label: 'Draw', title: 'Paint with the chosen colour' },
-  { key: 'eraser', label: 'Erase', title: 'Take the colour out again, back to see-through' },
-  { key: 'fill', label: 'Fill', title: 'Flood everything joined to the pixel you click' },
-  { key: 'pick', label: 'Copy a colour', title: 'Click any pixel to draw with the colour that is already there' },
+  { key: 'pencil', name: 'pencil', label: 'Draw', hint: 'paint with the chosen colour' },
+  { key: 'eraser', name: 'eraser', label: 'Erase', hint: 'take the colour out again, back to see-through' },
+  { key: 'fill', name: 'bucket', label: 'Fill', hint: 'flood everything joined to the pixel you click' },
+  { key: 'pick', name: 'dropper', label: 'Eyedropper', hint: 'click a pixel to put its colour in the chosen square' },
 ];
 
 function pictureCanvas(picture) {
@@ -906,6 +983,13 @@ async function createPicture(name, width, height) {
   await openFile(path);
   await startDrawing();
 }
+
+const keepPalette = () => prefs.set('palette', JSON.stringify(S.drawPrefs.palette));
+
+// The colour being drawn with is whatever is in the chosen square, so putting a
+// new colour in that square changes what the pencil does — which is what makes
+// the well and the eyedropper edit the palette rather than sit beside it.
+const chosenColour = () => S.drawPrefs.palette[S.drawPrefs.slot];
 
 // Module scope rather than inside the pane, because the keyboard reaches it
 // too and the pane is rebuilt on every render.
@@ -1719,21 +1803,26 @@ function renderConfigForm(decls) {
 // A picture or sound has nothing to edit, so the pane shows the thing itself.
 // The source is the same authenticated read the editor uses, and that route
 // sends no-store, so a replaced file never shows the bytes it had before.
+// How the pane shows a file that is not text. One entry per kind, matched in
+// order, and the only place a new kind of file has to be added — which is the
+// point of it being a list rather than a run of ifs. `mimeForPath` on the server
+// decides what a file is; this decides what to do about it.
+const MEDIA_KINDS = [
+  { kind: 'picture', when: (mime) => mime?.startsWith('image/'), show: (src, path) => h('img', { src, alt: path }) },
+  { kind: 'sound', when: (mime) => mime?.startsWith('audio/'), show: (src) => h('audio', { src, controls: true }) },
+  { kind: 'video', when: (mime) => mime?.startsWith('video/'), show: (src) => h('video', { src, controls: true }) },
+];
+
 function renderMedia({ path, mime }) {
   const src = `/api/projects/${S.slug}/files/${encodePath(path)}`;
-  if (mime?.startsWith('image/')) {
-    return h('div', { class: 'media grow' }, h('img', { src, alt: path }));
-  }
-  if (mime?.startsWith('audio/')) {
-    return h('div', { class: 'media grow' }, h('audio', { src, controls: true }));
-  }
-  if (mime?.startsWith('video/')) {
-    return h('div', { class: 'media grow' }, h('video', { src, controls: true }));
-  }
-  return h('div', {
-    class: 'pad muted grow',
-    text: 'The studio cannot show this one, but it is still part of the game.',
-  });
+  const kind = MEDIA_KINDS.find((k) => k.when(mime));
+  if (kind) return h('div', { class: 'media grow' }, kind.show(src, path));
+  // Anything the studio has no way to show is still a real part of the game and
+  // still readable — the server sends an unknown type as a download, so the
+  // link is the honest thing to offer instead of an apology.
+  return h('div', { class: 'pad muted grow' },
+    h('p', { text: 'The studio has no way to show this one, but it is part of the game like any other file.' }),
+    h('p', {}, h('a', { href: src, download: path.split('/').pop() }, 'Save it to open somewhere else')));
 }
 
 // Everything here is painted into one canvas and one pair of nodes rather
@@ -1787,7 +1876,7 @@ function renderDrawing() {
     S.draw.dirty = true;
   };
 
-  const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(S.drawPrefs.colour));
+  const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(chosenColour()));
 
   // The canvas element fills its box and the picture is fitted inside it, so
   // the picture is centred with an empty strip on two sides. Both have to come
@@ -1812,7 +1901,13 @@ function renderDrawing() {
       const found = pixelAt(picture, x, y);
       // Picking nothing would set the colour to invisible, which reads as the
       // eyedropper being broken rather than as an empty pixel.
-      if (found && found[3] !== 0) { S.drawPrefs.colour = hexOf(found); render(); }
+      // Into the chosen square, so picking a colour off the picture is how you
+      // build the palette up rather than something separate from it.
+      if (found && found[3] !== 0) {
+        S.drawPrefs.palette[S.drawPrefs.slot] = hexOf(found);
+        keepPalette();
+        render();
+      }
       return;
     }
     // A pointerup that never arrived — released off-window with no capture —
@@ -1857,10 +1952,11 @@ function renderDrawing() {
   canvas.addEventListener('pointerup', stop);
   canvas.addEventListener('pointercancel', stop);
 
-  const tools = h('div', { class: 'row wrap' }, DRAW_TOOLS.map((t) => h('button', {
-    class: `quiet tiny${S.drawPrefs.tool === t.key ? ' on' : ''}`,
-    text: t.label,
-    title: t.title,
+  const tools = h('div', { class: 'row wrap' }, DRAW_TOOLS.map((t) => iconButton({
+    name: t.name,
+    label: t.label,
+    hint: t.hint,
+    on: S.drawPrefs.tool === t.key,
     onclick: () => { S.drawPrefs.tool = t.key; render(); },
   })));
 
@@ -1880,21 +1976,53 @@ function renderDrawing() {
       onclick: () => { S.drawPrefs.brush = n; render(); },
     })));
 
+  // Sixteen squares that belong to the person, not to the studio. Choosing one
+  // says both "draw with this" and "this is the one the well and the eyedropper
+  // will change".
+  const chips = S.drawPrefs.palette.map((hex, i) => h('button', {
+    class: `swatch${S.drawPrefs.slot === i ? ' on' : ''}`,
+    style: `background:${hex}`,
+    title: `${hex} — click to draw with it, then use the colour box or the eyedropper to change it`,
+    'aria-label': `Colour ${i + 1}, ${hex}`,
+    onclick: () => {
+      S.drawPrefs.slot = i;
+      if (S.drawPrefs.tool === 'eraser') S.drawPrefs.tool = 'pencil';
+      render();
+    },
+  }));
+
   const well = h('input', {
     type: 'color',
-    title: 'Any other colour',
-    oninput: (e) => { S.drawPrefs.colour = e.currentTarget.value; S.drawPrefs.tool = 'pencil'; render(); },
+    title: 'Change the square you have chosen to any colour at all',
+    'aria-label': 'Change the chosen colour',
   });
-  well.value = S.drawPrefs.colour;
+  well.value = S.drawPrefs.palette[S.drawPrefs.slot];
+  // Dragging around a colour picker fires input continuously, and a render per
+  // step would replace the picker while it is open. The square is repainted in
+  // place; only letting go writes the choice down.
+  well.addEventListener('input', () => {
+    S.drawPrefs.palette[S.drawPrefs.slot] = well.value;
+    const chip = chips[S.drawPrefs.slot];
+    if (chip) chip.style.background = well.value;
+  });
+  well.addEventListener('change', () => {
+    keepPalette();
+    render();
+  });
 
   const swatches = h('div', { class: 'swatches' },
-    PALETTE.map((hex) => h('button', {
-      class: `swatch${S.drawPrefs.colour === hex && S.drawPrefs.tool !== 'eraser' ? ' on' : ''}`,
-      style: `background:${hex}`,
-      title: hex,
-      onclick: () => { S.drawPrefs.colour = hex; if (S.drawPrefs.tool === 'eraser') S.drawPrefs.tool = 'pencil'; render(); },
-    })),
-    well);
+    chips,
+    well,
+    h('button', {
+      class: 'link tiny',
+      text: 'Reset',
+      title: 'Put the sixteen starting colours back',
+      onclick: () => {
+        S.drawPrefs.palette = [...PALETTE];
+        keepPalette();
+        render();
+      },
+    }));
 
   paint();
   return h('div', { class: 'drawing grow' },
@@ -1904,15 +2032,17 @@ function renderDrawing() {
       state,
       h('span', { class: 'hint muted', text: `${picture.width} × ${picture.height}` }),
       h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'quiet tiny', text: 'Undo',
-        title: 'Take back the last thing you drew (⌘Z)',
+      iconButton({
+        name: 'undo',
+        label: 'Undo',
+        hint: 'take back the last thing you drew (⌘Z)',
         disabled: !S.draw.undo.length,
         onclick: () => stepDrawing(true),
       }),
-      h('button', {
-        class: 'quiet tiny', text: 'Redo',
-        title: 'Put back what you just took back (⇧⌘Z)',
+      iconButton({
+        name: 'redo',
+        label: 'Redo',
+        hint: 'put back what you just took back (⇧⌘Z)',
         disabled: !S.draw.redo.length,
         onclick: () => stepDrawing(false),
       }),
@@ -2028,7 +2158,7 @@ function renderFilesTab() {
   const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}` },
     rows.length ? rows : h('div', {
       class: 'pad muted',
-      text: 'No files yet. Ask a helper to make one, or drop a picture here.',
+      text: 'No files yet. Ask a helper to make one, or drop a file here.',
     }));
   if (!S.project.archived) makeDropTarget(tree);
 
@@ -2040,8 +2170,8 @@ function renderFilesTab() {
         onclick: () => { S.dialog = { kind: 'new-file' }; render(); },
       }),
       h('button', {
-        class: 'quiet tiny', text: '+ Picture or sound',
-        title: 'Add a picture or sound from this device',
+        class: 'quiet tiny', text: '+ Upload',
+        title: 'Put any file from this device into the game',
         disabled: S.project.archived,
         onclick: () => picker.click(),
       }),
@@ -2433,8 +2563,10 @@ function dialogFor(d) {
       })));
   }
 
-  // Nothing is sent until this is confirmed, so where the art lands is visible
-  // before it lands there rather than being something to undo afterwards.
+  // Nothing is sent until this is confirmed, so where each file lands is
+  // visible before it lands there rather than being something to undo
+  // afterwards. Any kind of file: what the studio can show it as is a separate
+  // question, answered by MEDIA_KINDS when it is opened.
   if (d.kind === 'upload') {
     const folder = h('input', { placeholder: 'leave empty for the top of the game' });
     folder.value = ASSET_DIR;
@@ -2459,8 +2591,8 @@ function dialogFor(d) {
       await uploadFiles(plan);
     });
 
-    return wrap(d.files.length === 1 ? 'Add this to the game' : `Add ${d.files.length} things`,
-      h('label', { text: 'Which folder?' }), folder,
+    return wrap(d.files.length === 1 ? 'Upload this file' : `Upload ${d.files.length} files`,
+      h('label', { text: 'Which folder? assets/ is where pictures and sounds go; anything else can go where it belongs.' }), folder,
       list,
       h('div', { class: 'actions' }, cancel, ok));
   }
