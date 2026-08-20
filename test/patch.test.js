@@ -1,17 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { patchFor, hasHunks } from '../public/patch.js';
-import { initRepo, commitPaths, diffCommit, logCommits } from '../server/files/git.js';
+import { scratchDir } from './helpers.js';
+import { patchFor, hasHunks, renameIn } from '../public/patch.js';
+import {
+  initRepo, commitPaths, movePath, diffCommit, logCommits,
+} from '../server/files/git.js';
 
 const AGENT = { name: 'Level Designer', email: 'tank@agent.gamestudio.local' };
 
 // Against git's own output rather than a hand-written sample: the thing this
-// has to survive is what git actually prints, quoted paths and all.
+// has to survive is what git actually prints, renames and odd names and all.
 async function repo(name) {
-  const dir = path.join(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'gs-patch-')), name);
+  const dir = path.join(scratchDir(name), name);
   await initRepo(dir, { author: AGENT, slug: name });
   return dir;
 }
@@ -74,6 +76,33 @@ test('a name with a space or an accent in it is still found', async () => {
   // would be talking about different files.
   const [head] = await logCommits(dir, { limit: 1 });
   assert.ok(head.paths.includes(accented), JSON.stringify(head.paths));
+});
+
+// A rename is one section under two names, and the version list of the old
+// name is exactly where somebody goes looking for where the file went. git
+// heads that section `a/<old> b/<new>`, so matching only the new name finds
+// nothing and the drawer says there is nothing to show.
+test('a rename is found under either of its names, and says where it went', async () => {
+  const dir = await repo('patch-rename');
+  write(dir, 'game.js', 'let a = 1;\n');
+  await commitPaths(dir, ['game.js'], 'first', AGENT);
+  const sha = await movePath(dir, 'game.js', 'js/game.js', 'move into js/', AGENT);
+
+  const whole = await diffCommit(dir, sha);
+  assert.match(whole, /^diff --git a\/game\.js b\/js\/game\.js$/m, 'git heads it with both');
+
+  for (const name of ['game.js', 'js/game.js']) {
+    const one = patchFor(whole, name);
+    assert.match(one, /rename to js\/game\.js/, `found under ${name}`);
+    assert.equal(hasHunks(one), false, 'nothing changed inside it');
+    assert.equal(renameIn(one), 'js/game.js', `where it went, from ${name}`);
+  }
+
+  // The list filtered to the old name still finds the commit, so the drawer
+  // has something to be about.
+  const commits = await logCommits(dir, { path: 'game.js' });
+  assert.equal(commits[0].subject, 'move into js/');
+  assert.equal(renameIn('diff --git a/a b/a\n@@ -1 +1 @@\n-x\n+y\n'), null);
 });
 
 // A picture's diff is "Binary files differ" — a section with no hunk in it.

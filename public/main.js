@@ -3,7 +3,7 @@
 // place so a long reply doesn't rebuild the thread on every chunk.
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
-import { patchFor, hasHunks } from './patch.js';
+import { patchFor, hasHunks, renameIn } from './patch.js';
 import {
   SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
 } from './sound-maker.js';
@@ -344,14 +344,25 @@ function urlNow() {
 // navigated to. `hold` is for a click that passes through a state on its way
 // to another, where only where it ends up is somewhere to come back to.
 let urlMode = 'push';
+let urlModeToken = null;
 
+// ⚠️ The mode is one global held across an await, so two of these can overlap
+// — a Back pressed while a click is still working. Whoever set it last owns
+// it, and only that one puts it back; restoring a saved value instead let an
+// inner call finish first and leave `hold` standing, after which nothing ever
+// wrote the address again. Going back to the default cannot get stuck: the
+// worst an overlap costs now is one entry too many.
 async function urlAs(mode, fn) {
-  const was = urlMode;
+  const token = {};
   urlMode = mode;
+  urlModeToken = token;
   try {
     await fn();
   } finally {
-    urlMode = was;
+    if (urlModeToken === token) {
+      urlMode = 'push';
+      urlModeToken = null;
+    }
   }
 }
 
@@ -396,14 +407,10 @@ async function applyView({ tab, file, version }) {
   if (S.tab === 'versions') {
     if (historyNeedsLoad(want)) await loadHistory(want);
     if (version !== (S.diff?.sha ?? null)) {
-      if (version) {
-        // Arriving at a version is arriving at its row, which a link can drop
-        // you thirty rows above.
-        showDiffRow = true;
-        await loadDiff(version);
-      } else {
-        S.diff = null;
-      }
+      // Arriving at a version is arriving at its row, which a link can drop
+      // you thirty rows above.
+      if (version) await loadDiff(version, { goTo: true });
+      else S.diff = null;
     }
   } else if (S.tab === 'files') {
     // Back is a way out of a file as much as into one, and either way it goes
@@ -420,12 +427,20 @@ async function applyView({ tab, file, version }) {
 // than the project being fetched again: openProject clears the pins, the open
 // traces and anything mid-stream, which is far too much to throw away for a
 // Back that only closed a file.
-const followUrl = () => urlAs('replace', async () => {
-  const slug = slugFromUrl();
-  const view = viewFromUrl();
-  if (slug && slug === S.slug) await applyView(view);
-  else await openProject(slug, { view });
-});
+// One at a time. Two Backs pressed quickly both fetch, and interleaved they
+// can settle in the other order — leaving the rail describing the address
+// before last. Queued, the last address applied is the one showing.
+let following = Promise.resolve();
+
+const followUrl = () => {
+  following = following.then(() => urlAs('replace', async () => {
+    const slug = slugFromUrl();
+    const view = viewFromUrl();
+    if (slug && slug === S.slug) await applyView(view);
+    else await openProject(slug, { view });
+  }));
+  return following;
+};
 
 async function start() {
   const me = await api('GET', '/api/me');
@@ -435,8 +450,15 @@ async function start() {
     connectStream();
     await followUrl();
   }
-  S.loading = false;
-  render();
+  // In replace mode: nothing was written while S.loading held syncUrl off, so
+  // this is the render that first writes the address — and an address arrived
+  // at is never a new entry. Otherwise a link whose parameters were in another
+  // order, or named a file that has since gone, would be canonicalised into a
+  // second entry and Back could not leave the studio.
+  await urlAs('replace', async () => {
+    S.loading = false;
+    render();
+  });
 }
 
 async function loadProjects() {
@@ -669,9 +691,11 @@ function onEvent(name, data) {
       // again.
       S.errors = [];
       // A commit landed, so the versions list is now behind. Reload it if it
-      // is on screen; otherwise let opening the tab do it.
+      // is on screen; otherwise let opening the tab do it. In replace mode:
+      // a helper finishing its turn is not somewhere the reader navigated to,
+      // and every turn would otherwise leave an entry behind.
       S.historyStale = true;
-      if (S.tab === 'versions') loadHistory(S.historyPath);
+      if (S.tab === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
       if (S.open && data.paths.includes(S.open.path)) {
         if (S.open.dirty || S.draw?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
@@ -1478,10 +1502,15 @@ async function loadHistory(path = null) {
 // the narrowing happens here rather than in the request, so the version can
 // also say how many other files it touched. `All files changed (n)` clears the
 // filter, which is how you get the rest of it.
-async function loadDiff(sha) {
+// `goTo` for a diff opened from somewhere other than its own row, which may be
+// anywhere down a list of fifty. Set here rather than by the caller so it is
+// set only when there is a row to go to: a request that fails renders nothing,
+// and a flag left standing would jump the list on some later render instead.
+async function loadDiff(sha, { goTo = false } = {}) {
   const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}`);
   if (res.ok) {
     S.diff = res.body;
+    showDiffRow = showDiffRow || goTo;
     render();
   }
 }
@@ -1821,11 +1850,15 @@ function renderMessage(msg) {
       title: 'See what changed',
       // The changes open inside their own row in the list, so the list has to
       // be there — arriving here from a chip used to skip loading it entirely.
+      // Getting there is one move however many steps it takes, so it is one
+      // entry in the history and it ends on the row it opened.
       onclick: async () => {
-        S.tab = 'versions';
-        render();
-        if (S.historyPath || S.historyStale || S.history.length === 0) await loadHistory(null);
-        await loadDiff(w.commit_sha);
+        await urlAs('hold', async () => {
+          S.tab = 'versions';
+          render();
+          if (historyNeedsLoad(null)) await loadHistory(null);
+        });
+        await loadDiff(w.commit_sha, { goTo: true });
       },
     }));
   }
@@ -2682,10 +2715,38 @@ const versionImage = (sha, path, cls) => h('img', {
 
 // A path, as a way back to the file it names — which is the usual reason to
 // be reading about it. A path that is no longer in the game is plain text:
-// there is nothing to open, and it says so on hover.
-const fileLink = (path) => (S.files.some((f) => f.path === path)
-  ? h('button', { class: 'link', text: path, onclick: () => chooseFile(path) })
-  : h('span', { text: path, title: 'This file is not in the game any more' }));
+// there is nothing to open, and it says so on hover. So is an unreachable one,
+// which the file list will not open either — a control that lights up and then
+// answers with a red banner is the same fault in a different place.
+function fileLink(path) {
+  const entry = S.files.find((f) => f.path === path);
+  if (entry && !entry.unreachable) {
+    return h('button', { class: 'link', text: path, onclick: () => chooseFile(path) });
+  }
+  return h('span', {
+    text: path,
+    title: entry
+      ? 'The studio cannot open this file — see the list under Files'
+      : 'This file is not in the game any more',
+  });
+}
+
+// The part of the open version being read: the whole commit, or one file's
+// share of it. Kept until the version or the filter changes, because a whole
+// commit can be hundreds of kilobytes and an open drawer is re-rendered by
+// every chunk of an agent's reply.
+let shownPatch = { key: null, patch: '' };
+
+function patchShown() {
+  const key = `${S.diff.sha}|${S.historyPath ?? ''}`;
+  if (shownPatch.key !== key) {
+    shownPatch = {
+      key,
+      patch: S.historyPath ? patchFor(S.diff.patch, S.historyPath) : S.diff.patch,
+    };
+  }
+  return shownPatch.patch;
+}
 
 // The changes for one commit, opened inside its own row. Only ever one is
 // open, because opening a second replaces S.diff — which is also what makes
@@ -2704,9 +2765,11 @@ function diffDrawer() {
     ]));
 
   const pictures = imagesIn(S.diff);
-  // The whole commit arrives; one file's part of it is taken here.
-  const patch = oneFile ? patchFor(S.diff.patch, S.historyPath) : S.diff.patch;
+  const patch = patchShown();
   const text = hasHunks(patch);
+  // A version that only moved the file has no hunk and no picture in it, and
+  // said nothing at all until it said this.
+  const movedTo = !text && oneFile ? renameIn(patch) : null;
 
   return h('div', { class: 'drawer' },
     oneFile ? null : h('div', { class: 'hint muted' }, 'Changed: ', paths),
@@ -2714,7 +2777,8 @@ function diffDrawer() {
       oneFile ? null : h('div', { class: 'hint muted mono', text: p }),
       versionImage(S.diff.sha, p))),
     text ? renderDiff(patch) : null,
-    !text && !pictures.length
+    movedTo ? h('div', { class: 'hint muted' }, 'Renamed to ', fileLink(movedTo)) : null,
+    !text && !movedTo && !pictures.length
       ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
       : null);
 }
@@ -2788,11 +2852,7 @@ function renderVersionsTab() {
               // Dropping the filter is on the way to the whole version, not
               // somewhere to come back to, so the two steps are one entry.
               await urlAs('hold', () => loadHistory(null));
-              // Set before the diff, because loading one renders: this row is
-              // somewhere down a list of fifty now, and going there is the
-              // point of the click.
-              showDiffRow = true;
-              await loadDiff(c.sha);
+              await loadDiff(c.sha, { goTo: true });
             },
           })
           : null,
@@ -2860,12 +2920,15 @@ function renderRail() {
   const tab = (id, label) => h('button', {
     class: `tiny${S.tab === id ? ' on' : ''}`,
     text: label,
-    onclick: () => {
-      S.tab = id;
+    onclick: async () => {
       // Clicking Versions means all of them, the same as Show all. A list
       // filtered to one file is somewhere you arrive from that file, not a
-      // state the tab should hold on to.
-      if (id === 'versions' && historyNeedsLoad(null)) loadHistory(null);
+      // state the tab should hold on to. Held and awaited, or the render below
+      // would write the filter's address on the way to dropping it.
+      await urlAs('hold', async () => {
+        S.tab = id;
+        if (id === 'versions' && historyNeedsLoad(null)) await loadHistory(null);
+      });
       render();
     },
   });
@@ -3151,13 +3214,17 @@ function dialogFor(d) {
         h('button', { class: 'quiet', text: 'Keep editing', onclick: close }),
         h('button', {
           class: 'danger', text: 'Close without saving',
-          onclick: () => {
+          // Awaited and always rendered: the dialog is still on screen until
+          // something renders, and the file being opened next may take a
+          // moment or fail. Same rule as closeOpenFile — whoever waits for the
+          // close is waiting for the open.
+          onclick: async () => {
             S.open = null;
             S.draw = null;
             S.drawRefused = null;
             S.dialog = null;
-            if (d.then) { openFile(d.then); return; }
             render();
+            if (d.then) await openFile(d.then);
           },
         })));
   }

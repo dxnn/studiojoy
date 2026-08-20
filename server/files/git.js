@@ -200,7 +200,10 @@ function parseLog(out) {
         subject: subject ?? '',
         // A merge shows no names and the first commit shows all of them; both
         // are just a list, and an empty one is honest about saying nothing.
-        paths: rest.map((line) => line.trim()).filter((line) => line.length > 0),
+        // ⚠️ Not trimmed: a name is allowed to start or end with a space, and
+        // this list is matched against the file listing and against the patch,
+        // so a tidied-up name matches neither.
+        paths: rest.filter((line) => line.length > 0),
       };
     });
 }

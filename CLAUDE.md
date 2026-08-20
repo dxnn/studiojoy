@@ -290,6 +290,14 @@ address is also held while a dialog is open — a decision in progress is not a
 view to link to, and that is what stops a Back out of unsaved work from
 overwriting the entry it was going to.
 
+The same rule the other way round: **anything that reaches a view in more than
+one step wraps them in `urlAs('hold', …)`**, or each step leaves an entry
+behind. Three places do it — `All files changed (n)`, the Versions tab, and a
+file chip under a reply — and each ends with `loadDiff(sha, {goTo: true})` so
+the row it opened is the row you are looking at. A background event uses
+`replace` for the same reason: a helper's commit landing is not somewhere the
+reader navigated to.
+
 Browser-checked end to end: a link followed while signed out survives the sign
 in and lands on the filtered version list; three files opened in turn walk back
 one at a time with `history.length` never moving, and so does file → versions →

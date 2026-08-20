@@ -627,6 +627,11 @@ come back and nothing else: `paths` names every file each one touched, and the
 diff route has no filter at all. Narrowing to one file — its part of the patch,
 its picture, nothing else — is done by the reader, in `public/patch.js`.
 
+A **rename** is one section under two names — git heads it `a/<old> b/<new>` —
+so `patchFor` matches either side, and a move with nothing else in it, which
+has no hunk and no picture to show, is rendered as the sentence *Renamed to
+&lt;path&gt;* rather than as an empty drawer.
+
 The reason is that the two halves have to agree. Git's pathspec filters the
 *names* along with the commits, so a log scoped to one file used to report
 every version of it as a one-file version: a nine-file refactor read from one
