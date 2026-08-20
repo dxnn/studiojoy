@@ -333,35 +333,84 @@ function urlNow() {
   return `/p/${S.slug}${query ? `?${query}` : ''}`;
 }
 
-// Written from the state by render(), so no click has to remember to do it.
-// replaceState rather than push: Back goes to the game you were in before,
-// not back through every file you opened while you were in it. Only when it
-// differs — a streaming reply renders many times a second, and browsers
-// throttle a history call made that often.
+// How render() writes the address. `push` — the default — is a navigation and
+// gets an entry of its own. `replace` is for bringing the state into line with
+// an address the browser already has: the first load, Back, a reopen nobody
+// navigated to. `hold` is for a click that passes through a state on its way
+// to another, where only where it ends up is somewhere to come back to.
+let urlMode = 'push';
+
+async function urlAs(mode, fn) {
+  const was = urlMode;
+  urlMode = mode;
+  try {
+    await fn();
+  } finally {
+    urlMode = was;
+  }
+}
+
+// Written from the state by render(), so no click has to remember to do it,
+// and only when it differs — a streaming reply renders many times a second,
+// and browsers throttle a history call made that often.
 function syncUrl() {
   // ⚠️ Nothing is written before there is a session to write about: signed
   // out, S.slug is null, and rewriting the URL to / would throw away the deep
   // link somebody followed before they had finished answering the sign-in
   // form. render() returns early in that state too — this is the rule stated
   // where it can be read rather than left to the order of two statements.
-  if (!S.me || S.loading) return;
+  if (!S.me || S.loading || urlMode === 'hold') return;
   const url = urlNow();
-  if (url !== location.pathname + location.search) history.replaceState({}, '', url);
+  if (url === location.pathname + location.search) return;
+  // An entry per file, tab and version, so Back walks back through them the
+  // way it walks back through games.
+  if (urlMode === 'replace') history.replaceState({}, '', url);
+  else history.pushState({}, '', url);
 }
 
-// Put the rail where a URL says. Every part is optional, and a part that is no
+// Put the rail where a URL says, and take away what it does not say — Back out
+// of a file has to close it. Every part is optional, and a part that is no
 // longer there — a deleted file, a commit off the end of the list — simply
 // does not open; the rest of the view still arrives.
 async function applyView({ tab, file, version }) {
   if (isChat()) return;
   S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
+  const want = file ?? null;
   if (S.tab === 'versions') {
-    await loadHistory(file ?? null);
-    if (version) await loadDiff(version);
-  } else if (S.tab === 'files' && file) {
-    await openFile(file);
+    if (want !== S.historyPath || S.history.length === 0 || S.historyStale) {
+      await loadHistory(want);
+    }
+    if (version !== (S.diff?.sha ?? null)) {
+      if (version) {
+        // Arriving at a version is arriving at its row, which a link can drop
+        // you thirty rows above.
+        showDiffRow = true;
+        await loadDiff(version);
+      } else {
+        S.diff = null;
+      }
+    }
+  } else if (S.tab === 'files') {
+    // Back is a way out of a file as much as into one, and either way it goes
+    // through the same question the ✕ asks when there is unsaved work. Answer
+    // that no and the file stays open, so the next render puts its own address
+    // back — a duplicate entry is a smaller price than losing what was typed.
+    if (want && want !== S.open?.path) await chooseFile(want);
+    else if (!want && S.open) closeOpenFile();
   }
+  render();
 }
+
+// Back, and the first load. Same game means the rail moves on its own rather
+// than the project being fetched again: openProject clears the pins, the open
+// traces and anything mid-stream, which is far too much to throw away for a
+// Back that only closed a file.
+const followUrl = () => urlAs('replace', async () => {
+  const slug = slugFromUrl();
+  const view = viewFromUrl();
+  if (slug && slug === S.slug) await applyView(view);
+  else await openProject(slug, { view });
+});
 
 async function start() {
   const me = await api('GET', '/api/me');
@@ -369,7 +418,7 @@ async function start() {
     S.me = me.body;
     await Promise.all([loadProjects(), loadAgents()]);
     connectStream();
-    await openProject(slugFromUrl(), { push: false, view: viewFromUrl() });
+    await followUrl();
   }
   S.loading = false;
   render();
@@ -385,7 +434,9 @@ async function loadAgents() {
   if (res.ok) S.agents = res.body;
 }
 
-async function openProject(slug, { push = true, view = null } = {}) {
+// The address is render()'s to write — opening a game only sets the state.
+// Wrap the call in urlAs('replace', …) when it is not a navigation.
+async function openProject(slug, { view = null } = {}) {
   // Half-typed text belongs to the game it was typed in, so it is parked
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
@@ -403,7 +454,6 @@ async function openProject(slug, { push = true, view = null } = {}) {
     S.open = null;
     S.palette = null;
     S.libraries = { studio: S.libraries.studio, game: {} };
-    if (push) history.pushState({}, '', '/');
     render();
     return;
   }
@@ -428,7 +478,6 @@ async function openProject(slug, { push = true, view = null } = {}) {
   S.traces.clear();
   S.autoscroll = true;
   S.palette = null;
-  if (push) history.pushState({}, '', `/p/${slug}`);
   render();
   if (!isChat()) {
     await loadLibraries();
@@ -441,9 +490,7 @@ async function openProject(slug, { push = true, view = null } = {}) {
   await applyView(view ?? { tab: S.tab });
 }
 
-window.addEventListener('popstate', () => openProject(slugFromUrl(), {
-  push: false, view: viewFromUrl(),
-}));
+window.addEventListener('popstate', followUrl);
 
 /* Live events ------------------------------------------------------------- */
 
@@ -2692,7 +2739,10 @@ function renderVersionsTab() {
           },
         }, versionImage(c.sha, p))))
         : null,
-      h('div', { class: 'row', style: 'margin-top:5px' },
+      // Wrapped: three controls and a "Current version" do not fit a narrow
+      // rail, and a label broken across two lines mid-phrase reads worse than
+      // a control moved to the next line whole.
+      h('div', { class: 'row wrap', style: 'margin-top:5px' },
         h('button', {
           class: 'link tiny',
           // One control in one place, its label saying which way it goes,
@@ -2716,7 +2766,9 @@ function renderVersionsTab() {
           ? h('button', {
             class: 'link tiny', text: `All files changed (${c.changed})`,
             onclick: async () => {
-              await loadHistory(null);
+              // Dropping the filter is on the way to the whole version, not
+              // somewhere to come back to, so the two steps are one entry.
+              await urlAs('hold', () => loadHistory(null));
               // Set before the diff, because loading one renders: this row is
               // somewhere down a list of fifty now, and going there is the
               // point of the click.
@@ -2871,7 +2923,9 @@ function dialogFor(d) {
           if (!res.ok) { say(res.body?.error ?? 'Could not rename it.', true); return; }
           close();
           await loadProjects();
-          await openProject(S.slug, { push: false });
+          // Reopening the game you are already in is not somewhere new to go
+          // Back from, even though it does clear the rail.
+          await urlAs('replace', () => openProject(S.slug));
         },
       })));
   }
@@ -2886,7 +2940,9 @@ function dialogFor(d) {
         onclick: async () => {
           await api('POST', `/api/projects/${S.slug}/archive`, { archived: false });
           close();
-          await openProject(S.slug, { push: false });
+          // Reopening the game you are already in is not somewhere new to go
+          // Back from, even though it does clear the rail.
+          await urlAs('replace', () => openProject(S.slug));
         },
       })));
   }

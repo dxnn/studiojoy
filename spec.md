@@ -639,11 +639,18 @@ The rest of the view is in the query string, which the server never reads:
 `?tab=play|versions` (absent means Files), `?file=<path>` — the open file under
 Files, the filter under Versions — and `?version=<sha>` for the changes opened
 in the Versions list. The client writes it from its own state on every render
-rather than at each click, with `replaceState`, so no control can forget to and
-Back goes to the game you were in before rather than through every file you
-opened while you were in it. Reading it back is the same code path on load and
-on Back, and a part that no longer exists — a deleted file, a commit past the
-end of the list — simply does not open.
+rather than at each click, so no control can forget to, and every view is an
+entry of its own: Back walks back through the files, tabs and versions opened
+inside a game the way it walks back through games. `replaceState` is used only
+while *following* an address the browser already has — the load, Back itself —
+where a push would duplicate the entry being arrived at.
+
+Reading it back is the same code path on load and on Back, and it takes away
+what the address does not say as well as putting in what it does: Back out of a
+file closes it. Within one game the rail moves on its own rather than the
+project being refetched, because reopening a project clears the pins, the
+reasoning traces and anything mid-stream. A part that no longer exists — a
+deleted file, a commit past the end of the list — simply does not open.
 
 ### Games origin (`GAMES_PORT`)
 

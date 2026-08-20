@@ -272,11 +272,22 @@ design; spec.md §8 says why.
 
 The URL is the view. `?tab=`, `?file=` and `?version=` carry the rail — which
 tab, which file, which version's changes — so a link sends what you are
-looking at and a reload comes back to it. Written by `render()` with
-`replaceState`, read by the same code on load and on Back; the server never
-looks at the query (spec.md §6). ⚠️ Never written while signed out, or the
-deep link would be gone by the time the sign-in form was answered.
-Not browser-checked: the Playwright MCP has no chromium installed here.
+looking at and a reload comes back to it. Written by `render()`, read by the
+same code on load and on Back; the server never looks at the query (spec.md
+§6). Every view is its own entry, so Back closes a file, and inside one game it
+does that without refetching the project — `openProject` clears the pins and
+the traces. `replaceState` only while following an address that already exists.
+⚠️ Never written while signed out, or the deep link would be gone by the time
+the sign-in form was answered.
+
+Browser-checked end to end: a link followed while signed out survives the sign
+in and lands on the filtered version list; Back walks tab → file → file →
+version and keeps the pins; a Back out of unsaved work asks the same question
+the ✕ asks and puts the file's own address back if the answer is no; one click
+on `All files changed (3)` is one entry, not two; and both that click and a
+`?version=` link put the row at the top of a list of thirty-one. The whole file
+row opens the file — checked by clicking the size — and the pin checkbox
+still does not.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
