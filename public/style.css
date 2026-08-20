@@ -701,6 +701,9 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
    above it rather than to the list. */
 .commit.open { background: var(--accent-soft); }
 .commit .drawer { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+/* Where "Bring this file back" sits on every other row. Sized like the buttons
+   it stands in for, so the row does not change height at the top of the list. */
+.commit .current { font-size: 13px; color: var(--muted); }
 
 /* Pictures a version changed, shown in the row without being asked for. The
    checkerboard is the same one the pane uses, so a see-through sprite reads as

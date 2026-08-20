@@ -86,7 +86,7 @@ export function historyRoutes(r) {
     let paths;
     try {
       patch = await diffCommit(dir, sha, filter);
-      paths = await commitPathsTouched(dir, sha);
+      paths = await commitPathsTouched(dir, sha, filter);
     } catch (err) {
       if (err instanceof GitError) throw new HttpError(404, 'no such commit');
       throw err;

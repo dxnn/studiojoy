@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setup, signIn } from './helpers.js';
-import { logCommits } from '../server/files/git.js';
+import { logCommits, commitPaths } from '../server/files/git.js';
 
 async function project(t) {
   const app = await setup();
@@ -141,6 +141,31 @@ test('a diff carries the patch and the paths it touched', async (t) => {
     'GET', `/api/projects/tank/diff/${second.body.commit}?path=game.js`,
   );
   assert.match(scoped.body.patch, /let a = 2;/);
+});
+
+// The versions list filtered to one file opens its diffs filtered too, so both
+// halves of the response have to be about that file — a patch for one path
+// beside a paths list naming three is the drawer disagreeing with itself.
+test('a diff scoped to one path reports only that path', async (t) => {
+  const { app, dir } = await project(t);
+  const author = { name: 'Dann', email: 'dann@example.com' };
+  const both = ['game.js', 'notes.md'];
+  const writeBoth = (game, notes) => {
+    fs.writeFileSync(path.join(dir, 'game.js'), game);
+    fs.writeFileSync(path.join(dir, 'notes.md'), notes);
+  };
+  writeBoth('let a = 1;\n', 'one\n');
+  await commitPaths(dir, both, 'add both', author);
+  writeBoth('let a = 2;\n', 'two\n');
+  const sha = await commitPaths(dir, both, 'change both', author);
+
+  const all = await app.client.json('GET', `/api/projects/tank/diff/${sha}`);
+  assert.deepEqual(all.body.paths.sort(), ['game.js', 'notes.md']);
+
+  const scoped = await app.client.json('GET', `/api/projects/tank/diff/${sha}?path=game.js`);
+  assert.deepEqual(scoped.body.paths, ['game.js']);
+  assert.doesNotMatch(scoped.body.patch, /notes\.md/);
+  assert.match(scoped.body.patch, /^\+let a = 2;$/m);
 });
 
 test('restore writes the old bytes as a new commit', async (t) => {

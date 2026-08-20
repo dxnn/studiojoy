@@ -241,10 +241,12 @@ export async function restoreTree(dir, sha) {
 }
 
 // Paths touched by a commit, used to render the file chips under an agent
-// reply and to label a history entry.
-export async function commitPathsTouched(dir, sha) {
-  const out = await git(dir, [
-    'show', '--name-only', '--format=', requireSha(sha),
-  ]);
+// reply and to label a history entry. The optional filter is the same one
+// diffCommit takes, so a scoped diff and the list of what it changed cannot
+// disagree.
+export async function commitPathsTouched(dir, sha, filePath = null) {
+  const args = ['show', '--name-only', '--format=', requireSha(sha)];
+  if (filePath) args.push('--', filePath);
+  const out = await git(dir, args);
   return out.toString('utf8').split('\n').filter((l) => l.length > 0);
 }

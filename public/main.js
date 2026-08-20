@@ -215,6 +215,35 @@ function restoreFocus(snap) {
   el.scrollTop = snap.scroll;
 }
 
+// How far down a list you are is state, and it lived on nodes that render()
+// throws away — so picking a file forty rows down rebuilt the list at the top
+// and lost your place. Each scroller carries a name, and the name is what the
+// position is remembered against. Missing names are simply not restored, so a
+// list that only appears in one state costs nothing.
+function scrollSnapshot() {
+  const snap = new Map();
+  for (const el of root.querySelectorAll('[data-scroll]')) {
+    if (el.scrollTop > 0) snap.set(el.dataset.scroll, el.scrollTop);
+  }
+  return snap;
+}
+
+function restoreScroll(snap) {
+  if (snap.size === 0) return;
+  for (const el of root.querySelectorAll('[data-scroll]')) {
+    const top = snap.get(el.dataset.scroll);
+    if (top) el.scrollTop = top;
+  }
+}
+
+// Restoring the offset is not enough for the file list: opening a file shrinks
+// it to about five rows, so the row you just clicked can end up below the
+// bottom of a list that is technically where you left it. `nearest` does
+// nothing when the row is already on screen.
+function keepOpenFileInView() {
+  document.querySelector('.tree .file.open')?.scrollIntoView({ block: 'nearest' });
+}
+
 const isChat = () => S.project?.kind === 'chat';
 
 // A picture is the first file whose byte count nobody can read, so sizes are
@@ -1301,8 +1330,13 @@ async function loadHistory(path = null) {
   }
 }
 
+// The list's filter is the drawer's filter: from one file's versions the
+// question is what happened to that file, not what else rode along in the same
+// commit. "See the whole version" clears the filter first, which is how you
+// get the rest of it.
 async function loadDiff(sha) {
-  const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}`);
+  const query = S.historyPath ? `?path=${encodeURIComponent(S.historyPath)}` : '';
+  const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}${query}`);
   if (res.ok) {
     S.diff = res.body;
     render();
@@ -1499,7 +1533,7 @@ function renderSidebar() {
         onclick: () => { S.dialog = { kind: 'new-project' }; render(); },
       })),
     h('div', { class: 'section-label', text: 'Games' }),
-    h('div', { class: 'scroll' },
+    h('div', { class: 'scroll', 'data-scroll': 'games' },
       rows.length ? rows : h('div', { class: 'pad muted', text: 'No games yet. Make one!' })),
     renderChatList(),
     renderHelperList(),
@@ -1768,6 +1802,7 @@ function renderChat() {
 
   const scroller = h('div', {
     class: 'scroll',
+    'data-scroll': 'chat',
     onscroll: (e) => {
       const el = e.currentTarget;
       S.autoscroll = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -1961,7 +1996,7 @@ function renderConfigForm(decls) {
     : [h('div', { class: 'pad muted', text: 'Nothing to change in here yet.' })];
 
   return [
-    h('div', { class: 'scroll cfg' }, body),
+    h('div', { class: 'scroll cfg', 'data-scroll': 'cfg' }, body),
     h('div', { class: 'editor-bar row' },
       h('span', {
         class: 'hint muted', id: 'cfg-status', text: S.open.dirty ? 'Not saved yet' : 'Saved',
@@ -2277,7 +2312,10 @@ function renderFilesTab() {
       }),
       h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',
-        onclick: closeOpenFile,
+        // Wrapped, not passed: closeOpenFile's first argument is the file to
+        // open next, and handing it the click event asked for a file named
+        // "[object PointerEvent]" instead of closing anything.
+        onclick: () => closeOpenFile(),
       }));
 
     // A config file opens as fields rather than code, unless it holds something
@@ -2343,7 +2381,7 @@ function renderFilesTab() {
 
   // With a file open the list shrinks to about five rows and the editor takes
   // everything else; with nothing open the list fills the pane.
-  const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}` },
+  const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}`, 'data-scroll': 'files' },
     rows.length ? rows : h('div', {
       class: 'pad muted',
       text: 'No files yet. Ask a helper to make one, or drop a file here.',
@@ -2433,7 +2471,7 @@ function renderPlayTab() {
   // gets the untouched page. That is why no game carries a script tag for
   // this and why every game already reports.
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
-  return [h('div', { class: 'scroll' },
+  return [h('div', { class: 'scroll', 'data-scroll': 'play' },
     h('div', { class: 'preview-wrap' },
       h('div', { class: 'row' },
         h('button', { class: 'quiet tiny', text: '⟳ Reload', onclick: () => { S.previewNonce += 1; render(); } }),
@@ -2499,25 +2537,30 @@ const hasTextChanges = (patch) => patch.split('\n').some((line) => line.startsWi
 // open, because opening a second replaces S.diff — which is also what makes
 // "the last one closes itself" true without any bookkeeping.
 function diffDrawer() {
+  // Filtered to one file, the drawer is about the file the header already
+  // names, so listing it and labelling its picture would be that same path a
+  // third and fourth time in one row.
+  const oneFile = Boolean(S.historyPath);
+
   // Each path goes to that file in the editor: the usual reason to read a diff
   // is to go and change the file it is about. A path that is no longer in the
   // game is plain text — there is nothing to open — and says so on hover.
-  const paths = S.diff.paths.length === 0
+  const paths = oneFile ? null : (S.diff.paths.length === 0
     ? ['nothing']
     : S.diff.paths.map((p, i) => [
       i ? ', ' : null,
       S.files.some((f) => f.path === p)
         ? h('button', { class: 'link', text: p, onclick: () => openFile(p) })
         : h('span', { text: p, title: 'This file is not in the game any more' }),
-    ]);
+    ]));
 
   const pictures = imagesIn(S.diff);
   const text = hasTextChanges(S.diff.patch);
 
   return h('div', { class: 'drawer' },
-    h('div', { class: 'hint muted' }, 'Changed: ', paths),
+    oneFile ? null : h('div', { class: 'hint muted' }, 'Changed: ', paths),
     pictures.map((p) => h('div', { class: 'shot-big' },
-      h('div', { class: 'hint muted mono', text: p }),
+      oneFile ? null : h('div', { class: 'hint muted mono', text: p }),
       versionImage(S.diff.sha, p))),
     text ? renderDiff(S.diff.patch) : null,
     !text && !pictures.length
@@ -2536,9 +2579,15 @@ function renderVersionsTab() {
       ? h('button', { class: 'link tiny', text: 'All files', onclick: () => loadHistory(null) })
       : null);
 
-  const rows = S.history.map((c) => {
+  const rows = S.history.map((c, i) => {
     const open = S.diff?.sha === c.sha;
     const pictures = imagesIn(c);
+    // This list is git log for one path, newest first, so its first row is the
+    // commit that produced the bytes on disk — bringing it back would commit
+    // the file over itself. Unless that commit was the one that deleted it, in
+    // which case bringing it back is the entire point.
+    const current = S.historyPath && i === 0
+      && S.files.some((f) => f.path === S.historyPath);
     return h('div', { class: `commit${open ? ' open' : ''}` },
       h('div', { class: 'subject', text: c.subject }),
       h('div', { class: 'meta' },
@@ -2583,7 +2632,11 @@ function renderVersionsTab() {
             },
           })
           : null,
-        S.historyPath && !S.project.archived
+        // Text, not a control: there is nowhere for it to go. It stays put in
+        // the row rather than disappearing, so the newest version says what it
+        // is instead of being the one row with nothing on the right.
+        current ? h('span', { class: 'current', text: 'Current version' }) : null,
+        S.historyPath && !current && !S.project.archived
           ? h('button', {
             class: 'quiet tiny', text: 'Bring this file back',
             onclick: () => {
@@ -2608,7 +2661,7 @@ function renderVersionsTab() {
   // has nowhere to open, so it falls back to the foot of the list rather than
   // vanishing.
   const inList = S.history.some((c) => c.sha === S.diff?.sha);
-  return [header, h('div', { class: 'scroll' },
+  return [header, h('div', { class: 'scroll', 'data-scroll': 'versions' },
     rows.length ? rows : h('div', { class: 'pad muted', text: 'No versions yet.' }),
     S.diff && !inList ? h('div', { class: 'pad' }, diffDrawer()) : null)];
 }
@@ -3060,6 +3113,7 @@ function dialogFor(d) {
 
 function render() {
   const focus = focusSnapshot();
+  const scrolls = scrollSnapshot();
   // Rebuilt by the Play tab if it is on screen; null means an arriving
   // problem has nothing live to paint into and needs a full render.
   problemNodes = null;
@@ -3101,8 +3155,13 @@ function render() {
     if (dialog) root.append(dialog);
   }
 
+  restoreScroll(scrolls);
   restoreFocus(focus);
+  // After restoreScroll, both of them: sticking the thread to the bottom and
+  // pulling the open file into view are deliberate overrides of where the list
+  // used to be.
   stickToBottom();
+  keepOpenFileInView();
 }
 
 // A file dropped anywhere but the list would otherwise be opened by the

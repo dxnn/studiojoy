@@ -123,6 +123,10 @@ test('one commit can carry every file a turn wrote', async () => {
   );
   const touched = await commitPathsTouched(dir, sha);
   assert.deepEqual(touched.sort(), ['css/style.css', 'index.html', 'js/game.js']);
+  assert.deepEqual(
+    await commitPathsTouched(dir, sha, 'js/game.js'), ['js/game.js'],
+    'one file\'s history asks what happened to that file',
+  );
   assert.equal((await logCommits(dir)).length, 2, 'one turn is one commit');
 });
 
