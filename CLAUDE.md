@@ -113,13 +113,15 @@ traces, model choice), but user-facing strings are plain language and
 destructive actions confirm first. The UI says **helper** where the code says
 **agent** — see GLOSSARY.md, and don't let "helper" leak into the code.
 
-Two conventions to keep: **a link looks at something, a button changes
-something** (`Show changes`, `All files`, `See the whole version`, `Versions`
-are `button.link`; `Bring this file back` is a bordered button), and anything a
-control reveals opens **in the row it belongs to**, not at the foot of the list
-— one open at a time, and the same control closes it again with its label
-flipped (`Show changes` / `Hide changes`) rather than a second control
-appearing.
+Three conventions to keep. **A link looks at something, a button changes
+something** (`Show changes`, `All files`, `All files changed (n)`, `Versions`
+and every path in a diff are `button.link`; `Bring this file back` is a
+bordered button). Anything a control reveals opens **in the row it belongs
+to**, not at the foot of the list — one open at a time, and the same control
+closes it again with its label flipped (`Show changes` / `Hide changes`)
+rather than a second control appearing. And **what lights up is what can be
+clicked**: a row that highlights under the pointer opens on a click anywhere
+in it, or it does not highlight at all.
 
 ## Current state
 
@@ -267,6 +269,14 @@ agent description, not on the last user message. Measured
 ahead of it 100% when no file changed. Runtime errors stay on the last user
 message — they change every playthrough. `BRIEF.md` is in both places by
 design; spec.md §8 says why.
+
+The URL is the view. `?tab=`, `?file=` and `?version=` carry the rail — which
+tab, which file, which version's changes — so a link sends what you are
+looking at and a reload comes back to it. Written by `render()` with
+`replaceState`, read by the same code on load and on Back; the server never
+looks at the query (spec.md §6). ⚠️ Never written while signed out, or the
+deep link would be gone by the time the sign-in form was answered.
+Not browser-checked: the Playwright MCP has no chromium installed here.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

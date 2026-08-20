@@ -635,6 +635,16 @@ call per commit.
 `GET /` and `GET /p/:slug` serve `public/index.html` for client-side routing.
 Other paths serve from `public/`.
 
+The rest of the view is in the query string, which the server never reads:
+`?tab=play|versions` (absent means Files), `?file=<path>` — the open file under
+Files, the filter under Versions — and `?version=<sha>` for the changes opened
+in the Versions list. The client writes it from its own state on every render
+rather than at each click, with `replaceState`, so no control can forget to and
+Back goes to the game you were in before rather than through every file you
+opened while you were in it. Reading it back is the same code path on load and
+on Back, and a part that no longer exists — a deleted file, a commit past the
+end of the list — simply does not open.
+
 ### Games origin (`GAMES_PORT`)
 
 | method | path | effect |

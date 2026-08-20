@@ -525,8 +525,11 @@ details.thinking .trace {
   align-items: center;
   gap: 8px;
   padding: 4px 14px;
+  cursor: pointer;
 }
-.file:hover { background: var(--hover); }
+/* Lit and clickable are the same thing: the row that highlights is the row
+   that opens. An unreachable one can do neither, so it does neither. */
+.file:not(.unreachable):hover { background: var(--hover); }
 .file .fname {
   flex: 1;
   min-width: 0;
@@ -545,6 +548,7 @@ details.thinking .trace {
 .file .fname:hover { background: none; color: var(--accent); }
 .file .fsize { font-size: 11px; color: var(--muted); }
 .file.open .fname { color: var(--accent); font-weight: 600; }
+.file.unreachable { cursor: default; }
 .file.unreachable .fname { color: var(--muted); text-decoration: line-through; cursor: default; }
 /* Dragging a picture over the list. Inset outline rather than a border so the
    rows below don't shift by two pixels as the highlight comes and goes. */

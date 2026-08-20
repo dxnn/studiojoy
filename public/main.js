@@ -244,6 +244,20 @@ function keepOpenFileInView() {
   document.querySelector('.tree .file.open')?.scrollIntoView({ block: 'nearest' });
 }
 
+// A diff opened from somewhere other than its own row — from one file's
+// versions, where the whole version is fifty rows away — has to be gone to.
+// One shot, set by whatever opened it: doing this on every render would yank
+// the list around under someone who had scrolled away from an open diff.
+let showDiffRow = false;
+
+function keepDiffInView() {
+  if (!showDiffRow) return;
+  showDiffRow = false;
+  // 'start', not 'nearest': the row being on screen is not the point, seeing
+  // what is inside it is, and the drawer is below the row.
+  document.querySelector('.commit.open')?.scrollIntoView({ block: 'start' });
+}
+
 const isChat = () => S.project?.kind === 'chat';
 
 // A picture is the first file whose byte count nobody can read, so sizes are
@@ -295,13 +309,67 @@ const slugFromUrl = () => {
   return match ? match[1] : null;
 };
 
+const RAIL_TABS = ['files', 'play', 'versions'];
+
+// The URL is the view: which game, which tab, which file, which version — so
+// what someone is looking at is always the thing they can send to somebody
+// else. `file` is whichever file the rail is about: the open one under Files,
+// the filter under Versions. One name because it is one idea.
+const viewFromUrl = () => {
+  const q = new URLSearchParams(location.search);
+  return { tab: q.get('tab'), file: q.get('file'), version: q.get('version') };
+};
+
+function urlNow() {
+  if (!S.slug) return '/';
+  const q = new URLSearchParams();
+  if (!isChat()) {
+    if (S.tab !== 'files') q.set('tab', S.tab);
+    const file = S.tab === 'versions' ? S.historyPath : (S.tab === 'files' ? S.open?.path : null);
+    if (file) q.set('file', file);
+    if (S.tab === 'versions' && S.diff) q.set('version', S.diff.sha);
+  }
+  const query = q.toString();
+  return `/p/${S.slug}${query ? `?${query}` : ''}`;
+}
+
+// Written from the state by render(), so no click has to remember to do it.
+// replaceState rather than push: Back goes to the game you were in before,
+// not back through every file you opened while you were in it. Only when it
+// differs — a streaming reply renders many times a second, and browsers
+// throttle a history call made that often.
+function syncUrl() {
+  // ⚠️ Nothing is written before there is a session to write about: signed
+  // out, S.slug is null, and rewriting the URL to / would throw away the deep
+  // link somebody followed before they had finished answering the sign-in
+  // form. render() returns early in that state too — this is the rule stated
+  // where it can be read rather than left to the order of two statements.
+  if (!S.me || S.loading) return;
+  const url = urlNow();
+  if (url !== location.pathname + location.search) history.replaceState({}, '', url);
+}
+
+// Put the rail where a URL says. Every part is optional, and a part that is no
+// longer there — a deleted file, a commit off the end of the list — simply
+// does not open; the rest of the view still arrives.
+async function applyView({ tab, file, version }) {
+  if (isChat()) return;
+  S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
+  if (S.tab === 'versions') {
+    await loadHistory(file ?? null);
+    if (version) await loadDiff(version);
+  } else if (S.tab === 'files' && file) {
+    await openFile(file);
+  }
+}
+
 async function start() {
   const me = await api('GET', '/api/me');
   if (me.ok) {
     S.me = me.body;
     await Promise.all([loadProjects(), loadAgents()]);
     connectStream();
-    await openProject(slugFromUrl(), { push: false });
+    await openProject(slugFromUrl(), { push: false, view: viewFromUrl() });
   }
   S.loading = false;
   render();
@@ -317,7 +385,7 @@ async function loadAgents() {
   if (res.ok) S.agents = res.body;
 }
 
-async function openProject(slug, { push = true } = {}) {
+async function openProject(slug, { push = true, view = null } = {}) {
   // Half-typed text belongs to the game it was typed in, so it is parked
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
@@ -366,13 +434,16 @@ async function openProject(slug, { push = true } = {}) {
     await loadLibraries();
     render();
   }
-  // The rail keeps whichever tab you were on, so arriving at a game with
-  // Versions already open has to fetch now. Waiting for the next click on the
-  // tab is what made the list look empty until you left it and came back.
-  if (S.tab === 'versions' && !isChat()) await loadHistory(null);
+  // The rail keeps whichever tab you were on unless a URL says otherwise, so
+  // arriving at a game with Versions already open has to fetch now. Waiting
+  // for the next click on the tab is what made the list look empty until you
+  // left it and came back.
+  await applyView(view ?? { tab: S.tab });
 }
 
-window.addEventListener('popstate', () => openProject(slugFromUrl(), { push: false }));
+window.addEventListener('popstate', () => openProject(slugFromUrl(), {
+  push: false, view: viewFromUrl(),
+}));
 
 /* Live events ------------------------------------------------------------- */
 
@@ -686,6 +757,12 @@ function closeOpenFile(then = null) {
   S.drawRefused = null;
   render();
 }
+
+// Choosing a file from anywhere at all — the list, a path in a diff, the
+// header of one file's versions. Through closeOpenFile so unsaved work in the
+// file being left gets the same question the ✕ asks, wherever the click came
+// from.
+const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(path));
 
 async function saveOpenFile({ force = false } = {}) {
   if (!S.open) return;
@@ -2271,6 +2348,10 @@ function renderFilesTab() {
   const controls = libraryOffer('input');
   const rows = S.files.map((f) => h('div', {
     class: `file${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
+    // The whole row opens the file, not just the name on it. The row is what
+    // lights up under the pointer, and the size, the gap and the padding used
+    // to be lit and dead at the same time. An unreachable row does neither.
+    onclick: f.unreachable ? null : () => chooseFile(f.path),
   },
   h('input', {
     type: 'checkbox',
@@ -2281,18 +2362,18 @@ function renderFilesTab() {
       : 'Pin this file so helpers look at it',
     checked: S.pinned.has(f.path),
     disabled: f.unreachable || f.library,
+    // Its own control, inside a row that is also one: pinning a file is not
+    // asking to open it.
+    onclick: (e) => e.stopPropagation(),
     onchange: (e) => {
       if (e.currentTarget.checked) S.pinned.add(f.path);
       else S.pinned.delete(f.path);
       render();
     },
   }),
-  h('button', {
-    class: 'fname', text: f.path, disabled: f.unreachable,
-    // Through closeOpenFile so unsaved work in the file you are leaving gets
-    // the same question the ✕ asks.
-    onclick: () => (S.open ? closeOpenFile(f.path) : openFile(f.path)),
-  }),
+  // No handler of its own — the click reaches the row. Still a button so the
+  // row can be got at by keyboard.
+  h('button', { class: 'fname', text: f.path, disabled: f.unreachable }),
   h('span', { class: 'fsize', text: sizeText(f.size) })));
 
   const editor = [];
@@ -2533,6 +2614,13 @@ const versionImage = (sha, path, cls) => h('img', {
 // patch; pictures get shown.
 const hasTextChanges = (patch) => patch.split('\n').some((line) => line.startsWith('@@'));
 
+// A path, as a way back to the file it names — which is the usual reason to
+// be reading about it. A path that is no longer in the game is plain text:
+// there is nothing to open, and it says so on hover.
+const fileLink = (path) => (S.files.some((f) => f.path === path)
+  ? h('button', { class: 'link', text: path, onclick: () => chooseFile(path) })
+  : h('span', { text: path, title: 'This file is not in the game any more' }));
+
 // The changes for one commit, opened inside its own row. Only ever one is
 // open, because opening a second replaces S.diff — which is also what makes
 // "the last one closes itself" true without any bookkeeping.
@@ -2542,16 +2630,11 @@ function diffDrawer() {
   // third and fourth time in one row.
   const oneFile = Boolean(S.historyPath);
 
-  // Each path goes to that file in the editor: the usual reason to read a diff
-  // is to go and change the file it is about. A path that is no longer in the
-  // game is plain text — there is nothing to open — and says so on hover.
   const paths = oneFile ? null : (S.diff.paths.length === 0
     ? ['nothing']
     : S.diff.paths.map((p, i) => [
       i ? ', ' : null,
-      S.files.some((f) => f.path === p)
-        ? h('button', { class: 'link', text: p, onclick: () => openFile(p) })
-        : h('span', { text: p, title: 'This file is not in the game any more' }),
+      fileLink(p),
     ]));
 
   const pictures = imagesIn(S.diff);
@@ -2569,11 +2652,15 @@ function diffDrawer() {
 }
 
 // Links are for looking at something, buttons are for changing something. The
-// distinction is the whole vocabulary of this list: What changed, All files and
-// See this in all versions are links; bringing a version back is a button.
+// distinction is the whole vocabulary of this list: Show changes, All files
+// and All files changed are links; bringing a version back is a button.
 function renderVersionsTab() {
   const header = h('div', { class: 'pad row' },
-    h('span', { class: 'hint muted', text: S.historyPath ? `Versions of ${S.historyPath}` : 'All versions' }),
+    // The name in the heading is the way back to the file: you got here from
+    // it, and the usual next move is to go and change it.
+    S.historyPath
+      ? h('span', { class: 'hint muted' }, 'Versions of ', fileLink(S.historyPath))
+      : h('span', { class: 'hint muted', text: 'All versions' }),
     h('div', { class: 'spacer' }),
     S.historyPath
       ? h('button', { class: 'link tiny', text: 'All files', onclick: () => loadHistory(null) })
@@ -2620,14 +2707,20 @@ function renderVersionsTab() {
             }
           },
         }),
-        S.historyPath
-          // From one file's history, the useful move is to go and look at the
-          // whole version this file changed in — not to roll the project back,
-          // which is a decision you make from the full list.
+        // From one file's history, the useful move is to go and look at the
+        // whole version this file changed in — not to roll the project back,
+        // which is a decision you make from the full list. The count is the
+        // whole commit, so a version that touched nothing but the file being
+        // read offers nothing: there is no rest of it to see.
+        S.historyPath && c.changed > 1
           ? h('button', {
-            class: 'link tiny', text: 'See the whole version',
+            class: 'link tiny', text: `All files changed (${c.changed})`,
             onclick: async () => {
               await loadHistory(null);
+              // Set before the diff, because loading one renders: this row is
+              // somewhere down a list of fifty now, and going there is the
+              // point of the click.
+              showDiffRow = true;
               await loadDiff(c.sha);
             },
           })
@@ -3162,6 +3255,10 @@ function render() {
   // used to be.
   stickToBottom();
   keepOpenFileInView();
+  keepDiffInView();
+  // Last, so the URL is written from the state that actually made it onto the
+  // screen.
+  syncUrl();
 }
 
 // A file dropped anywhere but the list would otherwise be opened by the
