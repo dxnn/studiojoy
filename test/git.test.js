@@ -67,6 +67,27 @@ test('filtering the log by path leaves the commits it returns intact', async () 
   assert.deepEqual(commits[0].paths, ['assets/hero.png']);
 });
 
+// `paths` is filtered along with the commits, so how big each commit actually
+// was is a separate question — and the one the client asks to decide whether
+// there is any rest of the version to offer.
+test('a filtered log still says how many files each commit touched', async () => {
+  const dir = await repo('git-log-changed');
+  write(dir, 'a.txt', '1');
+  write(dir, 'b.txt', '1');
+  await commitPaths(dir, ['a.txt', 'b.txt'], 'both', AGENT);
+  write(dir, 'a.txt', '2');
+  await commitPaths(dir, ['a.txt'], 'just a', AGENT);
+
+  const [alone, together] = await logCommits(dir, { path: 'a.txt' });
+  assert.equal(alone.changed, 1);
+  assert.equal(together.changed, 2);
+  assert.deepEqual(together.paths, ['a.txt'], 'the filter still holds for paths');
+
+  // Nothing to count against when the whole log is already the whole story.
+  const [head] = await logCommits(dir);
+  assert.equal(head.changed, undefined);
+});
+
 // The point of passing identity per invocation: this must work with no
 // global git config at all, which is how the deployed server runs.
 test('the commit author is the identity passed in, not the host config', async () => {

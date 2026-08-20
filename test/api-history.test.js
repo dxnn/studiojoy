@@ -41,6 +41,9 @@ test('history filters by path and honours a limit', async (t) => {
 
   const forA = await app.client.json('GET', '/api/projects/tank/history?path=a.txt');
   assert.deepEqual(forA.body.map((c) => c.subject), ['update a.txt', 'create a.txt']);
+  // Each of these commits is one file, which is what tells the versions list
+  // there is no whole version worth offering.
+  assert.deepEqual(forA.body.map((c) => c.changed), [1, 1]);
 
   const limited = await app.client.json('GET', '/api/projects/tank/history?limit=2');
   assert.equal(limited.body.length, 2);

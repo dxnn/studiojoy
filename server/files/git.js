@@ -175,13 +175,9 @@ export async function movePath(dir, from, to, message, author) {
 // fifty extra git invocations to find that out would be worse than the feature.
 // Each commit is prefixed with a record separator, so a commit's own paths are
 // whatever follows it up to the next one.
-export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}) {
-  const fmt = ['%x1e%H', '%h', '%an', '%ae', '%aI', '%s'].join('%x1f');
-  const args = [
-    'log', `--max-count=${Number(limit) || 50}`, `--format=${fmt}`, '--name-only',
-  ];
-  if (filePath) args.push('--', filePath);
-  const out = (await git(dir, args)).toString('utf8');
+const LOG_FMT = ['%x1e%H', '%h', '%an', '%ae', '%aI', '%s'].join('%x1f');
+
+function parseLog(out) {
   return out
     .split(RS)
     .filter((record) => record.trim().length > 0)
@@ -200,6 +196,29 @@ export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}
         paths: rest.map((line) => line.trim()).filter((line) => line.length > 0),
       };
     });
+}
+
+export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}) {
+  const args = [
+    'log', `--max-count=${Number(limit) || 50}`, `--format=${LOG_FMT}`, '--name-only',
+  ];
+  if (filePath) args.push('--', filePath);
+  const commits = parseLog((await git(dir, args)).toString('utf8'));
+
+  // A pathspec filters the names as well as the commits, so a filtered log
+  // cannot say how big each commit was — and that count is what lets the client
+  // offer the rest of a version, or say nothing when there is no rest. Asked
+  // for in one call over the page's shas rather than one call per commit; `--`
+  // so a file named like a sha cannot be read as a path.
+  if (filePath && commits.length > 0) {
+    const all = parseLog((await git(dir, [
+      'log', '--no-walk', `--format=${LOG_FMT}`, '--name-only',
+      ...commits.map((c) => c.sha), '--',
+    ])).toString('utf8'));
+    const counts = new Map(all.map((c) => [c.sha, c.paths.length]));
+    for (const commit of commits) commit.changed = counts.get(commit.sha) ?? 0;
+  }
+  return commits;
 }
 
 // Raw bytes of a path at a commit. Buffer, not string, because a project can

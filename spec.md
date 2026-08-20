@@ -611,11 +611,18 @@ files falls back to a playable default instead of throwing on the first frame.
 
 | method | path | notes |
 |---|---|---|
-| GET | `/api/projects/:slug/history` | `?path=&limit=` — commits, newest first: `{sha, short, author, subject, at, paths?}` |
+| GET | `/api/projects/:slug/history` | `?path=&limit=` — commits, newest first: `{sha, short, author, subject, at, paths?, changed?}` |
 | GET | `/api/projects/:slug/history/:sha/*path` | file content at that commit |
 | GET | `/api/projects/:slug/diff/:sha` | `?path=` — unified diff text |
 | POST | `/api/projects/:slug/restore` | `{sha, path}` — write the old content, new commit |
 | POST | `/api/projects/:slug/rollback` | `{sha}` — the whole tree back to that commit, new commit; returns `{commit, restored, removed}`, with `commit: null` when the tree already matched |
+
+`?path=` filters the names as well as the commits, so `paths` in a filtered log
+is that one path and nothing else. `changed` — how many files the commit
+touched in all — is sent only then, and is what lets the versions list offer
+the rest of a version, or say nothing when the file being read *is* the whole
+of it. It costs one extra `git log --no-walk` over the page's shas, not one
+call per commit.
 
 #### Stream
 
