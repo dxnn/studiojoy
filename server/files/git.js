@@ -60,11 +60,18 @@ function identityArgs(author) {
 // yet would silently act on whatever repository encloses GAMES_DIR — in
 // development, the gamestudio checkout itself. Pinning turns that into an
 // error instead of a commit in the wrong place.
+// ⚠️ core.quotePath=false: by default git escapes any non-ASCII byte in a path
+// it prints, so `café.png` comes back from `log --name-only` as
+// `"caf\303\251.png"` — a name that matches nothing in the file listing, which
+// is read from the filesystem. A studio used by kids will have those names.
+// Off, git prints the path as it is, and the two agree.
 async function git(dir, args, { author = null, pinned = true } = {}) {
   const pin = pinned
     ? [`--git-dir=${path.join(dir, '.git')}`, `--work-tree=${dir}`]
     : [];
-  const full = ['-C', dir, ...pin, ...identityArgs(author), ...args];
+  const full = [
+    '-C', dir, ...pin, '-c', 'core.quotePath=false', ...identityArgs(author), ...args,
+  ];
   try {
     const { stdout } = await run('git', full, {
       env: gitEnv(),
@@ -205,18 +212,21 @@ export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}
   if (filePath) args.push('--', filePath);
   const commits = parseLog((await git(dir, args)).toString('utf8'));
 
-  // A pathspec filters the names as well as the commits, so a filtered log
-  // cannot say how big each commit was — and that count is what lets the client
-  // offer the rest of a version, or say nothing when there is no rest. Asked
-  // for in one call over the page's shas rather than one call per commit; `--`
-  // so a file named like a sha cannot be read as a path.
+  // A pathspec selects the commits *and* filters the names, which would leave
+  // a filtered log unable to say a commit touched anything else — and a
+  // version's own size is what the client needs to offer the rest of it, or to
+  // say nothing when there is no rest. So the names come back unfiltered:
+  // whichever file the caller asked about, `paths` is always the whole commit,
+  // and narrowing it is the reader's business. One call over the page's shas
+  // rather than one per commit; `--` so a file named like a sha cannot be read
+  // as a path.
   if (filePath && commits.length > 0) {
-    const all = parseLog((await git(dir, [
+    const whole = parseLog((await git(dir, [
       'log', '--no-walk', `--format=${LOG_FMT}`, '--name-only',
       ...commits.map((c) => c.sha), '--',
     ])).toString('utf8'));
-    const counts = new Map(all.map((c) => [c.sha, c.paths.length]));
-    for (const commit of commits) commit.changed = counts.get(commit.sha) ?? 0;
+    const byCommit = new Map(whole.map((c) => [c.sha, c.paths]));
+    for (const commit of commits) commit.paths = byCommit.get(commit.sha) ?? commit.paths;
   }
   return commits;
 }
@@ -227,9 +237,10 @@ export async function showFile(dir, sha, filePath) {
   return git(dir, ['show', `${requireSha(sha)}:${filePath}`]);
 }
 
-export async function diffCommit(dir, sha, filePath = null) {
+// The whole commit, every time. Showing one file's changes is a narrowing the
+// reader does — see the diff route.
+export async function diffCommit(dir, sha) {
   const args = ['show', '--format=', '--patch', requireSha(sha)];
-  if (filePath) args.push('--', filePath);
   return (await git(dir, args)).toString('utf8');
 }
 
@@ -260,12 +271,10 @@ export async function restoreTree(dir, sha) {
 }
 
 // Paths touched by a commit, used to render the file chips under an agent
-// reply and to label a history entry. The optional filter is the same one
-// diffCommit takes, so a scoped diff and the list of what it changed cannot
-// disagree.
-export async function commitPathsTouched(dir, sha, filePath = null) {
+// reply and to label a history entry. Whole commit, like the patch beside it,
+// so the two cannot disagree about what a version is.
+export async function commitPathsTouched(dir, sha) {
   const args = ['show', '--name-only', '--format=', requireSha(sha)];
-  if (filePath) args.push('--', filePath);
   const out = await git(dir, args);
   return out.toString('utf8').split('\n').filter((l) => l.length > 0);
 }

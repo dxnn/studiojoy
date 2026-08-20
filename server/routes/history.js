@@ -75,18 +75,21 @@ export function historyRoutes(r) {
     return ctx.res.end(buffer);
   });
 
+  // A whole commit, never a slice of one. The versions list filtered to one
+  // file shows only that file's part, but it does the narrowing itself: a
+  // patch the server had already cut down could not say how many files the
+  // version touched, which is what the list needs to offer the rest of it.
   r.get('/api/projects/:slug/diff/:sha', async (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
     const sha = requireShaParam(ctx.params.sha);
-    const filter = optionalPath(ctx.query);
 
     let patch;
     let paths;
     try {
-      patch = await diffCommit(dir, sha, filter);
-      paths = await commitPathsTouched(dir, sha, filter);
+      patch = await diffCommit(dir, sha);
+      paths = await commitPathsTouched(dir, sha);
     } catch (err) {
       if (err instanceof GitError) throw new HttpError(404, 'no such commit');
       throw err;

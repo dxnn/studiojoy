@@ -3,6 +3,7 @@
 // place so a long reply doesn't rebuild the thread on every chunk.
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
+import { patchFor, hasHunks } from './patch.js';
 import {
   SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
 } from './sound-maker.js';
@@ -1464,13 +1465,13 @@ async function loadHistory(path = null) {
   }
 }
 
-// The list's filter is the drawer's filter: from one file's versions the
-// question is what happened to that file, not what else rode along in the same
-// commit. "See the whole version" clears the filter first, which is how you
-// get the rest of it.
+// A whole commit, always. The list's filter is still the drawer's filter —
+// from one file's versions the question is what happened to that file — but
+// the narrowing happens here rather than in the request, so the version can
+// also say how many other files it touched. `All files changed (n)` clears the
+// filter, which is how you get the rest of it.
 async function loadDiff(sha) {
-  const query = S.historyPath ? `?path=${encodeURIComponent(S.historyPath)}` : '';
-  const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}${query}`);
+  const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}`);
   if (res.ok) {
     S.diff = res.body;
     render();
@@ -2653,7 +2654,12 @@ function renderDiff(patch) {
 }
 
 const IMAGE_PATH = /\.(png|jpe?g|gif|webp|svg)$/i;
-const imagesIn = (commit) => (commit?.paths ?? []).filter((p) => IMAGE_PATH.test(p));
+
+// The pictures in a version, narrowed to the file being read when the list is
+// filtered to one: `paths` is the whole commit now, and a sprite that rode
+// along in the same commit is not what a filtered list is about.
+const imagesIn = (commit) => (commit?.paths ?? [])
+  .filter((p) => IMAGE_PATH.test(p) && (!S.historyPath || p === S.historyPath));
 
 // A picture as it was at one commit. git names a path in a commit that deleted
 // it too, and there is nothing to show for that version, so a picture that
@@ -2665,11 +2671,6 @@ const versionImage = (sha, path, cls) => h('img', {
   loading: 'lazy',
   onerror: (e) => e.currentTarget.closest('.shot, .shot-big')?.remove(),
 });
-
-// A unified diff of a picture is the sentence "Binary files differ", which is
-// git talking about itself rather than about the game. Text still gets its
-// patch; pictures get shown.
-const hasTextChanges = (patch) => patch.split('\n').some((line) => line.startsWith('@@'));
 
 // A path, as a way back to the file it names — which is the usual reason to
 // be reading about it. A path that is no longer in the game is plain text:
@@ -2695,14 +2696,16 @@ function diffDrawer() {
     ]));
 
   const pictures = imagesIn(S.diff);
-  const text = hasTextChanges(S.diff.patch);
+  // The whole commit arrives; one file's part of it is taken here.
+  const patch = oneFile ? patchFor(S.diff.patch, S.historyPath) : S.diff.patch;
+  const text = hasHunks(patch);
 
   return h('div', { class: 'drawer' },
     oneFile ? null : h('div', { class: 'hint muted' }, 'Changed: ', paths),
     pictures.map((p) => h('div', { class: 'shot-big' },
       oneFile ? null : h('div', { class: 'hint muted mono', text: p }),
       versionImage(S.diff.sha, p))),
-    text ? renderDiff(S.diff.patch) : null,
+    text ? renderDiff(patch) : null,
     !text && !pictures.length
       ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
       : null);
@@ -2769,12 +2772,12 @@ function renderVersionsTab() {
         }),
         // From one file's history, the useful move is to go and look at the
         // whole version this file changed in — not to roll the project back,
-        // which is a decision you make from the full list. The count is the
-        // whole commit, so a version that touched nothing but the file being
-        // read offers nothing: there is no rest of it to see.
-        S.historyPath && c.changed > 1
+        // which is a decision you make from the full list. `paths` is the
+        // whole commit even here, so a version that touched nothing but the
+        // file being read offers nothing: there is no rest of it to see.
+        S.historyPath && c.paths.length > 1
           ? h('button', {
-            class: 'link tiny', text: `All files changed (${c.changed})`,
+            class: 'link tiny', text: `All files changed (${c.paths.length})`,
             onclick: async () => {
               // Dropping the filter is on the way to the whole version, not
               // somewhere to come back to, so the two steps are one entry.

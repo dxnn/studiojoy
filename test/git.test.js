@@ -67,25 +67,21 @@ test('filtering the log by path leaves the commits it returns intact', async () 
   assert.deepEqual(commits[0].paths, ['assets/hero.png']);
 });
 
-// `paths` is filtered along with the commits, so how big each commit actually
-// was is a separate question — and the one the client asks to decide whether
-// there is any rest of the version to offer.
-test('a filtered log still says how many files each commit touched', async () => {
-  const dir = await repo('git-log-changed');
+// What a filtered log must not do is filter the names too: the whole commit is
+// what tells a reader of one file whether there is any rest of the version.
+test('a filtered log still names every file each commit touched', async () => {
+  const dir = await repo('git-log-whole');
   write(dir, 'a.txt', '1');
   write(dir, 'b.txt', '1');
   await commitPaths(dir, ['a.txt', 'b.txt'], 'both', AGENT);
   write(dir, 'a.txt', '2');
   await commitPaths(dir, ['a.txt'], 'just a', AGENT);
 
+  // The pathspec picks the commits; it must not shrink what they say they
+  // touched, or a reader of one file could never be shown the rest.
   const [alone, together] = await logCommits(dir, { path: 'a.txt' });
-  assert.equal(alone.changed, 1);
-  assert.equal(together.changed, 2);
-  assert.deepEqual(together.paths, ['a.txt'], 'the filter still holds for paths');
-
-  // Nothing to count against when the whole log is already the whole story.
-  const [head] = await logCommits(dir);
-  assert.equal(head.changed, undefined);
+  assert.deepEqual(alone.paths, ['a.txt']);
+  assert.deepEqual(together.paths.sort(), ['a.txt', 'b.txt']);
 });
 
 // The point of passing identity per invocation: this must work with no
@@ -144,10 +140,6 @@ test('one commit can carry every file a turn wrote', async () => {
   );
   const touched = await commitPathsTouched(dir, sha);
   assert.deepEqual(touched.sort(), ['css/style.css', 'index.html', 'js/game.js']);
-  assert.deepEqual(
-    await commitPathsTouched(dir, sha, 'js/game.js'), ['js/game.js'],
-    'one file\'s history asks what happened to that file',
-  );
   assert.equal((await logCommits(dir)).length, 2, 'one turn is one commit');
 });
 
@@ -221,16 +213,21 @@ test('a non-hex revision is refused rather than passed to git', async () => {
   assert.equal(isSha('A'.repeat(40)), false, 'uppercase hex is not what git prints');
 });
 
-test('diffCommit produces a patch for the path', async () => {
+test('diffCommit produces the whole commit as a patch', async () => {
   const dir = await repo('git-diff');
   write(dir, 'game.js', 'let a = 1;\n');
-  await commitPaths(dir, ['game.js'], 'v1', DANN);
+  write(dir, 'notes.md', 'one\n');
+  await commitPaths(dir, ['game.js', 'notes.md'], 'v1', DANN);
   write(dir, 'game.js', 'let a = 2;\n');
-  const sha = await commitPaths(dir, ['game.js'], 'v2', DANN);
+  write(dir, 'notes.md', 'two\n');
+  const sha = await commitPaths(dir, ['game.js', 'notes.md'], 'v2', DANN);
 
-  const patch = await diffCommit(dir, sha, 'game.js');
+  // Every file in it, whoever is reading: narrowing to one is the reader's,
+  // and a patch cut down here could not say how big the version was.
+  const patch = await diffCommit(dir, sha);
   assert.match(patch, /^-let a = 1;$/m);
   assert.match(patch, /^\+let a = 2;$/m);
+  assert.match(patch, /^\+two$/m);
 });
 
 test('movePath renames in one commit and keeps the content', async () => {

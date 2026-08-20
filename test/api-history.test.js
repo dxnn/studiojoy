@@ -43,7 +43,7 @@ test('history filters by path and honours a limit', async (t) => {
   assert.deepEqual(forA.body.map((c) => c.subject), ['update a.txt', 'create a.txt']);
   // Each of these commits is one file, which is what tells the versions list
   // there is no whole version worth offering.
-  assert.deepEqual(forA.body.map((c) => c.changed), [1, 1]);
+  assert.deepEqual(forA.body.map((c) => c.paths), [['a.txt'], ['a.txt']]);
 
   const limited = await app.client.json('GET', '/api/projects/tank/history?limit=2');
   assert.equal(limited.body.length, 2);
@@ -139,17 +139,13 @@ test('a diff carries the patch and the paths it touched', async (t) => {
   assert.deepEqual(res.body.paths, ['game.js']);
   assert.match(res.body.patch, /^-let a = 1;$/m);
   assert.match(res.body.patch, /^\+let a = 2;$/m);
-
-  const scoped = await app.client.json(
-    'GET', `/api/projects/tank/diff/${second.body.commit}?path=game.js`,
-  );
-  assert.match(scoped.body.patch, /let a = 2;/);
 });
 
-// The versions list filtered to one file opens its diffs filtered too, so both
-// halves of the response have to be about that file — a patch for one path
-// beside a paths list naming three is the drawer disagreeing with itself.
-test('a diff scoped to one path reports only that path', async (t) => {
+// The versions list filtered to one file shows only that file's changes, but
+// it narrows the whole commit itself (public/patch.js). The route has no
+// filter to disagree with: a patch cut down here could not also say how many
+// files the version touched, which is what the list needs to offer the rest.
+test('a diff is the whole commit, whatever the reader is looking at', async (t) => {
   const { app, dir } = await project(t);
   const author = { name: 'Dann', email: 'dann@example.com' };
   const both = ['game.js', 'notes.md'];
@@ -164,11 +160,19 @@ test('a diff scoped to one path reports only that path', async (t) => {
 
   const all = await app.client.json('GET', `/api/projects/tank/diff/${sha}`);
   assert.deepEqual(all.body.paths.sort(), ['game.js', 'notes.md']);
+  assert.match(all.body.patch, /^\+let a = 2;$/m);
+  assert.match(all.body.patch, /^\+two$/m);
 
+  // The list filtered to one of them still says the version touched two. This
+  // is the reported fault: a nine-file commit read from one of its files
+  // looked like a one-file commit, so there was nothing to click through to.
+  const forOne = await app.client.json('GET', '/api/projects/tank/history?path=game.js');
+  assert.deepEqual(forOne.body[0].paths.sort(), ['game.js', 'notes.md']);
+
+  // A leftover ?path= from an older client is ignored rather than obeyed:
+  // there is one answer to this question now.
   const scoped = await app.client.json('GET', `/api/projects/tank/diff/${sha}?path=game.js`);
-  assert.deepEqual(scoped.body.paths, ['game.js']);
-  assert.doesNotMatch(scoped.body.patch, /notes\.md/);
-  assert.match(scoped.body.patch, /^\+let a = 2;$/m);
+  assert.deepEqual(scoped.body, all.body);
 });
 
 test('restore writes the old bytes as a new commit', async (t) => {

@@ -293,6 +293,11 @@ One git repository per project, at the project directory root.
 - Every git subprocess runs with `GIT_CONFIG_GLOBAL=/dev/null`,
   `GIT_CONFIG_SYSTEM=/dev/null`, `GIT_TERMINAL_PROMPT=0` so hooks, templates,
   and credential helpers from the host can't interfere.
+- ⚠️ …and with `-c core.quotePath=false`. Git escapes every non-ASCII byte in a
+  path it prints, so `café.png` comes back from `log --name-only` as
+  `"caf\303\251.png"` — a name that matches nothing in the file listing, which
+  is read from the filesystem. A studio used by kids will have those names, and
+  the versions list compares the two.
 - One commit per agent turn, covering every file that turn wrote — history
   reads as one entry per exchange rather than one per tool call. Human editor
   saves are one commit each.
@@ -611,18 +616,27 @@ files falls back to a playable default instead of throwing on the first frame.
 
 | method | path | notes |
 |---|---|---|
-| GET | `/api/projects/:slug/history` | `?path=&limit=` — commits, newest first: `{sha, short, author, subject, at, paths?, changed?}` |
+| GET | `/api/projects/:slug/history` | `?path=&limit=` — commits, newest first: `{sha, short, author, subject, at, paths}` |
 | GET | `/api/projects/:slug/history/:sha/*path` | file content at that commit |
-| GET | `/api/projects/:slug/diff/:sha` | `?path=` — unified diff text |
+| GET | `/api/projects/:slug/diff/:sha` | the whole commit: `{sha, paths, patch}` |
 | POST | `/api/projects/:slug/restore` | `{sha, path}` — write the old content, new commit |
 | POST | `/api/projects/:slug/rollback` | `{sha}` — the whole tree back to that commit, new commit; returns `{commit, restored, removed}`, with `commit: null` when the tree already matched |
 
-`?path=` filters the names as well as the commits, so `paths` in a filtered log
-is that one path and nothing else. `changed` — how many files the commit
-touched in all — is sent only then, and is what lets the versions list offer
-the rest of a version, or say nothing when the file being read *is* the whole
-of it. It costs one extra `git log --no-walk` over the page's shas, not one
-call per commit.
+**A version is always sent whole.** `?path=` on the log selects which commits
+come back and nothing else: `paths` names every file each one touched, and the
+diff route has no filter at all. Narrowing to one file — its part of the patch,
+its picture, nothing else — is done by the reader, in `public/patch.js`.
+
+The reason is that the two halves have to agree. Git's pathspec filters the
+*names* along with the commits, so a log scoped to one file used to report
+every version of it as a one-file version: a nine-file refactor read from one
+of its files looked like it changed nothing else, and there was nothing to
+click through to. The fix could have been a second count beside the filtered
+list, and was for one commit; sending the whole thing and narrowing in the UI
+is the same information with one field, one endpoint and no way for the two to
+disagree. The cost is one extra `git log --no-walk` over the page's shas —
+never one call per commit — and a filtered drawer fetching a patch bigger than
+it shows.
 
 #### Stream
 

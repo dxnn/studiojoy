@@ -300,6 +300,20 @@ not two; and both that click and a `?version=` link put the row at the top of a
 list of thirty-one. The whole file row opens the file — checked by clicking the
 size — and the pin checkbox still does not.
 
+A version is fetched whole and narrowed by the reader. `?path=` on the history
+route picks the commits and nothing else — `paths` always names every file a
+commit touched — and the diff route has no filter at all; `public/patch.js`
+takes one file's section out of the patch. Git's pathspec filters the names
+along with the commits, which is what made a nine-file refactor look like a
+one-file commit when read from one of its files, with no way to click through
+to the rest (spec.md §6). ⚠️ Every git call also passes
+`-c core.quotePath=false`, or a path with an accent in it comes back escaped
+from `log --name-only` and matches nothing in the file listing, which is read
+from disk. Browser-checked against a copy of flip-for-what: `All files changed
+(9)` on Alice's refactor, one diff section when filtered and nine when not, no
+sprite thumbnails in a code file's history, and `assets/café.txt` linking
+through to the file.
+
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)
