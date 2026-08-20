@@ -88,8 +88,11 @@ export function historyRoutes(r) {
     let patch;
     let paths;
     try {
-      patch = await diffCommit(dir, sha);
-      paths = await commitPathsTouched(dir, sha);
+      // Two reads of the same commit that know nothing about each other, so
+      // they run as one wait rather than two.
+      [patch, paths] = await Promise.all([
+        diffCommit(dir, sha), commitPathsTouched(dir, sha),
+      ]);
     } catch (err) {
       if (err instanceof GitError) throw new HttpError(404, 'no such commit');
       throw err;

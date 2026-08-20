@@ -7,18 +7,23 @@
 // A unified diff starts each file with `diff --git a/<old> b/<new>`, and
 // everything up to the next such line belongs to it. The `b/` side is the one
 // to match: a rename names the file it became, which is the name the history
-// list has. git quotes a path with a space or anything else awkward in it, so
-// both forms are recognised.
+// list has.
+//
+// The name is there as itself — a space and anything non-ASCII are printed
+// literally, the second because every git call passes `core.quotePath=false`
+// (spec.md §5). A path with a `"` in it would still be quoted and escaped, and
+// its section simply is not found; the drawer says there is nothing to show,
+// which is wrong but harmless, and no name in this studio has ever had one.
 
 const SECTION = /^diff --git /;
 
 export function patchFor(patch, path) {
   if (!patch) return '';
-  const heads = [` b/${path}`, ` "b/${path}"`];
+  const head = ` b/${path}`;
   const lines = [];
   let keep = false;
   for (const line of patch.split('\n')) {
-    if (SECTION.test(line)) keep = heads.some((head) => line.endsWith(head));
+    if (SECTION.test(line)) keep = line.endsWith(head);
     if (keep) lines.push(line);
   }
   return lines.join('\n');
@@ -28,5 +33,5 @@ export function patchFor(patch, path) {
 // "Binary files differ", which is git talking about itself rather than about
 // the game, so a hunk header is what counts as changes worth rendering.
 export function hasHunks(patch) {
-  return patch.split('\n').some((line) => line.startsWith('@@'));
+  return /^@@/m.test(patch);
 }

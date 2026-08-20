@@ -240,8 +240,8 @@ export async function showFile(dir, sha, filePath) {
 // The whole commit, every time. Showing one file's changes is a narrowing the
 // reader does — see the diff route.
 export async function diffCommit(dir, sha) {
-  const args = ['show', '--format=', '--patch', requireSha(sha)];
-  return (await git(dir, args)).toString('utf8');
+  const out = await git(dir, ['show', '--format=', '--patch', requireSha(sha)]);
+  return out.toString('utf8');
 }
 
 // Every blob in a commit's tree, with its size. -z because a path may hold
@@ -274,7 +274,6 @@ export async function restoreTree(dir, sha) {
 // reply and to label a history entry. Whole commit, like the patch beside it,
 // so the two cannot disagree about what a version is.
 export async function commitPathsTouched(dir, sha) {
-  const args = ['show', '--name-only', '--format=', requireSha(sha)];
-  const out = await git(dir, args);
+  const out = await git(dir, ['show', '--name-only', '--format=', requireSha(sha)]);
   return out.toString('utf8').split('\n').filter((l) => l.length > 0);
 }

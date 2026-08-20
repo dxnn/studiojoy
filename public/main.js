@@ -321,14 +321,18 @@ const viewFromUrl = () => {
   return { tab: q.get('tab'), file: q.get('file'), version: q.get('version') };
 };
 
+// The inverse of applyView, and written in the same two branches so the pair
+// can be read against each other.
 function urlNow() {
   if (!S.slug) return '/';
   const q = new URLSearchParams();
   if (!isChat()) {
     if (S.tab !== 'files') q.set('tab', S.tab);
-    const file = S.tab === 'versions' ? S.historyPath : (S.tab === 'files' ? S.open?.path : null);
-    if (file) q.set('file', file);
-    if (S.tab === 'versions' && S.diff) q.set('version', S.diff.sha);
+    if (S.tab === 'files' && S.open) q.set('file', S.open.path);
+    if (S.tab === 'versions') {
+      if (S.historyPath) q.set('file', S.historyPath);
+      if (S.diff) q.set('version', S.diff.sha);
+    }
   }
   const query = q.toString();
   return `/p/${S.slug}${query ? `?${query}` : ''}`;
@@ -375,6 +379,12 @@ function syncUrl() {
   else history.pushState({}, '', url);
 }
 
+// The list on screen is not the list being asked for — a different filter, one
+// that was never fetched, or one a commit has landed under since.
+const historyNeedsLoad = (path) => path !== S.historyPath
+  || S.history.length === 0
+  || S.historyStale;
+
 // Put the rail where a URL says, and take away what it does not say — Back out
 // of a file has to close it. Every part is optional, and a part that is no
 // longer there — a deleted file, a commit off the end of the list — simply
@@ -384,9 +394,7 @@ async function applyView({ tab, file, version }) {
   S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
   const want = file ?? null;
   if (S.tab === 'versions') {
-    if (want !== S.historyPath || S.history.length === 0 || S.historyStale) {
-      await loadHistory(want);
-    }
+    if (historyNeedsLoad(want)) await loadHistory(want);
     if (version !== (S.diff?.sha ?? null)) {
       if (version) {
         // Arriving at a version is arriving at its row, which a link can drop
@@ -2728,6 +2736,13 @@ function renderVersionsTab() {
 
   const rows = S.history.map((c, i) => {
     const open = S.diff?.sha === c.sha;
+    // One row's changes, open or shut. Every control that shows them is the
+    // same control: the picture, and the words beside it.
+    const toggle = () => {
+      if (!open) return loadDiff(c.sha);
+      S.diff = null;
+      return render();
+    };
     const pictures = imagesIn(c);
     // This list is git log for one path, newest first, so its first row is the
     // commit that produced the bytes on disk — bringing it back would commit
@@ -2747,9 +2762,7 @@ function renderVersionsTab() {
         ? h('div', { class: 'shots' }, pictures.map((p) => h('button', {
           class: 'shot',
           title: open ? `${p} — hide the details` : `${p} — see it big, and what else changed`,
-          onclick: () => {
-            if (open) { S.diff = null; render(); } else loadDiff(c.sha);
-          },
+          onclick: toggle,
         }, versionImage(c.sha, p))))
         : null,
       // Wrapped: three controls and a "Current version" do not fit a narrow
@@ -2761,14 +2774,7 @@ function renderVersionsTab() {
           // One control in one place, its label saying which way it goes,
           // rather than a second control appearing beside it once it is open.
           text: open ? 'Hide changes' : 'Show changes',
-          onclick: () => {
-            if (open) {
-              S.diff = null;
-              render();
-            } else {
-              loadDiff(c.sha);
-            }
-          },
+          onclick: toggle,
         }),
         // From one file's history, the useful move is to go and look at the
         // whole version this file changed in — not to roll the project back,
@@ -2859,9 +2865,7 @@ function renderRail() {
       // Clicking Versions means all of them, the same as Show all. A list
       // filtered to one file is somewhere you arrive from that file, not a
       // state the tab should hold on to.
-      if (id === 'versions' && (S.historyPath || S.historyStale || S.history.length === 0)) {
-        loadHistory(null);
-      }
+      if (id === 'versions' && historyNeedsLoad(null)) loadHistory(null);
       render();
     },
   });
