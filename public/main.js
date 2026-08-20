@@ -360,6 +360,12 @@ function syncUrl() {
   // form. render() returns early in that state too — this is the rule stated
   // where it can be read rather than left to the order of two statements.
   if (!S.me || S.loading || urlMode === 'hold') return;
+  // A dialog is a decision in progress, not a view to link to. Holding the
+  // address until it is answered is what keeps a Back out of unsaved work from
+  // overwriting the entry it was going to: refuse the close and the file's own
+  // address comes back as a new entry, accept it and the address that is
+  // already there was right all along.
+  if (S.dialog) return;
   const url = urlNow();
   if (url === location.pathname + location.search) return;
   // An entry per file, tab and version, so Back walks back through them the
@@ -797,7 +803,11 @@ function closeOpenFile(then = null) {
     render();
     return;
   }
-  if (then) { openFile(then); return; }
+  // Returned, not fired and forgotten: a caller that waits for the close has
+  // to be waiting for the open too. Back is one — it renders when this
+  // settles, and a render that lands after it has already finished writes the
+  // wrong address.
+  if (then) return openFile(then);
   flushPalette();
   S.open = null;
   S.draw = null;

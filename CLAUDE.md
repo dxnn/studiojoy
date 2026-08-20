@@ -280,14 +280,25 @@ the traces. `replaceState` only while following an address that already exists.
 ⚠️ Never written while signed out, or the deep link would be gone by the time
 the sign-in form was answered.
 
+⚠️ Which of the three it does is a mode held only for the duration of an
+`await`, so **every render a followed URL causes has to happen inside that
+await**. A render that lands afterwards writes the wrong address as a new
+entry: `closeOpenFile` firing `openFile` without returning it is what made Back
+toggle between the last two files instead of walking back through them. An
+`onclick` that opens something must return its promise all the way up. The
+address is also held while a dialog is open — a decision in progress is not a
+view to link to, and that is what stops a Back out of unsaved work from
+overwriting the entry it was going to.
+
 Browser-checked end to end: a link followed while signed out survives the sign
-in and lands on the filtered version list; Back walks tab → file → file →
-version and keeps the pins; a Back out of unsaved work asks the same question
-the ✕ asks and puts the file's own address back if the answer is no; one click
-on `All files changed (3)` is one entry, not two; and both that click and a
-`?version=` link put the row at the top of a list of thirty-one. The whole file
-row opens the file — checked by clicking the size — and the pin checkbox
-still does not.
+in and lands on the filtered version list; three files opened in turn walk back
+one at a time with `history.length` never moving, and so does file → versions →
+version → whole version; Forward retraces the same way; a Back out of unsaved
+work asks the same question the ✕ asks, holding the address until it is
+answered; pins survive Back; one click on `All files changed (3)` is one entry,
+not two; and both that click and a `?version=` link put the row at the top of a
+list of thirty-one. The whole file row opens the file — checked by clicking the
+size — and the pin checkbox still does not.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
