@@ -291,13 +291,44 @@ const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
 
 const encodePath = (p) => p.split('/').map(encodeURIComponent).join('/');
 
+const NO_CONNECTION = 'Could not reach the studio. Check the connection and try again.';
+
+// ⚠️ `fetch` does not answer when there is no connection — it throws. A dropped
+// wifi, a closed lid, the server restarting mid-request: every one of those
+// used to come out as an exception nobody caught, which is why a picture could
+// open blank with nothing said and a message could vanish out of the composer.
+//
+// So nothing in the studio calls `fetch` directly. This answers instead: status
+// 0, never ok, empty body, and the same shape a Response has as far as any
+// caller here uses one — so every `if (!res.ok)` already written handles a
+// dead connection without knowing it was one.
+async function send(url, opts) {
+  try {
+    // The one place `fetch` is named. Everywhere else calls this.
+    return await fetch(url, opts);
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      headers: new Headers(),
+      text: async () => '',
+      blob: async () => new Blob(),
+      json: async () => null,
+    };
+  }
+}
+
+// What to tell somebody, when a route's own message would be a guess. No
+// connection is never the file's fault, so it never reads like it.
+const problem = (res, fallback) => (res.status === 0 ? NO_CONNECTION : fallback);
+
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (body !== undefined) {
     opts.headers['content-type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(path, opts);
+  const res = await send(path, opts);
   const text = await res.text();
   let parsed = null;
   try {
@@ -309,7 +340,10 @@ async function api(method, path, body) {
     S.me = null;
     render();
   }
-  return { status: res.status, ok: res.ok, body: parsed, headers: res.headers };
+  // Every caller reads `body.error` for what went wrong, so the one failure
+  // that has no body still has to have a message.
+  const failed = res.status === 0 ? { error: NO_CONNECTION } : parsed;
+  return { status: res.status, ok: res.ok, body: failed, headers: res.headers };
 }
 
 function say(message, bad = false) {
@@ -458,6 +492,9 @@ const followUrl = () => {
 
 async function start() {
   const me = await api('GET', '/api/me');
+  // A studio that cannot be reached is not a studio you are signed out of, and
+  // the sign-in form on its own says the wrong thing.
+  if (me.status === 0) S.authError = NO_CONNECTION;
   if (me.ok) {
     S.me = me.body;
     await Promise.all([loadProjects(), loadAgents()]);
@@ -825,10 +862,10 @@ async function openFile(path) {
   // switching files saves them instead of dropping them.
   await flushPalette();
   if (stale()) return;
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (stale()) return;
   if (!res.ok) {
-    say(`Could not open ${path}.`, true);
+    say(problem(res, `Could not open ${path}.`), true);
     return;
   }
   // The listing already said whether this is text and what it is; a picture
@@ -888,7 +925,7 @@ async function saveOpenFile({ force = false } = {}) {
   if (!S.open) return;
   const headers = { 'content-type': 'text/plain' };
   if (!force && S.open.etag) headers['if-match'] = S.open.etag;
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`, {
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`, {
     method: 'PUT', headers, body: S.open.content,
   });
   const body = await res.json().catch(() => null);
@@ -906,7 +943,7 @@ async function saveOpenFile({ force = false } = {}) {
     return;
   }
   if (!res.ok) {
-    say(body?.error ?? 'Could not save that file.', true);
+    say(problem(res, body?.error ?? 'Could not save that file.'), true);
     return;
   }
   S.open.etag = body.etag;
@@ -917,7 +954,7 @@ async function saveOpenFile({ force = false } = {}) {
 }
 
 async function createFile(path) {
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
     method: 'PUT', headers: { 'content-type': 'text/plain' }, body: '',
   });
   if (!res.ok) {
@@ -1000,7 +1037,7 @@ async function writeFiles(plan) {
   let done = 0;
   let failure = null;
   for (const { path, body } of plan) {
-    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+    const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
       method: 'PUT', body,
     });
     if (!res.ok) {
@@ -1034,6 +1071,7 @@ async function uploadFiles(plan) {
 // words. Which cap was hit doesn't change what you'd do about it, so both
 // 409s read the same. Anything unmapped keeps the server's own sentence.
 function uploadProblem(status, path, error) {
+  if (status === 0) return NO_CONNECTION;
   if (status === 413) {
     return `${path} is too big to add. One file can be up to ${MAX_UPLOAD_MB} MB.`;
   }
@@ -1096,7 +1134,7 @@ function withScriptTags(markup, srcs) {
 }
 
 async function studioLibraries() {
-  const res = await fetch(LIBRARY_INDEX);
+  const res = await send(LIBRARY_INDEX);
   if (!res.ok) return null;
   return (await res.json()).libraries ?? null;
 }
@@ -1105,7 +1143,7 @@ async function studioLibraries() {
 // which is the same thing as far as installing goes.
 async function gameLibraries() {
   if (!S.files.some((f) => f.path === LIBRARY_MANIFEST)) return {};
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(LIBRARY_MANIFEST)}`);
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(LIBRARY_MANIFEST)}`);
   if (!res.ok) return {};
   try {
     const held = JSON.parse(await res.text());
@@ -1145,7 +1183,7 @@ async function installLibrary(name) {
   // The library's own files, always written: this is the part worth keeping
   // current, and a helper cannot have changed it.
   for (const file of library.files) {
-    const res = await fetch(libraryFile(name, file));
+    const res = await send(libraryFile(name, file));
     if (!res.ok) { say(`Could not read ${file} from the studio library.`, true); return; }
     writes.push({ path: `${LIBRARY_DIR}/${file}`, body: await res.text() });
   }
@@ -1155,7 +1193,7 @@ async function installLibrary(name) {
   const kept = [];
   for (const seed of library.seeds ?? []) {
     if (S.files.some((f) => f.path === seed.to)) { kept.push(seed.to); continue; }
-    const res = await fetch(seed.from);
+    const res = await send(seed.from);
     if (!res.ok) { say(`Could not read ${seed.to} from the studio library.`, true); return; }
     writes.push({ path: seed.to, body: await res.text() });
   }
@@ -1163,7 +1201,7 @@ async function installLibrary(name) {
   writes.push({ path: LIBRARY_MANIFEST, body: `${JSON.stringify({ ...held, [name]: library.version }, null, 2)}\n` });
 
   if (S.files.some((f) => f.path === 'index.html') && library.scripts?.length) {
-    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
+    const res = await send(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
     const markup = res.ok ? await res.text() : null;
     const missing = (library.scripts ?? []).filter((src) => !markup?.includes(src));
     if (markup !== null && missing.length) {
@@ -1228,9 +1266,16 @@ async function startDrawing() {
   const stale = () => opening !== token;
   const path = S.open.path;
 
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (stale()) return;
-  if (!res.ok) { say('Could not open that picture.', true); return; }
+  // The reason goes in the pane, not only in a banner: the picture itself
+  // cannot load either, so without this the editor is a filename over an empty
+  // box and nothing says why.
+  if (!res.ok) {
+    S.drawRefused = problem(res, 'The studio could not read this picture.');
+    say(S.drawRefused, true);
+    return;
+  }
   const bitmap = await createImageBitmap(await res.blob()).catch(() => null);
   if (stale()) return;
   if (!bitmap) {
@@ -1311,7 +1356,7 @@ ${rows.join('\n')}
 async function loadPalette() {
   S.palette = { colours: [...PALETTE], text: null, from: null };
   if (!S.files.some((f) => f.path === LOOK_FILE)) return;
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`);
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`);
   if (!res.ok) return;
   const text = await res.text();
   S.palette.text = text;
@@ -1402,7 +1447,7 @@ window.addEventListener('pagehide', () => {
   if (!S.palette?.dirty || !S.slug) return;
   const text = lookFileWith(S.palette.colours);
   if (text === null) return;
-  fetch(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`, {
+  send(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`, {
     method: 'PUT', body: text, keepalive: true,
   }).catch(() => { /* the page is going away regardless */ });
 });
@@ -1432,7 +1477,7 @@ async function saveDrawing() {
 
   if (drew) {
     const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
-    const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+    const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
       method: 'PUT', headers, body: await pictureBlob(drawing.picture),
     });
     const body = await res.json().catch(() => null);
@@ -1443,7 +1488,10 @@ async function saveDrawing() {
       say(`Someone changed ${path} while you were drawing. Close it and open it again to see theirs.`, true);
       return;
     }
-    if (!res.ok) { say(body?.error ?? 'Could not save that picture.', true); return; }
+    if (!res.ok) {
+      say(problem(res, body?.error ?? 'Could not save that picture.'), true);
+      return;
+    }
     // This write is a commit, and a commit is a files.changed on the stream like
     // any other, so the pane may already have been rebuilt underneath by the
     // time the response lands. Only the editor that made the request may finish
