@@ -1966,9 +1966,12 @@ function renderMessage(msg) {
     return h('div', { class: 'msg system' }, h('div', { class: 'bubble', text: msg.body }));
   }
   const isAgent = msg.agent_id !== null;
+  // Your own messages say "You" — a thread full of your own name reads like
+  // somebody else's. Everyone else is called what they are called, and
+  // "Someone" is left for a message whose account has gone.
   const who = isAgent
     ? agentName(msg.agent_id)
-    : (msg.user_id === S.me.id ? 'You' : 'Someone');
+    : (msg.user_id === S.me.id ? 'You' : (msg.user_name ?? 'Someone'));
 
   const chips = [];
   for (const p of msg.context_paths ?? []) {

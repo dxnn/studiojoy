@@ -137,7 +137,7 @@ isn't needed here.
 |---|---|---|
 | `id` | INTEGER PK | |
 | `project_id` | INTEGER NOT NULL → projects | |
-| `user_id` | INTEGER NULL → users | set for human messages |
+| `user_id` | INTEGER NULL → users | set for human messages; the API adds `user_name` beside it, read at the time it is served rather than stored, so the thread says what somebody is called today. The client has no user list to look one up in — an agent's name it can resolve, a person's it cannot |
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner |
 | `body` | TEXT NOT NULL | utf-8, ≤ 32 KB |
@@ -1127,7 +1127,7 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes}` |
+| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes}` |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |

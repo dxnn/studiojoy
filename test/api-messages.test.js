@@ -30,6 +30,33 @@ test('posting a message stores it and broadcasts it', async (t) => {
   assert.equal(event.data.id, res.body.id);
 });
 
+// The client has no list of people to look a name up in — an agent's name it
+// can resolve, a person's it cannot — so the message has to carry it or
+// everybody but you is "Someone" in their own studio.
+test('a message says who wrote it, by name', async (t) => {
+  const app = await project(t);
+  const mine = await send(app, { body: 'lets build a tank game' });
+  assert.equal(mine.body.user_name, 'Dann');
+
+  // A second person in the same thread.
+  const other = app.newClient();
+  const them = await signIn(app, {
+    email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: other,
+  });
+  const theirs = await other.json('POST', '/api/projects/tank/messages', {
+    body: { body: 'can it shoot' },
+  });
+  assert.equal(theirs.body.user_id, them.id);
+  assert.equal(theirs.body.user_name, 'Robin');
+
+  // And on the way back out of the history, not only on the way in.
+  const listed = await app.client.json('GET', '/api/projects/tank/messages');
+  assert.deepEqual(
+    listed.body.messages.map((m) => [m.user_name, m.body]),
+    [['Dann', 'lets build a tank game'], ['Robin', 'can it shoot']],
+  );
+});
+
 test('a message is trimmed and cannot be empty', async (t) => {
   const app = await project(t);
   const trimmed = await send(app, { body: '  hello  ' });

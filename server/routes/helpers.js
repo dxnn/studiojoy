@@ -79,10 +79,20 @@ export function messagePublic(db, row, slug) {
         WHERE message_id = ? ORDER BY path`,
     )
     .all(row.id);
+  // Read now rather than stored on the message, for the same reason an agent's
+  // name is resolved rather than copied (§3): the thread should say what a
+  // person is called today. The client has no user list of its own — an agent's
+  // name it can look up, a person's it cannot — so without this everybody but
+  // you was "Someone".
+  const author = row.user_id
+    ? db.prepare('SELECT display_name FROM users WHERE id = ?').get(row.user_id)
+    : null;
   return {
     id: row.id,
     project_slug: slug,
     user_id: row.user_id ?? null,
+    // Null for an agent, and for a person whose account has gone.
+    user_name: author?.display_name ?? null,
     agent_id: row.agent_id ?? null,
     kind: row.kind ?? null,
     body: row.body,
