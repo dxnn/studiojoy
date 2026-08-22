@@ -657,6 +657,13 @@ it shows.
 |---|---|---|
 | GET | `/api/stream?tab=<id>` | one SSE per tab; `: ping` heartbeat every 25 s |
 
+The stream is also how the client knows it is connected at all: `error` fires on
+the drop and on every retry, `open` when the studio is back. A request that
+cannot be sent says so too, but only the stream reopening clears it, because the
+stream is the one connection held open. While it is down the studio says **Not
+connected** at the top of the window and stays usable — nothing typed is thrown
+away, and a message refused by a dead connection stays in the composer.
+
 #### Static
 
 `GET /` and `GET /p/:slug` serve `public/index.html` for client-side routing.

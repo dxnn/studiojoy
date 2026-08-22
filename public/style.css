@@ -768,6 +768,26 @@ pre.diff .hunk { color: var(--accent); }
 }
 .notice.bad { border-color: var(--danger); color: var(--danger); }
 
+/* Not connected. A pill at the top rather than a strip across it: it has to be
+   impossible to miss and must not sit on top of the title of whatever you were
+   in the middle of. It never times out — the state is what it is reporting. */
+.offline {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 250;
+  max-width: min(560px, 92vw);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--system-soft);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 2px 10px rgba(20, 19, 28, 0.12);
+}
+.offline strong { color: var(--danger); }
+
 /* Dialog ------------------------------------------------------------------ */
 
 .backdrop {

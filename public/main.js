@@ -156,6 +156,10 @@ const S = {
   traces: new Map(), // message_id -> {text, open}; this session only
   dialog: null,
   banner: null,
+  // A state, not an event: false from the moment something fails to reach the
+  // studio until the live stream is back. A banner would time out and leave
+  // somebody typing into a studio that cannot hear them.
+  connected: true,
   previewNonce: 0,
   autoscroll: true,
   narrowPane: 'chat',
@@ -302,11 +306,22 @@ const NO_CONNECTION = 'Could not reach the studio. Check the connection and try 
 // 0, never ok, empty body, and the same shape a Response has as far as any
 // caller here uses one — so every `if (!res.ok)` already written handles a
 // dead connection without knowing it was one.
+// Only a change is worth a render: while the connection is down the stream
+// retries every few seconds and would otherwise rebuild the tree each time.
+function setConnected(on) {
+  if (S.connected === on) return;
+  S.connected = on;
+  render();
+}
+
 async function send(url, opts) {
   try {
     // The one place `fetch` is named. Everywhere else calls this.
     return await fetch(url, opts);
   } catch {
+    // Evidence, not a guess: this request did not reach the studio. Clearing it
+    // again is the stream's job — it is the connection that knows.
+    setConnected(false);
     return {
       ok: false,
       status: 0,
@@ -602,10 +617,15 @@ function connectStream() {
     });
   }
   // EventSource reconnects on its own; a refetch on reopen keeps us honest
-  // about anything missed while disconnected.
+  // about anything missed while disconnected. It is also the one thing in the
+  // studio that holds a connection open, so it is what says whether there is
+  // one: `error` fires on the drop and on every retry after it, `open` when the
+  // studio is back and the missed events have been asked for.
   stream.addEventListener('open', () => {
+    setConnected(true);
     if (S.slug) refreshFiles();
   });
+  stream.addEventListener('error', () => setConnected(false));
 }
 
 function mine(data) {
@@ -3536,6 +3556,14 @@ function render() {
     style: `--rail:${S.railWidth}px`,
   }, renderSidebar(), renderChat(), isChat() ? null : renderRail());
   root.append(app);
+
+  // At the top, where the banner is at the bottom: this one is not a thing
+  // that just happened, it is how things are until they are not.
+  if (!S.connected) {
+    root.append(h('div', { class: 'offline' },
+      h('strong', { text: 'Not connected.' }),
+      ' Trying again — what you have typed is safe.'));
+  }
 
   if (S.banner) {
     const banner = h('div', {

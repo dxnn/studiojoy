@@ -61,7 +61,11 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   under another one's name.
 - ⚠️ Nothing calls `fetch` directly. `send()` does, and answers with status 0
   instead of throwing when there is no connection, so every `if (!res.ok)`
-  already written covers a dead network. That is the whole of what a dropped
+  already written covers a dead network. A failed request also sets
+  `S.connected = false`, which paints a pill at the top of the window until the
+  **stream** reopens — the SSE is the only thing holding a connection open, so
+  it is what says whether there is one. A banner would have timed out and left
+  somebody typing into a studio that could not hear them. That is the whole of what a dropped
   connection used to look like: a picture pane blank with nothing said, a click
   that did nothing, a message wiped out of the composer.
 - Files are renamed through `POST /files/move`, which existed for the agents'
