@@ -32,12 +32,22 @@ export function patchFor(patch, path) {
   return lines.join('\n');
 }
 
-// Where a file went, for a section that is a rename. A rename of an unchanged
-// file has no hunk in it and no picture to show, so without this the drawer
-// has nothing to say about the one kind of version that most needs explaining.
+// Both names, for a section that is a rename. A rename of an unchanged file has
+// no hunk in it and no picture to show, so without this the drawer has nothing
+// to say about the one kind of version that most needs explaining. Both sides
+// because the reader is standing at one of them: from a file's own history the
+// useful half is the other name.
+const FROM = 'rename from ';
+const TO = 'rename to ';
+
 export function renameIn(patch) {
-  const to = patch.split('\n').find((line) => line.startsWith('rename to '));
-  return to ? to.slice('rename to '.length) : null;
+  let from = null;
+  let to = null;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith(FROM)) from = line.slice(FROM.length);
+    else if (line.startsWith(TO)) to = line.slice(TO.length);
+  }
+  return from && to ? { from, to } : null;
 }
 
 // Whether a patch has anything to show. The diff of a picture is the sentence

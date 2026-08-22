@@ -628,9 +628,17 @@ diff route has no filter at all. Narrowing to one file — its part of the patch
 its picture, nothing else — is done by the reader, in `public/patch.js`.
 
 A **rename** is one section under two names — git heads it `a/<old> b/<new>` —
-so `patchFor` matches either side, and a move with nothing else in it, which
-has no hunk and no picture to show, is rendered as the sentence *Renamed to
-&lt;path&gt;* rather than as an empty drawer.
+so `patchFor` matches either side, and a move with nothing else in it, which has
+no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
+*Renamed from* when the reader is standing on the destination, rather than as an
+empty drawer.
+
+`Rename` sits in the open file's bar and takes the whole path, so it also
+moves: `sprite.png` to `art/hero.png` is the same one commit. The dialog says
+what the new name will mean before it happens, and ⚠️ crossing into or out of
+`studio/` gets its own sentence, because that is the one move that changes who
+may edit the file rather than only where it lives. It is allowed either way —
+the library is refused to *agents*, not to people (§4) — but not silently.
 
 The reason is that the two halves have to agree. Git's pathspec filters the
 *names* along with the commits, so a log scoped to one file used to report

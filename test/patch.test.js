@@ -95,7 +95,9 @@ test('a rename is found under either of its names, and says where it went', asyn
     const one = patchFor(whole, name);
     assert.match(one, /rename to js\/game\.js/, `found under ${name}`);
     assert.equal(hasHunks(one), false, 'nothing changed inside it');
-    assert.equal(renameIn(one), 'js/game.js', `where it went, from ${name}`);
+    // Both names, so the drawer can show whichever one the reader is not
+    // already looking at.
+    assert.deepEqual(renameIn(one), { from: 'game.js', to: 'js/game.js' }, `read from ${name}`);
   }
 
   // The list filtered to the old name still finds the commit, so the drawer

@@ -59,6 +59,15 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   belongs to the open that called it. Without that, two clicks in the list left
   whichever request finished last on screen, which is how one picture ended up
   under another one's name.
+- ⚠️ Nothing calls `fetch` directly. `send()` does, and answers with status 0
+  instead of throwing when there is no connection, so every `if (!res.ok)`
+  already written covers a dead network. That is the whole of what a dropped
+  connection used to look like: a picture pane blank with nothing said, a click
+  that did nothing, a message wiped out of the composer.
+- Files are renamed through `POST /files/move`, which existed for the agents'
+  `move_file` long before the UI had a control for it. The dialog is
+  `rename-file`; ⚠️ `rename` is the *game's* name and has been since before
+  this, and the two are one click apart in the interface.
 - The composer is emptied on send but the words come back if the send fails —
   into the box if it is still empty and still that game, otherwise into that
   game's draft, never over anything newer. Nothing else in the studio holds

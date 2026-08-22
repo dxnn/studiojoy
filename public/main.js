@@ -1546,6 +1546,28 @@ async function saveSound(params, name) {
   await openFile(path);
 }
 
+// A rename is a move, whether or not the folder changes with it: one commit,
+// recorded by git as a rename, so the file's history is not cut in two.
+async function renameFile(from, to) {
+  if (!to || to === from) return;
+  const res = await api('POST', `/api/projects/${S.slug}/files/move`, { from, to });
+  if (!res.ok) {
+    say(res.body?.error ?? `Could not rename ${from}.`, true);
+    return;
+  }
+  S.previewNonce += 1;
+  // The new name goes on straight away, before anything else can look: a
+  // commit is a files.changed on the stream, and the handler re-reads whatever
+  // the open file is called — which, for the one moment between the answer and
+  // the reopen below, was a file that no longer existed.
+  if (S.open?.path === from) S.open = { ...S.open, path: to };
+  await refreshFiles();
+  // You renamed the file you were looking at, so you keep looking at it —
+  // under the name it has now, which the address follows.
+  if (S.open?.path === to) await openFile(to);
+  say(`Renamed to ${to}.`);
+}
+
 async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (!res.ok) {
@@ -2577,6 +2599,11 @@ function renderFilesTab() {
         onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
       }),
       h('button', {
+        class: 'quiet tiny', text: 'Rename',
+        disabled: S.project.archived,
+        onclick: () => { S.dialog = { kind: 'rename-file', path: S.open.path }; render(); },
+      }),
+      h('button', {
         class: 'danger tiny', text: 'Delete',
         onclick: () => { S.dialog = { kind: 'delete-file', path: S.open.path }; render(); },
       }),
@@ -2858,8 +2885,11 @@ function diffDrawer() {
   const patch = patchShown();
   const text = hasHunks(patch);
   // A version that only moved the file has no hunk and no picture in it, and
-  // said nothing at all until it said this.
-  const movedTo = !text && oneFile ? renameIn(patch) : null;
+  // said nothing at all until it said this. The name worth showing is the one
+  // you are not standing on.
+  const moved = !text && oneFile ? renameIn(patch) : null;
+  const movedTo = moved && moved.to !== S.historyPath ? moved.to : null;
+  const movedFrom = moved && moved.to === S.historyPath ? moved.from : null;
 
   return h('div', { class: 'drawer' },
     oneFile ? null : h('div', { class: 'hint muted' }, 'Changed: ', paths),
@@ -2868,7 +2898,8 @@ function diffDrawer() {
       versionImage(S.diff.sha, p))),
     text ? renderDiff(patch) : null,
     movedTo ? h('div', { class: 'hint muted' }, 'Renamed to ', fileLink(movedTo)) : null,
-    !text && !movedTo && !pictures.length
+    movedFrom ? h('div', { class: 'hint muted' }, 'Renamed from ', fileLink(movedFrom)) : null,
+    !text && !moved && !pictures.length
       ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
       : null);
 }
@@ -3044,6 +3075,27 @@ function renderRail() {
 
 /* Render: dialogs -------------------------------------------------------- */
 
+const inLibrary = (path) => path === LIBRARY_DIR || path.startsWith(`${LIBRARY_DIR}/`);
+
+// What a new name will mean. Crossing into or out of `studio/` is the one move
+// that changes who may edit the file rather than only where it lives — helpers
+// read the library and never write it — so that is said in as many words. The
+// server allows it either way: it is your tree (spec.md §4).
+function renameNote(from, to) {
+  if (!to) return 'Type the name you want.';
+  if (to === from) return 'That is the name it already has.';
+  if (inLibrary(to) && !inLibrary(from)) {
+    return `${LIBRARY_DIR}/ is the studio library: your helpers can read it but never `
+      + 'change it, so putting this file there means they cannot edit it any more.';
+  }
+  if (inLibrary(from) && !inLibrary(to)) {
+    return 'Out of the studio library, + Controls will not keep this file up to date '
+      + 'any more, and your helpers will be able to change it.';
+  }
+  return `The game will have to ask for ${to} instead — anything still pointing at `
+    + 'the old name needs changing, and your helpers can do that for you.';
+}
+
 function dialogFor(d) {
   const close = () => { S.dialog = null; render(); };
   const wrap = (title, ...body) => h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
@@ -3115,6 +3167,32 @@ function dialogFor(d) {
           await urlAs('replace', () => openProject(S.slug));
         },
       })));
+  }
+
+  // `rename-file`, not `rename`: the game's own name has owned that one since
+  // before this existed, and the two dialogs are a click apart.
+  if (d.kind === 'rename-file') {
+    const path = h('input', { 'aria-label': 'New name' });
+    path.value = d.path;
+    const note = h('div', { class: 'hint muted' });
+    const rename = h('button', { class: 'filled', text: 'Rename it' });
+    // The name is the whole path, so a rename is also a move, and what that
+    // will mean is said before it happens rather than found out afterwards.
+    const check = () => {
+      const to = path.value.trim();
+      note.textContent = renameNote(d.path, to);
+      rename.disabled = !to || to === d.path;
+    };
+    path.addEventListener('input', check);
+    rename.addEventListener('click', async () => {
+      const to = path.value.trim();
+      close();
+      await renameFile(d.path, to);
+    });
+    check();
+    return wrap('Rename this file',
+      h('label', { text: 'New name (use / for folders)' }), path, note,
+      h('div', { class: 'actions' }, cancel, rename));
   }
 
   if (d.kind === 'new-file') {
