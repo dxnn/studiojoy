@@ -186,10 +186,24 @@ const composerBox = h('textarea', {
 async function sendComposer() {
   const text = composerBox.value.trim();
   if (!text) return;
+  // Emptied on the way out so the thread does not look stuck, but the words are
+  // the one thing in the studio that git cannot get back, so a send that fails
+  // gives them back rather than swallowing them.
+  const slug = S.slug;
   composerBox.value = '';
-  S.drafts.delete(S.slug);
+  S.drafts.delete(slug);
   S.autoscroll = true;
-  await sendMessage(text);
+  if (await sendMessage(text)) return;
+
+  // Back where they were typed: into the box if that is still this game and
+  // nothing newer has been typed into it, and otherwise into that game's
+  // draft — never over the top of something newer.
+  if (S.slug === slug && !composerBox.value) {
+    composerBox.value = text;
+    S.drafts.set(slug, text);
+  } else if (!S.drafts.has(slug)) {
+    S.drafts.set(slug, text);
+  }
 }
 
 // The node surviving is not enough: removing it from the document blurs it
@@ -794,11 +808,25 @@ async function refreshFiles() {
   }
 }
 
+// ⚠️ Opening a file is several awaits long — its bytes, and for a picture the
+// decode and the palette after that — so two clicks in a row overlap, and
+// whichever finished last used to win, whichever was asked for last. Each open
+// takes a token and drops everything it was carrying the moment a newer one
+// starts. Without this, clicking one picture and then another showed the first
+// one, or a title with no picture under it at all.
+let opening = null;
+
 async function openFile(path) {
+  const token = {};
+  opening = token;
+  const stale = () => opening !== token;
+
   // Colours changed in the editor ride along with whatever leaves it, so
   // switching files saves them instead of dropping them.
   await flushPalette();
+  if (stale()) return;
   const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  if (stale()) return;
   if (!res.ok) {
     say(`Could not open ${path}.`, true);
     return;
@@ -806,10 +834,12 @@ async function openFile(path) {
   // The listing already said whether this is text and what it is; a picture
   // opens with content null and is shown rather than edited.
   const entry = S.files.find((f) => f.path === path);
+  const content = entry?.text ? await res.text() : null;
+  if (stale()) return;
   S.open = {
     path,
     mime: entry?.mime ?? null,
-    content: entry?.text ? await res.text() : null,
+    content,
     etag: res.headers.get('etag'),
     dirty: false,
   };
@@ -1192,9 +1222,17 @@ const pictureBlob = (picture) => new Promise((resolve) => {
 // will not open stays on screen as the picture, with the reason underneath —
 // there is no second way to look at one, so refusing has to leave something.
 async function startDrawing() {
-  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`);
+  // Belongs to the open that started it: a picture decoded after a newer file
+  // has been asked for is thrown away rather than drawn over it.
+  const token = opening;
+  const stale = () => opening !== token;
+  const path = S.open.path;
+
+  const res = await fetch(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  if (stale()) return;
   if (!res.ok) { say('Could not open that picture.', true); return; }
   const bitmap = await createImageBitmap(await res.blob()).catch(() => null);
+  if (stale()) return;
   if (!bitmap) {
     S.drawRefused = 'This one will not open as a picture, so there is nothing to draw on.';
     render();
@@ -1219,6 +1257,7 @@ async function startDrawing() {
   // Versions may have brought an older look.js back, since the editor was last
   // open.
   await loadPalette();
+  if (stale()) return;
   if (S.drawPrefs.slot >= paletteColours().length) S.drawPrefs.slot = 0;
   render();
 }
@@ -1228,8 +1267,8 @@ async function createPicture(name, width, height) {
   const { failure } = await writeFiles([{ path, body: await pictureBlob(blankPicture(width, height)) }]);
   if (failure) { say(failure, true); return; }
   say(`Made ${path}.`);
+  // openFile opens a picture ready to draw on; there is nothing to add here.
   await openFile(path);
-  await startDrawing();
 }
 
 /* The game's colours ------------------------------------------------------- */
@@ -1614,12 +1653,15 @@ function syncAttached() {
 
 /* Messages ---------------------------------------------------------------- */
 
+// True when it went. The caller needs to know, because what it does with the
+// words depends on the answer.
 async function sendMessage(text) {
   const res = await api('POST', `/api/projects/${S.slug}/messages`, {
     body: text,
     context_paths: [...S.pinned],
   });
   if (!res.ok) say(res.body?.error ?? 'Could not send that.', true);
+  return res.ok;
 }
 
 function stickToBottom() {

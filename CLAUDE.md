@@ -53,6 +53,16 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
   is lost unless it is snapshotted and put back: the composer's text and caret,
   and every scroller's position. A new `.scroll` container needs a
   `data-scroll` name or it will jump to the top on the next render.
+- ⚠️ Opening a file is several awaits long — bytes, then for a picture a decode
+  and the palette — so clicks overlap. `openFile` takes a token and every step
+  after an await drops its result if a newer open has started; `startDrawing`
+  belongs to the open that called it. Without that, two clicks in the list left
+  whichever request finished last on screen, which is how one picture ended up
+  under another one's name.
+- The composer is emptied on send but the words come back if the send fails —
+  into the box if it is still empty and still that game, otherwise into that
+  game's draft, never over anything newer. Nothing else in the studio holds
+  something git cannot recover.
 
 ## Dev-environment gotchas
 
