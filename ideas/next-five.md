@@ -2,33 +2,26 @@
 
 Five asks, sorted by what each one forces rather than what it costs.
 
-Three of them forced nothing and are built: the **input module** (controllers,
-touch and couch multiplayer), the **sound maker**, and the **pixel editor**.
-The pane already opened a file as something other than text, and `PUT` already
-took raw bytes and committed one file per request, so each was a branch in the
-pane and a `PUT` at the end of it. See spec.md §6 and the glossary.
+Four are built. The **input module** (controllers, touch and couch
+multiplayer), the **sound maker**, and the **pixel editor** forced nothing:
+the pane already opened a file as something other than text, and `PUT`
+already took raw bytes and committed one file per request, so each was a
+branch in the pane and a `PUT` at the end of it. See spec.md §6 and the
+glossary.
 
-The two left both need the games origin to remember something between
-requests. It serves files, reads no cookie, and answers 405 to anything that is
-not GET or HEAD (spec.md §6, §7). A score or a room is the first byte of state
-out there and the first write route. That is the fork.
+**Scoreboards** was the cheap pilot for the games origin holding state, and
+it did what it was for: the first write route on that origin now exists, with
+the rules a public write needs — reads no cookie, has its own rate limit,
+caps on name length, score range and rows per game. `POST /_scores/:slug`,
+rows in the SQLite that was already open, spec.md §6. What it settled is what
+the relay inherits.
+
+⚠️ Still the true thing about it: scores are forged by anyone who opens
+devtools, because the client is the only witness. For a family studio that is
+fine. Pretending otherwise means signing scores, which means a secret in
+LLM-written game code, which means no secret.
 
 ---
-
-## scoreboards — the cheap pilot for the same decision
-
-`POST /_scores/:slug` with `{name, score}`, `GET /_scores/:slug` for the top N,
-rows in the SQLite that is already open. ~120 lines plus tests.
-
-What it settles is worth more than what it does. It is the first write route on
-the games origin, so it forces the rules multiplayer needs anyway: reads no
-cookie, has its own rate limit (there is none outside login today), caps on
-name length, score range and rows per slug.
-
-⚠️ Say the true thing about it: scores are forged by anyone who opens devtools,
-because the client is the only witness. For a family studio that is fine.
-Pretending otherwise means signing scores, which means a secret in LLM-written
-game code, which means no secret.
 
 ## networked multiplayer
 
@@ -50,7 +43,29 @@ opens a room per frame is a normal Tuesday rather than an attack. Every cap has
 to be real: rooms per slug, members per room, bytes per message, messages per
 second, and a sweeper for rooms nobody left.
 
+## persistent worlds
+
+Three tiers, and the first is already free:
+
+1. **Per player, per device** — works today. `localStorage` on the games
+   origin was deliberately preserved (spec.md §7 chose separate origins over
+   `CSP: sandbox` partly for it), so a single-player game saves without any
+   server. Worth a preamble line some day: a capability an agent is not told
+   about may as well not exist.
+2. **Per game, shared** — a bounded key-value document per slug: same SQLite,
+   same caps-and-rate-limit rules. The scoreboard generalised from
+   append-only to read-write.
+3. **Shared and live** — a world several players mutate at once: tier 2's
+   storage plus the relay's concurrency. Only makes sense after both exist.
+
+⚠️ The risk tier 2 adds that scoreboards don't have: a forged score is funny;
+a stranger wiping a world kids built is not. With no player accounts — by
+design — the mitigation is shape, not auth: append-only or bounded structures
+rather than arbitrary blobs, and the database backup as the recovery story.
+That tradeoff needs its own decision before anyone builds it.
+
 ---
 
-Order: scoreboards first, because it pays for the boundary rules the relay
-needs. Then the turn-based relay. WebSocket only if a real game demands it.
+Order: the turn-based relay next — the boundary rules it needed are settled
+and tested. WebSocket only if a real game demands it. Worlds after the relay,
+tier by tier.

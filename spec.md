@@ -212,6 +212,28 @@ the broken version's problems retire themselves and no commit path has to
 remember to clear them. Rows for other commits are deleted the next time
 anything is reported for that project.
 
+### `scores`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | ties rank by it: earlier post wins |
+| `project_id` | INTEGER NOT NULL → projects | |
+| `name` | TEXT NOT NULL | ≤ 24 chars, trimmed, no control characters |
+| `score` | INTEGER NOT NULL | a JS-safe integer; bigger is better |
+| `created_at` | TEXT NOT NULL | |
+
+A game's scoreboard, posted by the public from inside the running game and
+served back by the games origin (§6) — the one thing that listener writes.
+Pruned to the best 100 per project on every insert, so the table is bounded
+by construction. It lives here rather than in the working tree because a tree
+write is a commit: scores as files would spam Versions, restart the preview
+on every `files.changed`, and thrash the ambient block's prompt cache (§8).
+`VACUUM INTO` backs it up with the chats and accounts; git cannot recover it.
+
+⚠️ Scores are forgeable — the client is the only witness, and signing them
+would need a secret inside LLM-written game code, which is no secret. An
+accepted cost for this studio (ideas/next-five.md).
+
 ### `studio_state`
 
 Single row, `id = 1`.
@@ -718,17 +740,28 @@ for a dialog's controls the same way as for the composer.
 | GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
+| GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
+| POST | `/_scores/:slug` | add one entry `{name, score}`; answers 201 `{rank}` — null when it missed the board (§3, §10) |
 
 No authentication, no cookies read, no `/api` surface, no directory index.
-Other methods get 405. Archived projects stay playable. `Cache-Control:
-no-store` throughout, so iterating on a game shows fresh bytes on reload
-without cache-busting.
+Any other method gets 405. Archived projects stay playable — and keep taking
+scores, for the same reason. `Cache-Control: no-store` throughout, so
+iterating on a game shows fresh bytes on reload without cache-busting.
 
-Two of those four are not the project's own bytes. Neither reads a cookie and
-neither writes anything: the catalog is built from slugs and published flags,
-and the wrapper is one file plus one `git rev-parse`. `_studio.html` is
-reserved in every project — a working tree containing a file of that name has
-it shadowed and never served.
+The catalog, the wrapper, and the scoreboard are not the project's own bytes.
+None of them reads a cookie: the catalog is built from slugs and published
+flags, the wrapper is one file plus one `git rev-parse`, and the scoreboard is
+rows in the `scores` table (§3). `_studio.html` is reserved in every project —
+a working tree containing a file of that name has it shadowed and never
+served. `_scores` cannot collide with a game at all: an underscore is not
+legal in a slug.
+
+⚠️ `POST /_scores` is this origin's first and only write route, and it holds
+the rules a public write needs: no cookie read, every field capped (§10), a
+1 KB `application/json`-only body, and its own per-IP rate limit — the first
+outside login, in-memory like the lockouts (§11). What it writes is one
+bounded table, never a working tree — so a score commits nothing, restarts no
+preview, and never enters an agent's context.
 
 ⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
 cheap and read-only, but it is a bigger amplification than a file read, and it
@@ -1190,6 +1223,9 @@ the game in your preview pane reloads.
 - Studio token budget: `DAILY_TOKEN_BUDGET`, default 5,000,000 per UTC day.
 - Login lockout: per email 10 failures / 5 min → 5 min lock; per IP 20
   failures / 5 min → 10 min lock. In-memory, resets on restart.
+- Scoreboard: name ≤ 24 chars, score a JS-safe integer, best 100 rows kept
+  per game, `?limit=` ≤ 100, body 1 KB; posts 10 / min / IP, in-memory like
+  the lockouts.
 
 ## 11. Auth details
 
@@ -1212,9 +1248,11 @@ the game in your preview pane reloads.
   `deluser` removes its row or the browser loses the cookie. Expiry and
   rotation are deferred to v1 (§15) and belong to the same gate as the rest
   of this list.
-- **No rate limiting outside login.** An authenticated user can flood message
-  posts and file writes; bounded only by the token budget and size caps. The
-  trust boundary here is the account list, which the operator controls by hand.
+- **No rate limiting outside login and the scoreboard.** An authenticated
+  user can flood message posts and file writes; bounded only by the token
+  budget and size caps. The trust boundary here is the account list, which
+  the operator controls by hand. The scoreboard is rate limited because its
+  writers are the public, not the account list (§6, §10).
 - **`.svg` is served to the public.** On the games origin that's harmless —
   scripts inside it can't reach the studio origin or its cookie.
 - **Binary files are trusted by extension.** No magic-number validation;
@@ -1233,9 +1271,10 @@ Tests enforce each of these.
 
 - Every path accepted by the API resolves inside its project directory, and no
   path with a `.git`-prefixed segment is ever read, written, or served. ⚠️
-- The games listener never reads a cookie, never writes, and serves nothing
-  but a project's own files, the catalog, and the wrapper — and the wrapper is
-  that project's own `index.html` with a script in front of it. ⚠️
+- The games listener never reads a cookie and serves nothing but a project's
+  own files, the catalog, the wrapper — that project's own `index.html` with a
+  script in front of it — and the scoreboard. Its one write is a scoreboard
+  row: a bounded table, never a working tree. ⚠️
 - No HTTP response reports a successful file mutation before its git commit
   has landed.
 - At most one write+commit runs at a time per project.

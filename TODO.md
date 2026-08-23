@@ -12,14 +12,14 @@ deliberately deferred.
   input.js — a sprite sheet reader or a sound player is the small end of it
 - a studio-wide "which games are behind" view. Per-project the button already
   says Update; across games there is nowhere that shows it
-- scoreboards and networked multiplayer both need the games origin to hold
-  state and to take its first write — see ideas/next-five.md. Scoreboards is
-  the cheap pilot: it settles the rules (no cookie, its own rate limit, caps)
-  that multiplayer needs anyway
+- networked multiplayer: a turn-based room relay on the games origin — see
+  ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
+  limit, caps) are settled and tested by the scoreboard now
 - pull space-racer's colours out of its drawing code into `config/look.js` (a
   game refactor, so ask a helper to do it rather than doing it by hand)
 - migrate `redwolf-radness` — still one big file, so this is a rebuild rather
   than a move (fun-slide went this way live: `2a6821d` in its repo)
+- support touch controls
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate

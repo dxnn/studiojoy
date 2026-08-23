@@ -277,9 +277,20 @@ exactly one frame, and the touch overlay appearing on a coarse pointer and
 driving the game. Not checked with a real controller — no hardware here; the
 pad paths are covered by fake pads in `test/input-template.test.js`.
 
-Couch multiplayer is what the input module buys. Networked multiplayer and
-scoreboards are not built and both need the games origin to hold state and take
-its first write — see `ideas/next-five.md`.
+Couch multiplayer is what the input module buys. Networked multiplayer is not
+built; the games origin holding state and taking a write is no longer the
+blocker — the scoreboard settled that. See `ideas/next-five.md`, which also
+tiers persistent worlds.
+
+Every game has a **scoreboard**: `GET`/`POST /_scores/<slug>` on the games
+origin — that origin's first and only write route. Rows live in SQLite, never
+the working tree, so a score commits nothing, restarts no preview, and never
+enters an agent's context or thrashes its prompt cache. Best 100 kept per
+game, every field capped, posts rate-limited per IP (the first limit outside
+login), no cookie read, and forgeable by design — the client is the only
+witness (spec.md §3, §6, §10). The preamble tells helpers the routes and to
+render names with `textContent`; `orchestrator.test.js` asserts both. Tested
+in `test/scores.test.js`, not yet exercised by a real game in a browser.
 
 The preamble names every one of these by the words on the button, because a
 capability an agent is not told about may as well not exist. `orchestrator.js`

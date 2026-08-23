@@ -6,6 +6,11 @@ import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
 import { readFileAt } from './files/tree.js';
 import { currentSha } from './files/git.js';
 import { WRAPPER_PATH, wrapHtml } from './reporter.js';
+import { readJson } from './http/body.js';
+import { json } from './http/respond.js';
+import {
+  topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
+} from './scores.js';
 
 const ENTRY_FILE = 'index.html';
 
@@ -19,9 +24,9 @@ const ENTRY_FILE = 'index.html';
 // has no such route, and each origin gets its own localStorage — so games
 // keep working save state, which a CSP sandbox would have cost them.
 //
-// The only thing this serves is a regular file from inside a project
-// directory. Nothing here reads a cookie, touches a session, or writes.
-// Names and slugs reach the catalog as text, never as markup.
+// Nothing here reads a cookie or touches a session. The scoreboard is the
+// one write, and it writes one bounded table — never a working tree
+// (spec.md §6). Names and slugs reach the catalog as text, never as markup.
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -31,11 +36,26 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-export function createGamesApp({ db, gamesDir }) {
+export function createGamesApp({ db, gamesDir, scoreRate }) {
   if (!db) throw new Error('createGamesApp requires a db');
   const root = path.resolve(gamesDir);
 
   const r = createRouter();
+  const limitScores = createScoreLimiter(scoreRate);
+
+  // Slug → game row. Any refusal is a plain 404: the public has no business
+  // learning why. A directory on disk with no project row is not public —
+  // which is also what keeps a half-created project from being served — and
+  // a chat has no directory at all, so its slug is not public either.
+  const gameForSlug = (raw) => {
+    const slug = checkSlug(raw);
+    if (!slug.ok) throw new HttpError(404, 'not found');
+    const project = db
+      .prepare('SELECT id, slug, kind FROM projects WHERE slug = ?')
+      .get(slug.slug);
+    if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
+    return project;
+  };
 
   // The catalog. Only published games appear, so an unfinished one stays
   // unlisted while still being playable by link — the same bargain as before,
@@ -100,13 +120,7 @@ export function createGamesApp({ db, gamesDir }) {
   // landing in between then makes the version older than the bytes, and an
   // error filed against a superseded commit is dropped rather than shown.
   r.get(`/:slug/${WRAPPER_PATH}`, async (ctx) => {
-    const slug = checkSlug(ctx.params.slug);
-    if (!slug.ok) throw new HttpError(404, 'not found');
-    const project = db
-      .prepare('SELECT slug, kind FROM projects WHERE slug = ?')
-      .get(slug.slug);
-    if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
-
+    const project = gameForSlug(ctx.params.slug);
     const dir = path.join(root, project.slug);
     const version = await currentSha(dir).catch(() => '');
     const html = await readFileAt(path.join(dir, ENTRY_FILE));
@@ -120,19 +134,32 @@ export function createGamesApp({ db, gamesDir }) {
     return ctx.res.end(wrapHtml(html.toString('utf8'), version));
   });
 
+  // The scoreboard (spec.md §6): the one thing here that is not a file, and
+  // the origin's first write route. Same posture as the rest of this
+  // listener — no cookie read, a plain 404 for a slug that is not a game's —
+  // with every dimension capped in scores.js. `_scores` cannot shadow a
+  // game: an underscore is not legal in a slug. Archived games stay
+  // playable, so they keep taking scores too.
+  r.get('/_scores/:slug', (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 200, { scores: topScores(db, game.id, ctx.query.get('limit')) });
+  });
+
+  r.post('/_scores/:slug', async (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    // The limit is checked before the body is read, so a flood costs headers.
+    limitScores(ctx.req.socket?.remoteAddress ?? 'unknown');
+    const body = await readJson(ctx.req, MAX_SCORE_BODY_BYTES);
+    const rank = submitScore(db, game.id, body);
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 201, { rank });
+  });
+
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;
   // `/tank/js/game.js` serves that file.
   r.get('/:slug/*path', async (ctx) => {
-    const slug = checkSlug(ctx.params.slug);
-    if (!slug.ok) throw new HttpError(404, 'not found');
-
-    // A directory on disk with no project row is not public. This is also
-    // what keeps a half-created project from being served. A chat has no
-    // directory at all, so its slug is not public either.
-    const project = db
-      .prepare('SELECT slug, kind FROM projects WHERE slug = ?')
-      .get(slug.slug);
-    if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
+    const project = gameForSlug(ctx.params.slug);
 
     const requested = ctx.params.path === '' ? 'index.html' : ctx.params.path;
     // Same validation as the studio, but a refusal is reported as 404: the

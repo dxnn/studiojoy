@@ -108,6 +108,19 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_runtime_errors_project
      ON runtime_errors (project_id, commit_sha)`,
 
+  // What the public posted from inside a running game — the games origin's
+  // one write (spec.md §6). Pruned to the best rows per project on every
+  // insert, so the table is bounded by construction.
+  `CREATE TABLE IF NOT EXISTS scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    name TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_scores_project
+     ON scores (project_id, score DESC, id)`,
+
   // Single row. One studio-wide daily budget, because agents have no owner
   // to bill (spec.md §3).
   `CREATE TABLE IF NOT EXISTS studio_state (

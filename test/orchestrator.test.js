@@ -407,6 +407,8 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   assert.match(system, /"\+ Make a sound"/);
   assert.match(system, /"\+ Upload"/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
+  assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');
+  assert.match(system, /textContent, never innerHTML/, 'and so is the safe way to show it');
 
   // The files sit in the system prompt, ahead of the transcript, so the prefix
   // a second fire matches on includes them (spec.md §8).

@@ -152,9 +152,9 @@ export async function setup({
 
 // The public listener, over the same db and games directory as a studio
 // fixture. Separate server, separate origin — which is the whole point.
-export async function startGames(fixture) {
+export async function startGames(fixture, opts = {}) {
   const { createGamesApp } = await import('../server/games.js');
-  const handler = createGamesApp({ db: fixture.db, gamesDir: fixture.gamesDir });
+  const handler = createGamesApp({ db: fixture.db, gamesDir: fixture.gamesDir, ...opts });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
