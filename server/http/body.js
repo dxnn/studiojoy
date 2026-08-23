@@ -45,6 +45,17 @@ export function readRaw(req, limit = MAX_RAW_BYTES) {
 }
 
 export async function readJson(req, limit = MAX_JSON_BYTES) {
+  // ⚠️ This check is the preflight barrier, not pedantry. Two ports on one
+  // hostname are one *site*, so a game on the games origin can POST here with
+  // the operator's cookie attached — and a body sent as text/plain (or with no
+  // Content-Type at all) is CORS-safelisted, so the browser sends it without
+  // asking. Requiring application/json makes every such POST need a preflight,
+  // which the studio never grants (spec.md §7). Checked before the body is
+  // read: a refused request costs nothing.
+  const declared = (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  if (declared !== 'application/json') {
+    throw new HttpError(415, 'expected content-type: application/json');
+  }
   const buf = await readRaw(req, limit);
   if (!buf.length) return Object.create(null);
   let parsed;

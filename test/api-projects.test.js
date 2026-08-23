@@ -62,6 +62,20 @@ test('bad slugs are refused before anything is created', async (t) => {
   assert.deepEqual(fs.readdirSync(app.gamesDir), [], 'no stray directories');
 });
 
+// ⚠️ The CSRF-shaped forgery from spec.md §7: a game on the same hostname can
+// POST cross-origin with the operator's cookie, and text/plain skips the
+// preflight. The signed-in cookie must not be enough — the declared type is.
+test('a text/plain POST is refused even with a valid session', async (t) => {
+  const app = await studio(t);
+  const res = await app.client.request('POST', '/api/projects', {
+    headers: { 'content-type': 'text/plain' },
+    rawBody: JSON.stringify({ name: 'Sneak' }),
+  });
+  assert.equal(res.status, 415);
+  await res.text();
+  assert.deepEqual(fs.readdirSync(app.gamesDir), [], 'nothing was created');
+});
+
 test('a duplicate slug is a conflict', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });

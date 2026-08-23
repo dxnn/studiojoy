@@ -340,7 +340,9 @@ Two listeners in one process, on two origins (§7).
 
 All `/api` routes require a valid `session` cookie and return JSON unless
 noted. A request for an unknown project slug gets 404. A write to an archived
-project gets 409.
+project gets 409. A JSON body must be declared `Content-Type:
+application/json` (parameters and case ignored) or the request is a 415
+before its handler runs — that check is a security boundary, not hygiene (§7).
 
 #### Auth
 
@@ -730,13 +732,17 @@ Cookies are not port-scoped (RFC 6265 §8.5), so a session set for `localhost`
 is sent to `localhost:8101` as well; and `SameSite` keys on scheme plus
 registrable domain while ignoring port, so `:8101` → `:8100` counts as
 same-site and `Lax` does not restrain it. Game code therefore cannot read the
-studio API, but it can reach it with the operator's session attached. Two
+studio API, but it can reach it with the operator's session attached. Three
 things bound that today: the games listener has no route that reads a cookie,
-so a replayed session drives nothing there (tested), and a forged studio write
-is blind — which limits disclosure but not damage, since a blind `POST` can
-still delete a project. This is the concrete shape of the missing CSRF token
-in §11. Separate hostnames in production remove the shared cookie domain that
-makes it reachable at all.
+so a replayed session drives nothing there (tested); `readJson` answers 415 to
+any body not declared `application/json` (tested), so a forged `POST` either
+carries a CORS-safelisted type like `text/plain` — sent without preflight,
+bounced before its handler runs — or declares JSON and needs a preflight the
+studio never grants; and every other write method (`PUT`, `PATCH`, `DELETE`)
+preflights regardless of its declared type. What a page on another origin can
+still drive is `POST /api/logout`, the one `POST` that reads no body — a
+forged one costs the operator a sign-in and nothing else. Separate hostnames
+in production remove the shared cookie domain that makes even that reachable.
 
 In production the two listeners sit behind separate hostnames
 (`studio.example.com`, `games.example.com`), and `GAMES_URL` names the games
@@ -758,7 +764,8 @@ Header posture:
   in a preview iframe.
 
 No CSRF token in v0: the session cookie is `HttpOnly`, `SameSite=Lax`,
-`Secure` when `NODE_ENV=production`. Same accepted tradeoff as `new-y`.
+`Secure` when `NODE_ENV=production`. The content-type guard above stands in
+for it — a token would close the logout residue and nothing else.
 
 ## 8. Agent orchestration
 
@@ -1176,7 +1183,8 @@ the game in your preview pane reloads.
 
 ### Accepted security tradeoffs (v0)
 
-- **No CSRF token.** `SameSite=Lax` only, as in `new-y`.
+- **No CSRF token.** `SameSite=Lax` plus the `readJson` content-type guard
+  (§7), which bounds a cross-site forgery to `POST /api/logout`.
 - **Lockout state is in-memory.** A restart clears all lockouts.
 - **No rate limiting outside login.** An authenticated user can flood message
   posts and file writes; bounded only by the token budget and size caps. The
