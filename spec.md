@@ -1428,16 +1428,22 @@ server/
   routes/         auth, projects, agents, messages, errors, files, history, stream
 public/
   index.html      shell
-  main.js         the whole SPA
+  main.js         the SPA's core: state, transport, URL, stream, the file,
+                  drawing and history actions, and render()
+  dom.js          h(), and the icon buttons
+  sidebar.js  chat.js  versions.js  config-form.js  dialogs.js  upload.js
+                  one pane or feature each, importing the core from main.js
+  config-file.js  patch.js  pixel-editor.js  sound-maker.js
+                  pure logic, shared with npm test
   style.css
 bin/
   adduser.js  deluser.js
 test/
 ```
 
-Rough size: ~1,800 lines of server, ~1,200 of client, ~1,200 of tests. About
-half of `new-y`, because signup, email, push, reactions, typing, unread
-counts, and per-user permissions are all absent.
+Rough size: ~4,800 lines of server, ~4,800 of client, ~6,600 of tests.
+Signup, email, push, reactions, typing, unread counts, and per-user
+permissions (all present in `new-y`) are absent on purpose.
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, and a
 scripted fake LLM client, so the suite needs no network and no API key. The

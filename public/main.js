@@ -1,96 +1,38 @@
-// Game Studio — the whole client. Vanilla, no build step, no framework.
+// Game Studio — the client's core. Vanilla, no build step, no framework.
 // Structural changes re-render a pane; streaming text mutates live nodes in
 // place so a long reply doesn't rebuild the thread on every chunk.
+//
+// This file holds what everything else leans on — the state, the transport,
+// the URL, the stream, and the file, drawing and history actions — plus
+// render(), which composes the panes that live in the modules beside it:
+// dom.js, sidebar.js, chat.js, versions.js, config-form.js, dialogs.js,
+// upload.js.
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
-import { patchFor, hasHunks, renameIn } from './patch.js';
+import { soundFrom } from './sound-maker.js';
 import {
-  SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
-} from './sound-maker.js';
-import {
-  PALETTE, PALETTE_COLUMNS, SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
-  rgbaOf, hexOf, clampSide, isColour,
+  rgbaOf, hexOf, isColour,
 } from './pixel-editor.js';
+import { h, iconButton } from './dom.js';
+import {
+  ASSET_DIR, assetPath, writeFiles, openUpload, makeDropTarget, isFileDrag,
+} from './upload.js';
+import { isConfigPath, renderConfigForm } from './config-form.js';
+import { renderVersionsTab } from './versions.js';
+import { renderChat } from './chat.js';
+import { renderSidebar } from './sidebar.js';
+import { dialogFor } from './dialogs.js';
 
 const root = document.getElementById('root');
-
-/* DOM ---------------------------------------------------------------------- */
-
-function h(tag, props, ...kids) {
-  const el = document.createElement(tag);
-  for (const [key, value] of Object.entries(props ?? {})) {
-    if (value === null || value === undefined || value === false) continue;
-    if (key === 'class') el.className = value;
-    else if (key === 'text') el.textContent = value;
-    else if (key.startsWith('on')) el.addEventListener(key.slice(2).toLowerCase(), value);
-    else el.setAttribute(key, value === true ? '' : String(value));
-  }
-  for (const kid of kids.flat(Infinity)) {
-    if (kid === null || kid === undefined || kid === false || kid === '') continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
-  }
-  return el;
-}
-
-/* Icons -------------------------------------------------------------------- */
-
-// h() makes HTML elements, and an <svg> built with createElement is inert —
-// SVG needs its own namespace. Small enough to keep separate rather than
-// teaching h() about namespaces it would use nowhere else.
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-// Drawn in outline from currentColor, so a tool that is on inherits the filled
-// button's ink without a second copy of the icon.
-const ICONS = {
-  pencil: ['M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'],
-  eraser: ['M9 20H6l-3-3 10-10 6 6-7 7z', 'M4 21h16', 'M8 10l6 6'],
-  bucket: ['M6 13l7-7 6.5 6.5-7 7L6 13z', 'M13 6 9.5 2.5', 'M19.5 15.5c1.2 1.7 1.2 3.5 0 3.5s-1.2-1.8 0-3.5z'],
-  // A round bulb, because the first draft was a tapered diagonal body and read
-  // as a second pencil sitting next to the pencil.
-  dropper: ['M3 21l1-3.6 7.8-7.8 2.6 2.6L6.6 20 3 21z', 'M12.8 9.6l2.6 2.6', 'M14.5 6.5a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0-6.4 0'],
-  undo: ['M2 5v6h6', 'M4.6 15.5a9 9 0 1 0 1.9-9.2L2 11'],
-  redo: ['M22 5v6h-6', 'M19.4 15.5a9 9 0 1 1-1.9-9.2L22 11'],
-};
-
-function icon(name, size = 17) {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', size);
-  svg.setAttribute('height', size);
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.9');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  // The words are on the button's title and aria-label; the picture is
-  // decoration on top of them.
-  svg.setAttribute('aria-hidden', 'true');
-  for (const d of ICONS[name] ?? []) {
-    const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', d);
-    svg.append(path);
-  }
-  return svg;
-}
-
-// An icon button always carries the words too: a picture nobody recognises is
-// only a button you have to press to find out about.
-const iconButton = ({ name, label, hint, on = false, disabled = false, onclick }) => h('button', {
-  class: `icon-btn${on ? ' on' : ''}`,
-  title: hint ? `${label} — ${hint}` : label,
-  'aria-label': label,
-  'aria-pressed': on ? 'true' : null,
-  disabled,
-  onclick,
-}, icon(name));
 
 /* Saved preferences -------------------------------------------------------- */
 
 // Layout is a per-person, per-device choice, so it lives in localStorage
 // rather than in the database.
-const prefs = {
+export const prefs = {
   get(key, fallback) {
     try { return localStorage.getItem(`gs.${key}`) ?? fallback; } catch { return fallback; }
   },
@@ -111,7 +53,7 @@ function railClamp(px) {
 
 /* State ------------------------------------------------------------------- */
 
-const S = {
+export const S = {
   me: null,
   loading: true,
   authError: null,
@@ -177,7 +119,7 @@ const S = {
 // the whole tree, and an agent starting a reply, finishing one, or touching a
 // file all trigger one — a textarea rebuilt each time would throw away
 // whatever was being typed. Keeping the node keeps the text.
-const composerBox = h('textarea', {
+export const composerBox = h('textarea', {
   onkeydown: (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -187,7 +129,7 @@ const composerBox = h('textarea', {
   oninput: () => { if (S.slug) S.drafts.set(S.slug, composerBox.value); },
 });
 
-async function sendComposer() {
+export async function sendComposer() {
   const text = composerBox.value.trim();
   if (!text) return;
   // Emptied on the way out so the thread does not look stuck, but the words are
@@ -277,25 +219,25 @@ function keepDiffInView() {
   document.querySelector('.commit.open')?.scrollIntoView({ block: 'start' });
 }
 
-const isChat = () => S.project?.kind === 'chat';
+export const isChat = () => S.project?.kind === 'chat';
 
 // A picture is the first file whose byte count nobody can read, so sizes are
 // rounded once they leave kilobyte territory.
-const sizeText = (bytes) => (bytes < 1024
+export const sizeText = (bytes) => (bytes < 1024
   ? `${bytes} bytes`
   : bytes < 1024 * 1024
     ? `${Math.round(bytes / 1024)} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`);
 
-const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
+export const agentName = (id) => S.project?.agents.find((a) => a.agent_id === id)?.name
   ?? S.agents.find((a) => a.id === id)?.name
   ?? 'Helper';
 
 /* API --------------------------------------------------------------------- */
 
-const encodePath = (p) => p.split('/').map(encodeURIComponent).join('/');
+export const encodePath = (p) => p.split('/').map(encodeURIComponent).join('/');
 
-const NO_CONNECTION = 'Could not reach the studio. Check the connection and try again.';
+export const NO_CONNECTION = 'Could not reach the studio. Check the connection and try again.';
 
 // ⚠️ `fetch` does not answer when there is no connection — it throws. A dropped
 // wifi, a closed lid, the server restarting mid-request: every one of those
@@ -314,7 +256,7 @@ function setConnected(on) {
   render();
 }
 
-async function send(url, opts) {
+export async function send(url, opts) {
   try {
     // The one place `fetch` is named. Everywhere else calls this.
     return await fetch(url, opts);
@@ -337,7 +279,7 @@ async function send(url, opts) {
 // connection is never the file's fault, so it never reads like it.
 const problem = (res, fallback) => (res.status === 0 ? NO_CONNECTION : fallback);
 
-async function api(method, path, body) {
+export async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (body !== undefined) {
     opts.headers['content-type'] = 'application/json';
@@ -361,7 +303,7 @@ async function api(method, path, body) {
   return { status: res.status, ok: res.ok, body: failed, headers: res.headers };
 }
 
-function say(message, bad = false) {
+export function say(message, bad = false) {
   S.banner = message ? { message, bad } : null;
   render();
 }
@@ -415,7 +357,7 @@ let urlModeToken = null;
 // inner call finish first and leave `hold` standing, after which nothing ever
 // wrote the address again. Going back to the default cannot get stuck: the
 // worst an overlap costs now is one entry too many.
-async function urlAs(mode, fn) {
+export async function urlAs(mode, fn) {
   const token = {};
   urlMode = mode;
   urlModeToken = token;
@@ -455,7 +397,7 @@ function syncUrl() {
 
 // The list on screen is not the list being asked for — a different filter, one
 // that was never fetched, or one a commit has landed under since.
-const historyNeedsLoad = (path) => path !== S.historyPath
+export const historyNeedsLoad = (path) => path !== S.historyPath
   || S.history.length === 0
   || S.historyStale;
 
@@ -527,19 +469,19 @@ async function start() {
   });
 }
 
-async function loadProjects() {
+export async function loadProjects() {
   const res = await api('GET', '/api/projects');
   if (res.ok) S.projects = res.body;
 }
 
-async function loadAgents() {
+export async function loadAgents() {
   const res = await api('GET', '/api/agents');
   if (res.ok) S.agents = res.body;
 }
 
 // The address is render()'s to write — opening a game only sets the state.
 // Wrap the call in urlAs('replace', …) when it is not a navigation.
-async function openProject(slug, { view = null } = {}) {
+export async function openProject(slug, { view = null } = {}) {
   // Half-typed text belongs to the game it was typed in, so it is parked
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
@@ -782,7 +724,7 @@ function onEvent(name, data) {
   }
 }
 
-function toolLabel(tool) {
+export function toolLabel(tool) {
   if (!tool) return '';
   const [verb, ...rest] = tool.split(' ');
   const path = rest.join(' ');
@@ -856,7 +798,7 @@ window.addEventListener('message', (event) => {
 
 /* Files ------------------------------------------------------------------- */
 
-async function refreshFiles() {
+export async function refreshFiles() {
   if (!S.slug) return;
   const res = await api('GET', `/api/projects/${S.slug}/files`);
   if (res.ok) {
@@ -873,7 +815,7 @@ async function refreshFiles() {
 // one, or a title with no picture under it at all.
 let opening = null;
 
-async function openFile(path) {
+export async function openFile(path) {
   const token = {};
   opening = token;
   const stale = () => opening !== token;
@@ -939,9 +881,9 @@ function closeOpenFile(then = null) {
 // header of one file's versions. Through closeOpenFile so unsaved work in the
 // file being left gets the same question the ✕ asks, wherever the click came
 // from.
-const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(path));
+export const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(path));
 
-async function saveOpenFile({ force = false } = {}) {
+export async function saveOpenFile({ force = false } = {}) {
   if (!S.open) return;
   const headers = { 'content-type': 'text/plain' };
   if (!force && S.open.etag) headers['if-match'] = S.open.etag;
@@ -973,7 +915,7 @@ async function saveOpenFile({ force = false } = {}) {
   say(`Saved ${S.open.path}.`);
 }
 
-async function createFile(path) {
+export async function createFile(path) {
   const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
     method: 'PUT', headers: { 'content-type': 'text/plain' }, body: '',
   });
@@ -986,145 +928,6 @@ async function createFile(path) {
   await openFile(path);
 }
 
-/* Uploads ----------------------------------------------------------------- */
-
-// Where a picture or sound lands unless you say otherwise. The agent preamble
-// names the same folder, so a dropped sprite is already at the path a helper
-// will write in its code.
-const ASSET_DIR = 'assets';
-
-// Mirrors MAX_FILE_BYTES in server/files/tree.js. Checked here too so an
-// oversized file is named in the dialog rather than failing halfway up.
-const MAX_UPLOAD_MB = 10;
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-
-// A dropped file's name becomes a project path: lowercased, runs of anything
-// that isn't a letter or digit become one dash, the extension kept. The server
-// validates the result regardless — this is so `My Hero (2).PNG` lands
-// somewhere a ten-year-old can say out loud.
-function assetPath(folder, filename) {
-  const dot = filename.lastIndexOf('.');
-  const ext = dot > 0 ? filename.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, '') : '';
-  const stem = (dot > 0 ? filename.slice(0, dot) : filename)
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-    // A name of nothing but punctuation would otherwise leave `.png` alone,
-    // which is a hidden file rather than a picture.
-    || 'file';
-  return folder ? `${folder}/${stem}${ext}` : `${stem}${ext}`;
-}
-
-// What an upload would do, worked out before anything is sent so the dialog can
-// show it: where each file lands, whether it replaces one already there, and
-// the reason a file is being left out.
-function uploadPlan(folder, files) {
-  const taken = new Set();
-  return files.map((file) => {
-    const path = assetPath(folder, file.name);
-    let problem = null;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      problem = `too big — ${MAX_UPLOAD_MB} MB is the most`;
-    } else if (taken.has(path)) {
-      // Two dropped files can tidy down to one name. Letting the second
-      // overwrite the first is the kind of loss nobody thinks to look for.
-      problem = 'another one of these wants the same name';
-    } else {
-      // Only a file that is actually going to be sent holds the name — a
-      // rejected one must not block the next file that wants it.
-      taken.add(path);
-    }
-    return {
-      file,
-      path,
-      problem,
-      note: S.files.some((f) => f.path === path)
-        ? 'replaces the one there now'
-        : file.type
-          ? sizeText(file.size)
-          : `${sizeText(file.size)} — the game may not be able to use this`,
-    };
-  });
-}
-
-// One PUT per file, one commit each — the same thing a helper does when it
-// writes several files. No If-Match: these replace on purpose, and whatever
-// asked for them already said which files it would replace.
-async function writeFiles(plan) {
-  let done = 0;
-  let failure = null;
-  for (const { path, body } of plan) {
-    const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
-      method: 'PUT', body,
-    });
-    if (!res.ok) {
-      const parsed = await res.json().catch(() => null);
-      failure = uploadProblem(res.status, path, parsed?.error);
-      // Whatever stopped this one stops the rest, and a banner per file would
-      // bury the reason.
-      break;
-    }
-    done += 1;
-  }
-
-  S.previewNonce += 1;
-  await refreshFiles();
-  return { done, failure };
-}
-
-async function uploadFiles(plan) {
-  if (plan.length > 1) say(`Adding ${plan.length} things…`);
-  const { done, failure } = await writeFiles(plan.map(({ path, file }) => ({ path, body: file })));
-  if (failure) {
-    say(done ? `${failure} ${done} of ${plan.length} got added.` : failure, true);
-    return;
-  }
-  say(plan.length === 1 ? `Added ${plan[0].path}.` : `Added ${plan.length} files.`);
-  // One file is something you want to look at; twelve sprites are not.
-  if (plan.length === 1) await openFile(plan[0].path);
-}
-
-// The server's limits are exact and in bytes; the same fact has to arrive in
-// words. Which cap was hit doesn't change what you'd do about it, so both
-// 409s read the same. Anything unmapped keeps the server's own sentence.
-function uploadProblem(status, path, error) {
-  if (status === 0) return NO_CONNECTION;
-  if (status === 413) {
-    return `${path} is too big to add. One file can be up to ${MAX_UPLOAD_MB} MB.`;
-  }
-  if (status === 409) return `There is no room for ${path} — this game is full.`;
-  return error ?? `Could not add ${path}.`;
-}
-
-const openUpload = (files) => { S.dialog = { kind: 'upload', files }; render(); };
-
-// Dropping onto the list is the quickest way in on a laptop; the button beside
-// New file is the one that works on a tablet. Both end in the same dialog.
-// The highlight is toggled on the node rather than through render(), which
-// would rebuild the element mid-drag and lose the drop.
-function makeDropTarget(el) {
-  const mark = (on) => el.classList.toggle('dropping', on);
-  el.addEventListener('dragover', (e) => {
-    if (!isFileDrag(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    mark(true);
-  });
-  el.addEventListener('dragleave', (e) => { if (e.target === el) mark(false); });
-  el.addEventListener('drop', (e) => {
-    if (!isFileDrag(e)) return;
-    e.preventDefault();
-    mark(false);
-    const files = [...e.dataTransfer.files];
-    if (files.length) openUpload(files);
-  });
-}
-
-const isFileDrag = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
-
 /* The studio library ------------------------------------------------------- */
 
 // A library is copied into a game, under studio/, rather than shared from one
@@ -1136,7 +939,7 @@ const isFileDrag = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
 //
 // The rule that makes it a library and not just a folder is in
 // server/files/paths.js: a helper reads it and cannot write it.
-const LIBRARY_DIR = 'studio';
+export const LIBRARY_DIR = 'studio';
 const LIBRARY_MANIFEST = `${LIBRARY_DIR}/studio.json`;
 const LIBRARY_INDEX = '/studio-lib/index.json';
 
@@ -1327,7 +1130,7 @@ async function startDrawing() {
   render();
 }
 
-async function createPicture(name, width, height) {
+export async function createPicture(name, width, height) {
   const path = assetPath(ASSET_DIR, `${name || 'picture'}.png`);
   const { failure } = await writeFiles([{ path, body: await pictureBlob(blankPicture(width, height)) }]);
   if (failure) { say(failure, true); return; }
@@ -1531,44 +1334,9 @@ async function saveDrawing() {
   else say(`Saved ${path}.`);
 }
 
-/* Sounds ------------------------------------------------------------------ */
-
-// Plain words for the four shapes, with the real name kept: a ten-year-old
-// picks "buzzy", and the one who wants to know what a square wave is can see
-// it. Same bargain as helper/agent.
-const WAVE_WORDS = {
-  square: 'Buzzy (square)', saw: 'Sharp (saw)', sine: 'Smooth (sine)', noise: 'Noisy (noise)',
-};
-
-const SOUND_WORDS = {
-  pickup: 'Pick up', laser: 'Laser', explosion: 'Explosion', powerup: 'Power up',
-  hit: 'Hit', jump: 'Jump', blip: 'Blip',
-};
-
-let soundUrl = null;
-
-// The bytes played are the bytes that would be saved, so there is no way to
-// hear one thing and keep another. The last URL is let go on the next play
-// rather than on a timer: an object URL held forever is a leak, and one
-// revoked too early is a sound that will not play twice.
-function playSound(params) {
-  if (soundUrl) URL.revokeObjectURL(soundUrl);
-  soundUrl = URL.createObjectURL(new Blob([soundBytes(params)], { type: 'audio/wav' }));
-  new Audio(soundUrl).play().catch(() => { /* a browser that will not autoplay */ });
-}
-
-async function saveSound(params, name) {
-  const path = assetPath(ASSET_DIR, `${name || 'sound'}.wav`);
-  const body = new Blob([soundBytes(params)], { type: 'audio/wav' });
-  const { failure } = await writeFiles([{ path, body }]);
-  if (failure) { say(failure, true); return; }
-  say(`Saved ${path}.`);
-  await openFile(path);
-}
-
 // A rename is a move, whether or not the folder changes with it: one commit,
 // recorded by git as a rename, so the file's history is not cut in two.
-async function renameFile(from, to) {
+export async function renameFile(from, to) {
   if (!to || to === from) return;
   const res = await api('POST', `/api/projects/${S.slug}/files/move`, { from, to });
   if (!res.ok) {
@@ -1588,7 +1356,7 @@ async function renameFile(from, to) {
   say(`Renamed to ${to}.`);
 }
 
-async function deleteFile(path) {
+export async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (!res.ok) {
     say(res.body?.error ?? 'Could not delete that file.', true);
@@ -1614,7 +1382,7 @@ async function setPublished(published) {
 
 /* History ----------------------------------------------------------------- */
 
-async function loadHistory(path = null) {
+export async function loadHistory(path = null) {
   const query = path ? `?path=${encodeURIComponent(path)}` : '';
   const res = await api('GET', `/api/projects/${S.slug}/history${query}`);
   if (res.ok) {
@@ -1635,7 +1403,7 @@ async function loadHistory(path = null) {
 // anywhere down a list of fifty. Set here rather than by the caller so it is
 // set only when there is a row to go to: a request that fails renders nothing,
 // and a flag left standing would jump the list on some later render instead.
-async function loadDiff(sha, { goTo = false } = {}) {
+export async function loadDiff(sha, { goTo = false } = {}) {
   const res = await api('GET', `/api/projects/${S.slug}/diff/${sha}`);
   if (res.ok) {
     S.diff = res.body;
@@ -1644,7 +1412,7 @@ async function loadDiff(sha, { goTo = false } = {}) {
   }
 }
 
-async function restore(sha, path) {
+export async function restore(sha, path) {
   const res = await api('POST', `/api/projects/${S.slug}/restore`, { sha, path });
   if (!res.ok) {
     say(res.body?.error ?? 'Could not bring that version back.', true);
@@ -1661,7 +1429,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 // Whole-tree rollback. The result is reported rather than the confirmation
 // predicted: the server is the one that knows how many files moved.
-async function rollback(sha) {
+export async function rollback(sha) {
   const res = await api('POST', `/api/projects/${S.slug}/rollback`, { sha });
   if (!res.ok) {
     say(res.body?.error ?? 'Could not bring that version back.', true);
@@ -1685,7 +1453,7 @@ async function rollback(sha) {
 // Attaching, detaching and toggling all edit the open project's own copy of
 // its agent list rather than refetching it. A refetch would throw away the
 // open file, the pins, and anything mid-stream.
-async function attachAgent(agent) {
+export async function attachAgent(agent) {
   const res = await api('POST', `/api/projects/${S.slug}/agents`, {
     agent_id: agent.id, chatty: true,
   });
@@ -1706,7 +1474,7 @@ async function attachAgent(agent) {
   say(`${agent.name} joined this game and will answer your messages.`);
 }
 
-async function detachAgent(a) {
+export async function detachAgent(a) {
   const res = await api('DELETE', `/api/projects/${S.slug}/agents/${a.agent_id}`);
   if (!res.ok) {
     say(res.body?.error ?? 'Could not take that helper out.', true);
@@ -1716,7 +1484,7 @@ async function detachAgent(a) {
   say(`${a.name} is no longer in this game.`);
 }
 
-async function toggleChatty(a) {
+export async function toggleChatty(a) {
   const res = await api('PATCH', `/api/projects/${S.slug}/agents/${a.agent_id}`, {
     chatty: !a.chatty,
   });
@@ -1732,7 +1500,7 @@ async function toggleChatty(a) {
 
 // The project payload carries its own copy of each attached helper's details,
 // so a studio-wide edit or delete has to be mirrored into it.
-function syncAttached() {
+export function syncAttached() {
   if (!S.project) return;
   const byId = new Map(S.agents.map((a) => [a.id, a]));
   S.project.agents = S.project.agents
@@ -1793,537 +1561,7 @@ function renderAuth() {
   );
 }
 
-/* Render: sidebar --------------------------------------------------------- */
-
-// The header of a foldable section. The marker is the affordance; the whole
-// label is the hit area, because a 12px triangle is not one.
-function sectionHead(id, label, add) {
-  const open = S.sections[id];
-  return h('div', { class: 'section-label row' },
-    h('button', {
-      class: 'sec-toggle',
-      text: `${open ? '▾' : '▸'} ${label}`,
-      title: open ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`,
-      onclick: () => {
-        S.sections[id] = !open;
-        prefs.set(`sec-${id}`, open ? 'closed' : 'open');
-        render();
-      },
-    }),
-    h('div', { class: 'spacer' }),
-    add ? h('button', { class: 'icon tiny', text: '+', title: add.title, onclick: add.onclick }) : null);
-}
-
-function renderSidebar() {
-  const rows = S.projects.filter((p) => p.kind !== 'chat').map((p) => h('button', {
-    class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
-    onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
-  },
-  h('div', { class: 'item-name', text: p.name }),
-  h('div', { class: 'item-sub', text: p.preview || 'No messages yet' })));
-
-  return h('div', { class: `pane side${S.narrowPane === 'games' ? ' show' : ''}` },
-    h('div', { class: 'bar brand-bar' },
-      h('div', { class: 'brand', text: 'Game Studio' }),
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'icon only-wide', text: '«', title: 'Hide this list',
-        onclick: () => { S.sidebar = false; prefs.set('sidebar', 'closed'); render(); },
-      })),
-    h('div', { class: 'pad' },
-      h('button', {
-        class: 'filled', style: 'width:100%',
-        text: '+ New game',
-        onclick: () => { S.dialog = { kind: 'new-project' }; render(); },
-      })),
-    h('div', { class: 'section-label', text: 'Games' }),
-    h('div', { class: 'scroll', 'data-scroll': 'games' },
-      rows.length ? rows : h('div', { class: 'pad muted', text: 'No games yet. Make one!' })),
-    renderChatList(),
-    renderHelperList(),
-    h('div', { class: 'who' },
-      h('div', { class: 'name', text: S.me.display_name }),
-      h('button', {
-        class: 'quiet tiny', text: 'Sign out',
-        onclick: async () => { await api('POST', '/api/logout'); location.href = '/'; },
-      })),
-  );
-}
-
-// A chat is a game with the game taken out: the same thread and the same
-// helpers, no files and no preview.
-function renderChatList() {
-  const chats = S.projects.filter((p) => p.kind === 'chat');
-  const head = sectionHead('chats', 'Chats', {
-    title: 'Start a new chat',
-    onclick: () => { S.dialog = { kind: 'new-project', chat: true }; render(); },
-  });
-  if (!S.sections.chats) return [head];
-
-  const rows = chats.map((p) => h('div', { class: `srow${p.slug === S.slug ? ' sel' : ''}` },
-    h('button', {
-      class: 'hname', text: p.name, title: p.name,
-      onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
-    })));
-
-  return [head, h('div', { class: 'small-list' },
-    rows.length
-      ? rows
-      : h('div', { class: 'pad hint muted', text: 'No chats yet. Start one with +.' }))];
-}
-
-// Helpers belong to the studio, not to one game, so they live beside the game
-// list. Which game a helper is *in* is shown and changed in that game's title
-// bar instead.
-function renderHelperList() {
-  const attached = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
-  const canAdd = Boolean(S.project) && !S.project.archived;
-
-  const rows = S.agents.map((agent) => {
-    const here = attached.has(agent.id);
-    return h('div', { class: `srow${here ? ' here' : ''}` },
-      h('button', {
-        class: 'hname',
-        title: here
-          ? `${agent.name} is in this game`
-          : (canAdd ? `Put ${agent.name} in this game` : agent.name),
-        disabled: here || !canAdd,
-        onclick: () => attachAgent(agent),
-      }, here ? h('span', { class: 'dot', text: '●' }) : null, agent.name),
-      h('button', {
-        class: 'icon tiny', text: '✎', title: `Change ${agent.name}`,
-        onclick: () => { S.dialog = { kind: 'edit-agent', agent }; render(); },
-      }));
-  });
-
-  const head = sectionHead('helpers', 'Helpers', {
-    title: 'Make a new helper',
-    onclick: () => { S.dialog = { kind: 'new-agent' }; render(); },
-  });
-  if (!S.sections.helpers) return [head];
-
-  return [head, h('div', { class: 'small-list' },
-    rows.length
-      ? rows
-      : h('div', { class: 'pad hint muted', text: 'No helpers yet. Make one with +.' }))];
-}
-
-/* Render: chat ------------------------------------------------------------ */
-
-// FNV-1a. Any stable scramble would do; this one is four lines and needs no
-// seeding.
-function hashOf(text) {
-  let n = 2166136261;
-  for (let i = 0; i < text.length; i += 1) {
-    n = Math.imul(n ^ text.charCodeAt(i), 16777619);
-  }
-  return n >>> 0;
-}
-
-// A quiet wash of colour over a bubble, fixed per speaker: people land in the
-// warm end, helpers in the green-to-blue end, and everyone gets their own hue
-// and their own arrangement of blobs. Three low-alpha radial gradients over
-// the usual bubble colour — enough that two helpers in one thread are told
-// apart at a glance, not so much that it reads as decoration.
-function tintStyle(agent, id) {
-  const n = hashOf(`${agent ? 'a' : 'u'}:${id}`);
-  // >>> and not >>: the hash fills 32 bits, and a signed shift would hand
-  // back negative hues and off-canvas gradient origins.
-  const pick = (shift, span) => (n >>> shift) % span;
-  // Hue comes from a slot rather than a raw modulo, so two speakers either
-  // share a hue or sit a clear step apart — never three degrees apart, which
-  // reads as a rendering accident.
-  const slot = pick(0, 6);
-  const hue = agent ? 150 + slot * 15 : 20 + slot * 10;
-  const hue2 = hue + 14 + pick(6, 20);
-  return [
-    `--th:${hue}`,
-    `--th2:${hue2}`,
-    `--ts:${agent ? 60 : 50}%`,
-    `--x1:${6 + pick(9, 38)}%`, `--y1:${pick(13, 34)}%`,
-    `--x2:${58 + pick(17, 38)}%`, `--y2:${64 + pick(21, 36)}%`,
-    `--x3:${22 + pick(25, 56)}%`, `--y3:${38 + pick(3, 40)}%`,
-  ].join(';');
-}
-
-// The small grey line under a reply. Plain language: the thread is long, so
-// this helper was given the recent part of it and not the beginning.
-function footnote(msg) {
-  const parts = [];
-  if (msg.tokens) parts.push(`${msg.tokens.toLocaleString()} tokens`);
-  if (msg.trimmed) {
-    parts.push(msg.trimmed === 1
-      ? 'did not see the first message'
-      : `did not see the first ${msg.trimmed} messages`);
-  }
-  return parts.length
-    ? h('div', { class: 'tokens', text: parts.join(' · ') })
-    : null;
-}
-
-function renderMessage(msg) {
-  if (msg.kind === 'system') {
-    return h('div', { class: 'msg system' }, h('div', { class: 'bubble', text: msg.body }));
-  }
-  const isAgent = msg.agent_id !== null;
-  // Your own messages say "You" — a thread full of your own name reads like
-  // somebody else's. Everyone else is called what they are called, and
-  // "Someone" is left for a message whose account has gone.
-  const who = isAgent
-    ? agentName(msg.agent_id)
-    : (msg.user_id === S.me.id ? 'You' : (msg.user_name ?? 'Someone'));
-
-  const chips = [];
-  for (const p of msg.context_paths ?? []) {
-    chips.push(h('button', { class: 'chip pin', text: `📎 ${p}`, disabled: true }));
-  }
-  for (const w of msg.writes ?? []) {
-    const marks = { create: '＋', update: '✎', delete: '✕' };
-    chips.push(h('button', {
-      class: `chip ${w.action}`,
-      text: `${marks[w.action] ?? ''} ${w.path}`,
-      title: 'See what changed',
-      // The changes open inside their own row in the list, so the list has to
-      // be there — arriving here from a chip used to skip loading it entirely.
-      // Getting there is one move however many steps it takes, so it is one
-      // entry in the history and it ends on the row it opened.
-      onclick: async () => {
-        await urlAs('hold', async () => {
-          S.tab = 'versions';
-          render();
-          if (historyNeedsLoad(null)) await loadHistory(null);
-        });
-        await loadDiff(w.commit_sha, { goTo: true });
-      },
-    }));
-  }
-
-  // Present only for a reply this tab watched arrive.
-  const kept = S.traces.get(msg.id);
-  const thinking = kept
-    ? h('details', {
-      class: 'thinking',
-      open: kept.open,
-      ontoggle: (event) => { kept.open = event.currentTarget.open; },
-    },
-    h('summary', { text: 'Thinking' }),
-    h('div', { class: 'trace', text: kept.text }))
-    : null;
-
-  return h('div', { class: `msg ${isAgent ? 'from-agent' : 'from-human'}` },
-    h('div', { class: 'from', text: who }),
-    thinking,
-    msg.body && h('div', {
-      class: 'bubble',
-      style: tintStyle(isAgent, isAgent ? msg.agent_id : msg.user_id),
-      text: msg.body,
-    }),
-    chips.length ? h('div', { class: 'chips' }, chips) : null,
-    // What this reply cost, and what it could not see. Both visible rather
-    // than hidden: a reply that carried on from itself three times costs three
-    // times as much, and a reply written without the start of a long
-    // conversation explains itself much better if you know that.
-    footnote(msg));
-}
-
-function renderLive(agentId, entry) {
-  const trace = h('div', { class: 'trace', text: entry.trace });
-  const thinking = h('details', {
-    class: 'thinking',
-    open: entry.open,
-    ontoggle: (event) => { entry.open = event.currentTarget.open; },
-  }, h('summary', { text: 'Thinking' }), trace);
-  thinking.hidden = entry.trace === '';
-
-  const reply = h('div', {
-    class: 'bubble', style: tintStyle(true, agentId), text: entry.reply,
-  });
-  reply.hidden = entry.reply === '';
-
-  const tool = h('div', { class: 'working dots', text: toolLabel(entry.tool) });
-
-  entry.nodes = { trace, thinking, reply, tool };
-
-  return h('div', { class: 'msg from-agent' },
-    h('div', { class: 'from', text: agentName(agentId) }),
-    thinking,
-    reply,
-    entry.error
-      ? h('div', { class: 'working error', text: 'Something went wrong. Try asking again.' })
-      : tool);
-}
-
-// A message only gets an answer if some agent attached to this project is
-// eligible. Nothing in the interface used to say that, so an unanswered
-// message looked like a broken app. Two distinct gaps, two distinct fixes.
-function helperGap() {
-  if (!S.project || S.project.archived) return null;
-  if (S.project.agents.length > 0) {
-    // Attached, but every one of them is waiting to be called by name.
-    if (S.project.agents.some((a) => a.chatty)) return null;
-    const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
-    return h('div', { class: 'notice' },
-      `Your helpers only answer when you call them. Try starting your message with ${names}, `,
-      'or click a helper’s name at the top to make them always answer.');
-  }
-  const where = isChat() ? 'chat' : 'game';
-  // With helpers in the studio the fix is one click in the sidebar, so say
-  // that rather than offering a link whose only job would be to open a
-  // sidebar that is usually already open.
-  if (S.agents.length > 0) {
-    return h('div', { class: 'notice' },
-      `This ${where} has no helpers in it yet, so nobody will answer. `,
-      'Add a helper by clicking them in the sidebar.');
-  }
-  return h('div', { class: 'notice' },
-    'Nobody can answer yet — the studio has no helpers. ',
-    h('button', {
-      class: 'link',
-      text: 'Make your first helper',
-      onclick: () => {
-        S.narrowPane = 'games';
-        S.sidebar = true;
-        prefs.set('sidebar', 'open');
-        S.sections.helpers = true;
-        prefs.set('sec-helpers', 'open');
-        S.dialog = { kind: 'new-agent' };
-        render();
-      },
-    }), '.');
-}
-
-function renderChat() {
-  const p = S.project;
-  if (!p) {
-    return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
-      h('div', { class: 'bar' },
-        h('button', { class: 'quiet only-narrow', text: '☰ Games', onclick: () => { S.narrowPane = 'games'; render(); } }),
-        !S.sidebar && h('button', {
-          class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
-          onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
-        }),
-        h('div', { class: 'title', text: 'Game Studio' })),
-      h('div', { class: 'scroll pad muted' },
-        h('p', { text: 'Pick a game on the left, or make a new one.' }),
-        h('p', { text: 'Then ask a helper to build something and watch the files appear.' })));
-  }
-
-  const items = p.messages.map(renderMessage);
-  for (const [agentId, entry] of S.live) items.push(renderLive(agentId, entry));
-
-  const scroller = h('div', {
-    class: 'scroll',
-    'data-scroll': 'chat',
-    onscroll: (e) => {
-      const el = e.currentTarget;
-      S.autoscroll = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-    },
-  }, h('div', { class: 'messages' }, items));
-
-  const box = composerBox;
-  box.placeholder = p.archived ? 'This game is finished (archived).' : 'Ask for something…';
-  box.disabled = p.archived;
-
-  // A chat has no files, so it has nothing to pin and no tip to give.
-  let pinNote = '';
-  if (!isChat()) {
-    pinNote = S.pinned.size
-      ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
-      : 'Tip: pin a file on the right to point at it.';
-  }
-
-  // Without an attached helper nothing is eligible to answer, and a message
-  // just sits there. Say so before it happens rather than leaving silence to
-  // be interpreted.
-  const gap = helperGap();
-
-  // One chip per helper in this game: the name toggles between answering
-  // everything and waiting to be called, the ✕ takes them out.
-  const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
-    h('button', {
-      class: 'hchip-name', text: a.name, disabled: p.archived,
-      title: a.chatty
-        ? `${a.name} answers everything — click to make them wait for @${a.name.split(' ')[0]}`
-        : `${a.name} waits to be called — click to make them answer everything`,
-      onclick: () => toggleChatty(a),
-    }),
-    h('button', {
-      class: 'hchip-x', text: '✕', disabled: p.archived,
-      title: `Take ${a.name} out of this game`,
-      onclick: () => detachAgent(a),
-    })));
-
-  return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
-    h('div', { class: 'bar' },
-      h('button', { class: 'quiet only-narrow', text: '☰', onclick: () => { S.narrowPane = 'games'; render(); } }),
-      !S.sidebar && h('button', {
-        class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
-        onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
-      }),
-      h('div', { class: 'title', text: p.name }),
-      h('button', {
-        class: 'icon tiny', text: '✎', title: 'Rename this game',
-        onclick: () => { S.dialog = { kind: 'rename' }; render(); },
-      }),
-      p.archived && h('span', { class: 'tag', text: 'archived' }),
-      chips.length ? h('div', { class: 'hchips' }, chips) : null,
-      h('div', { class: 'spacer' }),
-      !isChat() && h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
-      p.archived && h('button', {
-        class: 'quiet tiny', text: 'Reopen',
-        title: 'Start working on this again',
-        onclick: () => { S.dialog = { kind: 'archive' }; render(); },
-      })),
-    scroller,
-    h('div', { class: 'composer' },
-      gap,
-      box,
-      h('div', { class: 'row' },
-        h('span', { class: 'hint', text: pinNote }),
-        h('div', { class: 'spacer' }),
-        h('button', { class: 'filled', text: 'Send', disabled: p.archived, onclick: sendComposer }))));
-}
-
 /* Render: right rail ----------------------------------------------------- */
-
-/* Config form -------------------------------------------------------------- */
-
-// Only under config/, and only .js — the shape spec.md §8 asks agents for.
-const isConfigPath = (p) => /^config\/[^/]+\.js$/.test(p);
-
-const looksLikeColour = (v) => typeof v === 'string' && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(v);
-
-// Where a value sits in the file: the declaration's name, then keys and list
-// positions down to it — ['TRACKS', 1, 'width'].
-function nodeAt(decls, path) {
-  let node = decls.find((d) => d.name === path[0])?.node;
-  for (const step of path.slice(1)) {
-    if (!node) return null;
-    node = typeof step === 'number'
-      ? node.items?.[step]
-      : node.props?.find((p) => p.key === step)?.node;
-  }
-  return node ?? null;
-}
-
-// One value changed. The file is re-read here rather than the nodes being kept
-// from the last render for two reasons: a splice moves every offset after it,
-// so a second edit against stale nodes would land in the wrong place; and
-// re-rendering the pane on each change would replace the Save button under the
-// pointer, so clicking Save right after typing would do nothing.
-//
-// The file is spliced, never regenerated, so comments and alignment survive.
-function setConfigValue(path, kind, raw, input) {
-  const parsed = parseConfigFile(S.open.content);
-  const node = parsed.ok ? nodeAt(parsed.decls, path) : null;
-  const literal = node === null ? null : literalFor(kind, raw);
-  if (literal === null) {
-    // A number left empty or filled with words changes nothing; put the field
-    // back to what the file still says.
-    if (input && node) input.value = String(node.value);
-    return;
-  }
-  S.open.content = spliceValue(S.open.content, node, literal);
-  S.open.dirty = true;
-  const save = document.getElementById('save-btn');
-  if (save) save.disabled = false;
-  const status = document.getElementById('cfg-status');
-  if (status) status.textContent = 'Not saved yet';
-}
-
-// Fields update on change rather than on every keystroke, so a half-typed
-// number is never written into the file.
-function configField(node, path) {
-  if (node.kind === 'boolean') {
-    return h('input', {
-      type: 'checkbox',
-      checked: node.value === true,
-      onchange: (e) => setConfigValue(path, 'boolean', e.currentTarget.checked),
-    });
-  }
-  if (node.kind === 'number') {
-    const input = h('input', {
-      type: 'number', step: 'any', class: 'cfg-num',
-      onchange: (e) => setConfigValue(path, 'number', e.currentTarget.value, e.currentTarget),
-    });
-    input.value = String(node.value);
-    return input;
-  }
-  if (node.kind === 'string' && looksLikeColour(node.value)) {
-    const shown = h('span', { class: 'mono hint', text: node.value });
-    const input = h('input', {
-      type: 'color',
-      onchange: (e) => {
-        setConfigValue(path, 'string', e.currentTarget.value);
-        shown.textContent = e.currentTarget.value;
-      },
-    });
-    // <input type="color"> only speaks #rrggbb, so #fc0 is doubled up to show
-    // it; that is only written back if a colour is actually picked.
-    input.value = node.value.length === 4
-      ? `#${node.value.slice(1).split('').map((c) => c + c).join('')}`
-      : node.value;
-    return h('span', { class: 'row' }, input, shown);
-  }
-  if (node.kind === 'string') {
-    // A line with a newline in it is a paragraph, so it gets a box that shape.
-    const multiline = node.value.includes('\n');
-    const input = h(multiline ? 'textarea' : 'input', {
-      class: 'cfg-text',
-      ...(multiline ? { rows: 2 } : { type: 'text' }),
-      onchange: (e) => setConfigValue(path, 'string', e.currentTarget.value),
-    });
-    input.value = node.value;
-    return input;
-  }
-  // null, and anything else the reader allows but has no field for.
-  return h('span', { class: 'mono hint muted', text: String(node.value) });
-}
-
-// A row per value, nesting for lists and groups. A list of groups — the tracks
-// in a racing game, the levels in a platformer — comes out as one block per
-// item, which is how it reads in the file too.
-function configRows(label, node, path) {
-  const comment = node.comment;
-  if (node.kind === 'array' || node.kind === 'object') {
-    const kids = node.kind === 'array'
-      ? node.items.map((item, i) => configRows(`#${i + 1}`, item, [...path, i]))
-      : node.props.map((p) => configRows(p.key, p.node, [...path, p.key]));
-    return h('div', { class: 'cfg-group' },
-      h('div', { class: 'cfg-group-head' },
-        h('span', { class: 'cfg-name mono', text: label }),
-        comment ? h('span', { class: 'hint muted', text: comment }) : null),
-      h('div', { class: 'cfg-group-body' }, kids));
-  }
-  return h('label', { class: 'cfg-row' },
-    h('span', { class: 'cfg-name mono', text: label }),
-    configField(node, path),
-    comment ? h('span', { class: 'hint muted', text: comment }) : null);
-}
-
-function renderConfigForm(decls) {
-  const body = decls.length
-    ? decls.map((d) => configRows(d.name, d.node, [d.name]))
-    : [h('div', { class: 'pad muted', text: 'Nothing to change in here yet.' })];
-
-  return [
-    h('div', { class: 'scroll cfg', 'data-scroll': 'cfg' }, body),
-    h('div', { class: 'editor-bar row' },
-      h('span', {
-        class: 'hint muted', id: 'cfg-status', text: S.open.dirty ? 'Not saved yet' : 'Saved',
-      }),
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'link', text: 'Show the text',
-        onclick: () => { S.open.asText = true; render(); },
-      }),
-      h('button', {
-        class: 'filled', id: 'save-btn', text: 'Save',
-        disabled: !S.open.dirty || S.project.archived,
-        onclick: () => saveOpenFile(),
-      })),
-  ];
-}
 
 // A picture or sound has nothing to edit, so the pane shows the thing itself.
 // The source is the same authenticated read the editor uses, and that route
@@ -2823,217 +2061,6 @@ function renderPlayTab() {
       })))];
 }
 
-function renderDiff(patch) {
-  const lines = patch.split('\n').map((line) => {
-    let cls = null;
-    if (line.startsWith('+') && !line.startsWith('+++')) cls = 'add';
-    else if (line.startsWith('-') && !line.startsWith('---')) cls = 'del';
-    else if (line.startsWith('@@')) cls = 'hunk';
-    return h('span', { class: cls, text: `${line}\n` });
-  });
-  return h('pre', { class: 'diff' }, lines);
-}
-
-const IMAGE_PATH = /\.(png|jpe?g|gif|webp|svg)$/i;
-
-// The pictures in a version, narrowed to the file being read when the list is
-// filtered to one: `paths` is the whole commit now, and a sprite that rode
-// along in the same commit is not what a filtered list is about.
-const imagesIn = (commit) => (commit?.paths ?? [])
-  .filter((p) => IMAGE_PATH.test(p) && (!S.historyPath || p === S.historyPath));
-
-// A picture as it was at one commit. git names a path in a commit that deleted
-// it too, and there is nothing to show for that version, so a picture that
-// will not load takes itself out rather than leaving a broken frame.
-const versionImage = (sha, path, cls) => h('img', {
-  class: cls,
-  src: `/api/projects/${S.slug}/history/${sha}/${encodePath(path)}`,
-  alt: path,
-  loading: 'lazy',
-  onerror: (e) => e.currentTarget.closest('.shot, .shot-big')?.remove(),
-});
-
-// A path, as a way back to the file it names — which is the usual reason to
-// be reading about it. A path that is no longer in the game is plain text:
-// there is nothing to open, and it says so on hover. So is an unreachable one,
-// which the file list will not open either — a control that lights up and then
-// answers with a red banner is the same fault in a different place.
-function fileLink(path) {
-  const entry = S.files.find((f) => f.path === path);
-  if (entry && !entry.unreachable) {
-    return h('button', { class: 'link', text: path, onclick: () => chooseFile(path) });
-  }
-  return h('span', {
-    text: path,
-    title: entry
-      ? 'The studio cannot open this file — see the list under Files'
-      : 'This file is not in the game any more',
-  });
-}
-
-// The part of the open version being read: the whole commit, or one file's
-// share of it. Kept until the version or the filter changes, because a whole
-// commit can be hundreds of kilobytes and an open drawer is re-rendered by
-// every chunk of an agent's reply.
-let shownPatch = { key: null, patch: '' };
-
-function patchShown() {
-  const key = `${S.diff.sha}|${S.historyPath ?? ''}`;
-  if (shownPatch.key !== key) {
-    shownPatch = {
-      key,
-      patch: S.historyPath ? patchFor(S.diff.patch, S.historyPath) : S.diff.patch,
-    };
-  }
-  return shownPatch.patch;
-}
-
-// The changes for one commit, opened inside its own row. Only ever one is
-// open, because opening a second replaces S.diff — which is also what makes
-// "the last one closes itself" true without any bookkeeping.
-function diffDrawer() {
-  // Filtered to one file, the drawer is about the file the header already
-  // names, so listing it and labelling its picture would be that same path a
-  // third and fourth time in one row.
-  const oneFile = Boolean(S.historyPath);
-
-  const paths = oneFile ? null : (S.diff.paths.length === 0
-    ? ['nothing']
-    : S.diff.paths.map((p, i) => [
-      i ? ', ' : null,
-      fileLink(p),
-    ]));
-
-  const pictures = imagesIn(S.diff);
-  const patch = patchShown();
-  const text = hasHunks(patch);
-  // A version that only moved the file has no hunk and no picture in it, and
-  // said nothing at all until it said this. The name worth showing is the one
-  // you are not standing on.
-  const moved = !text && oneFile ? renameIn(patch) : null;
-  const movedTo = moved && moved.to !== S.historyPath ? moved.to : null;
-  const movedFrom = moved && moved.to === S.historyPath ? moved.from : null;
-
-  return h('div', { class: 'drawer' },
-    oneFile ? null : h('div', { class: 'hint muted' }, 'Changed: ', paths),
-    pictures.map((p) => h('div', { class: 'shot-big' },
-      oneFile ? null : h('div', { class: 'hint muted mono', text: p }),
-      versionImage(S.diff.sha, p))),
-    text ? renderDiff(patch) : null,
-    movedTo ? h('div', { class: 'hint muted' }, 'Renamed to ', fileLink(movedTo)) : null,
-    movedFrom ? h('div', { class: 'hint muted' }, 'Renamed from ', fileLink(movedFrom)) : null,
-    !text && !moved && !pictures.length
-      ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
-      : null);
-}
-
-// Links are for looking at something, buttons are for changing something. The
-// distinction is the whole vocabulary of this list: Show changes, All files
-// and All files changed are links; bringing a version back is a button.
-function renderVersionsTab() {
-  const header = h('div', { class: 'pad row' },
-    // The name in the heading is the way back to the file: you got here from
-    // it, and the usual next move is to go and change it.
-    S.historyPath
-      ? h('span', { class: 'hint muted' }, 'Versions of ', fileLink(S.historyPath))
-      : h('span', { class: 'hint muted', text: 'All versions' }),
-    h('div', { class: 'spacer' }),
-    S.historyPath
-      ? h('button', { class: 'link tiny', text: 'All files', onclick: () => loadHistory(null) })
-      : null);
-
-  const rows = S.history.map((c, i) => {
-    const open = S.diff?.sha === c.sha;
-    // One row's changes, open or shut. Every control that shows them is the
-    // same control: the picture, and the words beside it.
-    const toggle = () => {
-      if (!open) return loadDiff(c.sha);
-      S.diff = null;
-      return render();
-    };
-    const pictures = imagesIn(c);
-    // This list is git log for one path, newest first, so its first row is the
-    // commit that produced the bytes on disk — bringing it back would commit
-    // the file over itself. Unless that commit was the one that deleted it, in
-    // which case bringing it back is the entire point.
-    const current = S.historyPath && i === 0
-      && S.files.some((f) => f.path === S.historyPath);
-    return h('div', { class: `commit${open ? ' open' : ''}` },
-      h('div', { class: 'subject', text: c.subject }),
-      h('div', { class: 'meta' },
-        h('span', { class: 'sha', text: c.short }), ' · ', c.author, ' · ',
-        new Date(c.at).toLocaleString()),
-      // A picture in a version is worth seeing without asking for it: the
-      // question about a sprite is always "which one is that", and no amount
-      // of reading a commit subject answers it.
-      pictures.length
-        ? h('div', { class: 'shots' }, pictures.map((p) => h('button', {
-          class: 'shot',
-          title: open ? `${p} — hide the details` : `${p} — see it big, and what else changed`,
-          onclick: toggle,
-        }, versionImage(c.sha, p))))
-        : null,
-      // Wrapped: three controls and a "Current version" do not fit a narrow
-      // rail, and a label broken across two lines mid-phrase reads worse than
-      // a control moved to the next line whole.
-      h('div', { class: 'row wrap', style: 'margin-top:5px' },
-        h('button', {
-          class: 'link tiny',
-          // One control in one place, its label saying which way it goes,
-          // rather than a second control appearing beside it once it is open.
-          text: open ? 'Hide changes' : 'Show changes',
-          onclick: toggle,
-        }),
-        // From one file's history, the useful move is to go and look at the
-        // whole version this file changed in — not to roll the project back,
-        // which is a decision you make from the full list. `paths` is the
-        // whole commit even here, so a version that touched nothing but the
-        // file being read offers nothing: there is no rest of it to see.
-        S.historyPath && c.paths.length > 1
-          ? h('button', {
-            class: 'link tiny', text: `All files changed (${c.paths.length})`,
-            onclick: async () => {
-              // Dropping the filter is on the way to the whole version, not
-              // somewhere to come back to, so the two steps are one entry.
-              await urlAs('hold', () => loadHistory(null));
-              await loadDiff(c.sha, { goTo: true });
-            },
-          })
-          : null,
-        // Text, not a control: there is nowhere for it to go. It stays put in
-        // the row rather than disappearing, so the newest version says what it
-        // is instead of being the one row with nothing on the right.
-        current ? h('span', { class: 'current', text: 'Current version' }) : null,
-        S.historyPath && !current && !S.project.archived
-          ? h('button', {
-            class: 'quiet tiny', text: 'Bring this file back',
-            onclick: () => {
-              S.dialog = { kind: 'restore', sha: c.sha, path: S.historyPath, short: c.short };
-              render();
-            },
-          })
-          : null,
-        !S.historyPath && !S.project.archived
-          ? h('button', {
-            class: 'quiet tiny', text: 'Bring everything back',
-            onclick: () => {
-              S.dialog = { kind: 'rollback', sha: c.sha, short: c.short };
-              render();
-            },
-          })
-          : null),
-      open ? diffDrawer() : null);
-  });
-
-  // A diff whose commit is not in the list — older than the fifty this shows —
-  // has nowhere to open, so it falls back to the foot of the list rather than
-  // vanishing.
-  const inList = S.history.some((c) => c.sha === S.diff?.sha);
-  return [header, h('div', { class: 'scroll', 'data-scroll': 'versions' },
-    rows.length ? rows : h('div', { class: 'pad muted', text: 'No versions yet.' }),
-    S.diff && !inList ? h('div', { class: 'pad' }, diffDrawer()) : null)];
-}
-
 // Drag the rail's left edge. Pointer capture keeps the drag on this element,
 // and the width is written straight to the shell as a CSS variable so a drag
 // never re-renders the pane it is resizing.
@@ -3096,446 +2123,9 @@ function renderRail() {
     ...body);
 }
 
-/* Render: dialogs -------------------------------------------------------- */
-
-const inLibrary = (path) => path === LIBRARY_DIR || path.startsWith(`${LIBRARY_DIR}/`);
-
-// What a new name will mean. Crossing into or out of `studio/` is the one move
-// that changes who may edit the file rather than only where it lives — helpers
-// read the library and never write it — so that is said in as many words. The
-// server allows it either way: it is your tree (spec.md §4).
-function renameNote(from, to) {
-  if (!to) return 'Type the name you want.';
-  if (to === from) return 'That is the name it already has.';
-  if (inLibrary(to) && !inLibrary(from)) {
-    return `${LIBRARY_DIR}/ is the studio library: your helpers can read it but never `
-      + 'change it, so putting this file there means they cannot edit it any more.';
-  }
-  if (inLibrary(from) && !inLibrary(to)) {
-    return 'Out of the studio library, + Controls will not keep this file up to date '
-      + 'any more, and your helpers will be able to change it.';
-  }
-  return `The game will have to ask for ${to} instead — anything still pointing at `
-    + 'the old name needs changing, and your helpers can do that for you.';
-}
-
-function dialogFor(d) {
-  const close = () => { S.dialog = null; render(); };
-  const wrap = (title, ...body) => h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
-    h('div', { class: 'dialog' }, h('h2', { text: title }), ...body));
-  const cancel = h('button', { class: 'quiet', text: 'Cancel', onclick: close });
-  // Room for a row of sliders. Everything else is a question with one answer
-  // and stays narrow.
-  const wide = (title, ...body) => {
-    const node = wrap(title, ...body);
-    node.firstChild.classList.add('wide');
-    return node;
-  };
-
-  if (d.kind === 'new-project') {
-    const chat = d.chat === true;
-    const name = h('input', { placeholder: chat ? 'Silly ideas' : 'Space Racer' });
-    const slug = h('input', { placeholder: chat ? 'silly-ideas (optional)' : 'space-racer (optional)' });
-    const err = h('p', { class: 'error' });
-    return wrap(chat ? 'New chat' : 'New game',
-      h('label', { text: 'What is it called?' }), name,
-      h('label', { text: 'Web address (letters, numbers and dashes)' }), slug,
-      chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game.' }) : null,
-      err,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make it',
-        onclick: async () => {
-          const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
-          if (slug.value.trim()) body.slug = slug.value.trim();
-          const res = await api('POST', '/api/projects', body);
-          if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
-          close();
-          await loadProjects();
-          await openProject(res.body.slug);
-        },
-      })));
-  }
-
-  if (d.kind === 'rename') {
-    const name = h('input');
-    name.value = S.project.name;
-    return wrap('Rename game',
-      h('label', { text: 'New name' }), name,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Rename',
-        onclick: async () => {
-          const res = await api('PATCH', `/api/projects/${S.slug}`, { name: name.value.trim() });
-          if (!res.ok) { say(res.body?.error ?? 'Could not rename it.', true); return; }
-          close();
-          await loadProjects();
-          // Reopening the game you are already in is not somewhere new to go
-          // Back from, even though it does clear the rail.
-          await urlAs('replace', () => openProject(S.slug));
-        },
-      })));
-  }
-
-  // Only reachable for a game that is already archived: nothing in the
-  // interface archives one any more.
-  if (d.kind === 'archive') {
-    return wrap('Work on this again?',
-      h('p', { text: 'You will be able to change files and talk to helpers again.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Reopen it',
-        onclick: async () => {
-          await api('POST', `/api/projects/${S.slug}/archive`, { archived: false });
-          close();
-          // Reopening the game you are already in is not somewhere new to go
-          // Back from, even though it does clear the rail.
-          await urlAs('replace', () => openProject(S.slug));
-        },
-      })));
-  }
-
-  // `rename-file`, not `rename`: the game's own name has owned that one since
-  // before this existed, and the two dialogs are a click apart.
-  if (d.kind === 'rename-file') {
-    const path = h('input', { 'aria-label': 'New name' });
-    path.value = d.path;
-    const note = h('div', { class: 'hint muted' });
-    const rename = h('button', { class: 'filled', text: 'Rename it' });
-    // The name is the whole path, so a rename is also a move, and what that
-    // will mean is said before it happens rather than found out afterwards.
-    const check = () => {
-      const to = path.value.trim();
-      note.textContent = renameNote(d.path, to);
-      rename.disabled = !to || to === d.path;
-    };
-    path.addEventListener('input', check);
-    rename.addEventListener('click', async () => {
-      const to = path.value.trim();
-      close();
-      await renameFile(d.path, to);
-    });
-    check();
-    return wrap('Rename this file',
-      h('label', { text: 'New name (use / for folders)' }), path, note,
-      h('div', { class: 'actions' }, cancel, rename));
-  }
-
-  if (d.kind === 'new-file') {
-    const path = h('input', { placeholder: 'js/game.js' });
-    return wrap('New file',
-      h('label', { text: 'Name it (use / for folders)' }), path,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make it',
-        onclick: async () => { close(); await createFile(path.value.trim()); },
-      })));
-  }
-
-  // Nothing is sent until this is confirmed, so where each file lands is
-  // visible before it lands there rather than being something to undo
-  // afterwards. Any kind of file: what the studio can show it as is a separate
-  // question, answered by MEDIA_KINDS when it is opened.
-  if (d.kind === 'upload') {
-    const folder = h('input', { placeholder: 'leave empty for the top of the game' });
-    folder.value = ASSET_DIR;
-    const list = h('div', { class: 'plan' });
-    const ok = h('button', { class: 'filled', text: 'Add it' });
-
-    const paint = () => {
-      const plan = uploadPlan(folder.value.trim(), d.files);
-      list.replaceChildren(...plan.map((it) => h('div', {
-        class: `plan-row${it.problem ? ' skip' : ''}`,
-      },
-      h('span', { class: 'mono', text: it.path }),
-      h('div', { class: 'spacer' }),
-      h('span', { class: 'hint muted', text: it.problem ?? it.note }))));
-      ok.disabled = plan.every((it) => it.problem);
-    };
-    paint();
-    folder.addEventListener('input', paint);
-    ok.addEventListener('click', async () => {
-      const plan = uploadPlan(folder.value.trim(), d.files).filter((it) => !it.problem);
-      close();
-      await uploadFiles(plan);
-    });
-
-    return wrap(d.files.length === 1 ? 'Upload this file' : `Upload ${d.files.length} files`,
-      h('label', { text: 'Which folder? assets/ is where pictures and sounds go; anything else can go where it belongs.' }), folder,
-      list,
-      h('div', { class: 'actions' }, cancel, ok));
-  }
-
-  // Same shape as the upload dialog: everything it would write is on screen
-  // before any of it is sent.
-  if (d.kind === 'draw-new') {
-    const name = h('input', { placeholder: 'sprite' });
-    name.value = d.name;
-    const size = h('select', {}, SIZES.map((n) => h('option', { value: n, text: `${n} × ${n}` })));
-    size.value = String(d.size);
-    return wrap('Draw a picture',
-      // Naming the unit is the whole point of this line: 32 means the file is
-      // 32 pixels across, and a game usually draws a sprite that size much
-      // bigger on screen. Picking a number here is picking the real size.
-      h('label', { text: 'How big, in real pixels?' }), size,
-      h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; big ones are for backgrounds and title screens.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Start drawing',
-        onclick: async () => {
-          const side = clampSide(size.value);
-          const called = name.value.trim();
-          close();
-          await createPicture(called, side, side);
-        },
-      })));
-  }
-
-  if (d.kind === 'sound') {
-    const sliders = new Map();
-    const readouts = new Map();
-
-    const wave = h('select', {
-      onchange: (e) => { d.sound.wave = e.currentTarget.value; playSound(d.sound); },
-    }, WAVES.map((w) => h('option', { value: w, text: WAVE_WORDS[w] })));
-
-    const name = h('input', { placeholder: 'laser' });
-    name.addEventListener('input', () => { d.name = name.value; d.named = true; });
-
-    const shown = (p) => (p.step >= 1 ? String(Math.round(d.sound[p.key])) : d.sound[p.key].toFixed(2));
-
-    // Painted in place rather than through render(), which would rebuild the
-    // slider under the thumb that is dragging it — the same trap as the
-    // problems panel.
-    const paint = () => {
-      for (const p of SOUND_PARAMS) {
-        sliders.get(p.key).value = d.sound[p.key];
-        readouts.get(p.key).textContent = shown(p);
-      }
-      wave.value = d.sound.wave;
-      name.value = d.name;
-    };
-
-    const knobs = h('div', { class: 'knobs' }, SOUND_PARAMS.map((p) => {
-      const readout = h('span', { class: 'knob-value mono' });
-      const slider = h('input', {
-        type: 'range', min: p.min, max: p.max, step: p.step,
-        // Dragging moves the number beside it; letting go is what plays the
-        // sound, so a slow drag is not forty overlapping sounds.
-        oninput: (e) => {
-          d.sound[p.key] = Number(e.currentTarget.value);
-          readout.textContent = shown(p);
-        },
-        onchange: () => playSound(d.sound),
-      });
-      sliders.set(p.key, slider);
-      readouts.set(p.key, readout);
-      return h('label', { class: 'knob' },
-        h('span', { class: 'knob-name', text: p.label }),
-        slider,
-        readout,
-        h('span', { class: 'knob-note hint muted', text: p.comment }));
-    }));
-
-    // A preset renames the file too, until someone types a name of their own.
-    const load = (sound, called) => {
-      d.sound = sound;
-      if (called && !d.named) d.name = called;
-      paint();
-      playSound(d.sound);
-    };
-    paint();
-
-    return wide('Make a sound',
-      h('div', { class: 'row wrap' },
-        Object.keys(SOUND_PRESETS).map((n) => h('button', {
-          class: 'quiet tiny', text: SOUND_WORDS[n] ?? n, onclick: () => load(soundFrom(n), n),
-        })),
-        h('button', { class: 'quiet tiny', text: 'Surprise me', onclick: () => load(randomSound()) })),
-      h('label', { text: 'Shape' }), wave,
-      knobs,
-      h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It lands in assets/ as a .wav, one version like anything else.' }),
-      h('div', { class: 'actions' },
-        cancel,
-        h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(d.sound) }),
-        h('button', {
-          class: 'filled', text: 'Save it',
-          onclick: async () => {
-            const { sound, name: called } = d;
-            close();
-            await saveSound(sound, called);
-          },
-        })));
-  }
-
-  if (d.kind === 'delete-file') {
-    return wrap(`Delete ${d.path}?`,
-      h('p', { text: 'You can always bring it back from Versions.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'danger', text: 'Delete it',
-        onclick: async () => { close(); await deleteFile(d.path); },
-      })));
-  }
-
-  if (d.kind === 'fork') {
-    const name = h('input');
-    name.value = `${S.project.name} copy`;
-    const slug = h('input', { placeholder: 'leave empty to pick one for you' });
-    const err = h('p', { class: 'error' });
-    return wrap('Make a copy of this game',
-      h('p', { text: 'The new game starts with all the same files and helpers. The chat starts fresh.' }),
-      h('label', { text: 'What is the copy called?' }), name,
-      h('label', { text: 'Web address' }), slug,
-      err,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make the copy',
-        onclick: async () => {
-          const body = { name: name.value.trim() };
-          if (slug.value.trim()) body.slug = slug.value.trim();
-          const res = await api('POST', `/api/projects/${S.slug}/fork`, body);
-          if (!res.ok) { err.textContent = res.body?.error ?? 'Could not copy that.'; return; }
-          close();
-          await loadProjects();
-          await openProject(res.body.slug);
-        },
-      })));
-  }
-
-  if (d.kind === 'close-file') {
-    return wrap(`Close ${d.path}?`,
-      h('p', { text: 'You changed this file and have not saved it yet. Closing loses those changes.' }),
-      h('div', { class: 'actions' },
-        h('button', { class: 'quiet', text: 'Keep editing', onclick: close }),
-        h('button', {
-          class: 'danger', text: 'Close without saving',
-          // Awaited and always rendered: the dialog is still on screen until
-          // something renders, and the file being opened next may take a
-          // moment or fail. Same rule as closeOpenFile — whoever waits for the
-          // close is waiting for the open.
-          onclick: async () => {
-            S.open = null;
-            S.draw = null;
-            S.drawRefused = null;
-            S.dialog = null;
-            render();
-            if (d.then) await openFile(d.then);
-          },
-        })));
-  }
-
-  if (d.kind === 'restore') {
-    return wrap('Bring back this version?',
-      h('p', { text: `${d.path} will go back to how it was at ${d.short}. Nothing is lost — this adds a new version.` }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Bring it back',
-        onclick: async () => { close(); await restore(d.sha, d.path); },
-      })));
-  }
-
-  if (d.kind === 'rollback') {
-    return wrap('Bring the whole game back?',
-      h('p', { text: `Every file goes back to how it was at ${d.short}. Anything made since then is taken away.` }),
-      h('p', { text: 'Nothing is lost — this adds a new version, so you can come back from it too.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Bring it all back',
-        onclick: async () => { close(); await rollback(d.sha); },
-      })));
-  }
-
-  if (d.kind === 'conflict') {
-    return wrap('This file changed while you were editing',
-      h('p', { text: `A helper saved ${d.path} after you opened it. Which one do you want to keep?` }),
-      h('div', { class: 'actions' },
-        h('button', {
-          class: 'quiet', text: 'Keep theirs',
-          onclick: async () => { close(); await openFile(d.path); },
-        }),
-        h('button', {
-          class: 'filled', text: 'Keep mine',
-          onclick: async () => { close(); await saveOpenFile({ force: true }); },
-        })));
-  }
-
-  if (d.kind === 'new-agent' || d.kind === 'edit-agent') {
-    const editing = d.kind === 'edit-agent';
-    const name = h('input', { placeholder: 'Level Designer' });
-    const description = h('textarea', {
-      rows: '5',
-      placeholder: 'You design fun levels. Keep things simple and playable.',
-    });
-    const model = h('select', {},
-      h('option', { value: 'deepseek-v4-flash', text: 'Flash — quick' }),
-      h('option', { value: 'deepseek-v4-pro', text: 'Pro — slower, better at hard things' }));
-    const reasoning = h('input', { type: 'checkbox', checked: true });
-    const fileTools = h('input', { type: 'checkbox', checked: true });
-    if (editing) {
-      name.value = d.agent.name;
-      description.value = d.agent.description;
-      model.value = d.agent.model;
-      reasoning.checked = d.agent.reasoning;
-      fileTools.checked = d.agent.file_tools;
-    }
-    const err = h('p', { class: 'error' });
-    return wrap(editing ? `Change ${d.agent.name}` : 'New helper',
-      h('label', { text: 'Name (this is what you @ to call them)' }), name,
-      h('label', { text: 'What should they be like?' }), description,
-      h('label', { text: 'Brain' }), model,
-      h('label', { class: 'row' }, reasoning, ' Think before answering'),
-      h('label', { class: 'row' }, fileTools, ' Allowed to change files'),
-      err,
-      h('div', { class: 'actions' },
-        editing
-          ? h('button', {
-            class: 'danger', text: 'Delete helper',
-            onclick: () => { S.dialog = { kind: 'delete-agent', agent: d.agent }; render(); },
-          })
-          : null,
-        editing ? h('div', { class: 'spacer' }) : null,
-        cancel,
-        h('button', {
-          class: 'filled', text: editing ? 'Save' : 'Make helper',
-          onclick: async () => {
-            const body = {
-              name: name.value.trim(),
-              description: description.value.trim(),
-              model: model.value,
-              reasoning: reasoning.checked,
-              file_tools: fileTools.checked,
-            };
-            const res = editing
-              ? await api('PATCH', `/api/agents/${d.agent.id}`, body)
-              : await api('POST', '/api/agents', body);
-            if (!res.ok) { err.textContent = res.body?.error ?? 'Could not save that helper.'; return; }
-            close();
-            await loadAgents();
-            syncAttached();
-            // You almost always make a helper because you want it in the game
-            // you are looking at. Requiring a second "add to this game" click
-            // was the trap that made a new studio look broken.
-            if (!editing && S.slug && !S.project?.archived) await attachAgent(res.body);
-            render();
-          },
-        })));
-  }
-
-  if (d.kind === 'delete-agent') {
-    return wrap(`Delete ${d.agent.name}?`,
-      h('p', { text: 'They will be removed from every game. What they already said stays in the chat.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'danger', text: 'Delete helper',
-        onclick: async () => {
-          await api('DELETE', `/api/agents/${d.agent.id}`);
-          close();
-          await loadAgents();
-          syncAttached();
-          render();
-        },
-      })));
-  }
-
-  return null;
-}
-
 /* Render ------------------------------------------------------------------ */
 
-function render() {
+export function render() {
   const focus = focusSnapshot();
   const scrolls = scrollSnapshot();
   // Rebuilt by the Play tab if it is on screen; null means an arriving
