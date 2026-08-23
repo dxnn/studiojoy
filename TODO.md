@@ -5,9 +5,6 @@ deliberately deferred.
 
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
-- watch a live helper build with the new prompt: does it actually write
-  `BRIEF.md`/`SPEC.md` and split the game up, or still emit one big page. (The
-  input half of this question is answered — see space-racer's `e1fcbeb`.)
 - ask a helper to move flip-for-what onto the input module, the way space-racer
   went; then check whether either game wants a sound effect now that one can be
   made without leaving the studio
@@ -21,8 +18,8 @@ deliberately deferred.
   that multiplayer needs anyway
 - pull space-racer's colours out of its drawing code into `config/look.js` (a
   game refactor, so ask a helper to do it rather than doing it by hand)
-- migrate `fun-slide` and `redwolf-radness` — both are still one big file, so
-  this is a rebuild rather than a move; good first test of the new preamble
+- migrate `redwolf-radness` — still one big file, so this is a rebuild rather
+  than a move (fun-slide went this way live: `2a6821d` in its repo)
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate
