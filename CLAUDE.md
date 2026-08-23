@@ -21,6 +21,9 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
 - `npm run adduser -- <email> "<Name>"` — the only way accounts exist.
+- `npm run backup -- [dest]` — one consistent copy of the database
+  (`VACUUM INTO`), safe while the studio runs. The game trees recover
+  themselves from git; the chats and accounts only live here.
 
 Ports default to 8100 (studio) and 8101 (games). 8090 is deliberately left
 alone: `new-y` defaults to it and is expected to be running at the same time.

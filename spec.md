@@ -1437,7 +1437,7 @@ public/
                   pure logic, shared with npm test
   style.css
 bin/
-  adduser.js  deluser.js
+  adduser.js  deluser.js  backup.js
 test/
 ```
 
