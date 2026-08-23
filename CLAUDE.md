@@ -16,7 +16,7 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 
 ## Commands
 
-- `npm test` — 365 tests. `node:test` against `:memory:` SQLite, a temp
+- `npm test` — the full suite. `node:test` against `:memory:` SQLite, a temp
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
@@ -148,7 +148,7 @@ in it, or it does not highlight at all.
 
 ## Current state
 
-v0 is complete and green at 365 tests. Verified live end to end: a message in
+v0 is complete and green. Verified live end to end: a message in
 the UI produces a streamed reasoning trace, a `write_file` call, one git
 commit authored as the agent, a `files.changed` event, and a reloaded preview
 of a playable game on the public origin.
@@ -195,9 +195,10 @@ window.
 
 Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`),
 a `config/` directory, and many small source files rather than one enormous
-`index.html`. Prompt only: nothing scaffolds those files. Not yet seen against a
-live model — two of the four games are still single-file, and both agents with
-file tools had descriptions ordering a layout of their own until this session.
+`index.html`. Prompt only: nothing scaffolds those files. Validated live:
+handed fun-slide as a rebuild, a helper wrote `BRIEF.md`/`SPEC.md`, a commented
+`config/` set and small `js/` files in one commit (`2a6821d` in its repo), and
+the game played clean afterwards.
 
 Art can be put in from the studio: `+ Upload` beside `+ New file`, or
 a drop onto the file tree, both landing in a dialog that shows the path each
@@ -221,7 +222,7 @@ The four tools and undo/redo are icons with the words on `title`/`aria-label`.
 The **palette** is `PALETTE` in the game's own `config/look.js` — 32 colours, two
 rows of 16 — so changing a colour is a commit on the game rather than a setting
 in one browser. The colour box and the eyedropper both write into the chosen
-square. All four games now carry the file. `+ Upload` takes any file — nothing on
+square. Every game carries the file. `+ Upload` takes any file — nothing on
 the server ever cared about extensions — and `MEDIA_KINDS` in `main.js` is the
 one list to extend when the studio should show a new kind.
 
@@ -279,12 +280,12 @@ what a controller actually needs and what nobody asked for. 40k tokens, three
 files, one commit (`e1fcbeb` in that repo). Browser-checked afterwards on both
 origins: keyboard and a fake pad each drive it, and steering is analog now.
 
-`space-racer` and `flip-for-what` are migrated (their own repos, committed as
-`Daddy`): settings moved into `config/`, and space-racer's on-screen words moved
-into `config/words.js`. Colours are still inline in its drawing code — pulling
-those out is a game refactor, not a migration. Both verified in a browser via
-the static server at `localhost:8080/fam/gamestudio/games/<slug>/index.html`,
-which needs no studio running.
+Which games still need migrating lives in TODO.md, not here. Two things about
+migrations worth keeping: pulling colours out of drawing code into
+`config/look.js` is a game refactor rather than a migration, and a migrated
+game is verified in a browser via the static server at
+`localhost:8080/fam/gamestudio/games/<slug>/index.html`, which needs no studio
+running.
 
 The ambient file block lives in the **system prompt**, after the brief and the
 agent description, not on the last user message. Measured

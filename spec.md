@@ -583,8 +583,8 @@ evidence:
 - A **shared route** on the games origin is one copy always current, and makes a
   game that only runs inside this studio.
 
-So: real bytes, in the tree, in the history. The cost is drift — four games can
-sit on four versions — and the manifest is what makes drift visible instead of
+So: real bytes, in the tree, in the history. The cost is drift — every game can
+sit on its own version — and the manifest is what makes drift visible instead of
 silent. `+ Controls` reads `public/studio-lib/index.json`, writes the library's
 files under `studio/`, records the version, and adds the `<script>` tags. The
 same button says **Update controls** when the game holds an older version, and
@@ -906,8 +906,8 @@ has not been tried.
 
 The preamble asks an agent with file tools for a shape rather than leaving it
 to guess one, because left to guess it writes a single enormous
-`index.html` — two of the four games built here are exactly that, one of them
-62 KB in one file, which is also the file most likely to be cut off
+`index.html` — the games built here before the preamble asked were exactly
+that, one of them 62 KB in one file, which is also the file most likely to be cut off
 half-written (§14). So it asks for `index.html` holding markup only, `css/`,
 and one file per part of the game under `js/`, a few hundred lines each.
 
@@ -1441,7 +1441,6 @@ bin/
 test/
 ```
 
-Rough size: ~4,800 lines of server, ~4,800 of client, ~6,600 of tests.
 Signup, email, push, reactions, typing, unread counts, and per-user
 permissions (all present in `new-y`) are absent on purpose.
 
