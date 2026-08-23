@@ -21,6 +21,7 @@ import {
   ASSET_DIR, assetPath, writeFiles, openUpload, makeDropTarget, isFileDrag,
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
+import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
 import { renderSidebar } from './sidebar.js';
@@ -1816,6 +1817,39 @@ function renderDrawing() {
       save));
 }
 
+// How big a file can be and still be recoloured on every keystroke without
+// the keystroke feeling it. Past this the editor is the plain textarea again.
+const HIGHLIGHT_MAX = 128 * 1024;
+
+// The text editor's colours: the same characters tokenized and painted on a
+// <pre> underneath, with the textarea's own ink turned transparent — so the
+// caret, the selection, the focus snapshot and the save flow all still belong
+// to the textarea, and what is typed is exactly what is saved. Repainted in
+// place on input rather than through render(), like every other live surface;
+// the repaint listener lands after the oninput that stores the content, so it
+// reads what was just typed.
+function codeBox(area, path) {
+  const lang = langFor(path);
+  if (!lang || area.value.length > HIGHLIGHT_MAX) return area;
+  const pre = h('pre', { class: 'code-hl', 'aria-hidden': 'true' });
+  const paint = () => {
+    pre.replaceChildren();
+    for (const tok of tokenize(area.value, lang)) {
+      pre.append(tok.cls ? h('span', { class: `tok-${tok.cls}`, text: tok.text }) : tok.text);
+    }
+    // A <pre> swallows a final newline where a textarea shows an empty last
+    // line; the extra space keeps their bottoms level.
+    if (area.value.endsWith('\n')) pre.append(' ');
+  };
+  area.addEventListener('input', paint);
+  area.addEventListener('scroll', () => {
+    pre.scrollTop = area.scrollTop;
+    pre.scrollLeft = area.scrollLeft;
+  });
+  paint();
+  return h('div', { class: 'code' }, pre, area);
+}
+
 function renderFilesTab() {
   const controls = libraryOffer('input');
   const rows = S.files.map((f) => h('div', {
@@ -1907,7 +1941,7 @@ function renderFilesTab() {
         parsed && !parsed.ok
           ? h('div', { class: 'pad hint muted' }, `Showing the text because ${parsed.reason}.`)
           : null,
-        area,
+        codeBox(area, S.open.path),
         h('div', { class: 'editor-bar row' },
           h('span', { class: 'hint muted', text: S.open.dirty ? 'Not saved yet' : 'Saved' }),
           h('div', { class: 'spacer' }),

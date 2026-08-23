@@ -437,6 +437,20 @@ pointed at the studio's own read route — because there is nothing to edit. An
 agent never sees its bytes (§8), and `write_file` takes text, so a helper can
 point a game at `assets/hero.png` but cannot create or change it.
 
+A code file opens with its syntax coloured, by the studio's own tokenizer
+(`public/highlight.js`) rather than a library: comments, strings, numbers,
+keywords, tags and attributes for `.js`/`.json`, `.css` and `.html`, and
+everything else plain. The mechanism is an overlay — the same characters
+tokenized onto a `<pre>` behind a textarea whose ink is transparent — so the
+textarea stays the only editor: caret, selection, focus snapshot, dirty state
+and save are untouched, and a token read wrongly is a colour, never a change
+to the file. ⚠️ Token styles may vary `color` alone — a bold or italic glyph
+is a different width, and the overlay must sit exactly on the text. A file
+past 128 KB stays plain, and a JavaScript regex literal is deliberately shown
+plain: telling `/` the operator from `/` the regex needs a parser, and a wrong
+guess would paint the rest of the line as a comment or string. The tokenizer
+is pure — no DOM — and covered by `npm test`.
+
 An asset can also be **made** here rather than added, by two tools that end in
 the same `PUT`, at the same tidied path, in one commit each.
 
@@ -1386,8 +1400,9 @@ the test suite never touches the network.
 - Before-and-after for a changed picture. A version's pictures now show as
   thumbnails and open whole (§6), but each is the picture *at that commit*, not
   a comparison with the one before it.
-- A dependency-free in-browser code editor with syntax highlighting; v0 ships a
-  plain `<textarea>`.
+- A real in-browser code editor: line numbers, auto-indent, bracket matching.
+  The editor is still a plain `<textarea>` — the dependency-free syntax
+  colours behind it (§6) are the highlighting half of this item, done.
 - Asset pipeline: sprite sheets, audio conversion, minification.
 - Cross-project agent memory.
 - `git push` to a remote so a game can be published elsewhere.

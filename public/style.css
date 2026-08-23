@@ -20,6 +20,7 @@
   --danger: #d2686b;
   --ok: #3f9e6a;
   --code-bg: #f6f5fb;
+  --num: #a8632a;
   --hover: #f4f3fa;
   --active-bg: #eceefc;
   --radius: 10px;
@@ -43,6 +44,7 @@
     --danger: #e88b8e;
     --ok: #63bd8c;
     --code-bg: #201f2c;
+    --num: #dfa96e;
     --hover: #23222f;
     --active-bg: #2a2a44;
   }
@@ -571,6 +573,46 @@ details.thinking .trace {
   border-right: none;
 }
 .editor .editor-bar { padding: 8px 14px; border-top: 1px solid var(--border); }
+
+/* The editor's colours: a highlighted copy of the text on a <pre> underneath,
+   the textarea above it with transparent ink. The two must wear identical
+   metrics — font, padding, border thickness, wrapping — or the colours shear
+   off the characters. Same reason tokens only ever change color: a bold or
+   italic glyph is a different width. */
+.editor .code { flex: 1; display: grid; min-height: 0; }
+.editor .code > * { grid-area: 1 / 1; }
+.editor .code textarea {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+}
+/* Semi-transparent on purpose: an opaque selection box would sit over the
+   <pre> and hide the very characters being selected. */
+.editor .code textarea::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.editor .code-hl {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-left: none;
+  border-right: none;
+  background: var(--panel);
+  color: var(--text);
+}
+.editor .code textarea, .editor .code-hl {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.tok-com { color: var(--muted); }
+.tok-str { color: var(--ok); }
+.tok-num { color: var(--num); }
+.tok-kw { color: var(--accent); }
+.tok-tag { color: var(--accent); }
+.tok-attr { color: var(--agent); }
 
 /* A picture, sound or video where the text editor would be. The checkerboard
    is so a transparent sprite reads as transparent rather than as white. */

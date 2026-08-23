@@ -243,6 +243,14 @@ outside the plain-value subset falls back to the text editor with a reason.
 Browser-checked end to end, including a nested edit inside a table: one
 character changed on disk, one commit.
 
+Code files open coloured — comments, strings, numbers, keywords, tags — by the
+studio's own tokenizer (`public/highlight.js`, pure, covered in `npm test`),
+painted on a `<pre>` behind a transparent-ink textarea. The textarea is still
+the only editor, so caret, drafts, dirty state and save are untouched. ⚠️ Token
+styles may change `color` only: a bold or italic glyph is a different width
+and the overlay shears off the text. Regex literals are plain on purpose, and
+past 128 KB the editor is plain again (spec.md §6).
+
 `studio/` in a game's tree is the **studio library**: the studio's own code,
 copied in rather than shared, with `studio/studio.json` recording which version
 each game has. Copied because a symlink is a path out of the sandbox that git
