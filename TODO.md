@@ -24,4 +24,5 @@ deliberately deferred.
 - migrate `fun-slide` and `redwolf-radness` — both are still one big file, so
   this is a rebuild rather than a move; good first test of the new preamble
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
-  in spec.md §11: no CSRF token, in-memory lockouts, no rate limit outside login
+  in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
+  no rate limit outside login, and sessions that never expire or rotate

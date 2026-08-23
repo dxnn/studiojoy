@@ -1186,6 +1186,10 @@ the game in your preview pane reloads.
 - **No CSRF token.** `SameSite=Lax` plus the `readJson` content-type guard
   (§7), which bounds a cross-site forgery to `POST /api/logout`.
 - **Lockout state is in-memory.** A restart clears all lockouts.
+- **Sessions never expire.** No `Max-Age`, no rotation: a session lasts until
+  `deluser` removes its row or the browser loses the cookie. Expiry and
+  rotation are deferred to v1 (§15) and belong to the same gate as the rest
+  of this list.
 - **No rate limiting outside login.** An authenticated user can flood message
   posts and file writes; bounded only by the token budget and size caps. The
   trust boundary here is the account list, which the operator controls by hand.
