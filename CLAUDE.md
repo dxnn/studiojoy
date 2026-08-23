@@ -54,8 +54,11 @@ No build step, no linter, no dependencies. Node ≥ 24, ESM.
 - A reasoning trace is never persisted and never replayed into a later request.
 - `render()` replaces the whole tree, so anything the browser keeps on a node
   is lost unless it is snapshotted and put back: the composer's text and caret,
-  and every scroller's position. A new `.scroll` container needs a
-  `data-scroll` name or it will jump to the top on the next render.
+  every scroller's position, and the open dialog — which is built once and
+  re-appended as the same node, never rebuilt mid-decision, because a
+  background render used to wipe what was being typed into it. A new `.scroll`
+  container needs a `data-scroll` name or it will jump to the top on the next
+  render.
 - ⚠️ Opening a file is several awaits long — bytes, then for a picture a decode
   and the palette — so clicks overlap. `openFile` takes a token and every step
   after an await drops its result if a newer open has started; `startDrawing`

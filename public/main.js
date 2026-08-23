@@ -159,6 +159,19 @@ const EDITOR_AREA = 'editor-area';
 
 function focusSnapshot() {
   const el = document.activeElement;
+  // A control inside the open dialog survives render() by identity — the
+  // dialog node is re-appended, never rebuilt — so the element itself is the
+  // way back to it. Only text fields have a selection to keep; a select, a
+  // slider or a colour box just needs the focus returned.
+  if (dialogShown.node?.contains(el)) {
+    const canSelect = typeof el.selectionStart === 'number';
+    return {
+      el,
+      start: canSelect ? el.selectionStart : null,
+      end: canSelect ? el.selectionEnd : null,
+      scroll: el.scrollTop,
+    };
+  }
   if (el !== composerBox && el?.id !== EDITOR_AREA) return null;
   return {
     composer: el === composerBox,
@@ -170,10 +183,12 @@ function focusSnapshot() {
 
 function restoreFocus(snap) {
   if (!snap) return;
-  const el = snap.composer ? composerBox : document.getElementById(EDITOR_AREA);
-  if (!el) return;
+  const el = snap.el ?? (snap.composer ? composerBox : document.getElementById(EDITOR_AREA));
+  // A remembered element that did not make it back into the tree — the render
+  // that ran was the one closing its dialog — has nowhere to put the focus.
+  if (!el || (snap.el && !el.isConnected)) return;
   el.focus();
-  el.setSelectionRange(snap.start, snap.end);
+  if (snap.start !== null && snap.start !== undefined) el.setSelectionRange(snap.start, snap.end);
   el.scrollTop = snap.scroll;
 }
 
@@ -2159,6 +2174,16 @@ function renderRail() {
 
 /* Render ------------------------------------------------------------------ */
 
+// The open dialog's node, kept for as long as that dialog is open. A dialog
+// is built once and every later render re-appends the same node, because a
+// background render — a helper's commit landing, the banner timer firing —
+// must never rebuild a form somebody is typing into: rebuilding is what wiped
+// the name out of New file when a save's files.changed arrived a moment
+// later. The state object is the key: every open makes a fresh object, so a
+// new dialog is a new node, and closing clears both. Same bargain as the
+// composer: the node surviving is what keeps the words.
+let dialogShown = { for: null, node: null };
+
 export function render() {
   const focus = focusSnapshot();
   const scrolls = scrollSnapshot();
@@ -2207,8 +2232,12 @@ export function render() {
   }
 
   if (S.dialog) {
-    const dialog = dialogFor(S.dialog);
-    if (dialog) root.append(dialog);
+    if (dialogShown.for !== S.dialog) {
+      dialogShown = { for: S.dialog, node: dialogFor(S.dialog) };
+    }
+    if (dialogShown.node) root.append(dialogShown.node);
+  } else if (dialogShown.node) {
+    dialogShown = { for: null, node: null };
   }
 
   restoreScroll(scrolls);

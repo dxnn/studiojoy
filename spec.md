@@ -702,6 +702,14 @@ project being refetched, because reopening a project clears the pins, the
 reasoning traces and anything mid-stream. A part that no longer exists — a
 deleted file, a commit past the end of the list — simply does not open.
 
+An open dialog is a decision in progress, and two rules keep it one. The
+address is held while it is open, so Back out of unsaved work cannot overwrite
+the entry it was going to. And the dialog's node is built once and re-appended
+by every later render rather than rebuilt — a background render (a helper's
+commit landing, the banner timer firing) used to replace the form and wipe
+what was being typed into it. Focus and caret are snapshotted across a render
+for a dialog's controls the same way as for the composer.
+
 ### Games origin (`GAMES_PORT`)
 
 | method | path | effect |
