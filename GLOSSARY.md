@@ -26,7 +26,7 @@
 - **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
 - **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)
 - **context path** — a project path a human attaches to a message, handing that file's current content to the agents on that turn.
-- **pinned file** — a file named by a context path on the current or previous two human turns. Offered to the context byte cap first, and labelled in the prompt as what the human is pointing at. Priority, not exemption: a pin that does not fit is dropped and named like any other.
+- **pinned file** — a file named by a context path on the current or previous two human turns. Offered to the context byte cap first, and named on the last user message as what the human is pointing at — never labelled inside the file block, where the label would churn the prompt cache. Priority, not exemption: a pin that does not fit is dropped and named like any other.
 - **ambient context** — the rest of the working tree, sent to an agent on every fire without being asked for. Affordable because DeepSeek's window is 1M tokens; trimmed largest-first when the byte cap binds.
 - **reasoning trace** — DeepSeek's `reasoning_content`. Streamed to the client and rendered collapsed, never persisted to a message and never replayed into a later request.
 - **published** — a game's `projects.published` flag: it appears in the *catalog*. Not an access control — every game has always been playable by link.

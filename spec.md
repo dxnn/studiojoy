@@ -877,15 +877,21 @@ what prompt caching pays for (below):
 2. `BRIEF.md`'s content, if the file exists, cut to `BRIEF_BYTES` with a note
    saying where it was cut.
 3. The agent's `description`.
-4. The **file tree**: every path with its size. A path already on disk that §4
-   validation refuses is listed and marked `[cannot be opened: …]`: no tool can
-   touch it and the games origin will not serve it, so an agent that could not
-   see it would have no way to explain why it 404s at runtime.
-5. The **files**, each emitted exactly once between
-   `--- FILE: <path> (<size>) ---` and `--- END FILE ---` markers. Pinned
-   files come first and are labelled with who pinned them. Binary files are
-   listed as `[binary: <path>, <size>]` — the agent learns they exist without
-   receiving bytes it cannot read.
+4. The **files**, each emitted exactly once between
+   `--- FILE: <path> (<size>) ---` and `--- END FILE ---` markers, least
+   recently modified first: the files being worked on sit at the tail, so a
+   commit invalidates the cached prefix from the oldest file it touched
+   rather than from the top of the block.
+5. The **file tree**, last: every path with its size, binary files as
+   `[binary: <path>, <size>]` — the agent learns they exist without receiving
+   bytes it cannot read — plus the left-out and library lists. A path already
+   on disk that §4 validation refuses is listed and marked
+   `[cannot be opened: …]`: no tool can touch it and the games origin will not
+   serve it, so an agent that could not see it would have no way to explain
+   why it 404s at runtime. The tree carries every size, so it changes whenever
+   any file does — which is why it trails the contents: at the head of the
+   block, where it used to sit, it re-billed every file behind it as a cache
+   miss on every commit.
 
 `BRIEF.md` therefore arrives twice: once as item 2, capped, and once in the
 file block as an ordinary file. That is deliberate rather than an oversight —
@@ -897,23 +903,34 @@ The final user message carries, in order:
 
 1. The **runtime errors** for the current commit, one per line, omitted
    entirely when there are none (below).
-2. The human's message body.
+2. A line naming the **pinned files**, omitted when nothing is pinned.
+3. The human's message body.
 
-Errors sit here rather than with the files because they change on every
-playthrough: in the system prompt they would invalidate the file block behind
-them on every fire.
+Errors and pins sit here rather than with the files because they change on
+every playthrough and on every human turn: in the system prompt they would
+invalidate the file block behind them on every fire.
 
 A **pinned file** is a path in the current turn's `context_paths`, or in
 either of the previous two human turns'. Pinning is **priority, not
 exemption**: pinned files are offered to the byte cap first, then the rest,
 each group smallest-first, so the largest files are the ones dropped and the
-whole block is bounded by `AMBIENT_BYTES`. Content is always read fresh from
-disk at fire time, never from the message the human sent. Dropped files are
-named in the prompt with a note to call `read_file`.
+whole block is bounded by `AMBIENT_BYTES`. Pinning decides selection, never
+emission: the block keeps its stable order and the last user message is what
+names the pins, because a label inside the block moved with every human turn
+and re-billed everything behind it as a cache miss. Content is always read
+fresh from disk at fire time, never from the message the human sent. Dropped
+files are named in the prompt with a note to call `read_file` — a dropped
+*pinned* file is still named as pinned, since it is still what the human is
+pointing at.
 
 Earlier chat turns map to OpenAI roles: this agent's own messages become
 `assistant`, everyone else's become `user` prefixed with `[Name] `. History is
-trimmed oldest-first to fit its budget, and the seam is marked twice — a
+trimmed oldest-first to fit its budget — and past it, back to half, so the
+boundary can then hold still: a seam cut exactly to the cap moved one message
+per fire, and the seam line at the transcript's front re-billed the whole
+transcript as a cache miss every time. The boundary only advances, held in
+memory per project; a restart re-derives it, which costs one fire of misses.
+The seam is marked twice — a
 `[studio]` turn at the front of the transcript saying how many messages are not
 shown, and `messages.trimmed` on the reply, which the UI renders under the
 bubble (§3). Silence there was the one drop in the whole context that nobody was
@@ -953,9 +970,12 @@ On the last user message the block sat behind the whole transcript, so the
 history arriving in front of it moved it and every fire was charged as a full
 miss — 0%, not even the preamble, because the surviving prefix was too short to
 register. In the system prompt the prefix a second fire matches on includes the
-files. A file changing is a total miss in either position, so this one is never
-worse. The 62 KB measured is well under `AMBIENT_BYTES`; a 400 KB system prompt
-has not been tried.
+files. A file changing was a total miss in either position when this was
+measured; the block's internal order (above — contents coldest-first, the tree
+last, no pin labels) has since bounded that miss to the suffix from the oldest
+changed file, so an agent iterating on two or three files re-pays those files,
+not the project. The 62 KB measured is well under `AMBIENT_BYTES`; a 400 KB
+system prompt has not been tried.
 
 ### Project documents
 

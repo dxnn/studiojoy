@@ -365,7 +365,7 @@ test('a reasoning trace is not replayed on the next turn', async (t) => {
   assert.ok(serialized.includes('First.'), 'but the reply itself is replayed');
 });
 
-test('the context carries the tree, the brief, and pinned labels', async (t) => {
+test('the context carries the tree and the brief, and the pin rides the last message', async (t) => {
   const llm = createFakeLlm([says('Seen.')]);
   const { app } = await studio(t, { llm });
   await app.client.json('PUT', '/api/projects/tank/files/BRIEF.md', {
@@ -414,11 +414,22 @@ test('the context carries the tree, the brief, and pinned labels', async (t) => 
   // a second fire matches on includes them (spec.md §8).
   assert.match(system, /PROJECT FILES/);
   assert.match(system, /js\/game\.js \(10 bytes\)/);
-  assert.match(system, /\[pinned by the user\]/);
   assert.match(system, /\[binary: sprite\.png, 4 bytes\]/, 'binaries are named, not sent');
+  // The tree carries every file's size, so it changes on every edit — it
+  // trails the contents rather than leading them, or each commit would
+  // re-bill the whole block as a cache miss.
+  assert.ok(
+    system.lastIndexOf('--- END FILE ---') < system.indexOf('PROJECT FILES'),
+    'the tree follows the file contents',
+  );
 
-  // The last user message is the human's, and nothing else here.
-  assert.equal(messages.at(-1).content, '[Dann] look at this');
+  // The pin is named on the last user message, next to the volatile things —
+  // never inside the file block, where it would move with every human turn.
+  assert.ok(!system.includes('pinned'), 'no pin label in the system prompt');
+  assert.equal(
+    messages.at(-1).content,
+    '(the user pinned these files: js/game.js)\n\n[Dann] look at this',
+  );
 });
 
 // The brief is the one project file that goes into the system prompt whole, so
@@ -440,7 +451,7 @@ test('an oversized brief is cut, and says where', async (t) => {
   // preamble, not withheld.
   const { system } = llm.lastCall();
   const briefSection = system.slice(
-    system.indexOf('Project brief'), system.indexOf('PROJECT FILES'),
+    system.indexOf('Project brief'), system.indexOf('You design games.'),
   );
   assert.match(briefSection, /cut here: BRIEF\.md is 52013 bytes/);
   assert.ok(!briefSection.includes('the last line'), 'the tail is not in that copy');
@@ -464,12 +475,43 @@ test('pinning takes priority but does not exempt a file from the cap', async (t)
   await send(app, 'look at all of these', sizes.map((kb) => `js/f${kb}.js`));
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
-  const { system } = llm.lastCall();
+  const { system, messages } = llm.lastCall();
   // Smallest-first, so the largest pinned file is the one left out — named, as
   // a dropped file always is.
-  assert.match(system, /--- FILE: js\/f90\.js \(90000 bytes\) \[pinned by the user\] ---/);
+  assert.match(system, /--- FILE: js\/f90\.js \(90000 bytes\) ---/);
   assert.ok(!system.includes('--- FILE: js/f94.js'), 'the largest is not sent');
   assert.match(system, /left out for size[^\n]*js\/f94\.js/);
+  // The dropped pin is still what the human is pointing at, so the last
+  // message names it with the rest.
+  assert.match(
+    messages.at(-1).content,
+    /the user pinned these files: js\/f90\.js, js\/f91\.js, js\/f92\.js, js\/f93\.js, js\/f94\.js/,
+  );
+});
+
+// The block's internal order is what the prompt cache pays for: contents
+// least-recently-modified first, so an edit only re-bills the block from the
+// file it touched onward; the tree, which changes on every edit because it
+// carries every size, comes last.
+test('the file block is emitted coldest-first with the tree at the end', async (t) => {
+  const llm = createFakeLlm([says('Seen.')]);
+  const { app, dir } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/js/new.js', { rawBody: 'let hot = 1;' });
+  await app.client.json('PUT', '/api/projects/tank/files/js/old.js', { rawBody: 'let cold = 1;' });
+  // Age one file well past the other; the clock decides, not name or size.
+  const past = new Date(Date.now() - 60_000);
+  fs.utimesSync(path.join(dir, 'js/old.js'), past, past);
+
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, 'have a look');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  const at = (s) => system.indexOf(s);
+  assert.ok(at('--- FILE: js/old.js') !== -1 && at('--- FILE: js/new.js') !== -1);
+  assert.ok(at('--- FILE: js/old.js') < at('--- FILE: js/new.js'), 'oldest first');
+  assert.ok(at('--- FILE: js/new.js') < at('PROJECT FILES'), 'the tree trails the contents');
 });
 
 test('a file the validator refuses is listed but never opened', async (t) => {
@@ -494,6 +536,9 @@ test('a trimmed transcript says where it was trimmed', async (t) => {
   const { app } = await studio(t, { llm, chatty: false });
   // Nine messages of 31 KB is over the 200 KB history budget. A quiet agent
   // means none of them fires, so the whole pile is there when one does.
+  // Trimming cuts back to half the budget, not to the line — that is what
+  // lets the seam hold still for the fires that follow instead of moving one
+  // message at a time, re-billing the transcript as a cache miss each fire.
   const long = 'w'.repeat(31 * 1024);
   for (let i = 0; i < 9; i += 1) {
     await send(app, `${i} ${long}`);
@@ -508,11 +553,34 @@ test('a trimmed transcript says where it was trimmed', async (t) => {
 
   // The marker sits where the seam is: right before the oldest surviving turn.
   const first = llm.lastCall().messages[0].content;
-  assert.match(first, /\[studio\] Earlier messages are not shown \(3 trimmed to fit\)\.\n\n\[Dann\] 3 /);
-  assert.ok(!first.includes('[Dann] 2 '), 'and the trimmed ones are gone');
+  assert.match(first, /\[studio\] Earlier messages are not shown \(6 trimmed to fit\)\.\n\n\[Dann\] 6 /);
+  assert.ok(!first.includes('[Dann] 5 '), 'and the trimmed ones are gone');
 
   // And the person is told too, on the reply that could not see them.
-  assert.equal(reply.data.trimmed, 3);
+  assert.equal(reply.data.trimmed, 6);
+});
+
+test('the trim seam holds still while the next fires fit their budget', async (t) => {
+  const llm = createFakeLlm((opts, i) => says(i === 0 ? 'Noted.' : 'Again.'));
+  const { app } = await studio(t, { llm, chatty: false });
+  const long = 'w'.repeat(31 * 1024);
+  for (let i = 0; i < 9; i += 1) {
+    await send(app, `${i} ${long}`);
+  }
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'catch up @Designer');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Noted.');
+  const firstSeam = llm.lastCall().messages[0].content.match(/\((\d+) trimmed/)[1];
+
+  // A small follow-up fits the halved transcript, so the boundary must not
+  // move: the same turns survive and the seam line is byte-identical, which
+  // is what the prompt cache needs to hit on the whole prefix.
+  await send(app, 'and again @Designer');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Again.');
+  const secondSeam = llm.lastCall().messages[0].content.match(/\((\d+) trimmed/)[1];
+  assert.equal(secondSeam, firstSeam, 'the seam did not move');
 });
 
 test('a reply that saw the whole conversation says nothing about trimming', async (t) => {

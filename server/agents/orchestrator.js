@@ -21,9 +21,11 @@ import { createToolset } from './tools.js';
 // changed — but only because the file block is in the system prompt, ahead of
 // the transcript. On the last user message, where it used to be, the history
 // arriving in front of it moved it and every fire was charged as a full miss:
-// 0%, not even the preamble. A file changing is a total miss either way, so
-// this position is never worse. Stable emission order is what makes both
-// numbers possible.
+// 0%, not even the preamble. Inside the block, everything is ordered most
+// stable first for the same reason: contents least-recently-modified first,
+// the tree (which changes size on every edit) last, and nothing per-turn —
+// pins ride the last user message — so a commit only re-bills the block from
+// the oldest file it touched, not from the top (spec.md §8).
 const AMBIENT_BYTES = 400 * 1024;
 const HISTORY_BYTES = 200 * 1024;
 const MAX_HISTORY_MESSAGES = 200;
@@ -180,8 +182,10 @@ function briefText(buffer) {
     + ` ${BRIEF_BYTES} are shown. Shorten it, or read the rest with read_file.)`;
 }
 
-// Paths the humans pointed at recently. Pinned files are taken first and are
-// labelled in the prompt.
+// Paths the humans pointed at recently. Pins decide selection priority in the
+// file block; the emphasis itself rides on the last user message, next to the
+// runtime errors, because pins change turn to turn and a label inside the
+// block re-billed everything behind it as a cache miss.
 function pinnedPaths(db, projectId) {
   const recentTurns = db
     .prepare(
@@ -241,15 +245,39 @@ async function buildFileBlock(db, project, dir) {
     used += file.size;
   }
 
-  // Emission is pinned first, then alphabetical: editing a file changes its
-  // size but not its place, so the block only moves when the tree does.
+  // Emission is least-recently-modified first, contents before trailers, so
+  // the prefix DeepSeek caches survives an edit: the files being worked on
+  // sit at the tail, and a commit only re-bills the block from the oldest
+  // file it touched. The tree carries every file's size, so it changes on
+  // every edit — which is why it trails the contents instead of leading them.
   const ordered = [...texts].sort((a, b) => {
-    const rank = (f) => (pinned.has(f.path) ? 0 : 1);
-    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    if (a.modified_at !== b.modified_at) return a.modified_at < b.modified_at ? -1 : 1;
     return a.path < b.path ? -1 : 1;
   });
 
   const parts = [];
+  const omitted = [];
+  for (const file of ordered) {
+    if (!included.has(file.path)) {
+      omitted.push(file.path);
+      continue;
+    }
+    const buffer = await readFileAt(path.join(dir, file.path));
+    if (buffer === null) continue;
+    parts.push(
+      `--- FILE: ${file.path} (${file.size} bytes) ---\n`
+      + `${buffer.toString('utf8')}\n--- END FILE ---`,
+    );
+  }
+  for (const file of binaries) {
+    parts.push(`[binary: ${file.path}, ${file.size} bytes]`);
+  }
+  if (omitted.length > 0) {
+    omitted.sort();
+    parts.push(`(left out for size — call read_file if you need them: ${omitted.join(', ')})`);
+  }
+  const library = libraryLines(files);
+  if (library) parts.push(library);
   parts.push(
     'PROJECT FILES\n'
     + (files.length
@@ -260,30 +288,15 @@ async function buildFileBlock(db, project, dir) {
         .join('\n')
       : '(the project has no files yet)'),
   );
-  const library = libraryLines(files);
-  if (library) parts.push(library);
 
-  const omitted = [];
-  for (const file of ordered) {
-    if (!included.has(file.path)) {
-      omitted.push(file.path);
-      continue;
-    }
-    const buffer = await readFileAt(path.join(dir, file.path));
-    if (buffer === null) continue;
-    const label = pinned.has(file.path) ? ' [pinned by the user]' : '';
-    parts.push(
-      `--- FILE: ${file.path} (${file.size} bytes)${label} ---\n`
-      + `${buffer.toString('utf8')}\n--- END FILE ---`,
-    );
-  }
-  for (const file of binaries) {
-    parts.push(`[binary: ${file.path}, ${file.size} bytes]`);
-  }
-  if (omitted.length > 0) {
-    parts.push(`(left out for size — call read_file if you need them: ${omitted.join(', ')})`);
-  }
-  return parts.join('\n\n');
+  // The pins the last user message should name: files that exist, whether or
+  // not they fit the cap — a pin that was dropped is still what the human is
+  // pointing at, and the left-out note already says how to reach it.
+  const pinnedShown = files
+    .filter((f) => pinned.has(f.path) && !f.unreachable)
+    .map((f) => f.path)
+    .sort();
+  return { block: parts.join('\n\n'), pinnedShown };
 }
 
 // What the game said when someone played it. Only the current version's
@@ -303,14 +316,22 @@ async function buildErrorBlock(db, project, dir) {
     + lines.join('\n');
 }
 
-function historyTurns(db, project, agent, lastFiredMaxId = 0) {
+function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new Map()) {
+  // The floor is where the transcript starts once it has ever been trimmed.
+  // Trimming exactly to the cap moved the seam one message per fire, and the
+  // seam line at the transcript's front re-billed the whole transcript as a
+  // cache miss every time — so instead the floor holds still, and when the
+  // kept suffix outgrows a cap it jumps, cutting back to half so it can hold
+  // still again. In memory only; a restart re-derives it, which costs one
+  // fire of misses (same trade as lastFired).
+  const floor = historyFloor.get(project.id) ?? 0;
   const rows = db
     .prepare(
       `SELECT * FROM (
-         SELECT * FROM messages WHERE project_id = ? ORDER BY id DESC LIMIT ?
+         SELECT * FROM messages WHERE project_id = ? AND id > ? ORDER BY id DESC LIMIT ?
        ) ORDER BY id ASC`,
     )
-    .all(project.id, MAX_HISTORY_MESSAGES);
+    .all(project.id, floor, MAX_HISTORY_MESSAGES);
 
   const userNames = new Map(
     db.prepare('SELECT id, display_name FROM users').all().map((u) => [u.id, u.display_name]),
@@ -353,11 +374,22 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
     turns = [...before, ...mine, ...theirs];
   }
 
-  // Trim from the front, always keeping the newest turn.
+  // Trim from the front, always keeping the newest turn — but only when a cap
+  // is breached, and then past the cap to half, advancing the floor so the
+  // boundary stays put for the fires in between.
   let total = turns.reduce((sum, t) => sum + t.text.length, 0);
-  while (turns.length > 1 && total > HISTORY_BYTES) {
-    total -= turns[0].text.length;
-    turns.shift();
+  const overflow = rows.length === MAX_HISTORY_MESSAGES;
+  if (total > HISTORY_BYTES || overflow) {
+    const byteTarget = total > HISTORY_BYTES ? HISTORY_BYTES / 2 : HISTORY_BYTES;
+    const turnTarget = overflow ? Math.floor(MAX_HISTORY_MESSAGES / 2) : turns.length;
+    while (turns.length > 1 && (total > byteTarget || turns.length > turnTarget)) {
+      total -= turns[0].text.length;
+      historyFloor.set(
+        project.id,
+        Math.max(historyFloor.get(project.id) ?? 0, turns[0].id),
+      );
+      turns.shift();
+    }
   }
 
   // Mark the seam, for the agent here and for the human on the reply itself
@@ -392,8 +424,9 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0) {
 async function buildContext({
   db, project, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
+  historyFloor = new Map(),
 }) {
-  const { turns, trimmed } = historyTurns(db, project, agent, lastFiredMaxId);
+  const { turns, trimmed } = historyTurns(db, project, agent, lastFiredMaxId, historyFloor);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
@@ -407,22 +440,26 @@ async function buildContext({
   // changes, the brief and the description rarely do, the files often. Putting
   // the files here rather than on the last message is what turns a 0% cache
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
+  const fileBlock = isChat ? null : await buildFileBlock(db, project, dir);
   const system = [
     isChat ? null : studioPreamble({
       project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
     }),
     brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null,
     agent.description || null,
-    isChat ? null : await buildFileBlock(db, project, dir),
+    fileBlock ? fileBlock.block : null,
   ].filter(Boolean).join('\n\n');
 
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
-  // Errors stay next to the human's message: they change on every playthrough,
-  // so in the system prompt they would invalidate the files behind them.
+  // Errors and pins stay next to the human's message: both change turn to
+  // turn, so in the system prompt they would invalidate the files behind them.
   const errorBlock = isChat ? null : await buildErrorBlock(db, project, dir);
-  if (errorBlock) {
+  const pinNote = fileBlock && fileBlock.pinnedShown.length > 0
+    ? `(the user pinned these files: ${fileBlock.pinnedShown.join(', ')})`
+    : null;
+  if (errorBlock || pinNote) {
     const last = messages[messages.length - 1];
-    last.content = `${errorBlock}\n\n${last.content}`;
+    last.content = [errorBlock, pinNote, last.content].filter(Boolean).join('\n\n');
   }
   return { system, messages, trimmed };
 }
@@ -465,6 +502,11 @@ export function createOrchestrator({
   // project_agents.id -> continuations spent since the last human message.
   // A fresh human turn is a fresh allowance, so this is cleared there.
   const continued = new Map();
+  // projects.id -> the message id the transcript starts after, once it has
+  // ever been trimmed (historyTurns). Holding the boundary still between
+  // fires is what keeps the transcript prefix cacheable; in memory only,
+  // like lastFired.
+  const historyFloor = new Map();
 
   function schedule(projectAgentId, readyAtMs) {
     const now = Date.now();
@@ -569,7 +611,7 @@ export function createOrchestrator({
         .get(project.id).n;
       const context = await buildContext({
         db, project, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
-        maxAssistantTurns, maxToolCalls,
+        maxAssistantTurns, maxToolCalls, historyFloor,
       });
       if (!context) return;
 
