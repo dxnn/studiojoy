@@ -24,8 +24,12 @@ import { createToolset } from './tools.js';
 // 0%, not even the preamble. Inside the block, everything is ordered most
 // stable first for the same reason: contents least-recently-modified first,
 // the tree (which changes size on every edit) last, and nothing per-turn —
-// pins ride the last user message — so a commit only re-bills the block from
-// the oldest file it touched, not from the top (spec.md §8).
+// pins ride the last user message. The cache only serves a prefix back to a
+// depth where some earlier request already diverged (spec.md §14), so the
+// first fire after an edit still pays in full; the point of this order is
+// that a session editing the same files keeps the divergence depth still,
+// and those fires measured 94% cached against 0% with the tree in front
+// (spec.md §8, tmp/probe-order.mjs).
 const AMBIENT_BYTES = 400 * 1024;
 const HISTORY_BYTES = 200 * 1024;
 const MAX_HISTORY_MESSAGES = 200;
@@ -246,10 +250,11 @@ async function buildFileBlock(db, project, dir) {
   }
 
   // Emission is least-recently-modified first, contents before trailers, so
-  // the prefix DeepSeek caches survives an edit: the files being worked on
-  // sit at the tail, and a commit only re-bills the block from the oldest
-  // file it touched. The tree carries every file's size, so it changes on
-  // every edit — which is why it trails the contents instead of leading them.
+  // the files being worked on sit at the tail and the divergence depth stops
+  // moving after the first edit — which is when DeepSeek starts serving the
+  // prefix ahead of it (spec.md §14). The tree carries every file's size, so
+  // it changes on every edit — which is why it trails the contents instead
+  // of leading them.
   const ordered = [...texts].sort((a, b) => {
     if (a.modified_at !== b.modified_at) return a.modified_at < b.modified_at ? -1 : 1;
     return a.path < b.path ? -1 : 1;

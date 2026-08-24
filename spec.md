@@ -970,12 +970,27 @@ On the last user message the block sat behind the whole transcript, so the
 history arriving in front of it moved it and every fire was charged as a full
 miss — 0%, not even the preamble, because the surviving prefix was too short to
 register. In the system prompt the prefix a second fire matches on includes the
-files. A file changing was a total miss in either position when this was
-measured; the block's internal order (above — contents coldest-first, the tree
-last, no pin labels) has since bounded that miss to the suffix from the oldest
-changed file, so an agent iterating on two or three files re-pays those files,
-not the project. The 62 KB measured is well under `AMBIENT_BYTES`; a 400 KB
-system prompt has not been tried.
+files.
+
+A file changing is subtler, and was measured separately against the real
+space-racer tree (`tmp/probe-order.mjs`, 10 K-token prompts). The cache serves
+a partial prefix only back to a **branch point** — a depth where an earlier
+request already diverged (§14) — so the *first* edit at a given depth is a
+full miss under any ordering. But a working session edits the same files fire
+after fire, and with the contents coldest-first and the tree last, that depth
+stops moving:
+
+| case | tree first, alphabetical (old) | coldest-first, tree last |
+|---|---|---|
+| next fire, no file changed | 100% | 100% |
+| first edit of the tail file | 0% | 0% |
+| second edit of the same file | 0% | 42% |
+| third and every later edit | 0% | **94%** |
+
+The old shape diverged at the size-stamped tree a few blocks in, so its branch
+point bought almost nothing and an edited fire was a full miss forever. The
+62 KB measured is well under `AMBIENT_BYTES`; a 400 KB system prompt has not
+been tried.
 
 ### Project documents
 
@@ -1434,6 +1449,19 @@ Caching is automatic on a repeated prefix — a second identical 4018-token
 prompt reported 3968 cached. `prompt_tokens` is the **total**, hits plus
 misses, which is why §8's budget formula uses the split rather than
 `prompt_tokens`.
+
+Partial prefixes are served only back to a **branch point**: a depth at which
+an earlier request already diverged. A request that diverges at a *new* depth
+reports zero hits however long its shared prefix is — and that miss is what
+creates the branch the requests after it hit on. Measured in
+`tmp/probe-order.mjs` (2026-08-23): the first edit of a file deep in a
+10 K-token system prompt scored 0%, the second 42%, the third and fourth 94%,
+in 64-token blocks; a pure extension of a previous request (history appended,
+nothing changed) always scored ~100%. Spacing the requests 20 s apart measured
+identically to back-to-back, so this is structure, not write latency. §8's
+file-block ordering exists because of this: the win is not the first fire
+after an edit, it is every fire after that one, provided the divergence depth
+holds still.
 
 ### Errors
 

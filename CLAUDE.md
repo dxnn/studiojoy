@@ -315,9 +315,15 @@ running.
 The ambient file block lives in the **system prompt**, after the brief and the
 agent description, not on the last user message. Measured
 (`tmp/probe-cache.mjs`): behind the transcript it cached 0% between fires,
-ahead of it 100% when no file changed. Runtime errors stay on the last user
-message — they change every playthrough. `BRIEF.md` is in both places by
-design; spec.md §8 says why.
+ahead of it 100% when no file changed. Inside the block, contents come
+least-recently-modified first and the size-stamped tree last, pins ride the
+last user message, and the history trim boundary holds still between fires —
+all for the same cache. Measured (`tmp/probe-order.mjs`): DeepSeek serves a
+prefix only back to a divergence depth it has already seen, so the first fire
+after an edit pays in full and the fires after it — the same files edited
+again — hit 94%, against 0% forever with the tree in front (spec.md §8, §14).
+Runtime errors stay on the last user message — they change every playthrough.
+`BRIEF.md` is in both places by design; spec.md §8 says why.
 
 The URL is the view. `?tab=`, `?file=` and `?version=` carry the rail — which
 tab, which file, which version's changes — so a link sends what you are
