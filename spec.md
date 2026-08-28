@@ -1195,6 +1195,15 @@ spent 38,590 on reasoning and finished all eight files with
 roughly 130 KB of markup, so truncation is not a practical concern — assumed
 the whole allowance was available to file content, and was wrong.
 
+The HTTP client's timeout is an **idle guard**, re-armed every time bytes
+arrive, not a deadline on the whole request: it fires only when nothing has
+arrived for two minutes, and surfaces as an `LlmError` naming the stall. It
+used to be a hard ten-minute ceiling, which is exactly how long a healthy
+big turn — a full reasoning trace plus several files — can stream, so it
+aborted real replies mid-flight. Between chunks the gap is sub-second, and
+the longest legitimate silence is prompt processing before the first token,
+seconds even on a full cache miss.
+
 Truncation is still detected, and now recovered from rather than only
 reported. A tool call cut off mid-arguments wrote **nothing** — the JSON never
 parsed, so there was no path and no content — but the model's own reply says
@@ -1205,6 +1214,17 @@ produces the `'system'` banner; one that a later turn rewrote successfully is
 not a missing file and is not reported. Non-streaming truncation drops the
 tool call entirely; the streaming path can deliver partial argument fragments,
 so both cases are handled.
+
+A stream that dies mid-fire — the connection dropped, the request aborted —
+is salvaged rather than discarded. Whatever was said up to the failure is
+persisted as the message, files already written are committed and credited
+to it, and a `'system'` banner says the helper was cut off. No automatic
+continuation: retrying a dead upstream can loop on the failure, so carrying
+on is the human's call. Only a fire with nothing said and nothing written
+ends as a bare `agent.stream.end {error: true}` with no message row — and
+when a row lands, the end event carries its id and no error flag, because
+the client treats an error after `message.new` as a fresh live entry that
+nothing would ever clear.
 
 ### Budget
 
