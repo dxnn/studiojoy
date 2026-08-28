@@ -642,6 +642,7 @@ export function createOrchestrator({
       let pendingCut = false;
       let hitLength = false;
       let hitLimit = null;
+      let streamFailed = false;
 
       for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
         let text = '';
@@ -673,10 +674,14 @@ export function createOrchestrator({
             }
           }
         } catch (err) {
+          // Salvage rather than discard. Earlier turns' prose and any files
+          // already on disk are finished work; returning here threw them all
+          // away, which is how a ten-minute reply used to vanish without a
+          // trace when the stream died on its last turn.
           console.error('agent stream failed', err);
-          emit('agent.stream.end', { error: true });
-          consumeBudget(db, charged);
-          return;
+          streamFailed = true;
+          if (text) replyText += replyText ? `\n\n${text}` : text;
+          break;
         }
 
         if (text) replyText += replyText ? `\n\n${text}` : text;
@@ -729,11 +734,18 @@ export function createOrchestrator({
       }
 
       consumeBudget(db, charged);
+
+      const changed = toolset ? toolset.changedPaths() : [];
+      if (streamFailed && !replyText && changed.length === 0) {
+        // Nothing said and nothing written: an error end and no message row,
+        // same as before there was anything to salvage.
+        emit('agent.stream.end', { error: true });
+        return;
+      }
+
       // The reply is written; from here on, anything newer than the snapshot
       // is something this agent has not seen.
       lastFired.set(row.id, snapshot);
-
-      const changed = toolset ? toolset.changedPaths() : [];
       let commitSha = null;
       if (changed.length > 0) {
         const subject = firstLine(replyText) || 'update files';
@@ -781,7 +793,16 @@ export function createOrchestrator({
       // Explain a missing file rather than leaving it looking like a backend
       // fault (spec.md §8). Only the final turn's cut matters: an earlier one
       // the model was told about and rewrote is not a missing file.
-      if (pendingCut || (hitLength && changed.length === 0)) {
+      if (streamFailed) {
+        // First, not another else-if: the limit banners describe how the loop
+        // chose to stop, and this loop did not choose. No continuation either
+        // — a dead upstream retried automatically could loop on the failure.
+        postSystemMessage(db, broker, {
+          project,
+          agentId: agent.id,
+          body: `${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`,
+        });
+      } else if (pendingCut || (hitLength && changed.length === 0)) {
         postSystemMessage(db, broker, {
           project,
           agentId: agent.id,

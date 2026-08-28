@@ -75,13 +75,14 @@ export function createFakeLlm(script = []) {
   };
 }
 
-// An llm whose stream throws, for the failure path.
-export function createFailingLlm(message = 'upstream exploded') {
+// An llm whose stream throws, for the failure path. `partial` is what it
+// manages to say first; '' dies before saying anything.
+export function createFailingLlm(message = 'upstream exploded', { partial = 'partial' } = {}) {
   return {
     calls: [],
     stream() {
       return (async function* generate() {
-        yield { type: 'delta', text: 'partial' };
+        if (partial) yield { type: 'delta', text: partial };
         throw new Error(message);
       })();
     },

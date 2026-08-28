@@ -840,14 +840,41 @@ test('a new human message refills the continuation allowance', async (t) => {
   assert.ok(llm.calls.length > spent, 'the allowance came back');
 });
 
-test('an upstream failure ends the stream without a message', async (t) => {
-  // The orchestrator logs the upstream error on purpose; quiet it here so a
-  // passing run has clean output.
+// The orchestrator logs the upstream error on purpose; quiet it so a passing
+// run has clean output.
+function quietErrors(t) {
   const realError = console.error;
   console.error = () => {};
   t.after(() => { console.error = realError; });
+}
 
+test('a failed stream keeps what the agent had already said', async (t) => {
+  quietErrors(t);
   const { app } = await studio(t, { llm: createFailingLlm() });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(reply.data.body, 'partial');
+
+  // A message landed, so the end event says so rather than error: an error
+  // after message.new would leave a ghost live entry in the client.
+  const ended = await stream.waitFor((e) => e.event === 'agent.stream.end');
+  assert.equal(ended.data.message_id, reply.data.id);
+  assert.equal(ended.data.error, undefined);
+
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /cut off mid-reply/.test(e.data.body),
+  );
+});
+
+test('a stream that dies before saying anything ends with an error and no message', async (t) => {
+  quietErrors(t);
+  const { app } = await studio(t, { llm: createFailingLlm('boom', { partial: '' }) });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -859,6 +886,51 @@ test('an upstream failure ends the stream without a message', async (t) => {
   await new Promise((resolve) => setTimeout(resolve, 80));
   // Only the human's own message was stored.
   assert.equal(app.db.prepare('SELECT COUNT(*) c FROM messages').get().c, before + 1);
+});
+
+test('a failed stream still commits the files earlier turns wrote', async (t) => {
+  quietErrors(t);
+  // Turn one writes a file and finishes cleanly; turn two dies mid-sentence.
+  const llm = {
+    calls: [],
+    stream(opts) {
+      llm.calls.push(opts);
+      const events = llm.calls.length === 1
+        ? calls([{ name: 'write_file', input: { path: 'js/game.js', content: 'go()' } }],
+          { text: 'Working on it.' })
+        : null;
+      return (async function* generate() {
+        if (events) {
+          for (const event of events) yield event;
+        } else {
+          yield { type: 'delta', text: 'And then' };
+          throw new Error('boom');
+        }
+      })();
+    },
+  };
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make a start');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  // Both turns' prose, joined the way a normal multi-turn reply is.
+  assert.equal(reply.data.body, 'Working on it.\n\nAnd then');
+
+  // The write is committed and credited, not stranded dirty in the tree.
+  const [head] = await logCommits(dir, { limit: 1 });
+  assert.match(head.subject, /^Designer: Working on it\./);
+  assert.deepEqual(reply.data.writes.map((w) => [w.path, w.commit_sha]), [['js/game.js', head.sha]]);
+  const changed = await stream.waitFor((e) => e.event === 'files.changed');
+  assert.deepEqual(changed.data.paths, ['js/game.js']);
+
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /cut off mid-reply/.test(e.data.body),
+  );
 });
 
 test('an archived project never fires an agent', async (t) => {
