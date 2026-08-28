@@ -2062,7 +2062,12 @@ function renderFilesTab() {
     // The whole row opens the file, not just the name on it. The row is what
     // lights up under the pointer, and the size, the gap and the padding used
     // to be lit and dead at the same time. An unreachable row does neither.
-    onclick: f.unreachable ? null : () => chooseFile(f.path),
+    // The open file's own row closes it again — the same control both ways,
+    // like Show changes / Hide changes — through the same unsaved-work
+    // question the ✕ asks.
+    onclick: f.unreachable ? null : () => (
+      S.open?.path === f.path ? closeOpenFile() : chooseFile(f.path)
+    ),
   },
   h('input', {
     type: 'checkbox',
