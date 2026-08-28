@@ -301,7 +301,13 @@ async function buildFileBlock(db, project, dir) {
     .filter((f) => pinned.has(f.path) && !f.unreachable)
     .map((f) => f.path)
     .sort();
-  return { block: parts.join('\n\n'), pinnedShown };
+  return {
+    block: parts.join('\n\n'),
+    pinnedShown,
+    // For the receipt: how many files were sent whole and how many the cap
+    // left out. The block's own byte count is taken where it is used.
+    stats: { shown: included.size, omitted: omitted.length },
+  };
 }
 
 // What the game said when someone played it. Only the current version's
@@ -446,16 +452,20 @@ async function buildContext({
   // the files here rather than on the last message is what turns a 0% cache
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
   const fileBlock = isChat ? null : await buildFileBlock(db, project, dir);
+  const preamble = isChat ? null : studioPreamble({
+    project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
+  });
+  const briefPart = brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null;
   const system = [
-    isChat ? null : studioPreamble({
-      project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
-    }),
-    brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null,
+    preamble,
+    briefPart,
     agent.description || null,
     fileBlock ? fileBlock.block : null,
   ].filter(Boolean).join('\n\n');
 
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
+  const transcriptBytes = turns
+    .reduce((n, t) => n + Buffer.byteLength(t.text, 'utf8'), 0);
   // Errors and pins stay next to the human's message: both change turn to
   // turn, so in the system prompt they would invalidate the files behind them.
   const errorBlock = isChat ? null : await buildErrorBlock(db, project, dir);
@@ -466,7 +476,45 @@ async function buildContext({
     const last = messages[messages.length - 1];
     last.content = [errorBlock, pinNote, last.content].filter(Boolean).join('\n\n');
   }
-  return { system, messages, trimmed };
+
+  // The context half of the receipt, in bytes because that is what the caps
+  // above trade in. Captured here or never: files change and the trim
+  // boundary moves, so none of this can be recomputed for an old reply.
+  const bytes = (s) => (s ? Buffer.byteLength(s, 'utf8') : 0);
+  const breakdown = {
+    system: {
+      preamble: bytes(preamble),
+      brief: bytes(briefPart),
+      brief_cut: brief !== null && brief.length > BRIEF_BYTES,
+      description: bytes(agent.description || null),
+      files: fileBlock ? { bytes: bytes(fileBlock.block), ...fileBlock.stats } : null,
+    },
+    transcript: { messages: turns.length, bytes: transcriptBytes, trimmed },
+    last_message: { errors: bytes(errorBlock), pins: bytes(pinNote) },
+  };
+
+  return { system, messages, trimmed, breakdown };
+}
+
+// The prompt as readable text, one labelled part per message, verbatim
+// content. Rendered rather than dumped as the JSON body so the person
+// debugging reads what the model read; a tool call keeps its raw argument
+// string, which is the exact thing that was sent.
+function promptText(system, messages) {
+  const parts = [];
+  if (system) parts.push(`[system]\n${system}`);
+  for (const m of messages) {
+    if (m.role === 'assistant' && m.tool_calls) {
+      const calls = m.tool_calls
+        .map((c) => `[tool call ${c.id}: ${c.function.name}]\n${c.function.arguments}`);
+      parts.push([`[assistant]${m.content ? `\n${m.content}` : ''}`, ...calls].join('\n\n'));
+    } else if (m.role === 'tool') {
+      parts.push(`[tool result ${m.tool_call_id}]\n${m.content}`);
+    } else {
+      parts.push(`[${m.role}]\n${m.content}`);
+    }
+  }
+  return parts.join('\n\n');
 }
 
 function postSystemMessage(db, broker, { project, agentId, body }) {
@@ -637,6 +685,13 @@ export function createOrchestrator({
       let replyText = '';
       let charged = 0;
       let toolCallCount = 0;
+      let turnsUsed = 0;
+      // One entry per request the fire made: what the cache remembered, what
+      // was new, what came out. The other half of the receipt.
+      const requests = [];
+      // What the last request actually carried, captured at the moment of
+      // sending: the loop appends tool results it may never send.
+      let sentPrompt = '';
       // Whether the turn that ended the loop left a cut-off call unanswered.
       // A cut that a later turn rewrote successfully is not worth reporting.
       let pendingCut = false;
@@ -648,6 +703,8 @@ export function createOrchestrator({
         let text = '';
         const calls = [];
         let cutCalls = 0;
+        turnsUsed = turn + 1;
+        sentPrompt = promptText(context.system, messages);
         try {
           const stream = llm.stream({
             model: agent.model,
@@ -671,6 +728,14 @@ export function createOrchestrator({
             } else if (event.type === 'end') {
               if (event.finish_reason === 'length') hitLength = true;
               charged += tokensCharged(event.usage);
+              if (event.usage) {
+                requests.push({
+                  hit: event.usage.prompt_cache_hit_tokens ?? 0,
+                  miss: event.usage.prompt_cache_miss_tokens
+                    ?? event.usage.prompt_tokens ?? 0,
+                  out: event.usage.completion_tokens ?? 0,
+                });
+              }
             }
           }
         } catch (err) {
@@ -779,6 +844,19 @@ export function createOrchestrator({
               ).run(id, filePath, change.action, change.bytes, commitSha);
             }
           }
+          // The receipt. The prompt is a debugging aid, not a record: this
+          // fire's takes the place of whichever reply in the project held it.
+          db.prepare(
+            'UPDATE message_receipts SET prompt = NULL WHERE project_id = ? AND prompt IS NOT NULL',
+          ).run(project.id);
+          db.prepare(
+            `INSERT INTO message_receipts (message_id, project_id, breakdown, prompt)
+             VALUES (?, ?, ?, ?)`,
+          ).run(id, project.id, JSON.stringify({
+            ...context.breakdown,
+            loop: { turns: turnsUsed, tool_calls: toolCallCount, appended_bytes: grown },
+            requests,
+          }), sentPrompt);
           return id;
         });
 

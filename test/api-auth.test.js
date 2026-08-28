@@ -117,6 +117,8 @@ test('every /api route refuses an anonymous caller', async (t) => {
     ['GET', '/api/agents'],
     ['POST', '/api/agents'],
     ['GET', '/api/stream'],
+    ['GET', '/api/messages/1/receipt'],
+    ['GET', '/api/messages/1/prompt'],
   ];
   for (const [method, p] of calls) {
     const res = await app.client.request(

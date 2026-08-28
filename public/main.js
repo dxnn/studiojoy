@@ -97,6 +97,9 @@ export const S = {
   drafts: new Map(), // slug -> unsent composer text
   live: new Map(), // the open game's map from liveBySlug; see connectStream
   traces: new Map(), // message_id -> {text, open}; this session only
+  // The one open receipt under a reply's token note: {id, breakdown,
+  // promptHeld}. One at a time, like a row's changes in the versions list.
+  receipt: null,
   dialog: null,
   banner: null,
   // A state, not an event: false from the moment something fails to reach the
@@ -515,6 +518,7 @@ export async function openProject(slug, { view = null } = {}) {
     S.open = null;
     S.palette = null;
     S.live = new Map();
+    S.receipt = null;
     S.libraries = { studio: S.libraries.studio, game: {} };
     render();
     return;
@@ -544,6 +548,8 @@ export async function openProject(slug, { view = null } = {}) {
   S.live = liveMapFor(slug);
   S.autoscroll = true;
   S.palette = null;
+  // An open receipt belongs to a message in the game being left.
+  S.receipt = null;
   render();
   if (!isChat()) {
     await loadLibraries();

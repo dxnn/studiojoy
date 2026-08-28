@@ -439,6 +439,47 @@ a { color: var(--accent); }
 
 /* What a reply cost. Present and checkable, never competing with the reply. */
 .tokens { font-size: 11px; color: var(--muted); }
+/* The link inherits the note's size: it is the same words, now openable. */
+.tokens button.link { font-size: 11px; color: var(--muted); }
+.tokens button.link:hover:not(:disabled) { color: var(--accent); }
+
+/* The receipt: what one reply was given and what it cost, opened from the
+   token note and painted in the reply's own row. */
+.receipt {
+  margin-top: 4px;
+  padding: 7px 10px;
+  border-left: 2px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+}
+.receipt .rhead { font-weight: 600; }
+.receipt .rhead:not(:first-child) { margin-top: 5px; }
+.receipt .rrow {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-self: stretch;
+}
+.receipt .rval { text-align: right; }
+.receipt button.link { font-size: 12px; margin-top: 5px; }
+
+/* The whole prompt, in its dialog. Monospace and wrapped: a prompt line can
+   be a whole file. */
+.prompt-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
 
 /* Problems the running game reported. Stated plainly and not dressed up as an
    alarm: a game breaking while you build it is normal. */

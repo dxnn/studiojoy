@@ -1,4 +1,4 @@
-import { json, HttpError } from '../http/respond.js';
+import { json, text, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
@@ -115,4 +115,41 @@ export function messageRoutes(r) {
       has_more: rows.length === limit && rows.length > 0,
     });
   });
+
+  // The receipt behind the token note: what the reply was given and what each
+  // request cost, captured when it fired (spec.md §8). Message ids are global
+  // and every account sees every project, so auth is the whole check.
+  r.get('/api/messages/:id/receipt', (ctx) => {
+    requireAuth(ctx);
+    const row = ctx.db
+      .prepare(
+        `SELECT breakdown, prompt IS NOT NULL AS held
+           FROM message_receipts WHERE message_id = ?`,
+      )
+      .get(requireMessageId(ctx));
+    if (!row) throw new HttpError(404, 'no receipt for that message');
+    json(ctx.res, 200, {
+      breakdown: JSON.parse(row.breakdown),
+      prompt_held: row.held === 1,
+    });
+  });
+
+  // The prompt itself, exactly as the last request of that fire carried it.
+  // Held only for the newest reply in each project — the next fire takes it.
+  r.get('/api/messages/:id/prompt', (ctx) => {
+    requireAuth(ctx);
+    const row = ctx.db
+      .prepare('SELECT prompt FROM message_receipts WHERE message_id = ?')
+      .get(requireMessageId(ctx));
+    if (!row || row.prompt === null) {
+      throw new HttpError(404, 'the prompt is only kept for the newest reply in a project');
+    }
+    text(ctx.res, 200, row.prompt);
+  });
+}
+
+function requireMessageId(ctx) {
+  const id = Number(ctx.params.id);
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a message id');
+  return id;
 }

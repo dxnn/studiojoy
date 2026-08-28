@@ -7,7 +7,7 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
-  composerBox, sendComposer,
+  composerBox, sendComposer, send, say, sizeText,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -49,18 +49,122 @@ function tintStyle(agent, id) {
 }
 
 // The small grey line under a reply. Plain language: the thread is long, so
-// this helper was given the recent part of it and not the beginning.
+// this helper was given the recent part of it and not the beginning. When the
+// reply left a receipt, the token count is the link that opens it — a reply
+// from before receipts existed stays a plain note, because a note that lights
+// up must open something.
 function footnote(msg) {
   const parts = [];
-  if (msg.tokens) parts.push(`${msg.tokens.toLocaleString()} tokens`);
+  if (msg.tokens) {
+    const label = `${msg.tokens.toLocaleString()} tokens`;
+    parts.push(msg.receipt
+      ? h('button', {
+        class: 'link',
+        text: S.receipt?.id === msg.id ? `${label} — hide` : label,
+        title: 'What this reply was given, and what it cost',
+        onclick: () => toggleReceipt(msg),
+      })
+      : label);
+  }
   if (msg.trimmed) {
     parts.push(msg.trimmed === 1
       ? 'did not see the first message'
       : `did not see the first ${msg.trimmed} messages`);
   }
-  return parts.length
-    ? h('div', { class: 'tokens', text: parts.join(' · ') })
-    : null;
+  if (parts.length === 0) return null;
+  const children = [];
+  parts.forEach((part, i) => {
+    if (i > 0) children.push(' · ');
+    children.push(part);
+  });
+  return h('div', { class: 'tokens' }, ...children);
+}
+
+/* The receipt --------------------------------------------------------------
+   What one reply was given and what it cost, fetched when the token note is
+   clicked and painted in the reply's own row. One open at a time; the same
+   note closes it. */
+
+async function toggleReceipt(msg) {
+  if (S.receipt?.id === msg.id) {
+    S.receipt = null;
+    render();
+    return;
+  }
+  const res = await send(`/api/messages/${msg.id}/receipt`);
+  if (!res.ok) { say('Could not read what this reply was given.', true); return; }
+  const { breakdown, prompt_held: promptHeld } = await res.json();
+  S.receipt = { id: msg.id, breakdown, promptHeld };
+  render();
+}
+
+async function openPrompt(id) {
+  const res = await send(`/api/messages/${id}/prompt`);
+  if (!res.ok) { say('The exact prompt is only kept for the newest reply.', true); return; }
+  S.dialog = { kind: 'prompt', text: await res.text() };
+  render();
+}
+
+function renderReceipt(msg, receipt) {
+  const b = receipt.breakdown;
+  const row = (label, value) => h('div', { class: 'rrow' },
+    h('span', { text: label }), h('span', { class: 'rval', text: value }));
+
+  const given = [];
+  const sys = b.system ?? {};
+  if (sys.preamble) given.push(row('the studio’s instructions', sizeText(sys.preamble)));
+  if (sys.brief) {
+    given.push(row('the project brief',
+      sizeText(sys.brief) + (sys.brief_cut ? ' (cut for size)' : '')));
+  }
+  if (sys.description) given.push(row('who this helper is', sizeText(sys.description)));
+  if (sys.files) {
+    given.push(row('the game’s files',
+      `${sizeText(sys.files.bytes)} — ${sys.files.shown} sent whole`
+      + (sys.files.omitted ? `, ${sys.files.omitted} left out for size` : '')));
+  }
+  const t = b.transcript ?? {};
+  if (t.messages) {
+    given.push(row('the conversation',
+      `${t.messages} message${t.messages === 1 ? '' : 's'}, ${sizeText(t.bytes)}`));
+  }
+  const extras = b.last_message ?? {};
+  if (extras.errors) given.push(row('problems from playing the game', sizeText(extras.errors)));
+  if (extras.pins) given.push(row('a note about pinned files', sizeText(extras.pins)));
+  const loop = b.loop ?? {};
+  if (loop.appended_bytes) {
+    given.push(row('read and written while replying',
+      `${sizeText(loop.appended_bytes)} over ${loop.tool_calls} tool call${loop.tool_calls === 1 ? '' : 's'}`));
+  }
+
+  const requests = b.requests ?? [];
+  const cost = requests.map((u, i) => row(
+    requests.length === 1 ? 'one request' : `request ${i + 1}`,
+    `${u.miss.toLocaleString()} new + ${u.hit.toLocaleString()} remembered in, ${u.out.toLocaleString()} out`,
+  ));
+  const charged = requests
+    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 10) + u.out, 0);
+  if (requests.length) {
+    cost.push(h('div', {
+      class: 'rsum muted',
+      text: `remembered tokens count a tenth, so this reply cost ${charged.toLocaleString()} tokens`,
+    }));
+  }
+
+  return h('div', { class: 'receipt' },
+    h('div', { class: 'rhead', text: `What ${agentName(msg.agent_id)} was given` }),
+    ...given,
+    cost.length ? h('div', { class: 'rhead', text: 'What it cost' }) : null,
+    ...cost,
+    receipt.promptHeld
+      ? h('button', {
+        class: 'link tiny', text: 'See everything that was sent',
+        onclick: () => openPrompt(msg.id),
+      })
+      : h('div', {
+        class: 'rsum muted',
+        text: 'The exact prompt is only kept for the newest reply.',
+      }));
 }
 
 function renderMessage(msg) {
@@ -125,7 +229,8 @@ function renderMessage(msg) {
     // than hidden: a reply that carried on from itself three times costs three
     // times as much, and a reply written without the start of a long
     // conversation explains itself much better if you know that.
-    footnote(msg));
+    footnote(msg),
+    S.receipt?.id === msg.id ? renderReceipt(msg, S.receipt) : null);
 }
 
 function renderLive(agentId, entry) {

@@ -172,6 +172,15 @@ export function dialogFor(d) {
       })));
   }
 
+  // The whole prompt behind a reply's receipt, exactly as it was sent.
+  // Look-only, so the one action is Close.
+  if (d.kind === 'prompt') {
+    return wide('Everything sent to the helper',
+      h('pre', { class: 'prompt-text', text: d.text }),
+      h('div', { class: 'actions' },
+        h('button', { class: 'quiet', text: 'Close', onclick: close })));
+  }
+
   // `rename-file`, not `rename`: the game's own name has owned that one since
   // before this existed, and the two dialogs are a click apart.
   if (d.kind === 'rename-file') {

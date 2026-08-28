@@ -93,6 +93,20 @@ const MIGRATIONS = [
     PRIMARY KEY (message_id, path)
   )`,
 
+  // What one reply was given and what it cost, captured when it fired —
+  // none of it can be reconstructed later, files change and trim boundaries
+  // move. The breakdown is small and kept on every reply; the prompt is a
+  // debugging aid held only for the newest reply in each project, taken with
+  // it by the next fire (spec.md §8).
+  `CREATE TABLE IF NOT EXISTS message_receipts (
+    message_id INTEGER PRIMARY KEY REFERENCES messages,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    breakdown TEXT NOT NULL,
+    prompt TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_project
+     ON message_receipts (project_id)`,
+
   // What the game said while it was running, posted back by the reporter
   // inside it. Keyed to the commit it happened on, so a fix retires it
   // without anything having to clear the table (spec.md §8).

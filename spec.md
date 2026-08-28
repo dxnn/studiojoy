@@ -191,6 +191,23 @@ transcript was cut (§8), and this is how the person is told. Recorded per reply
 rather than per project because the trim is a property of the fire, and stating
 it retrospectively is the only version that is exactly true.
 
+### `message_receipts`
+
+| column | type | notes |
+|---|---|---|
+| `message_id` | INTEGER PK → messages | the agent reply it accounts for |
+| `project_id` | INTEGER NOT NULL → projects | for taking the previous prompt |
+| `breakdown` | TEXT NOT NULL | JSON: bytes per context part, per-request token usage (§8) |
+| `prompt` | TEXT | the last request as sent; NULL once a newer reply in the project fires |
+
+The **receipt** behind the token note: what the fire was given and what each
+request cost, captured when it fired because none of it can be recomputed
+later — files change and the trim boundary moves. The breakdown is small and
+kept on every reply; the prompt is a debugging aid, held only for the newest
+reply in each project, so the table stays bounded by the message count rather
+than growing by half a megabyte per reply. Never sent with the message list —
+the client fetches it on the click that opens it.
+
 ### `runtime_errors`
 
 | column | type | notes |
@@ -407,6 +424,11 @@ There is no signup route. Accounts come from `npm run adduser`.
 | POST | `/api/projects/:slug/messages` | `{body, context_paths?: string[]}` | post a human message; fires eligible agents (§8) |
 | GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history |
 | POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
+| GET | `/api/messages/:id/receipt` | — | `{breakdown, prompt_held}`: what that reply was given and what each request cost (§8); 404 for a message with no receipt |
+| GET | `/api/messages/:id/prompt` | — | the last request of that fire as plain text; 404 unless the message is the one reply in its project whose prompt is still held |
+
+Message ids are global and every account sees every project (§3), so the two
+receipt routes check only that someone is signed in.
 
 #### Files
 
@@ -1225,6 +1247,18 @@ ends as a bare `agent.stream.end {error: true}` with no message row — and
 when a row lands, the end event carries its id and no error flag, because
 the client treats an error after `message.new` as a fresh live entry that
 nothing would ever clear.
+
+Every persisted reply also leaves a **receipt** (`message_receipts`, §3):
+the context half is captured in `buildContext` — bytes per system-prompt part,
+files sent whole and left out, transcript size and trim — and the fire adds
+per-request usage (cache hit, miss, output, one entry per turn) and the loop's
+appended bytes. The prompt itself is captured at the top of each turn, before
+the request is made, so what is stored is exactly what the last request
+carried — the loop appends tool results it may never send. It is rendered as
+labelled plain text, not the JSON body, and no reasoning trace is in it,
+because a trace is never in a request to begin with. The UI opens all of this
+from the token note under the bubble; cached tokens are shown counting a
+tenth, so the lines visibly sum to the note.
 
 ### Budget
 

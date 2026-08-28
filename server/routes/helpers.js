@@ -106,5 +106,11 @@ export function messagePublic(db, row, slug) {
     trimmed: row.trimmed ?? null,
     context_paths: contextPaths,
     writes: writes.map((w) => ({ ...w })),
+    // Whether the token note under the bubble has a receipt to open. A flag
+    // rather than the receipt itself: the breakdown is fetched on the click,
+    // and old replies from before receipts existed stay a plain note.
+    receipt: db
+      .prepare('SELECT 1 FROM message_receipts WHERE message_id = ?')
+      .get(row.id) !== undefined,
   };
 }

@@ -134,6 +134,67 @@ test('write_file lands on disk, in a commit, and in the message', async (t) => {
   assert.deepEqual(changed.data.paths, ['index.html']);
 });
 
+test('a reply leaves a receipt, and the newest reply holds the prompt', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
+      { text: 'Scaffolding the page.' }),
+    says('Done.'),
+    says('Again.'),
+  ]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  const posted = await send(app, 'make a start');
+  assert.equal(posted.body.receipt, false, 'a human message has no receipt');
+
+  const first = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(first.data.receipt, true);
+
+  const r1 = await app.client.json('GET', `/api/messages/${first.data.id}/receipt`);
+  assert.equal(r1.status, 200);
+  assert.equal(r1.body.prompt_held, true);
+  const b = r1.body.breakdown;
+  assert.ok(b.system.preamble > 0, 'the preamble was measured');
+  assert.ok(b.system.files.bytes > 0, 'the file block was measured');
+  assert.equal(b.transcript.messages, 1);
+  assert.equal(b.loop.turns, 2);
+  assert.equal(b.loop.tool_calls, 1);
+  assert.equal(b.requests.length, 2, 'one usage entry per request');
+  // The receipt's arithmetic reaches the number under the bubble.
+  const charged = b.requests
+    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 10) + u.out, 0);
+  assert.equal(charged, first.data.tokens);
+
+  // The prompt is the last request as sent: the first turn's tool call is in
+  // it, labelled, with the system prompt and the human's message.
+  const p1 = await app.client.request('GET', `/api/messages/${first.data.id}/prompt`);
+  assert.equal(p1.status, 200);
+  const prompt = await p1.text();
+  assert.match(prompt, /^\[system\]\n/);
+  // The transcript names its speakers, so the human turn carries one.
+  assert.match(prompt, /\[user\]\n\[\w+\] make a start/);
+  assert.match(prompt, /\[tool call call_0: write_file\]/);
+
+  // The next fire takes the prompt with it; the breakdown stays.
+  await send(app, 'carry on');
+  const second = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null
+      && e.data.id > first.data.id,
+  );
+  assert.equal((await app.client.request('GET', `/api/messages/${first.data.id}/prompt`)).status, 404);
+  assert.equal((await app.client.request('GET', `/api/messages/${second.data.id}/prompt`)).status, 200);
+  const again = await app.client.json('GET', `/api/messages/${first.data.id}/receipt`);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.prompt_held, false);
+
+  // A message with no receipt, and a thing that is not a message id.
+  assert.equal((await app.client.json('GET', `/api/messages/${posted.body.id}/receipt`)).status, 404);
+  assert.equal((await app.client.json('GET', '/api/messages/potato/receipt')).status, 400);
+});
+
 test('several files written in one turn become one commit', async (t) => {
   const llm = createFakeLlm([
     calls([
