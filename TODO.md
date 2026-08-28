@@ -10,6 +10,11 @@ deliberately deferred.
   made without leaving the studio
 - second library, to prove `studio/` is a shape and not a special case for
   input.js — a sprite sheet reader or a sound player is the small end of it
+- assemble library API notes into the preamble from the game's manifest,
+  instead of hardcoding input.js and the scoreboard in orchestrator.js
+  (ideas/api-notes.md)
+- let a person lock a game file: helpers get its API note, not its bytes,
+  and cannot write it (ideas/api-notes.md)
 - a studio-wide "which games are behind" view. Per-project the button already
   says Update; across games there is nowhere that shows it
 - networked multiplayer: a turn-based room relay on the games origin — see
