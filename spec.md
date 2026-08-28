@@ -641,6 +641,22 @@ itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
 autoplay is one console warning, never an error: a game must not break over a
 sound.
 
+The **sprites library** (`studio/sprites.js`) is the third. One sprite is one
+file: `Sprites.draw(ctx, "hero", x, y)` draws `assets/hero.png`, and a PNG
+whose width is a whole multiple of its height is a **strip** — square frames
+side by side, cycled by a shared clock (`Sprites.tick()` once a frame, 8 fps
+unless the call says otherwise; `frame` pins one, `scale`/`flip` transform,
+`frames` overrides the count for a non-square strip). No registry and no
+config file — the shape of the picture says everything, the same
+name-is-the-file rule as sound. A packed multi-sprite sheet was considered
+and rejected: atlases exist for request counts and draw-call batching,
+neither of which binds here, and the file is this studio's unit of naming,
+versioning, diffing and thumbnailing — a kid edits `hero.png`, not a cell in
+a sheet. Still loading draws nothing; missing warns once. The pixel editor
+overlays frame boundaries on a strip (one screen pixel at any zoom, never
+saved into the picture), and `+ Draw a picture` offers a frame count that
+makes one.
+
 **Copied, not shared.** The alternatives were considered and rejected on
 evidence:
 

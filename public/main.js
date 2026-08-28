@@ -1705,6 +1705,28 @@ function renderDrawing() {
   const canvas = h('canvas', {
     class: `pixels${chunky ? '' : ' smooth'}`, width: picture.width, height: picture.height,
   });
+
+  // A strip — width a whole multiple of height — shows its frame boundaries,
+  // or drawing frame three means guessing where it starts. An overlay, not
+  // pixels: one screen pixel at any zoom, never part of what is saved. The
+  // canvas letterboxes the picture (object-fit: contain), so the overlay is
+  // fitted with the same arithmetic spotOf uses, re-run on every resize.
+  const frames = picture.width > picture.height && picture.width % picture.height === 0
+    ? picture.width / picture.height
+    : 1;
+  let lines = null;
+  if (frames > 1) {
+    lines = h('div', { class: 'frame-lines' });
+    lines.style.setProperty('--frames', frames);
+    const place = () => {
+      const box = canvas.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const scale = Math.min(box.width / picture.width, box.height / picture.height);
+      lines.style.width = `${picture.width * scale}px`;
+      lines.style.height = `${picture.height * scale}px`;
+    };
+    new ResizeObserver(place).observe(canvas);
+  }
   const state = h('span', { class: 'hint muted' });
   // The picture and the game's colours are both work in this pane, so one
   // button covers both and the words say which of them is waiting.
@@ -1898,11 +1920,16 @@ function renderDrawing() {
 
   paint();
   return h('div', { class: 'drawing grow' },
-    h('div', { class: 'media grow' }, canvas),
+    h('div', { class: 'media grow' }, canvas, lines),
     h('div', { class: 'pad col' }, tools, brushes, swatches),
     h('div', { class: 'editor-bar row' },
       state,
-      h('span', { class: 'hint muted', text: `${picture.width} × ${picture.height}` }),
+      h('span', {
+        class: 'hint muted',
+        text: frames > 1
+          ? `${picture.width} × ${picture.height} — ${frames} frames of ${picture.height}`
+          : `${picture.width} × ${picture.height}`,
+      }),
       h('div', { class: 'spacer' }),
       iconButton({
         name: 'undo',

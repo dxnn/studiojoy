@@ -723,6 +723,18 @@ details.thinking .trace {
 /* Blocky is right for a sprite blown up and wrong for a photograph, so the
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
+/* Frame boundaries over a strip: fitted to the picture inside the letterboxed
+   canvas by renderDrawing, centred here, one screen pixel at any zoom. */
+.media { position: relative; }
+.frame-lines {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  background-image: linear-gradient(to left, var(--accent) 1px, transparent 1px);
+  background-size: calc(100% / var(--frames)) 100%;
+  opacity: 0.45;
+}
 /* A square button holding one icon. The words live on its title and its
    aria-label, so nothing here is only a picture. */
 button.icon-btn {

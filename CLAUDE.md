@@ -281,7 +281,13 @@ for one player or two. The **sound player** is the second — `Sound.play("laser
 plays `assets/laser.wav` with overlap, loops and mute, and a missing file or a
 blocked autoplay is a warning, never an error — which also proved the shape:
 it needed no orchestrator edit, only its file, its `index.json` entry, and the
-Files-tab offer buttons going generic. `+ Make a sound` renders a
+Files-tab offer buttons going generic. The **sprites library** is the third:
+one sprite is one file, `Sprites.draw(ctx, "hero", x, y)` draws
+`assets/hero.png`, and a PNG whose width is a whole multiple of its height is
+a **strip** of square frames played on a shared clock — no registry, no config
+file, the shape of the picture is the declaration. The pixel editor overlays a
+strip's frame boundaries, and `+ Draw a picture` offers a frame count.
+`+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or
 a live canvas API, so what is played or shown is what gets saved, and both are

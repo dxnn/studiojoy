@@ -4,7 +4,7 @@
 // The sound maker is here too, because the dialog is the whole of it.
 
 import { h } from './dom.js';
-import { SIZES, clampSide } from './pixel-editor.js';
+import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
 import {
   SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
 } from './sound-maker.js';
@@ -285,20 +285,33 @@ export function dialogFor(d) {
     name.value = d.name;
     const size = h('select', {}, SIZES.map((n) => h('option', { value: n, text: `${n} × ${n}` })));
     size.value = String(d.size);
+    // More than one frame makes a film strip: square frames side by side in
+    // one file, which the sprites library plays by name.
+    const frames = h('select', {}, [1, 2, 3, 4, 6, 8].map((n) => h('option', {
+      value: n, text: n === 1 ? 'Just one' : `${n} frames`,
+    })));
+    const err = h('p', { class: 'error' });
     return wrap('Draw a picture',
       // Naming the unit is the whole point of this line: 32 means the file is
       // 32 pixels across, and a game usually draws a sprite that size much
       // bigger on screen. Picking a number here is picking the real size.
       h('label', { text: 'How big, in real pixels?' }), size,
+      h('label', { text: 'Frames, if it should move' }), frames,
       h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; big ones are for backgrounds and title screens.' }),
+      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; big ones are for backgrounds and title screens. More than one frame makes a film strip the sprites library can play.' }),
+      err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Start drawing',
         onclick: async () => {
           const side = clampSide(size.value);
+          const count = Number(frames.value);
+          if (side * count > MAX_SIDE) {
+            err.textContent = `${count} frames of ${side} is wider than ${MAX_SIDE} pixels — fewer frames, or a smaller size.`;
+            return;
+          }
           const called = name.value.trim();
           close();
-          await createPicture(called, side, side);
+          await createPicture(called, side * count, side);
         },
       })));
   }

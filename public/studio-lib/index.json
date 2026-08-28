@@ -16,6 +16,14 @@
       "files": ["sound.js"],
       "seeds": [],
       "scripts": ["studio/sound.js"]
+    },
+    "sprites": {
+      "version": 1,
+      "title": "Sprites",
+      "what": "Draws the pictures in assets/ by name, animated when the picture is a film strip of square frames, and never breaks the game over a missing one.",
+      "files": ["sprites.js"],
+      "seeds": [],
+      "scripts": ["studio/sprites.js"]
     }
   }
 }
