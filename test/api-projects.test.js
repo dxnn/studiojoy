@@ -33,6 +33,45 @@ test('creating a project makes a working tree with a repo behind it', async (t) 
   assert.equal(commits[0].author, 'Dann');
 });
 
+// Against the real public/, unlike the rest of the suite, whose fixture
+// offers no libraries: this is the one test of what creation scaffolds.
+test('a new game is born holding the studio library', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
+
+  const dir = path.join(app.gamesDir, 'tank');
+  const index = JSON.parse(
+    fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
+  );
+  // Whatever the studio offers is what a game is born with, version and all.
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'studio/studio.json'), 'utf8'));
+  assert.deepEqual(
+    manifest,
+    Object.fromEntries(Object.entries(index.libraries).map(([n, l]) => [n, l.version])),
+  );
+  assert.deepEqual(
+    fs.readFileSync(path.join(dir, 'studio/input.js')),
+    fs.readFileSync(path.join(publicDir, 'studio-lib/input/input.js')),
+  );
+  assert.deepEqual(
+    fs.readFileSync(path.join(dir, 'config/controls.js')),
+    fs.readFileSync(path.join(publicDir, 'templates/controls.js')),
+  );
+
+  const commits = await logCommits(dir);
+  assert.equal(commits.length, 2);
+  assert.equal(commits[0].subject, 'set up the studio library');
+  assert.equal(commits[1].subject, 'init tank');
+
+  const res = await app.client.json('GET', '/api/projects/tank');
+  const byPath = Object.fromEntries(res.body.files.map((f) => [f.path, f]));
+  assert.equal(byPath['studio/input.js'].library, true, 'listed as a library file');
+  assert.equal(byPath['config/controls.js'].library, undefined, 'the seed is the game\'s own');
+});
+
 test('an explicit slug overrides the derived one', async (t) => {
   const app = await studio(t);
   const res = await app.client.json('POST', '/api/projects', {

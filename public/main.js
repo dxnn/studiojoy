@@ -712,7 +712,12 @@ function onEvent(name, data) {
 
     case 'files.changed': {
       if (!mine(data)) return;
-      refreshFiles();
+      const refreshed = refreshFiles();
+      // index.html or the manifest changing can change whether Update is
+      // offered — a helper may have written the page without the tags.
+      if (data.paths.some((p) => p === 'index.html' || p === LIBRARY_MANIFEST)) {
+        refreshed.then(loadLibraries).then(render);
+      }
       // An agent just rewrote the game; show the new version.
       S.previewNonce += 1;
       // Those problems belonged to the version that was just replaced. The
@@ -995,21 +1000,42 @@ async function gameLibraries() {
   }
 }
 
+// A library the game holds whose script tags index.html is missing: installed
+// but never loaded, which plays as a game where the controls do nothing.
+// Offering Update covers it — installLibrary re-adds missing tags, and
+// rewriting identical files commits nothing.
+async function untaggedLibraries(studio, game) {
+  const names = Object.keys(game).filter((name) => studio?.[name]?.scripts?.length);
+  if (!names.length || !S.files.some((f) => f.path === 'index.html')) return {};
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
+  if (!res.ok) return {};
+  const markup = await res.text();
+  const untagged = {};
+  for (const name of names) {
+    if (studio[name].scripts.some((src) => !markup.includes(src))) untagged[name] = true;
+  }
+  return untagged;
+}
+
 // No dialog in front of this. An upload asks first because it has a decision in
 // it — which folder — and files it is about to replace. This has neither: the
 // paths come from the manifest, a game's own seeded files are never replaced,
 // and every write is a commit that Versions can undo.
 async function loadLibraries() {
-  S.libraries = { studio: await studioLibraries(), game: await gameLibraries() };
+  const studio = await studioLibraries();
+  const game = await gameLibraries();
+  S.libraries = { studio, game, untagged: await untaggedLibraries(studio, game) };
 }
 
-// null when there is nothing to offer: installed and current, so no button.
+// null when there is nothing to offer: installed, current, and loaded by the
+// page, so no button.
 function libraryOffer(name) {
   const library = S.libraries.studio?.[name];
   if (!library) return null;
   const held = S.libraries.game?.[name];
   if (held === undefined) return { library, label: `+ ${library.title}`, updating: false };
   if (held !== library.version) return { library, label: `Update ${library.title.toLowerCase()}`, updating: true };
+  if (S.libraries.untagged?.[name]) return { library, label: `Update ${library.title.toLowerCase()}`, updating: true };
   return null;
 }
 

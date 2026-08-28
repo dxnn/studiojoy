@@ -261,8 +261,13 @@ each game has. Copied because a symlink is a path out of the sandbox that git
 stores as a dangling blob, and a submodule gives a broken game to anyone who
 clones without `--recursive`. Two rules carry it, both tested: ⚠️ a helper may
 read it and never write it, and it is *named* to an agent rather than sent — so
-an engine costs the ambient block one line, not its source. `+ Controls` installs
-or updates it and disappears once the game is current. spec.md §4 has the
+an engine costs the ambient block one line, not its source. Every game is born
+holding it — creation scaffolds the library in one commit
+(`server/files/library.js`) — so `+ Controls` only ever means an update: an
+older version, or an `index.html` missing the script tags. It disappears once
+the game is current and loaded. The suite's games are born empty on purpose:
+`setup()` points `publicDir` at a fixture with no libraries, and one test in
+`api-projects.test.js` covers the real scaffold. spec.md §4 has the
 argument. The **input module** is the first library: one call,
 `Input.held("left")`, covers the keyboard, a game controller and a touchscreen,
 for one player or two. `+ Make a sound` renders a

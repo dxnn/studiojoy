@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { setup, signIn } from './helpers.js';
 import { createUser } from '../server/auth.js';
+
+// For the two tests of what the studio actually serves: the rest of the suite
+// runs against setup()'s stand-in public directory.
+const PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
 
 test('login issues a session cookie that /api/me accepts', async (t) => {
   const app = await setup();
@@ -159,7 +164,7 @@ test('hardening headers are set on every response', async (t) => {
 });
 
 test('the shell is served for client-side routes', async (t) => {
-  const app = await setup();
+  const app = await setup({ publicDir: PUBLIC_DIR });
   t.after(() => app.close());
   for (const p of ['/', '/p/tank']) {
     const res = await app.client.request('GET', p);
@@ -172,7 +177,7 @@ test('the shell is served for client-side routes', async (t) => {
 });
 
 test('static assets are served and traversal is refused', async (t) => {
-  const app = await setup();
+  const app = await setup({ publicDir: PUBLIC_DIR });
   t.after(() => app.close());
   const css = await app.client.request('GET', '/style.css');
   assert.equal(css.status, 200);

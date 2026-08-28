@@ -104,9 +104,20 @@ export async function setup({
   maxAssistantTurns = undefined,
   maxToolCalls = undefined,
   maxContinuations = undefined,
+  publicDir = undefined,
 } = {}) {
   const db = openDb(':memory:');
   const gamesDir = scratchDir('games');
+  // A public directory with no libraries in it, so the games tests make are
+  // born empty: what creation scaffolds is its own test (against the real
+  // public/), and the rest of the suite should not churn every time the
+  // studio grows a library.
+  if (publicDir === undefined) {
+    publicDir = scratchDir('public');
+    fs.mkdirSync(path.join(publicDir, 'studio-lib'), { recursive: true });
+    fs.writeFileSync(path.join(publicDir, 'studio-lib', 'index.json'), '{ "libraries": {} }\n');
+    fs.writeFileSync(path.join(publicDir, 'index.html'), '<!doctype html>\n');
+  }
   const broker = createBroker();
   const mutex = createMutex();
   let orchestrator = null;
@@ -126,7 +137,7 @@ export async function setup({
     });
   }
   const handler = createApp({
-    db, broker, mutex, gamesDir, llm, orchestrator, gamesUrl,
+    db, broker, mutex, gamesDir, llm, orchestrator, gamesUrl, publicDir,
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

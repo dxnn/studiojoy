@@ -3,8 +3,6 @@
 v0 is built and green. `spec.md` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- scaffold the studio library into new games at creation, so studio/ is
-  omnipresent and + Controls only ever means Update
 - keep a helper's streaming reply per game, so switching away and back
   mid-fire loses nothing
 - try a two-helper game (a builder plus a critic) and see whether the

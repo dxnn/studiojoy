@@ -622,11 +622,17 @@ evidence:
 
 So: real bytes, in the tree, in the history. The cost is drift — every game can
 sit on its own version — and the manifest is what makes drift visible instead of
-silent. `+ Controls` reads `public/studio-lib/index.json`, writes the library's
-files under `studio/`, records the version, and adds the `<script>` tags. The
-same button says **Update controls** when the game holds an older version, and
-**is not there at all** once the game is current: it used to sit with nothing to
-do, which reads as a button that does not work.
+silent. **Every game is born holding the library**: creation scaffolds it
+server-side (`server/files/library.js` reads `public/studio-lib/index.json`,
+writes the files under `studio/`, seeds the game's companions, records the
+versions) in one commit right after `init`. `+ Controls` is the same install
+run from the browser, kept for the games that predate this and as the update
+path: it says **Update controls** when the game holds an older version — or
+when `index.html` exists without the library's `<script>` tags, which is a game
+where the controls silently do nothing — and **is not there at all** once the
+game is current and loaded: it used to sit with nothing to do, which reads as a
+button that does not work. A new game has no `index.html` to tag, so the tags
+are the page-writer's job, and the agent preamble says so in as many words.
 
 Two rules make it a library rather than a folder, and both are load-bearing:
 

@@ -5,6 +5,7 @@ import { checkSlug, slugify, requireSlug } from '../files/paths.js';
 import {
   initRepo, isRepo, forkRepo, currentSha,
 } from '../files/git.js';
+import { scaffoldLibraries } from '../files/library.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
@@ -75,6 +76,9 @@ export function projectRoutes(r) {
       await ctx.mutex.run(slug, async () => {
         if (!(await isRepo(dir))) {
           await initRepo(dir, { author: authorFor(user), slug });
+          // Born holding the studio library, so + Controls only ever means
+          // an update (spec.md §4).
+          await scaffoldLibraries(dir, ctx.publicDir, authorFor(user));
         }
       });
     }

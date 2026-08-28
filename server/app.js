@@ -79,7 +79,7 @@ export function createApp({
   });
 
   const base = {
-    db, broker, mutex, gamesDir, llm, orchestrator,
+    db, broker, mutex, gamesDir, llm, orchestrator, publicDir,
     secureCookies, trustProxy, emailLockout, ipLockout,
   };
 
