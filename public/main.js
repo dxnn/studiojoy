@@ -21,6 +21,8 @@ import {
   ASSET_DIR, assetPath, writeFiles, openUpload, makeDropTarget, isFileDrag,
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
+import { isQuizPath, quizModel } from './quiz-editor.js';
+import { renderQuizForm } from './quiz-form.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
@@ -2188,17 +2190,29 @@ function renderFilesTab() {
       }));
 
     // A config file opens as fields rather than code, unless it holds something
-    // the reader will not touch, or you asked to see the text.
+    // the reader will not touch, or you asked to see the text. Before that,
+    // config/questions.js in the quiz shape opens as the quiz editor — the
+    // whole game as a form — falling back through the generic form to the
+    // text as the file outgrows each reader.
     const parsed = isConfigPath(S.open.path) && S.open.content !== null
       ? parseConfigFile(S.open.content)
+      : null;
+    const quiz = isQuizPath(S.open.path) && S.open.content !== null && !S.open.asText
+      ? quizModel(S.open.content)
       : null;
 
     if (S.open.content === null) {
       editor.push(h('div', { class: 'editor' }, bar,
         S.draw ? renderDrawing() : renderMedia(S.open),
         S.drawRefused ? h('div', { class: 'pad hint muted', text: S.drawRefused }) : null));
+    } else if (quiz?.ok) {
+      editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
     } else if (parsed?.ok && !S.open.asText) {
-      editor.push(h('div', { class: 'editor' }, bar, renderConfigForm(parsed.decls)));
+      editor.push(h('div', { class: 'editor' }, bar,
+        quiz && !quiz.ok
+          ? h('div', { class: 'pad hint muted', text: `Showing every field because ${quiz.reason}.` })
+          : null,
+        renderConfigForm(parsed.decls)));
     } else {
       const area = h('textarea', {
         id: EDITOR_AREA,

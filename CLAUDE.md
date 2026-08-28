@@ -300,6 +300,14 @@ exactly one frame, and the touch overlay appearing on a coarse pointer and
 driving the game. Not checked with a real controller — no hardware here; the
 pad paths are covered by fake pads in `test/input-template.test.js`.
 
+**Game templates** are live: New game offers "Start from", a starter tree
+copied in as a third commit and the game's own code from then on (spec.md §4).
+The quiz is the first, and it carries its own editor — `config/questions.js`
+in the quiz shape opens as the **quiz editor**, the whole game as a form, no
+helper needed; outgrown, it falls back to the config form, then the text. The
+move-and-collect and point-and-click templates are queued in TODO.md, each
+owed its own editor mode where one fits (ideas/templates.md).
+
 Couch multiplayer is what the input module buys. Networked multiplayer is not
 built; the games origin holding state and taking a write is no longer the
 blocker — the scoreboard settled that. See `ideas/next-five.md`, which also

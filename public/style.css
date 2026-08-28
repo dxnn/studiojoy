@@ -802,6 +802,20 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .cfg textarea.cfg-text { font-family: inherit; font-size: inherit; resize: vertical; }
 .cfg .cfg-row .hint { grid-column: 2; }
 .cfg .cfg-group { margin: 10px 0; }
+/* The quiz editor: a card per question and per ending. The .cfg-text inputs
+   inside flex rows need leave to shrink, or a long answer pushes the ✕ out. */
+.quiz-q {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin: 8px 0;
+  display: grid;
+  gap: 6px;
+}
+.quiz-q .row { flex-wrap: nowrap; }
+.quiz-q .cfg-text { flex: 1; min-width: 4rem; }
+.quiz-answer { padding-left: 16px; }
+.quiz-answer select { max-width: 9rem; }
 /* A group's comment is often the several lines explaining a whole table, so it
    gets the full width under the name rather than a squeezed side column. */
 .cfg .cfg-group-head { display: block; }

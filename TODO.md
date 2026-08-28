@@ -12,8 +12,8 @@ deliberately deferred.
   and cannot write it (ideas/api-notes.md)
 - a studio-wide "which games are behind" view. Per-project the button already
   says Update; across games there is nowhere that shows it
-- game templates: the creation picker and the quiz starter first, then
-  move-and-collect, then the point-and-click adventure (ideas/templates.md)
+- the move-and-collect template, then the point-and-click adventure — each
+  with its own editor mode where one fits (ideas/templates.md)
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see

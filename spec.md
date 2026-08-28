@@ -399,7 +399,7 @@ There is no signup route. Accounts come from `npm run adduser`.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview |
-| POST | `/api/projects` | `{name, slug?, kind?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game` |
+| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json` |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
@@ -719,6 +719,38 @@ Two rules make it a library rather than a folder, and both are load-bearing:
 `config/controls.js` is **not** part of the library: it is the game's own
 bindings, seeded once from `public/templates/` and never replaced, because it
 holds buttons somebody chose. `seeds` in the index is that distinction.
+
+### Game templates
+
+A **game template** is a starter tree: New game offers "Start from", and the
+chosen template's files are copied in server-side right after the library
+scaffold, as one commit ("start from the quiz template"). From then on they
+are the game's own — no version recorded, no update ever offered — unlike a
+library, because genre code has to stay editable: "add a timer to my quiz"
+must land in files a helper can change, not behind the `studio/` write-wall.
+Not a fork either: a fork copies history and attached agents; a template
+wants a clean thread and current libraries. `public/game-templates/` is the
+source (distinct from `public/templates/`, the seeds); its `index.json`
+carries the dialog's words and is the validation list. Every template follows
+one shape: its remixable heart in a config file the forms can open, a
+pre-written `BRIEF.md` and `SPEC.md` so helpers know the map from the first
+fire, the library script tags already in `index.html` so a newborn shows no
+Update offers, and placeholder assets the studio's own makers can replace.
+Server-side copying is byte-safe, so templates can ship sounds and pictures.
+
+The **quiz** template is the first, and it comes with its own editor: a quiz
+is a form pretending to be a game. `config/questions.js` holds `QUESTIONS`
+(each answer counting toward an ending) and `RESULTS`; when the file still
+has that shape, the studio opens it as the **quiz editor** — add and remove
+questions, answers and endings, wire each answer to an ending by name, no
+code in sight. Ending keys are internal wiring the editor invents
+(`ending_4`) and never shows. Unlike the generic form's one-value splicing,
+the quiz editor regenerates the whole file with the template's standard
+comments — it is the authoring surface for that one file, and opening then
+saving the shipped template is byte-identical (tested). A file that outgrows
+the shape — extra declarations, weights, code — falls back to the generic
+form with a reason, then to the text, and a helper can grow it freely from
+there.
 
 The module reads its bindings through `try`/`catch` rather than assuming
 `CONTROLS` is there, so a game whose `index.html` loads only one of the two

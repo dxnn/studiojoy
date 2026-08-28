@@ -4,6 +4,12 @@ New game → "Start from": a blank page, or a template — a starter tree copied
 in at creation. First three (Dann, 2026-08-28): a quiz, a point-and-click
 adventure, a top-down move-and-collect. Racing, incrementals, etc. later.
 
+**Shipped so far:** the plumbing and the quiz, quiz editor included. The
+principle that emerged (Dann): each template deserves its own editor mode
+over its config heart where one fits — the quiz needs no helper at all. For
+move-and-collect that is likely a map editor over `config/world.js` (paint
+tiles on a grid); for the adventure it is the spot picker already in TODO.
+
 ## What a template is
 
 A **starter tree**, copied server-side at creation right after the library
