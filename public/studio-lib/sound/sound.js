@@ -19,6 +19,12 @@
 // page silent until the player has clicked or pressed something once; sounds
 // asked for before that are skipped quietly, so start music on a key press
 // or a button and it will always be heard.
+//
+// Those four calls are the whole of it. There is no init, unlock, preload or
+// register and none is ever needed — the first play() does everything — and
+// there is no list of sounds to declare: the name is the file. Replacing a
+// hand-rolled sound.js means deleting it and its script tag and changing
+// each call to the matching file's name in assets/.
 
 const Sound = (function () {
   "use strict";

@@ -691,6 +691,14 @@ Two rules make it a library rather than a folder, and both are load-bearing:
   the studio teaches every helper about it with no orchestrator edit; a game
   that does not hold the input library gets one sentence pointing at
   `+ Controls` instead of the note.
+- **A note closes its surface.** It says its calls are the whole of it, and
+  names the things the library deliberately lacks — no init, no unlock, no
+  registry. Observed in a real migration trace: what an agent porting
+  hand-rolled code goes looking for is the equivalents of what it had, and a
+  note that only lists what exists leaves every absence reading as
+  uncertainty — the agent re-read the source "to be safe" despite recalling
+  the note correctly. Stating the negative space is what makes the note
+  authoritative enough not to re-check.
 
 `config/controls.js` is **not** part of the library: it is the game's own
 bindings, seeded once from `public/templates/` and never replaced, because it

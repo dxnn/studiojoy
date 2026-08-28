@@ -22,6 +22,10 @@
 // over the same keys. index.html must load config/controls.js and then
 // studio/input.js, in front of the game's own scripts; the studio's
 // "+ Controls" button, above the file list, adds or repairs those tags.
+//
+// Those calls — update, held, pressed, released, axis, pads — are the whole
+// of it. There is no setup call and no listener to add: loading the file is
+// enough, and everything else is asking questions once update() has run.
 
 const Input = (function () {
   "use strict";
