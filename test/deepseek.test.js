@@ -308,3 +308,61 @@ test('tokensCharged discounts cache hits and never double counts', () => {
 test('the canonical model ids are the two verified ones', () => {
   assert.deepEqual(MODEL_IDS, ['deepseek-v4-flash', 'deepseek-v4-pro']);
 });
+
+// A fetch whose body arrives on a clock, for the idle guard. Mirrors the one
+// piece of real fetch the fakes above skip: aborting the signal errors the
+// body stream, which is how the guard firing reaches reader.read().
+function timedFetch(chunks, { gapMs = 0, hang = false } = {}) {
+  const encoder = new TextEncoder();
+  return async (url, init) => {
+    const body = new ReadableStream({
+      async start(controller) {
+        init.signal?.addEventListener('abort', () => {
+          try {
+            controller.error(new DOMException('This operation was aborted', 'AbortError'));
+          } catch { /* already closed */ }
+        });
+        for (const chunk of chunks) {
+          if (gapMs) await new Promise((resolve) => setTimeout(resolve, gapMs));
+          if (init.signal?.aborted) return;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        }
+        if (!hang) {
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      },
+    });
+    return new Response(body, {
+      status: 200, headers: { 'content-type': 'text/event-stream' },
+    });
+  };
+}
+
+// The guard is idle time, not a deadline: this stream takes 160 ms in total,
+// past the 120 ms guard, but no single gap does — a whole-request timer would
+// have killed it mid-reply, which is exactly what it used to do to long turns.
+test('a slow stream survives as long as chunks keep arriving', async () => {
+  const fetchImpl = timedFetch(
+    [textChunk('a'), textChunk('b'), textChunk('c'), finalChunk()],
+    { gapMs: 40 },
+  );
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl, idleMs: 120 }));
+  assert.deepEqual(
+    events.filter((e) => e.type === 'delta').map((e) => e.text),
+    ['a', 'b', 'c'],
+  );
+  assert.equal(events.at(-1).type, 'end');
+});
+
+test('a stalled stream aborts with a legible error', async () => {
+  const fetchImpl = timedFetch([textChunk('almost')], { hang: true });
+  await assert.rejects(
+    collect(createDeepSeek({ apiKey: 'k', fetchImpl, idleMs: 80 })),
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.match(err.message, /stalled/);
+      return true;
+    },
+  );
+});

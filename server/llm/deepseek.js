@@ -64,11 +64,19 @@ async function readError(res) {
   );
 }
 
+// idleMs is an idle guard, not a deadline: the abort timer is re-armed every
+// time bytes arrive, so it fires only when the stream has stalled. It used to
+// be a hard 10-minute ceiling on the whole request, which killed healthy long
+// turns — a big reasoning trace plus several files streams for longer than
+// that — and it aborted them mid-flight with everything unsaved. Between
+// chunks the gap is sub-second; the long silence is prompt processing before
+// the first token, seconds even on a full cache miss, so two minutes is
+// generous for a stall and never binds on a working stream.
 export function createDeepSeek({
   apiKey,
   baseUrl = DEFAULT_BASE_URL,
   fetchImpl = fetch,
-  timeoutMs = 10 * 60 * 1000,
+  idleMs = 2 * 60 * 1000,
 }) {
   if (!apiKey) throw new Error('createDeepSeek requires an apiKey');
 
@@ -97,8 +105,14 @@ export function createDeepSeek({
       if (!reasoning) body.reasoning_effort = 'none';
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      timer.unref?.();
+      let timer = null;
+      const arm = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => controller.abort(), idleMs);
+        timer.unref?.();
+      };
+      // The first arming also covers connecting and waiting for headers.
+      arm();
 
       let res;
       try {
@@ -140,6 +154,7 @@ export function createDeepSeek({
       try {
         while (!finished) {
           const { done, value } = await reader.read();
+          arm();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
 
@@ -188,6 +203,13 @@ export function createDeepSeek({
             }
           }
         }
+      } catch (err) {
+        // The guard firing surfaces as a bare AbortError from reader.read();
+        // name what actually happened.
+        if (controller.signal.aborted) {
+          throw new LlmError(`deepseek stream stalled: nothing arrived for ${idleMs / 1000}s`);
+        }
+        throw err;
       } finally {
         clearTimeout(timer);
         reader.cancel().catch(() => {});
