@@ -3,8 +3,6 @@
 v0 is built and green. `spec.md` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- keep a helper's streaming reply per game, so switching away and back
-  mid-fire loses nothing
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - ask a helper to move flip-for-what onto the input module, the way space-racer

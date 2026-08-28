@@ -95,7 +95,7 @@ export const S = {
   // whatever it happened to fetch first.
   historyStale: false,
   drafts: new Map(), // slug -> unsent composer text
-  live: new Map(), // agent_id -> {reply, trace, tool, error, nodes}
+  live: new Map(), // the open game's map from liveBySlug; see connectStream
   traces: new Map(), // message_id -> {text, open}; this session only
   dialog: null,
   banner: null,
@@ -514,6 +514,7 @@ export async function openProject(slug, { view = null } = {}) {
     S.errors = [];
     S.open = null;
     S.palette = null;
+    S.live = new Map();
     S.libraries = { studio: S.libraries.studio, game: {} };
     render();
     return;
@@ -535,8 +536,12 @@ export async function openProject(slug, { view = null } = {}) {
   S.historyPath = null;
   S.diff = null;
   S.historyStale = false;
-  S.live.clear();
-  S.traces.clear();
+  // What an agent is saying right now exists nowhere but this tab, so leaving
+  // a game must not throw it away: the live buffers are per game, the stream
+  // keeps filling them while you are elsewhere, and coming back picks this
+  // game's up again. Kept traces are bounded and keyed by message id, so they
+  // survive the switch the same way.
+  S.live = liveMapFor(slug);
   S.autoscroll = true;
   S.palette = null;
   render();
@@ -606,11 +611,27 @@ function keepTrace(messageId, text, open) {
   }
 }
 
-function liveFor(agentId) {
-  let entry = S.live.get(agentId);
+// One buffer of streaming replies per game, held for the whole session: what
+// an agent has said so far exists nowhere else until the fire ends, so
+// switching games must not clear it, and an event for a game that is not on
+// screen still lands in its buffer — it just paints nothing.
+const liveBySlug = new Map();
+
+function liveMapFor(slug) {
+  let map = liveBySlug.get(slug);
+  if (!map) {
+    map = new Map();
+    liveBySlug.set(slug, map);
+  }
+  return map;
+}
+
+function liveFor(slug, agentId) {
+  const map = liveMapFor(slug);
+  let entry = map.get(agentId);
   if (!entry) {
     entry = { reply: '', trace: '', tool: null, error: false, nodes: null, open: false };
-    S.live.set(agentId, entry);
+    map.set(agentId, entry);
   }
   return entry;
 }
@@ -628,33 +649,34 @@ function onEvent(name, data) {
       return;
 
     case 'message.new': {
-      if (!mine(data)) return;
-      // The finished message replaces whatever was streaming from that agent,
-      // but its reasoning moves across rather than vanishing: it is never
-      // saved, so this session is the only place it will ever exist.
+      // The finished message replaces whatever was streaming from that agent
+      // — in whichever game it is in — but its reasoning moves across rather
+      // than vanishing: it is never saved, so this session is the only place
+      // it will ever exist.
       if (data.agent_id !== null) {
-        const entry = S.live.get(data.agent_id);
+        const map = liveMapFor(data.project_slug);
+        const entry = map.get(data.agent_id);
         if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
-        S.live.delete(data.agent_id);
+        map.delete(data.agent_id);
       }
+      if (!mine(data)) return;
       S.project.messages.push(data);
       render();
       return;
     }
 
     case 'agent.stream.start': {
-      if (!mine(data)) return;
-      S.live.set(data.agent_id, {
+      liveMapFor(data.project_slug).set(data.agent_id, {
         reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
       });
-      render();
+      if (mine(data)) render();
       return;
     }
 
     case 'agent.stream.reasoning': {
-      if (!mine(data)) return;
-      const entry = liveFor(data.agent_id);
+      const entry = liveFor(data.project_slug, data.agent_id);
       entry.trace += data.delta;
+      if (!mine(data)) return;
       if (entry.nodes) {
         entry.nodes.trace.textContent = entry.trace;
         entry.nodes.thinking.hidden = false;
@@ -663,9 +685,9 @@ function onEvent(name, data) {
     }
 
     case 'agent.stream.chunk': {
-      if (!mine(data)) return;
-      const entry = liveFor(data.agent_id);
+      const entry = liveFor(data.project_slug, data.agent_id);
       entry.reply += data.delta;
+      if (!mine(data)) return;
       if (entry.nodes) {
         entry.nodes.reply.textContent = entry.reply;
         entry.nodes.reply.hidden = false;
@@ -675,26 +697,26 @@ function onEvent(name, data) {
     }
 
     case 'agent.tool': {
-      if (!mine(data)) return;
-      const entry = liveFor(data.agent_id);
+      const entry = liveFor(data.project_slug, data.agent_id);
       entry.tool = data.path ? `${data.tool} ${data.path}` : data.tool;
+      if (!mine(data)) return;
       if (entry.nodes) entry.nodes.tool.textContent = toolLabel(entry.tool);
       else render();
       return;
     }
 
     case 'agent.stream.end': {
-      if (!mine(data)) return;
       if (data.error) {
-        const entry = liveFor(data.agent_id);
+        // Kept, not painted: coming back to this game should still show that
+        // its helper hit a wall.
+        const entry = liveFor(data.project_slug, data.agent_id);
         entry.error = true;
         entry.tool = null;
-        render();
       } else if (!data.message_id) {
         // Nothing was written and nothing said.
-        S.live.delete(data.agent_id);
-        render();
+        liveMapFor(data.project_slug).delete(data.agent_id);
       }
+      if (mine(data)) render();
       return;
     }
 

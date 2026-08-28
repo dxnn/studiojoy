@@ -336,8 +336,8 @@ tab, which file, which version's changes — so a link sends what you are
 looking at and a reload comes back to it. Written by `render()`, read by the
 same code on load and on Back; the server never looks at the query (spec.md
 §6). Every view is its own entry, so Back closes a file, and inside one game it
-does that without refetching the project — `openProject` clears the pins and
-the traces. `replaceState` only while following an address that already exists.
+does that without refetching the project — `openProject` clears the pins.
+`replaceState` only while following an address that already exists.
 ⚠️ Never written while signed out, or the deep link would be gone by the time
 the sign-in form was answered.
 

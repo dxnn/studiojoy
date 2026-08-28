@@ -1251,6 +1251,13 @@ broker entirely.
 `files.changed` is what makes the studio feel live: an agent writes a file and
 the game in your preview pane reloads.
 
+A streaming reply exists nowhere but the tabs watching the stream until the
+fire ends, so the client buffers it **per game** and never clears a buffer on
+a project switch: an event for a game that is not on screen still lands in
+its buffer and paints nothing, and switching back mid-fire shows everything
+said so far. A reload is still a loss — the server has nothing to replay —
+and a reasoning trace is never persisted at all (§8).
+
 ## 10. Limits
 
 - Message body: 32 KB (utf-8 bytes).
