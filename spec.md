@@ -1550,6 +1550,21 @@ file-block ordering exists because of this: the win is not the first fire
 after an edit, it is every fire after that one, provided the divergence depth
 holds still.
 
+Within one tool-call chain, the model's own output — the **reasoning trace
+included** — is re-attached server-side to the next request's prompt and
+billed as input, even though the client never sends it back: a continuation's
+prompt grows by the previous request's `completion_tokens`, not by the bytes
+the client appended (measured in `tmp/probe-reasoning-replay.mjs`,
+2026-08-28, and visible in any multi-request receipt). It **accumulates** —
+every earlier round's trace stays in the prompt until the chain closes — and
+rides the prefix cache at a tenth, so a long fire pays a tenth of an
+ever-growing pile on every request: roughly quadratic in the round count. A
+`role: 'user'` message **closes the chain and sheds the whole pile** from
+billing (measured: the prompt shrank by the accumulated trace), at the price
+of the branch point moving — the loop's tail re-pays once. §8's invariant
+that a trace is never replayed is about the client and still holds: nothing
+stores or sends one; this is the API's own accounting.
+
 ### Errors
 
 `{"error": {"message", "type", "param", "code"}}`, with 400 for an invalid
