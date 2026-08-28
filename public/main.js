@@ -91,6 +91,9 @@ export const S = {
   history: [],
   diff: null,
   historyPath: null,
+  // The open game's kept scores, for the Scoreboard tab. Null until the tab
+  // loads them; refetched every time the tab opens.
+  scores: null,
   // Set when a commit lands, so the versions list reloads instead of showing
   // whatever it happened to fetch first.
   historyStale: false,
@@ -334,7 +337,7 @@ const slugFromUrl = () => {
   return match ? match[1] : null;
 };
 
-const RAIL_TABS = ['files', 'play', 'versions'];
+const RAIL_TABS = ['files', 'play', 'versions', 'scoreboard'];
 
 // The URL is the view: which game, which tab, which file, which version — so
 // what someone is looking at is always the thing they can send to somebody
@@ -443,6 +446,10 @@ async function applyView({ tab, file, version }) {
     // back — a duplicate entry is a smaller price than losing what was typed.
     if (want && want !== S.open?.path) await chooseFile(want);
     else if (!want && S.open) closeOpenFile();
+  } else if (S.tab === 'scoreboard') {
+    // Always refetched: scores change while nobody in the studio does
+    // anything, so a cached list would be quietly wrong.
+    await loadScores();
   }
   render();
 }
@@ -535,6 +542,7 @@ export async function openProject(slug, { view = null } = {}) {
   S.pinned = new Set();
   S.open = null;
   S.history = [];
+  S.scores = null;
   // Cleared as well as the list: a path from the game you just left would
   // filter this game's history by a file it may not even have.
   S.historyPath = null;
@@ -650,6 +658,7 @@ function onEvent(name, data) {
       if (mine(data) && S.project) {
         S.project.name = data.name ?? S.project.name;
         if (data.archived !== undefined) S.project.archived = data.archived;
+        if (data.scores_on !== undefined) S.project.scores_on = data.scores_on;
         render();
       }
       return;
@@ -868,6 +877,11 @@ export async function openFile(path) {
   const token = {};
   opening = token;
   const stale = () => opening !== token;
+
+  // A file opened from a link or a chip may sit in a folded folder; the row
+  // showing is what says the editor is about this file, so unfold it.
+  const top = dirOf(path);
+  if (top) closedDirs().delete(top);
 
   // Colours changed in the editor ride along with whatever leaves it, so
   // switching files saves them instead of dropping them.
@@ -1940,10 +1954,108 @@ function codeBox(area, path) {
   return h('div', { class: 'code' }, pre, area);
 }
 
+/* The scoreboard tab -------------------------------------------------------
+   The kept scores for this game, with the admin's three moves: delete one,
+   delete all, and the per-game switch. All of it talks to the studio origin —
+   the games listener never reads a cookie, so nothing over there moderates. */
+
+async function loadScores() {
+  const res = await send(`/api/projects/${S.slug}/scores`);
+  if (!res.ok) { say(problem(res, 'Could not load the scoreboard.'), true); return; }
+  const body = await res.json();
+  S.scores = body.scores;
+  S.project.scores_on = body.scores_on;
+}
+
+async function toggleScores(on) {
+  const res = await api('PATCH', `/api/projects/${S.slug}`, { scores_on: on });
+  if (!res.ok) { say(res.body?.error ?? 'Could not change the scoreboard.', true); return; }
+  S.project.scores_on = on;
+  render();
+}
+
+export async function deleteScore(id) {
+  const res = await send(`/api/projects/${S.slug}/scores/${id}`, { method: 'DELETE' });
+  if (!res.ok) { say(problem(res, 'Could not delete that score.'), true); return false; }
+  if (S.scores) S.scores = S.scores.filter((s) => s.id !== id);
+  return true;
+}
+
+export async function clearScores() {
+  const res = await send(`/api/projects/${S.slug}/scores`, { method: 'DELETE' });
+  if (!res.ok) { say(problem(res, 'Could not delete the scores.'), true); return false; }
+  S.scores = [];
+  return true;
+}
+
+// "2 min ago" over a timestamp: a board full of same-day dates says nothing
+// about which name just appeared.
+function agoText(iso) {
+  const minutes = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? 'yesterday' : `${days} days ago`;
+}
+
+function renderScoreboardTab() {
+  const on = S.project.scores_on !== false;
+  const rows = (S.scores ?? []).map((s, i) => h('div', { class: 'score-row' },
+    h('span', { class: 'rank', text: `#${i + 1}` }),
+    h('span', { class: 'sname', text: s.name }),
+    h('span', { class: 'sval mono', text: s.score.toLocaleString() }),
+    h('span', { class: 'swhen', text: agoText(s.created_at) }),
+    h('button', {
+      class: 'icon tiny', text: '✕', title: 'Delete this score',
+      onclick: () => { S.dialog = { kind: 'delete-score', score: s }; render(); },
+    })));
+
+  return [
+    h('div', { class: 'pad row wrap' },
+      // A button, not a link: it changes what the public origin serves.
+      h('button', {
+        class: 'quiet tiny',
+        text: on ? 'Turn the scoreboard off' : 'Turn the scoreboard back on',
+        onclick: () => toggleScores(!on),
+      }),
+      h('div', { class: 'spacer' }),
+      S.scores?.length ? h('button', {
+        class: 'danger tiny', text: 'Delete all scores',
+        onclick: () => { S.dialog = { kind: 'clear-scores' }; render(); },
+      }) : null),
+    on ? null : h('div', {
+      class: 'pad hint muted',
+      text: 'The scoreboard is off: the game cannot show or take scores, and '
+        + 'helpers are not told it exists. The scores below are kept.',
+    }),
+    h('div', { class: 'scroll', 'data-scroll': 'scores' },
+      rows.length ? h('div', { class: 'score-list' }, ...rows) : h('div', {
+        class: 'pad muted',
+        text: S.scores === null ? 'Loading…' : 'No scores yet.',
+      })),
+  ];
+}
+
+/* The file list ------------------------------------------------------------ */
+
+// Which top-level folders are folded shut, per game, for this session. Not a
+// view: a fold is how you read a long list, not somewhere a link can send you.
+const closedDirsBySlug = new Map();
+
+function closedDirs() {
+  let set = closedDirsBySlug.get(S.slug);
+  if (!set) { set = new Set(); closedDirsBySlug.set(S.slug, set); }
+  return set;
+}
+
+const dirOf = (p) => (p.includes('/') ? p.slice(0, p.indexOf('/')) : null);
+
 function renderFilesTab() {
   const controls = libraryOffer('input');
-  const rows = S.files.map((f) => h('div', {
-    class: `file${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
+  const fileRow = (f, top) => h('div', {
+    class: `file${top ? ' inset' : ''}${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
     // The whole row opens the file, not just the name on it. The row is what
     // lights up under the pointer, and the size, the gap and the padding used
     // to be lit and dead at the same time. An unreachable row does neither.
@@ -1968,9 +2080,44 @@ function renderFilesTab() {
     },
   }),
   // No handler of its own — the click reaches the row. Still a button so the
-  // row can be got at by keyboard.
-  h('button', { class: 'fname', text: f.path, disabled: f.unreachable }),
-  h('span', { class: 'fsize', text: sizeText(f.size) })));
+  // row can be got at by keyboard. Inside a folder the row shows the rest of
+  // the path — the folder's own row already says the front of it.
+  h('button', { class: 'fname', text: top ? f.path.slice(top.length + 1) : f.path, disabled: f.unreachable }),
+  h('span', { class: 'fsize', text: sizeText(f.size) }));
+
+  // The list is sorted by path, so a folder's files are already contiguous:
+  // one header row where each top-level folder starts, and its files hidden
+  // while it is folded shut. One level, on purpose — the studio asks helpers
+  // for small flat trees, and js/lib/x.js under a js/ header still says lib/.
+  const closed = closedDirs();
+  const rows = [];
+  let group = null;
+  for (const f of S.files) {
+    const top = dirOf(f.path);
+    if (top !== group) {
+      group = top;
+      if (top !== null) {
+        const inside = S.files.filter((x) => dirOf(x.path) === top);
+        const bytes = inside.reduce((n, x) => n + x.size, 0);
+        const shut = closed.has(top);
+        rows.push(h('div', {
+          class: 'file dir',
+          onclick: () => {
+            if (shut) closed.delete(top);
+            else closed.add(top);
+            render();
+          },
+        },
+        h('button', { class: 'fname', text: `${shut ? '▸' : '▾'} ${top}/` }),
+        h('span', {
+          class: 'fsize',
+          text: `${inside.length} file${inside.length === 1 ? '' : 's'} · ${sizeText(bytes)}`,
+        })));
+      }
+    }
+    if (top !== null && closed.has(top)) continue;
+    rows.push(fileRow(f, top));
+  }
 
   const editor = [];
   if (S.open) {
@@ -2237,6 +2384,8 @@ function renderRail() {
       await urlAs('hold', async () => {
         S.tab = id;
         if (id === 'versions' && historyNeedsLoad(null)) await loadHistory(null);
+        // Fresh every time: the public posts scores while the studio is idle.
+        if (id === 'scoreboard') await loadScores();
       });
       render();
     },
@@ -2245,6 +2394,7 @@ function renderRail() {
   let body = [];
   if (S.tab === 'play') body = renderPlayTab();
   else if (S.tab === 'versions') body = renderVersionsTab();
+  else if (S.tab === 'scoreboard') body = renderScoreboardTab();
   else body = renderFilesTab();
 
   // The badge is the only sign of trouble when you are looking at another tab.
@@ -2257,7 +2407,9 @@ function renderRail() {
     railGrip(),
     h('div', { class: 'bar' },
       h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
-      h('div', { class: 'tabs' }, tab('files', 'Files'), playTab, tab('versions', 'Versions'))),
+      h('div', { class: 'tabs' },
+        tab('files', 'Files'), playTab, tab('versions', 'Versions'),
+        tab('scoreboard', 'Scoreboard'))),
     ...body);
 }
 

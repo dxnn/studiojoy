@@ -466,6 +466,27 @@ a { color: var(--accent); }
 .receipt .rval { text-align: right; }
 .receipt button.link { font-size: 12px; margin-top: 5px; }
 
+/* The scoreboard tab: the kept rows, oldest habits of a list — rank, name,
+   score, when — and a ✕ that asks first. */
+.score-list { display: grid; gap: 2px; padding: 0 14px 10px; }
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.score-row .rank { color: var(--muted); font-size: 11px; min-width: 26px; }
+.score-row .sname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.score-row .sval { font-family: var(--mono); }
+.score-row .swhen { color: var(--muted); font-size: 11px; }
+
 /* The whole prompt, in its dialog. Monospace and wrapped: a prompt line can
    be a whole file. */
 .prompt-text {
@@ -596,6 +617,10 @@ details.thinking .trace {
 .file .fname:hover { background: none; color: var(--accent); }
 .file .fsize { font-size: 11px; color: var(--muted); }
 .file.open .fname { color: var(--accent); font-weight: 600; }
+/* A folder's own row: lights up like a file row because it, too, opens on a
+   click — shut or open again. Its files sit a step to the right. */
+.file.dir .fname { color: var(--muted); }
+.file.inset { padding-left: 34px; }
 .file.unreachable { cursor: default; }
 .file.unreachable .fname { color: var(--muted); text-decoration: line-through; cursor: default; }
 /* Dragging a picture over the list. Inset outline rather than a border so the

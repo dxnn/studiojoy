@@ -13,6 +13,7 @@ import {
   S, api, say, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, createFile, renameFile,
   duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
+  deleteScore, clearScores,
 } from './main.js';
 
 /* Sounds ------------------------------------------------------------------ */
@@ -386,6 +387,26 @@ export function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Delete it',
         onclick: async () => { close(); await deleteFile(d.path); },
+      })));
+  }
+
+  // Unlike a file, a deleted score has no Versions to come back from: scores
+  // live in the database, not the working tree, so both of these say so.
+  if (d.kind === 'delete-score') {
+    return wrap(`Delete ${d.score.name}'s score?`,
+      h('p', { text: `${d.score.name} — ${d.score.score.toLocaleString()}. There is no bringing a score back.` }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'danger', text: 'Delete it',
+        onclick: async () => { close(); if (await deleteScore(d.score.id)) render(); },
+      })));
+  }
+
+  if (d.kind === 'clear-scores') {
+    return wrap('Delete all the scores?',
+      h('p', { text: 'The whole board, gone for good. The scoreboard itself stays on.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'danger', text: 'Delete them all',
+        onclick: async () => { close(); if (await clearScores()) render(); },
       })));
   }
 
