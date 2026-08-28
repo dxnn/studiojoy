@@ -196,7 +196,11 @@ Every part of a request is now bounded, and nothing is dropped in silence: the
 brief is cut at 32 KB with a note, a pin is priority rather than exemption so
 the file block cannot exceed `AMBIENT_BYTES`, the tool loop stops at 512 KB of
 appended messages and continues from a fresh context, and a trimmed transcript
-carries a `[studio]` marker saying how many messages are missing. Still bytes,
+carries a `[studio]` marker saying how many messages are missing. A long tool
+chain also **sheds**: DeepSeek re-bills its own accumulated reasoning on every
+continuation (spec.md §14), so once carrying the pile costs more than
+re-paying the visible tail, the loop drops it with a one-line `[studio]` user
+note, counted on the reply's receipt. Still bytes,
 not tokens — spec.md §8 has the table that shows the sum cannot reach the
 window.
 
@@ -261,7 +265,10 @@ each game has. Copied because a symlink is a path out of the sandbox that git
 stores as a dangling blob, and a submodule gives a broken game to anyone who
 clones without `--recursive`. Two rules carry it, both tested: ⚠️ a helper may
 read it and never write it, and it is *named* to an agent rather than sent — so
-an engine costs the ambient block one line, not its source. Every game is born
+an engine costs the ambient block one line, not its source. It also documents
+itself: each held library's top comment block rides the preamble as its **API
+note**, read from the game's own copy so it matches the held version — adding
+a library needs no orchestrator edit (spec.md §4). Every game is born
 holding it — creation scaffolds the library in one commit
 (`server/files/library.js`) — so `+ Controls` only ever means an update: an
 older version, or an `index.html` missing the script tags. It disappears once

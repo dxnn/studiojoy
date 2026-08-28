@@ -436,6 +436,15 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   await app.client.json('PUT', '/api/projects/tank/files/sprite.png', {
     rawBody: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
   });
+  // The suite's games are born empty, so install the real input library by
+  // hand: its API note in the preamble is asserted below against the real
+  // header, the same bytes a scaffolded game holds.
+  await app.client.json('PUT', '/api/projects/tank/files/studio/studio.json', {
+    rawBody: '{\n  "input": 2\n}\n',
+  });
+  await app.client.json('PUT', '/api/projects/tank/files/studio/input.js', {
+    rawBody: fs.readFileSync(path.join('public', 'studio-lib', 'input', 'input.js')),
+  });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -460,10 +469,14 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // Everything the studio can do that an agent cannot do for itself has to be
   // named here, or it may as well not exist: an agent that does not know a
   // person can draw a sprite in one click writes the game without one.
+  // The input module documents itself: the note at the top of the game's own
+  // copy is in the preamble, and the not-held fallback is not.
+  assert.match(system, /How to use studio\/input\.js/);
   assert.match(system, /Input\.update\(\)/);
   assert.match(system, /Input\.axis\("left", "right"\)/);
   assert.match(system, /config\/controls\.js/);
   assert.match(system, /"\+ Controls"/);
+  assert.ok(!system.includes('rather than writing key handling'), 'no fallback when held');
   assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /"\+ Make a sound"/);
   assert.match(system, /"\+ Upload"/);
@@ -547,6 +560,23 @@ test('a switched-off scoreboard leaves the preamble', async (t) => {
   // The paragraphs around it are intact.
   assert.match(system, /"\+ Controls"/);
   assert.match(system, /BRIEF\.md — the file map/);
+});
+
+// The note assembly's other half: no held library, no note — just the one
+// sentence pointing at the button that adds it.
+test('a game without the input library is pointed at + Controls', async (t) => {
+  const llm = createFakeLlm([says('Noted.')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'controller support please');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /rather than writing key handling/);
+  assert.match(system, /"\+ Controls"/);
+  assert.ok(!system.includes('How to use studio/'), 'no note without a library');
 });
 
 // The brief is the one project file that goes into the system prompt whole, so

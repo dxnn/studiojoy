@@ -2,7 +2,7 @@
   "_what": "The studio's libraries. Each is copied into every new game at creation, and into an older game that asks for it, under studio/, and the version that game got is recorded in its studio/studio.json. Bump `version` when the files change and every game holding an older one offers to update. `files` are the library's own, read-only to helpers; `seeds` are the game's own companion files, written once and never replaced.",
   "libraries": {
     "input": {
-      "version": 1,
+      "version": 2,
       "title": "Controls",
       "what": "One way in for the keyboard, a game controller and a touchscreen, for one player or two.",
       "files": ["input.js"],

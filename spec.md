@@ -674,6 +674,13 @@ Two rules make it a library rather than a folder, and both are load-bearing:
   need in front of it, and sending it would eat the budget the game's own code is
   competing for. `read_file` still reaches it. Pinning a library file is
   disabled in the file tree for the same reason.
+- **It documents itself with an API note.** The comment block at the top of
+  `studio/<name>.js` is reproduced in the preamble for each library the game's
+  manifest holds — read from the *game's own copy*, so the note matches the
+  version the game has, and capped so a note stays a note. Adding a library to
+  the studio teaches every helper about it with no orchestrator edit; a game
+  that does not hold the input library gets one sentence pointing at
+  `+ Controls` instead of the note.
 
 `config/controls.js` is **not** part of the library: it is the game's own
 bindings, seeded once from `public/templates/` and never replaced, because it

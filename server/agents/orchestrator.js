@@ -96,7 +96,9 @@ function firstLine(text) {
 // Games only. A chat gets no preamble at all: every sentence here is about a
 // working tree it does not have, and an agent in a chat is whatever its
 // description says it is, with nothing from the studio layered on top.
-function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
+function studioPreamble({
+  project, canEdit, maxAssistantTurns, maxToolCalls, libraryNotes = [],
+}) {
   const lines = [
     `You are an agent in Game Studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
@@ -130,7 +132,7 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       'config/ is the part a person tunes without reading code, so it has rules of its own:',
       '- One batch per file: config/play.js (movement, timings), config/world.js (levels or board data),',
       '  config/look.js (colours, sizes), config/words.js (every string the player sees),',
-      '  config/controls.js (which button does what — see below).',
+      '  config/controls.js (which button does what).',
       '- Plain values only, written as `const NAME = value;` — numbers, strings, true/false, and lists or',
       '  groups of those. No logic, no maths, no function calls: the studio shows these files as a form of',
       '  labelled fields, and it can only do that while every value is a plain one.',
@@ -141,17 +143,21 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       `${LIBRARY_DIR}/ is the studio's library, copied into this game so it runs anywhere, and it is the one`,
       'part of the tree you cannot write: your file tools refuse it. Read it, call it, and say so if it needs',
       `to change. ${LIBRARY_MANIFEST} says which libraries this game has and at what version.`,
-      '',
-      `If ${LIBRARY_DIR}/input.js is there, that is how the game reads its controls, and it already covers the`,
-      'keyboard, a game controller and a touchscreen, for one player or two. Call Input.update() once at the',
-      'top of each frame, then Input.held("left"), Input.pressed("fire") for one press, Input.released("fire"),',
-      'or Input.axis("left", "right") for -1 to 1, analog on a stick. A last argument of 2 reads player two,',
-      'and Input.pads() is how many controllers are plugged in. The action names — left, fire, boost — are the',
-      'game\'s own words, and they live in config/controls.js next to everything that sets them off, so change',
-      'them there rather than in the code. Do not listen for keys yourself alongside it, and make sure',
-      `index.html loads config/controls.js and ${LIBRARY_DIR}/input.js. If they are missing and the game wants`,
-      'a controller or a touchscreen, say so: the button is "+ Controls", above the file list.',
     );
+    // The engine's contract, never its source: each held library documents
+    // itself with the note at the top of its file, read from the game's own
+    // copy so it matches the version this game actually holds. Adding a
+    // library to the studio teaches every helper about it with no edit here.
+    for (const { file, note } of libraryNotes) {
+      lines.push('', `How to use ${file} — the note from the top of the file:`, note);
+    }
+    if (!libraryNotes.some((n) => n.file === `${LIBRARY_DIR}/input.js`)) {
+      lines.push(
+        '',
+        'If the game wants a controller or a touchscreen, say so rather than writing key handling from',
+        'scratch: the person can add the studio\'s input library with "+ Controls", above the file list.',
+      );
+    }
     // Only while the switch is on: a helper told about routes that answer 404
     // would happily build a broken board (spec.md §6).
     if (project.scores_on !== 0) lines.push(
@@ -226,6 +232,49 @@ function pinnedPaths(db, projectId) {
     .prepare(`SELECT DISTINCT path FROM message_context WHERE message_id IN (${placeholders})`)
     .all(...recentTurns);
   return new Set(rows.map((r) => r.path));
+}
+
+// A library's API note: the comment block at the top of its file, reproduced
+// in the preamble so a helper learns the engine's contract without its
+// source. Read from the game's own copy under studio/, not from the studio's
+// current one, so the note always matches the version this game holds. Capped
+// so a note stays a note.
+const NOTE_BYTES = 2048;
+
+function libraryNote(buffer) {
+  const lines = [];
+  for (const line of buffer.toString('utf8').split('\n')) {
+    if (!line.startsWith('//')) break;
+    lines.push(line);
+  }
+  const note = lines.join('\n');
+  if (!note) return null;
+  return note.length > NOTE_BYTES ? `${note.slice(0, NOTE_BYTES)}\n// (cut)` : note;
+}
+
+// One note per library the game holds, from its manifest. The main file is
+// studio/<name>.js by convention. Names come from a file a human can edit,
+// so anything that is not a plain name is skipped rather than pathed.
+async function buildLibraryNotes(dir) {
+  const manifest = await readFileAt(path.join(dir, LIBRARY_MANIFEST));
+  if (manifest === null) return [];
+  let held;
+  try {
+    held = JSON.parse(manifest.toString('utf8'));
+  } catch {
+    return [];
+  }
+  if (!held || typeof held !== 'object') return [];
+  const notes = [];
+  for (const name of Object.keys(held).sort()) {
+    if (!/^[a-z0-9-]+$/.test(name)) continue;
+    const file = `${LIBRARY_DIR}/${name}.js`;
+    const buffer = await readFileAt(path.join(dir, file));
+    if (buffer === null) continue;
+    const note = libraryNote(buffer);
+    if (note) notes.push({ file, note });
+  }
+  return notes;
 }
 
 // A library is named and its size given, never sent. That is the whole reason
@@ -474,7 +523,11 @@ async function buildContext({
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
   const fileBlock = isChat ? null : await buildFileBlock(db, project, dir);
   const preamble = isChat ? null : studioPreamble({
-    project, canEdit: agent.file_tools, maxAssistantTurns, maxToolCalls,
+    project,
+    canEdit: agent.file_tools,
+    maxAssistantTurns,
+    maxToolCalls,
+    libraryNotes: await buildLibraryNotes(dir),
   });
   const briefPart = brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null;
   const system = [

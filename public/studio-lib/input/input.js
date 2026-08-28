@@ -17,6 +17,11 @@
 // and Input reads player2's bindings and the second controller.
 //
 //   if (Input.held("left", 2)) turnOther(-1);
+//
+// Use this instead of your own keydown listeners — two input systems fight
+// over the same keys. index.html must load config/controls.js and then
+// studio/input.js, in front of the game's own scripts; the studio's
+// "+ Controls" button, above the file list, adds or repairs those tags.
 
 const Input = (function () {
   "use strict";
