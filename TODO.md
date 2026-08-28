@@ -12,6 +12,8 @@ deliberately deferred.
   and cannot write it (ideas/api-notes.md)
 - a studio-wide "which games are behind" view. Per-project the button already
   says Update; across games there is nowhere that shows it
+- spritesheet library and a grid overlay in the pixel editor
+  (ideas/spritesheet.md)
 - networked multiplayer: a turn-based room relay on the games origin — see
   ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
   limit, caps) are settled and tested by the scoreboard now
