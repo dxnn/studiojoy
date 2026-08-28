@@ -209,11 +209,70 @@ test('move refuses a missing source, an occupied target, and a no-op', async (t)
   assert.equal(escaping.status, 400);
 });
 
-test('a file called move is still writable', async (t) => {
-  const { app } = await project(t);
-  const res = await put(app, 'move', 'not a verb');
+test('duplicate copies the bytes in one commit and announces only the new path', async (t) => {
+  const { app, dir } = await project(t);
+  await put(app, 'game.js', 'contents');
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  const res = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'game.js', to: 'js/game.js' },
+  });
   assert.equal(res.status, 201);
-  assert.equal(res.body.path, 'move');
+  assert.match(res.body.commit, /^[0-9a-f]{40}$/);
+  assert.equal(fs.readFileSync(path.join(dir, 'game.js'), 'utf8'), 'contents');
+  assert.equal(fs.readFileSync(path.join(dir, 'js/game.js'), 'utf8'), 'contents');
+  assert.equal((await logCommits(dir))[0].subject, 'duplicate game.js as js/game.js');
+
+  const event = await stream.waitFor((e) => e.event === 'files.changed');
+  assert.deepEqual(event.data.paths, ['js/game.js']);
+});
+
+test('a binary file duplicates byte for byte', async (t) => {
+  const { app, dir } = await project(t);
+  const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe]);
+  await app.client.json('PUT', '/api/projects/tank/files/sprite.png', { rawBody: bytes });
+
+  const res = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'sprite.png', to: 'sprite-copy.png' },
+  });
+  assert.equal(res.status, 201);
+  assert.deepEqual([...fs.readFileSync(path.join(dir, 'sprite-copy.png'))], [...bytes]);
+});
+
+test('duplicate refuses a missing source, an occupied target, and a no-op', async (t) => {
+  const { app } = await project(t);
+  await put(app, 'a.txt', 'a');
+  await put(app, 'b.txt', 'b');
+
+  const missing = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'nope.txt', to: 'c.txt' },
+  });
+  assert.equal(missing.status, 404);
+
+  const occupied = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'a.txt', to: 'b.txt' },
+  });
+  assert.equal(occupied.status, 409);
+
+  const same = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'a.txt', to: 'a.txt' },
+  });
+  assert.equal(same.status, 400);
+
+  const escaping = await app.client.json('POST', '/api/projects/tank/files/duplicate', {
+    body: { from: 'a.txt', to: '../out.txt' },
+  });
+  assert.equal(escaping.status, 400);
+});
+
+test('files called move and duplicate are still writable', async (t) => {
+  const { app } = await project(t);
+  for (const name of ['move', 'duplicate']) {
+    const res = await put(app, name, 'not a verb');
+    assert.equal(res.status, 201, name);
+    assert.equal(res.body.path, name);
+  }
 });
 
 test('the listing reports paths, sizes, and totals', async (t) => {
@@ -261,6 +320,12 @@ test('an archived project rejects writes but still serves reads', async (t) => {
   );
   assert.equal(
     (await app.client.json('POST', '/api/projects/tank/files/move', {
+      body: { from: 'index.html', to: 'a.html' },
+    })).status,
+    409,
+  );
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/tank/files/duplicate', {
       body: { from: 'index.html', to: 'a.html' },
     })).status,
     409,

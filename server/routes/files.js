@@ -58,6 +58,37 @@ export function fileRoutes(r) {
     });
   });
 
+  // Same fixed-path shape as move. Copying is the one write whose bytes the
+  // client never sent, so it is also the one that pays assertCapacity for
+  // content taken from the tree itself.
+  r.post('/api/projects/:slug/files/duplicate', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    const dir = projectDirFor(ctx, project);
+    const body = await readJson(ctx.req);
+    const from = resolveProjectPath(dir, body.from);
+    const to = resolveProjectPath(dir, body.to);
+    if (from.rel === to.rel) throw new HttpError(400, 'from and to are the same path');
+
+    await ctx.mutex.run(project.slug, async () => {
+      const buffer = await readFileAt(from.abs);
+      if (buffer === null) throw new HttpError(404, `no such file: ${from.rel}`);
+      if ((await readFileAt(to.abs)) !== null) {
+        throw new HttpError(409, `${to.rel} already exists`);
+      }
+      await assertCapacity(dir, { addingBytes: buffer.length, isNewFile: true });
+      await writeFileAt(to.abs, buffer);
+      const sha = await commitPaths(
+        dir, [to.rel], `duplicate ${from.rel} as ${to.rel}`, authorFor(user),
+      );
+      // Only the new path: the source did not change.
+      ctx.broker.broadcast('files.changed', {
+        project_slug: project.slug, paths: [to.rel],
+      });
+      json(ctx.res, 201, { from: from.rel, to: to.rel, commit: sha });
+    });
+  });
+
   r.get('/api/projects/:slug/files/*path', async (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx, { files: true });

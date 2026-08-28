@@ -417,6 +417,7 @@ There is no signup route. Accounts come from `npm run adduser`.
 | PUT | `/api/projects/:slug/files/*path` | raw request body is the content; honours `If-Match`; creates or updates; commits |
 | DELETE | `/api/projects/:slug/files/*path` | commits |
 | POST | `/api/projects/:slug/files/move` | `{from, to}` — `git mv`, commits |
+| POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
 
 `PUT` takes a **raw body**, not `multipart/form-data`. That removes the need
 to hand-roll multipart parsing and fits a file tree better than an upload
@@ -677,6 +678,14 @@ what the new name will mean before it happens, and ⚠️ crossing into or out o
 `studio/` gets its own sentence, because that is the one move that changes who
 may edit the file rather than only where it lives. It is allowed either way —
 the library is refused to *agents*, not to people (§4) — but not silently.
+
+`Duplicate` sits beside it and copies instead of moving: one new file, one
+commit, the original untouched. The copy is made server-side from the bytes on
+disk — so a picture duplicates without a round trip through the browser, and
+unsaved editor text stays where it is, which the dialog says when it applies.
+The route refuses an occupied name rather than overwriting, the dialog opens
+already holding a free one (`-copy` before the extension, counting up), and a
+duplicate landing in `studio/` gets the same sentence a rename there gets.
 
 The reason is that the two halves have to agree. Git's pathspec filters the
 *names* along with the commits, so a log scoped to one file used to report

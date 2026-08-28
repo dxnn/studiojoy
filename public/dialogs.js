@@ -12,7 +12,7 @@ import { ASSET_DIR, assetPath, writeFiles, uploadPlan, uploadFiles } from './upl
 import {
   S, api, say, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, createFile, renameFile,
-  deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
+  duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
 } from './main.js';
 
 /* Sounds ------------------------------------------------------------------ */
@@ -71,6 +71,32 @@ function renameNote(from, to) {
   }
   return `The game will have to ask for ${to} instead — anything still pointing at `
     + 'the old name needs changing, and your helpers can do that for you.';
+}
+
+// The name a duplicate starts with: `-copy` before the extension, counting up
+// past any name already taken, so the dialog never opens on a collision.
+function duplicateName(from) {
+  const slash = from.lastIndexOf('/');
+  const dot = from.lastIndexOf('.');
+  const cut = dot > slash + 1 ? dot : from.length;
+  for (let n = 1; ; n += 1) {
+    const to = `${from.slice(0, cut)}-copy${n > 1 ? `-${n}` : ''}${from.slice(cut)}`;
+    if (!S.files.some((f) => f.path === to)) return to;
+  }
+}
+
+// What making the duplicate will mean. Landing it in `studio/` gets the same
+// sentence a rename gets, and for the same reason (see renameNote); the rest
+// of that note does not apply, because the original keeps its name.
+function duplicateNote(from, to) {
+  if (!to) return 'Type the name you want.';
+  if (to === from) return 'That is the name it already has — the duplicate needs its own.';
+  if (inLibrary(to)) {
+    return `${LIBRARY_DIR}/ is the studio library: your helpers can read it but never `
+      + 'change it, so a duplicate there is one they cannot edit.';
+  }
+  return `Makes a new file called ${to} holding what ${from} holds now. `
+    + `${from} stays as it is.`;
 }
 
 export function dialogFor(d) {
@@ -170,6 +196,32 @@ export function dialogFor(d) {
     return wrap('Rename this file',
       h('label', { text: 'New name (use / for folders)' }), path, note,
       h('div', { class: 'actions' }, cancel, rename));
+  }
+
+  if (d.kind === 'duplicate-file') {
+    const path = h('input', { 'aria-label': 'Name for the duplicate' });
+    path.value = duplicateName(d.path);
+    const note = h('div', { class: 'hint muted' });
+    const make = h('button', { class: 'filled', text: 'Duplicate it' });
+    const check = () => {
+      const to = path.value.trim();
+      note.textContent = duplicateNote(d.path, to);
+      make.disabled = !to || to === d.path;
+    };
+    path.addEventListener('input', check);
+    make.addEventListener('click', async () => {
+      const to = path.value.trim();
+      close();
+      await duplicateFile(d.path, to);
+    });
+    check();
+    // The copy is made from the disk, so words still only in the editor are
+    // named here rather than quietly left out of it.
+    const dirty = S.open?.path === d.path && (S.open.dirty || S.draw?.dirty);
+    return wrap('Duplicate this file',
+      h('label', { text: 'Name for the duplicate (use / for folders)' }), path, note,
+      dirty ? h('p', { class: 'hint muted', text: 'Your unsaved changes stay here — the duplicate is of the last save.' }) : null,
+      h('div', { class: 'actions' }, cancel, make));
   }
 
   if (d.kind === 'new-file') {

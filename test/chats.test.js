@@ -71,6 +71,7 @@ test('every file route refuses a chat', async (t) => {
     ['PUT', '/api/projects/random/files/index.html'],
     ['DELETE', '/api/projects/random/files/index.html'],
     ['POST', '/api/projects/random/files/move'],
+    ['POST', '/api/projects/random/files/duplicate'],
   ];
   for (const [method, url] of attempts) {
     const res = await app.client.json(method, url, {

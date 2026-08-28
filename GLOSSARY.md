@@ -33,6 +33,7 @@
 - **catalog** — the page at `/` on the games origin listing published games. The only page there that is not a project's own file.
 - **rollback** — putting a project's whole working tree back to how it was at an earlier commit, committed as a new commit: files restored, anything made since removed, nothing rewritten. The UI says *bring everything back*. Not `git revert` — see spec.md §5.
 - **fork** — a copy of a game: its working tree and full git history under a new slug, carrying the attached agents, starting a fresh thread.
+- **duplicate** — a copy of one file inside the same game, made from the open file's bar: `POST /files/duplicate`, one commit, the original untouched. A *fork* copies a whole game; a duplicate copies one file.
 - **draft** — unsent composer text, held per project in the client and never on the server. It survives a re-render and a switch to another game; only sending it clears it.
 - **project mutex** — the per-project promise chain that serialises write-and-commit, so concurrent agents cannot interleave git operations.
 - **reporter** — the script that runs inside a game and posts its errors to the studio. Never a file in a working tree and never a tag in a game's markup: the games listener injects it, so no game carries it and no agent can lose it.

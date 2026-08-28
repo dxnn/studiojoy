@@ -1372,6 +1372,24 @@ export async function renameFile(from, to) {
   say(`Renamed to ${to}.`);
 }
 
+// A duplicate is a new file that starts as another one: the bytes on disk,
+// copied server-side, one commit. Unsaved edits stay where they are — in the
+// editor, on the original — so the duplicate is of the last save.
+export async function duplicateFile(from, to) {
+  if (!to || to === from) return;
+  const res = await api('POST', `/api/projects/${S.slug}/files/duplicate`, { from, to });
+  if (!res.ok) {
+    say(res.body?.error ?? `Could not duplicate ${from}.`, true);
+    return;
+  }
+  S.previewNonce += 1;
+  await refreshFiles();
+  // The duplicate is the file you are about to change, so it opens — unless
+  // the original holds unsaved work, which openFile would silently drop.
+  if (!S.open?.dirty && !S.draw?.dirty) await openFile(to);
+  say(`Made ${to}.`);
+}
+
 export async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (!res.ok) {
@@ -1912,6 +1930,11 @@ function renderFilesTab() {
         class: 'quiet tiny', text: 'Rename',
         disabled: S.project.archived,
         onclick: () => { S.dialog = { kind: 'rename-file', path: S.open.path }; render(); },
+      }),
+      h('button', {
+        class: 'quiet tiny', text: 'Duplicate',
+        disabled: S.project.archived,
+        onclick: () => { S.dialog = { kind: 'duplicate-file', path: S.open.path }; render(); },
       }),
       h('button', {
         class: 'danger tiny', text: 'Delete',
