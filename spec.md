@@ -652,10 +652,20 @@ name-is-the-file rule as sound. A packed multi-sprite sheet was considered
 and rejected: atlases exist for request counts and draw-call batching,
 neither of which binds here, and the file is this studio's unit of naming,
 versioning, diffing and thumbnailing — a kid edits `hero.png`, not a cell in
-a sheet. Still loading draws nothing; missing warns once. The pixel editor
-overlays frame boundaries on a strip (one screen pixel at any zoom, never
-saved into the picture), and `+ Draw a picture` offers a frame count that
-makes one.
+a sheet. Still loading draws nothing; missing warns once.
+
+A strip opens in the pixel editor **one frame at a time**: frame buttons, a
+small preview looping the whole strip live at the library's 8 fps while it is
+drawn, Copy frame / Paste frame (one undoable gesture that goes through
+`setPixel` like every tool), and a toggleable **ghost** — the frame before at
+quarter strength, display-only, wrapping so frame one ghosts the last. The
+tools are clipped to the open frame inside the one bounds check they all
+share (`inside` in pixel-editor.js), so a wide brush cannot spill into the
+neighbour and a fill cannot leak across the strip; undo jumps to the frame it
+changed. "Whole strip" is the way back to drawing across everything, with the
+frame boundaries as an overlay — one screen pixel at any zoom, never saved
+into the picture. `+ Draw a picture` offers the frame count that makes a
+strip.
 
 **Copied, not shared.** The alternatives were considered and rejected on
 evidence:

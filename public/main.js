@@ -14,6 +14,7 @@ import {
   PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
+  clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isColour,
 } from './pixel-editor.js';
 import { h, iconButton } from './dom.js';
@@ -78,8 +79,11 @@ export const S = {
   // being re-read underneath the editor, which a save itself causes.
   //
   // `slot` is which colour square is chosen. The colours themselves are the
-  // game's, not this browser's — see S.palette.
-  drawPrefs: { tool: 'pencil', brush: 1, slot: 0 },
+  // game's, not this browser's — see S.palette. `ghost` is whether a strip's
+  // previous frame shows faintly under the one being drawn.
+  drawPrefs: {
+    tool: 'pencil', brush: 1, slot: 0, ghost: false,
+  },
   // What the studio offers and what this game already has, so the Controls
   // button can say "update", or say nothing at all when there is nothing to do.
   libraries: { studio: null, game: {} },
@@ -1347,6 +1351,13 @@ function stepDrawing(back) {
   const move = from.pop();
   if (!move) return;
   applyStep(S.draw.picture, move, back);
+  // A step may have landed on a frame that is not on screen; jumping to the
+  // frame it touched is what makes the undo visible rather than baffling.
+  const p = S.draw.picture;
+  const frames = p.width > p.height && p.width % p.height === 0 ? p.width / p.height : 1;
+  if (frames > 1 && !S.draw.whole && move.at.length) {
+    S.draw.frame = Math.floor((move.at[0] % p.width) / (p.width / frames));
+  }
   to.push(move);
   S.draw.dirty = true;
   render();
@@ -1700,24 +1711,43 @@ function renderMedia({ path, mime }) {
 // drawing on it — the same reason the problems panel is painted in place.
 function renderDrawing() {
   const { picture } = S.draw;
-  // Blocking up the pixels is what a sprite wants and what a photograph does
-  // not: past a few hundred across, a picture is being shown at or below its
-  // own size and hard edges just make it look broken.
-  const chunky = picture.width <= 256 && picture.height <= 256;
-  const canvas = h('canvas', {
-    class: `pixels${chunky ? '' : ' smooth'}`, width: picture.width, height: picture.height,
-  });
 
-  // A strip — width a whole multiple of height — shows its frame boundaries,
-  // or drawing frame three means guessing where it starts. An overlay, not
-  // pixels: one screen pixel at any zoom, never part of what is saved. The
-  // canvas letterboxes the picture (object-fit: contain), so the overlay is
-  // fitted with the same arithmetic spotOf uses, re-run on every resize.
+  // A strip — width a whole multiple of height — opens one frame at a time:
+  // the canvas shows the frame being edited, the strip loops in a small
+  // preview beside the frame buttons, and the tools are clipped to the frame
+  // so a wide brush or a fill cannot leak into the neighbours. "Whole strip"
+  // is the way back to seeing and drawing across everything at once.
   const frames = picture.width > picture.height && picture.width % picture.height === 0
     ? picture.width / picture.height
     : 1;
+  const frameMode = frames > 1 && !S.draw.whole;
+  const fw = picture.width / frames;
+  if (!Number.isInteger(S.draw.frame) || S.draw.frame >= frames) S.draw.frame = 0;
+  const viewW = frameMode ? fw : picture.width;
+  const offsetX = frameMode ? S.draw.frame * fw : 0;
+  if (frameMode) clipFrame(picture, offsetX, offsetX + fw);
+  else unclip(picture);
+
+  // Blocking up the pixels is what a sprite wants and what a photograph does
+  // not: past a few hundred across, a picture is being shown at or below its
+  // own size and hard edges just make it look broken.
+  const chunky = viewW <= 256 && picture.height <= 256;
+  const canvas = h('canvas', {
+    class: `pixels${chunky ? '' : ' smooth'}`, width: viewW, height: picture.height,
+  });
+
+  // The whole picture, kept as a canvas for the frame view, the ghost and
+  // the looping preview to draw slices of. Refreshed by paint().
+  const whole = document.createElement('canvas');
+  whole.width = picture.width;
+  whole.height = picture.height;
+
+  // In the whole-strip view the frame boundaries are an overlay — one screen
+  // pixel at any zoom, never part of what is saved. The canvas letterboxes
+  // the picture (object-fit: contain), so the overlay is fitted with the
+  // same arithmetic spotOf uses, re-run on every resize.
   let lines = null;
-  if (frames > 1) {
+  if (frames > 1 && !frameMode) {
     lines = h('div', { class: 'frame-lines' });
     lines.style.setProperty('--frames', frames);
     const place = () => {
@@ -1741,8 +1771,25 @@ function renderDrawing() {
   const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveDrawing() });
 
   const paint = () => {
-    canvas.getContext('2d')
+    whole.getContext('2d')
       .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+    if (frameMode) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, viewW, picture.height);
+      // The ghost: the frame before, very faint, to draw against. Display
+      // only — the eyedropper and the save never see it. Frame one ghosts
+      // the last frame, because the animation loops.
+      if (S.drawPrefs.ghost) {
+        const prev = ((S.draw.frame + frames - 1) % frames) * fw;
+        ctx.globalAlpha = 0.25;
+        ctx.drawImage(whole, prev, 0, fw, picture.height, 0, 0, fw, picture.height);
+        ctx.globalAlpha = 1;
+      }
+      ctx.drawImage(whole, offsetX, 0, fw, picture.height, 0, 0, fw, picture.height);
+    } else {
+      canvas.getContext('2d')
+        .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+    }
     state.textContent = unsaved();
     save.disabled = (!S.draw.dirty && !S.palette?.dirty) || S.project.archived;
   };
@@ -1776,14 +1823,15 @@ function renderDrawing() {
 
   // The canvas element fills its box and the picture is fitted inside it, so
   // the picture is centred with an empty strip on two sides. Both have to come
-  // off before a position on screen is a square in the picture.
+  // off before a position on screen is a square in the picture — plus the
+  // frame's own offset, when the canvas is showing one frame of a strip.
   const spotOf = (event) => {
     const box = canvas.getBoundingClientRect();
-    const scale = Math.min(box.width / picture.width, box.height / picture.height);
-    const left = box.left + (box.width - picture.width * scale) / 2;
+    const scale = Math.min(box.width / viewW, box.height / picture.height);
+    const left = box.left + (box.width - viewW * scale) / 2;
     const top = box.top + (box.height - picture.height * scale) / 2;
     return [
-      Math.floor((event.clientX - left) / scale),
+      Math.floor((event.clientX - left) / scale) + offsetX,
       Math.floor((event.clientY - top) / scale),
     ];
   };
@@ -1856,7 +1904,7 @@ function renderDrawing() {
   // 16-wide brush is most of the picture. The brush is a standing choice, so
   // one carried over from a big picture is brought back down here rather than
   // painting a whole small one in a single dab.
-  const available = BRUSHES.filter((n) => n === 1 || n <= Math.min(picture.width, picture.height) / 4);
+  const available = BRUSHES.filter((n) => n === 1 || n <= Math.min(viewW, picture.height) / 4);
   if (!available.includes(S.drawPrefs.brush)) S.drawPrefs.brush = available[available.length - 1];
 
   const brushes = h('div', { class: 'row wrap' },
@@ -1920,17 +1968,80 @@ function renderDrawing() {
         })
         : null));
 
+  // The strip, always playing while it is being edited: a small canvas on the
+  // frame row looping at the library's own 8 frames a second, reading the
+  // same `whole` canvas paint() refreshes — so a stroke shows up in the loop
+  // as it is drawn. The loop stops itself once its canvas leaves the page, so
+  // a render never leaks an animation.
+  let frameRow = null;
+  if (frames > 1) {
+    const preview = h('canvas', { class: 'strip-preview', width: fw, height: picture.height });
+    preview.style.width = `${Math.max(24, Math.round(40 * (fw / picture.height)))}px`;
+    const pctx = preview.getContext('2d');
+    let seen = false;
+    const loop = (t) => {
+      if (preview.isConnected) seen = true;
+      else if (seen) return;
+      const f = Math.floor(t / 125) % frames;
+      pctx.clearRect(0, 0, fw, picture.height);
+      pctx.drawImage(whole, f * fw, 0, fw, picture.height, 0, 0, fw, picture.height);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+
+    frameRow = h('div', { class: 'row wrap' },
+      preview,
+      ...Array.from({ length: frames }, (_, i) => h('button', {
+        class: `quiet tiny${frameMode && S.draw.frame === i ? ' on' : ''}`,
+        text: `${i + 1}`,
+        title: `Edit frame ${i + 1}`,
+        onclick: () => { S.draw.whole = false; S.draw.frame = i; render(); },
+      })),
+      h('button', {
+        class: `quiet tiny${frameMode ? '' : ' on'}`,
+        text: 'Whole strip',
+        title: 'See and draw across every frame at once',
+        onclick: () => { S.draw.whole = true; render(); },
+      }),
+      h('div', { class: 'spacer' }),
+      frameMode ? h('button', {
+        class: 'quiet tiny', text: 'Copy frame',
+        title: 'Remember this frame, to paste over another one',
+        onclick: () => { S.draw.copied = copyFrame(picture, fw, S.draw.frame); render(); },
+      }) : null,
+      frameMode && S.draw.copied ? h('button', {
+        class: 'quiet tiny', text: 'Paste frame',
+        title: 'Paste the copied frame over this one — one Undo takes it back',
+        disabled: S.project.archived,
+        onclick: () => {
+          if (picture.step) closed();
+          opened();
+          pasteFrame(picture, fw, S.draw.frame, S.draw.copied);
+          closed();
+          render();
+        },
+      }) : null,
+      frameMode ? h('button', {
+        class: `quiet tiny${S.drawPrefs.ghost ? ' on' : ''}`,
+        text: 'Ghost',
+        title: 'Show the frame before, very faintly, to draw against',
+        onclick: () => { S.drawPrefs.ghost = !S.drawPrefs.ghost; render(); },
+      }) : null);
+  }
+
   paint();
   return h('div', { class: 'drawing grow' },
     h('div', { class: 'media grow' }, canvas, lines),
-    h('div', { class: 'pad col' }, tools, brushes, swatches),
+    h('div', { class: 'pad col' }, frameRow, tools, brushes, swatches),
     h('div', { class: 'editor-bar row' },
       state,
       h('span', {
         class: 'hint muted',
-        text: frames > 1
-          ? `${picture.width} × ${picture.height} — ${frames} frames of ${picture.height}`
-          : `${picture.width} × ${picture.height}`,
+        text: frameMode
+          ? `frame ${S.draw.frame + 1} of ${frames} — ${fw} × ${picture.height}`
+          : frames > 1
+            ? `${picture.width} × ${picture.height} — ${frames} frames of ${picture.height}`
+            : `${picture.width} × ${picture.height}`,
       }),
       h('div', { class: 'spacer' }),
       iconButton({

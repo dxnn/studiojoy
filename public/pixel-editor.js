@@ -82,7 +82,27 @@ export const copyPicture = (picture) => ({
   width: picture.width, height: picture.height, data: new Uint8ClampedArray(picture.data),
 });
 
-const inside = ({ width, height }, x, y) => x >= 0 && y >= 0 && x < width && y < height;
+// The clip, when set, narrows every tool to one vertical slice of the
+// picture — the frame being edited. It lives here, in the one bounds check
+// every read and write goes through, so a wide brush at a frame's edge
+// cannot spill into the next frame and a fill cannot leak across the strip:
+// pixelAt outside the clip reads as "not there", which is what stops the
+// flood the same way the picture's own edge does. Undo and redo write
+// through applyStep, which takes no positions, so they ignore the clip —
+// a step is put back wherever it happened.
+const inside = (picture, x, y) => {
+  if (x < 0 || y < 0 || x >= picture.width || y >= picture.height) return false;
+  const { clip } = picture;
+  return !clip || (x >= clip.left && x < clip.right);
+};
+
+export function clipFrame(picture, left, right) {
+  picture.clip = { left, right };
+}
+
+export function unclip(picture) {
+  picture.clip = null;
+}
 
 export function pixelAt(picture, x, y) {
   if (!inside(picture, x, y)) return null;
@@ -223,6 +243,32 @@ export function floodFill(picture, x, y, rgba) {
         changed += 1;
         stack.push([nx, ny]);
       }
+    }
+  }
+  return changed;
+}
+
+// One frame of a strip, lifted out as bytes — the clipboard behind
+// "Copy frame". `fw` is the frame's width; the height is the picture's.
+export function copyFrame(picture, fw, frame) {
+  const out = new Uint8ClampedArray(fw * picture.height * 4);
+  for (let y = 0; y < picture.height; y += 1) {
+    const from = (y * picture.width + frame * fw) * 4;
+    out.set(picture.data.subarray(from, from + fw * 4), y * fw * 4);
+  }
+  return out;
+}
+
+// Paste goes through setPixel like every tool, so it records into the open
+// step and undoes as one gesture, and pasting a frame over itself changes
+// nothing and makes no version.
+export function pasteFrame(picture, fw, frame, bytes) {
+  let changed = 0;
+  for (let y = 0; y < picture.height; y += 1) {
+    for (let x = 0; x < fw; x += 1) {
+      const at = (y * fw + x) * 4;
+      const rgba = [bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]];
+      if (setPixel(picture, frame * fw + x, y, rgba)) changed += 1;
     }
   }
   return changed;

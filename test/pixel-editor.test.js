@@ -8,6 +8,7 @@ import {
   SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
+  clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
 } from '../public/pixel-editor.js';
 
@@ -299,4 +300,48 @@ test('a step costs what it touched, not what the picture costs', () => {
   const fill = stepBytes(endStep(blank));
   assert.equal(fill, MAX_SIDE * MAX_SIDE * 12);
   assert.equal(fill < UNDO_BYTES, true, 'a whole-picture fill fits in the budget');
+});
+
+// One frame at a time: the clip narrows every tool to a vertical slice, so a
+// brush at the frame's edge and a fill on an empty frame stay in the frame.
+test('the clip keeps the brush and the fill inside one frame', () => {
+  // A 4-frame strip of 8x8 cells, editing frame 1 (pixels 8..15).
+  const strip = blankPicture(32, 8);
+  clipFrame(strip, 8, 16);
+
+  // A wide brush at the frame's left edge would spill into frame 0.
+  stamp(strip, 8, 4, RED, 4);
+  assert.equal(pixelAt(strip, 7, 4), null, 'outside the clip reads as not there');
+  unclip(strip);
+  assert.deepEqual(pixelAt(strip, 7, 4), [0, 0, 0, 0], 'and was never painted');
+  assert.deepEqual(pixelAt(strip, 8, 4), RED);
+
+  // A fill of the empty frame floods the frame, not the strip.
+  clipFrame(strip, 8, 16);
+  floodFill(strip, 12, 1, BLUE);
+  unclip(strip);
+  assert.deepEqual(pixelAt(strip, 15, 7), BLUE, 'the frame is filled to its edge');
+  assert.deepEqual(pixelAt(strip, 16, 7), [0, 0, 0, 0], 'the next frame is untouched');
+  assert.deepEqual(pixelAt(strip, 0, 0), [0, 0, 0, 0]);
+});
+
+test('a copied frame pastes as one undoable gesture', () => {
+  const strip = blankPicture(32, 8);
+  drawLine(strip, 0, 0, 7, 7, RED); // a mark on frame 0
+  const copied = copyFrame(strip, 8, 0);
+
+  beginStep(strip);
+  assert.equal(pasteFrame(strip, 8, 2, copied) > 0, true);
+  const step = endStep(strip);
+  assert.deepEqual(pixelAt(strip, 16, 0), RED, 'the mark arrived on frame 2');
+  assert.deepEqual(pixelAt(strip, 23, 7), RED);
+
+  // Pasting the same frame again changes nothing and makes no step.
+  beginStep(strip);
+  pasteFrame(strip, 8, 2, copied);
+  assert.equal(endStep(strip), null);
+
+  // One undo takes the paste back whole.
+  applyStep(strip, step, true);
+  assert.deepEqual(pixelAt(strip, 16, 0), [0, 0, 0, 0]);
 });

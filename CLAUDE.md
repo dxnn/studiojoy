@@ -285,8 +285,11 @@ Files-tab offer buttons going generic. The **sprites library** is the third:
 one sprite is one file, `Sprites.draw(ctx, "hero", x, y)` draws
 `assets/hero.png`, and a PNG whose width is a whole multiple of its height is
 a **strip** of square frames played on a shared clock — no registry, no config
-file, the shape of the picture is the declaration. The pixel editor overlays a
-strip's frame boundaries, and `+ Draw a picture` offers a frame count.
+file, the shape of the picture is the declaration. A strip opens in the pixel
+editor one frame at a time: frame buttons, a live looping preview, Copy/Paste
+frame, a toggleable ghost of the frame before, tools clipped to the open frame
+(the clip lives in pixel-editor.js's one bounds check), and "Whole strip" to
+draw across everything. `+ Draw a picture` offers a frame count.
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

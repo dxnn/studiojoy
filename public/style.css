@@ -726,6 +726,13 @@ details.thinking .trace {
 /* Frame boundaries over a strip: fitted to the picture inside the letterboxed
    canvas by renderDrawing, centred here, one screen pixel at any zoom. */
 .media { position: relative; }
+/* The strip looping beside the frame buttons while it is edited. */
+.strip-preview {
+  height: 40px;
+  image-rendering: pixelated;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
 .frame-lines {
   position: absolute;
   inset: 0;
