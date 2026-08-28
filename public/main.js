@@ -899,8 +899,10 @@ function closeOpenFile(then = null) {
 // from.
 export const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(path));
 
+// True when the file is saved, false when it is not — a conflict or a failure
+// — so "Save and close" knows whether closing would lose anything.
 export async function saveOpenFile({ force = false } = {}) {
-  if (!S.open) return;
+  if (!S.open) return false;
   const headers = { 'content-type': 'text/plain' };
   if (!force && S.open.etag) headers['if-match'] = S.open.etag;
   const res = await send(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`, {
@@ -918,17 +920,18 @@ export async function saveOpenFile({ force = false } = {}) {
       etag: body?.etag ?? null,
     };
     render();
-    return;
+    return false;
   }
   if (!res.ok) {
     say(problem(res, body?.error ?? 'Could not save that file.'), true);
-    return;
+    return false;
   }
   S.open.etag = body.etag;
   S.open.dirty = false;
   S.previewNonce += 1;
   await refreshFiles();
   say(`Saved ${S.open.path}.`);
+  return true;
 }
 
 export async function createFile(path) {
@@ -1967,8 +1970,10 @@ function renderFilesTab() {
         oninput: (e) => {
           S.open.content = e.currentTarget.value;
           S.open.dirty = true;
-          const save = document.getElementById('save-btn');
-          if (save) save.disabled = false;
+          for (const id of ['save-btn', 'save-close-btn']) {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = false;
+          }
         },
       });
       area.value = S.open.content;
@@ -1993,6 +1998,13 @@ function renderFilesTab() {
             class: 'filled', id: 'save-btn', text: 'Save',
             disabled: !S.open.dirty || S.project.archived,
             onclick: () => saveOpenFile(),
+          }),
+          // Closes only once the save really landed: a conflict or a failure
+          // keeps the file open with the words still in it.
+          h('button', {
+            class: 'filled ok', id: 'save-close-btn', text: 'Save and close',
+            disabled: !S.open.dirty || S.project.archived,
+            onclick: async () => { if (await saveOpenFile()) closeOpenFile(); },
           }))));
     }
   }

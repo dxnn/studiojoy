@@ -75,6 +75,11 @@ button:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink
 button:disabled { opacity: 0.45; cursor: default; }
 button.filled { background: var(--accent); color: var(--accent-ink); }
 button.filled:hover:not(:disabled) { filter: brightness(1.08); }
+/* The green one: the same filled button in --ok, for "this saves and moves
+   on". The hover repeats the background or the plain-button hover would put
+   the accent back. */
+button.filled.ok { background: var(--ok); }
+button.filled.ok:hover:not(:disabled) { background: var(--ok); }
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
 button.quiet {
