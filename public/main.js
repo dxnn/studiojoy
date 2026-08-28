@@ -2053,7 +2053,10 @@ function closedDirs() {
 const dirOf = (p) => (p.includes('/') ? p.slice(0, p.indexOf('/')) : null);
 
 function renderFilesTab() {
-  const controls = libraryOffer('input');
+  // One offer per library the studio has and this game lacks or holds stale.
+  const offers = Object.keys(S.libraries.studio ?? {}).sort()
+    .map((name) => ({ name, offer: libraryOffer(name) }))
+    .filter((o) => o.offer);
   const fileRow = (f, top) => h('div', {
     class: `file${top ? ' inset' : ''}${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
     // The whole row opens the file, not just the name on it. The row is what
@@ -2262,14 +2265,14 @@ function renderFilesTab() {
       }),
       // Gone once the game has it and it is current. It used to sit there with
       // nothing to do, which reads as a button that does not work.
-      controls ? h('button', {
-        class: 'quiet tiny', text: controls.label,
-        title: controls.updating
-          ? `${controls.library.what} This game has an older one.`
-          : controls.library.what,
+      ...offers.map(({ name, offer }) => h('button', {
+        class: 'quiet tiny', text: offer.label,
+        title: offer.updating
+          ? `${offer.library.what} This game has an older one.`
+          : offer.library.what,
         disabled: S.project.archived,
-        onclick: () => installLibrary('input'),
-      }) : null,
+        onclick: () => installLibrary(name),
+      })),
       h('div', { class: 'spacer' }),
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })

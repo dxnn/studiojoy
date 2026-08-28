@@ -277,7 +277,11 @@ the game is current and loaded. The suite's games are born empty on purpose:
 `api-projects.test.js` covers the real scaffold. spec.md §4 has the
 argument. The **input module** is the first library: one call,
 `Input.held("left")`, covers the keyboard, a game controller and a touchscreen,
-for one player or two. `+ Make a sound` renders a
+for one player or two. The **sound player** is the second — `Sound.play("laser")`
+plays `assets/laser.wav` with overlap, loops and mute, and a missing file or a
+blocked autoplay is a warning, never an error — which also proved the shape:
+it needed no orchestrator edit, only its file, its `index.json` entry, and the
+Files-tab offer buttons going generic. `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or
 a live canvas API, so what is played or shown is what gets saved, and both are

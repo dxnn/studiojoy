@@ -57,6 +57,10 @@ test('a new game is born holding the studio library', async (t) => {
     fs.readFileSync(path.join(publicDir, 'studio-lib/input/input.js')),
   );
   assert.deepEqual(
+    fs.readFileSync(path.join(dir, 'studio/sound.js')),
+    fs.readFileSync(path.join(publicDir, 'studio-lib/sound/sound.js')),
+  );
+  assert.deepEqual(
     fs.readFileSync(path.join(dir, 'config/controls.js')),
     fs.readFileSync(path.join(publicDir, 'templates/controls.js')),
   );

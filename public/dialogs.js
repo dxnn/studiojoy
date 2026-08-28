@@ -67,8 +67,8 @@ function renameNote(from, to) {
       + 'change it, so putting this file there means they cannot edit it any more.';
   }
   if (inLibrary(from) && !inLibrary(to)) {
-    return 'Out of the studio library, + Controls will not keep this file up to date '
-      + 'any more, and your helpers will be able to change it.';
+    return 'Out of the studio library, the library buttons will not keep this file '
+      + 'up to date any more, and your helpers will be able to change it.';
   }
   return `The game will have to ask for ${to} instead — anything still pointing at `
     + 'the old name needs changing, and your helpers can do that for you.';

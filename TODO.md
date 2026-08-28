@@ -8,8 +8,6 @@ deliberately deferred.
 - ask a helper to move flip-for-what onto the input module, the way space-racer
   went; then check whether either game wants a sound effect now that one can be
   made without leaving the studio
-- second library, to prove `studio/` is a shape and not a special case for
-  input.js — a sprite sheet reader or a sound player is the small end of it
 - let a person lock a game file: helpers get its API note, not its bytes,
   and cannot write it (ideas/api-notes.md)
 - a studio-wide "which games are behind" view. Per-project the button already

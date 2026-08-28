@@ -626,10 +626,20 @@ the pane per keystroke would replace the Save button under the pointer.
 ### The studio library
 
 `studio/` is a reserved directory in a game's working tree holding the studio's
-own **libraries** — the input module today, a sprite library or an engine later.
-It is served like any other file, committed like any other file, and cloned with
-the repository. `studio/studio.json` is its **manifest**: library name to the
-version this game has.
+own **libraries** — the input module and the sound player today, a sprite
+library or an engine later. It is served like any other file, committed like
+any other file, and cloned with the repository. `studio/studio.json` is its
+**manifest**: library name to the version this game has.
+
+The **sound player** (`studio/sound.js`) is the second library, and the one
+that proved the shape: it needed no orchestrator edit — its API note is its
+file header — only the file, an `index.json` entry, and the Files tab's offer
+buttons going generic (`+ Sounds` beside `+ Controls`). `Sound.play("laser")`
+plays `assets/laser.wav` — the files the sound maker creates — with a pooled
+element per shot, so rapid fire overlaps instead of dropping or cutting
+itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
+autoplay is one console warning, never an error: a game must not break over a
+sound.
 
 **Copied, not shared.** The alternatives were considered and rejected on
 evidence:
