@@ -1,0 +1,9 @@
+{
+  "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows.",
+  "templates": {
+    "quiz": {
+      "title": "A quiz",
+      "what": "Ask questions, then tell the player what they are. The whole game is a form: no code needed."
+    }
+  }
+}

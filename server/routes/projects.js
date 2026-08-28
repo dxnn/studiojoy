@@ -6,6 +6,7 @@ import {
   initRepo, isRepo, forkRepo, currentSha,
 } from '../files/git.js';
 import { scaffoldLibraries } from '../files/library.js';
+import { listTemplates, scaffoldTemplate } from '../files/templates.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
@@ -67,6 +68,18 @@ export function projectRoutes(r) {
       throw new HttpError(409, `the slug '${slug}' is taken`);
     }
 
+    // A starter tree rather than a blank page (spec.md §4). Checked before
+    // anything touches the disk, so a typo creates nothing.
+    const template = body.template === undefined || body.template === ''
+      ? null
+      : String(body.template);
+    if (template !== null) {
+      if (kind !== 'game') throw new HttpError(400, 'a chat cannot start from a template');
+      if (!listTemplates(ctx.publicDir)[template]) {
+        throw new HttpError(400, `no such template: ${template}`);
+      }
+    }
+
     // A chat never touches the disk: no directory, no repo, nothing to serve
     // on the games origin. Everything else about it is a project.
     if (kind === 'game') {
@@ -81,6 +94,9 @@ export function projectRoutes(r) {
           // Born holding the studio library, so + Controls only ever means
           // an update (spec.md §4).
           await scaffoldLibraries(dir, ctx.publicDir, authorFor(user));
+          if (template) {
+            await scaffoldTemplate(dir, ctx.publicDir, template, authorFor(user));
+          }
         }
       });
     }

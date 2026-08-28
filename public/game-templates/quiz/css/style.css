@@ -1,0 +1,31 @@
+/* How the quiz looks. Colours, sizes and roundness — change anything. */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: system-ui, sans-serif;
+  background: linear-gradient(160deg, #2b1e66, #0e4a56);
+  color: #fff;
+  text-align: center;
+}
+#quiz { max-width: 560px; padding: 24px; width: 100%; }
+h1 { font-size: 2.4em; margin: 0.2em 0 0.6em; }
+h2 { font-size: 1.5em; margin: 0.3em 0 1em; }
+.count { opacity: 0.7; letter-spacing: 0.1em; }
+.tell { font-size: 1.2em; opacity: 0.9; margin-bottom: 1.5em; }
+button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 14px 18px;
+  font-size: 1.1em;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { background: rgba(255, 255, 255, 0.25); }
+button.big { font-size: 1.3em; padding: 18px; }

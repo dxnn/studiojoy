@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setup, signIn } from './helpers.js';
 import { isRepo, logCommits } from '../server/files/git.js';
+import { parseConfigFile } from '../public/config-file.js';
 
 async function studio(t) {
   const app = await setup();
@@ -78,6 +79,69 @@ test('a new game is born holding the studio library', async (t) => {
   const byPath = Object.fromEntries(res.body.files.map((f) => [f.path, f]));
   assert.equal(byPath['studio/input.js'].library, true, 'listed as a library file');
   assert.equal(byPath['config/controls.js'].library, undefined, 'the seed is the game\'s own');
+});
+
+// Also against the real public/: templates are starter trees, and this pins
+// down what starting from one actually copies and commits.
+test('a game born from the quiz template holds its starter tree', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  const res = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Quizzy', template: 'quiz' },
+  });
+  assert.equal(res.status, 201);
+
+  const dir = path.join(app.gamesDir, 'quizzy');
+  const templateRoot = path.join(publicDir, 'game-templates', 'quiz');
+  for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css',
+    'config/questions.js', 'config/words.js', 'js/quiz.js', 'assets/pick.wav']) {
+    assert.deepEqual(
+      fs.readFileSync(path.join(dir, f)),
+      fs.readFileSync(path.join(templateRoot, f)),
+      `${f} is copied whole`,
+    );
+  }
+
+  // init, the library scaffold, then the template — three commits.
+  const commits = await logCommits(dir);
+  assert.equal(commits.length, 3);
+  assert.equal(commits[0].subject, 'start from the quiz template');
+
+  // The template's page already loads every library the game was born
+  // holding, so a newborn shows no Update offers.
+  const index = JSON.parse(
+    fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
+  );
+  const markup = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  for (const library of Object.values(index.libraries)) {
+    for (const src of library.scripts) assert.ok(markup.includes(src), src);
+  }
+
+  // The heart stays inside the plain-value subset the forms can open.
+  const parsed = parseConfigFile(fs.readFileSync(path.join(dir, 'config/questions.js'), 'utf8'));
+  assert.equal(parsed.ok, true, parsed.reason);
+});
+
+test('a template has to exist, and a chat cannot start from one', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  const unknown = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Nope', template: 'racing' },
+  });
+  assert.equal(unknown.status, 400);
+  assert.match(unknown.body.error, /no such template/);
+
+  const chat = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Chatty', kind: 'chat', template: 'quiz' },
+  });
+  assert.equal(chat.status, 400);
+  assert.match(chat.body.error, /chat cannot start/);
 });
 
 test('an explicit slug overrides the derived one', async (t) => {

@@ -10,7 +10,7 @@ import {
 } from './sound-maker.js';
 import { ASSET_DIR, assetPath, writeFiles, uploadPlan, uploadFiles } from './upload.js';
 import {
-  S, api, say, render, urlAs, openProject, loadProjects, loadAgents,
+  S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, createFile, renameFile,
   duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
   deleteScore, clearScores,
@@ -118,9 +118,31 @@ export function dialogFor(d) {
     const name = h('input', { placeholder: chat ? 'Silly ideas' : 'Space Racer' });
     const slug = h('input', { placeholder: chat ? 'silly-ideas (optional)' : 'space-racer (optional)' });
     const err = h('p', { class: 'error' });
+
+    // A starter tree instead of a blank page. The list arrives after the
+    // dialog is built — the node persists, so the options land in place.
+    const fromHint = h('p', { class: 'hint muted' });
+    const from = h('select', {
+      onchange: () => { fromHint.textContent = from.selectedOptions[0]?.dataset.what ?? ''; },
+    }, h('option', { value: '', text: 'A blank page' }));
+    if (!chat) {
+      send('/game-templates/index.json').then(async (res) => {
+        if (!res.ok) return;
+        const { templates } = await res.json();
+        for (const [key, t] of Object.entries(templates ?? {})) {
+          const option = h('option', { value: key, text: t.title });
+          option.dataset.what = t.what;
+          from.append(option);
+        }
+      });
+    }
+
     return wrap(chat ? 'New chat' : 'New game',
       h('label', { text: 'What is it called?' }), name,
       h('label', { text: 'Web address (letters, numbers and dashes)' }), slug,
+      chat ? null : h('label', { text: 'Start from' }),
+      chat ? null : from,
+      chat ? null : fromHint,
       chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game.' }) : null,
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
@@ -128,6 +150,7 @@ export function dialogFor(d) {
         onclick: async () => {
           const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
           if (slug.value.trim()) body.slug = slug.value.trim();
+          if (!chat && from.value) body.template = from.value;
           const res = await api('POST', '/api/projects', body);
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
           close();
