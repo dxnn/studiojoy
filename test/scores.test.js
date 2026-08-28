@@ -175,3 +175,60 @@ test('the scoreboard answers 405 to methods it does not have', async (t) => {
     await res.text();
   }
 });
+
+test('a switched-off scoreboard is 404 both ways, and keeps its rows', async (t) => {
+  const { app, games } = await board(t);
+  await post(games, { name: 'Pat', score: 100 });
+
+  const off = await app.client.json('PATCH', '/api/projects/tank', {
+    body: { scores_on: false },
+  });
+  assert.equal(off.status, 200);
+  assert.equal(off.body.scores_on, false);
+
+  assert.equal((await top(games)).status, 404, 'reading is as gone as writing');
+  assert.equal((await post(games, { name: 'Sam', score: 1 })).status, 404);
+
+  // The rows were kept: the studio still lists them, and the public board
+  // comes back whole when the switch goes back on.
+  const kept = await app.client.json('GET', '/api/projects/tank/scores');
+  assert.equal(kept.status, 200);
+  assert.equal(kept.body.scores_on, false);
+  assert.equal(kept.body.scores.length, 1);
+
+  await app.client.json('PATCH', '/api/projects/tank', { body: { scores_on: true } });
+  const back = await top(games);
+  assert.equal(back.status, 200);
+  assert.deepEqual(back.body.scores, [{ name: 'Pat', score: 100 }]);
+});
+
+test('the studio lists, deletes, and clears scores', async (t) => {
+  const { app, games } = await board(t);
+  await post(games, { name: 'Pat', score: 100 });
+  await post(games, { name: 'Sam', score: 250 });
+  await post(games, { name: 'Kim', score: 50 });
+
+  const list = await app.client.json('GET', '/api/projects/tank/scores');
+  assert.equal(list.status, 200);
+  assert.deepEqual(list.body.scores.map((s) => s.name), ['Sam', 'Pat', 'Kim'], 'best first');
+  assert.ok(list.body.scores.every((s) => s.id && s.created_at), 'ids and times, for the admin');
+
+  // Delete the middle one; rank order closes over it.
+  const pat = list.body.scores[1];
+  const gone = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
+  assert.equal(gone.status, 204);
+  await gone.text();
+  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Sam', 'Kim']);
+
+  const again = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
+  assert.equal(again.status, 404);
+  await again.text();
+  const bad = await app.client.request('DELETE', '/api/projects/tank/scores/potato');
+  assert.equal(bad.status, 400);
+  await bad.text();
+
+  const cleared = await app.client.request('DELETE', '/api/projects/tank/scores');
+  assert.equal(cleared.status, 204);
+  await cleared.text();
+  assert.deepEqual((await top(games)).body.scores, []);
+});

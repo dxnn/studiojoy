@@ -1,4 +1,4 @@
-import { json, HttpError } from '../http/respond.js';
+import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { checkSlug, slugify, requireSlug } from '../files/paths.js';
@@ -9,7 +9,8 @@ import { scaffoldLibraries } from '../files/library.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
-  requireProject, projectDirFor, authorFor, requireString, messagePublic,
+  requireProject, projectDirFor, authorFor, requireString, optionalBool,
+  messagePublic,
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
 
@@ -29,6 +30,7 @@ function projectPublic(db, row) {
     kind: row.kind,
     archived: row.archived === 1,
     published: row.published === 1,
+    scores_on: row.scores_on === 1,
     created_by: row.created_by,
     created_at: row.created_at,
     last_message_at: last?.created_at ?? row.created_at,
@@ -148,14 +150,72 @@ export function projectRoutes(r) {
 
   r.patch('/api/projects/:slug', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    const project = requireProject(ctx);
     const body = await readJson(ctx.req);
-    const name = requireString(body.name, 'name', { max: MAX_PROJECT_NAME });
-    ctx.db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(name, project.id);
+    const name = body.name === undefined
+      ? undefined
+      : requireString(body.name, 'name', { max: MAX_PROJECT_NAME });
+    const scoresOn = optionalBool(body.scores_on, 'scores_on');
+    if (name === undefined && scoresOn === undefined) {
+      throw new HttpError(400, 'nothing to change');
+    }
+    // Renaming is an edit and archived stops edits; the scoreboard switch is
+    // moderation, and an archived game is still publicly playable and still
+    // taking scores, so that one has to work regardless.
+    if (name !== undefined && project.archived) {
+      throw new HttpError(409, 'project is archived');
+    }
+    if (name !== undefined) {
+      ctx.db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(name, project.id);
+    }
+    if (scoresOn !== undefined) {
+      ctx.db.prepare('UPDATE projects SET scores_on = ? WHERE id = ?')
+        .run(scoresOn ? 1 : 0, project.id);
+    }
+    const updated = {
+      slug: project.slug,
+      name: name ?? project.name,
+      scores_on: scoresOn ?? project.scores_on === 1,
+    };
     ctx.broker.broadcast('project.updated', {
-      slug: project.slug, name, archived: project.archived === 1,
+      ...updated, archived: project.archived === 1,
     });
-    json(ctx.res, 200, { slug: project.slug, name });
+    json(ctx.res, 200, updated);
+  });
+
+  // The scoreboard's admin side, on this origin because moderation needs a
+  // person: the games listener never reads a cookie, so nothing over there
+  // can be allowed to delete. All of it works on an archived game — still
+  // publicly playable, so still in need of moderating.
+  r.get('/api/projects/:slug/scores', (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx);
+    const scores = ctx.db
+      .prepare(
+        `SELECT id, name, score, created_at FROM scores
+          WHERE project_id = ? ORDER BY score DESC, id`,
+      )
+      .all(project.id);
+    json(ctx.res, 200, { scores, scores_on: project.scores_on === 1 });
+  });
+
+  r.delete('/api/projects/:slug/scores/:id', (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx);
+    const id = Number(ctx.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a score id');
+    const { changes } = ctx.db
+      .prepare('DELETE FROM scores WHERE id = ? AND project_id = ?')
+      .run(id, project.id);
+    if (Number(changes) === 0) throw new HttpError(404, 'no such score');
+    noContent(ctx.res);
+  });
+
+  r.delete('/api/projects/:slug/scores', (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx);
+    ctx.db.prepare('DELETE FROM scores WHERE project_id = ?').run(project.id);
+    noContent(ctx.res);
   });
 
   // A fork copies the files and their history, not the conversation: the new

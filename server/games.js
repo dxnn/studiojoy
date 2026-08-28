@@ -51,10 +51,19 @@ export function createGamesApp({ db, gamesDir, scoreRate }) {
     const slug = checkSlug(raw);
     if (!slug.ok) throw new HttpError(404, 'not found');
     const project = db
-      .prepare('SELECT id, slug, kind FROM projects WHERE slug = ?')
+      .prepare('SELECT id, slug, kind, scores_on FROM projects WHERE slug = ?')
       .get(slug.slug);
     if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
     return project;
+  };
+
+  // A switched-off scoreboard is not public in either direction: reading it
+  // is as gone as writing it, and the same plain 404 as everything else here.
+  // The rows are kept — the switch lives in the studio, not in this listener.
+  const scoreboardFor = (raw) => {
+    const game = gameForSlug(raw);
+    if (game.scores_on !== 1) throw new HttpError(404, 'not found');
+    return game;
   };
 
   // The catalog. Only published games appear, so an unfinished one stays
@@ -141,13 +150,13 @@ export function createGamesApp({ db, gamesDir, scoreRate }) {
   // game: an underscore is not legal in a slug. Archived games stay
   // playable, so they keep taking scores too.
   r.get('/_scores/:slug', (ctx) => {
-    const game = gameForSlug(ctx.params.slug);
+    const game = scoreboardFor(ctx.params.slug);
     ctx.res.setHeader('Cache-Control', 'no-store');
     json(ctx.res, 200, { scores: topScores(db, game.id, ctx.query.get('limit')) });
   });
 
   r.post('/_scores/:slug', async (ctx) => {
-    const game = gameForSlug(ctx.params.slug);
+    const game = scoreboardFor(ctx.params.slug);
     // The limit is checked before the body is read, so a flood costs headers.
     limitScores(ctx.req.socket?.remoteAddress ?? 'unknown');
     const body = await readJson(ctx.req, MAX_SCORE_BODY_BYTES);

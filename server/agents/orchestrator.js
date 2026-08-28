@@ -136,6 +136,10 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       'them there rather than in the code. Do not listen for keys yourself alongside it, and make sure',
       `index.html loads config/controls.js and ${LIBRARY_DIR}/input.js. If they are missing and the game wants`,
       'a controller or a touchscreen, say so: the button is "+ Controls", above the file list.',
+    );
+    // Only while the switch is on: a helper told about routes that answer 404
+    // would happily build a broken board (spec.md §6).
+    if (project.scores_on !== 0) lines.push(
       '',
       'Every game also has a scoreboard, kept by the studio rather than in the files. From the game\'s own',
       'page: POST /_scores/<slug> with JSON {"name": "Pat", "score": 120} saves one entry and answers',
@@ -144,6 +148,8 @@ function studioPreamble({ project, canEdit, maxAssistantTurns, maxToolCalls }) {
       '100. The slug is the first piece of the page\'s address: location.pathname.split("/")[1]. Scores are',
       'whole numbers and bigger is better, so post a time as its negative and flip it back to show it. The',
       'board keeps the best 100. Show names with textContent, never innerHTML: anyone playing can post one.',
+    );
+    lines.push(
       '',
       'Keep the project documents at the root, next to the code. They are notes for the people and agents',
       'working on the game, and never part of the game itself:',
@@ -606,7 +612,7 @@ export function createOrchestrator({
         `SELECT pa.id, pa.project_id, pa.agent_id, pa.response_pending,
                 a.name AS agent_name, a.description, a.model, a.reasoning,
                 a.file_tools, a.deleted,
-                p.slug, p.name AS project_name, p.kind, p.archived
+                p.slug, p.name AS project_name, p.kind, p.archived, p.scores_on
            FROM project_agents pa
            JOIN agents a ON a.id = pa.agent_id
            JOIN projects p ON p.id = pa.project_id
@@ -617,6 +623,7 @@ export function createOrchestrator({
 
     const project = {
       id: row.project_id, slug: row.slug, name: row.project_name, kind: row.kind,
+      scores_on: row.scores_on,
     };
     const clearPending = () => db
       .prepare('UPDATE project_agents SET response_pending = 0 WHERE id = ?')

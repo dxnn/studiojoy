@@ -94,6 +94,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
 | `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
+| `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |
 | `created_by` | INTEGER NOT NULL → users | display only |
 | `created_at` | TEXT NOT NULL | |
 
@@ -400,7 +401,10 @@ There is no signup route. Accounts come from `npm run adduser`.
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview |
 | POST | `/api/projects` | `{name, slug?, kind?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game` |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
-| PATCH | `/api/projects/:slug` | `{name}` | rename (display name only) |
+| PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
+| GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
+| DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
+| DELETE | `/api/projects/:slug/scores` | — | delete them all |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
@@ -779,6 +783,13 @@ for a dialog's controls the same way as for the composer.
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
 | POST | `/_scores/:slug` | add one entry `{name, score}`; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+
+A game whose `scores_on` switch is off answers the same plain 404 on both
+`/_scores` routes: a moderated board is not public in either direction. The
+rows are kept — the switch, the admin's list, and per-row deletion all live
+on the studio origin under `/api`, because moderation needs a person and
+this listener never reads a cookie. The studio shows it as the rail's
+Scoreboard tab.
 
 No authentication, no cookies read, no `/api` surface, no directory index.
 Any other method gets 405. Archived projects stay playable — and keep taking

@@ -493,6 +493,26 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   );
 });
 
+// A capability an agent is told about may as well exist: a helper told about
+// routes that answer 404 would happily build a broken board.
+test('a switched-off scoreboard leaves the preamble', async (t) => {
+  const llm = createFakeLlm([says('Quiet board.')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('PATCH', '/api/projects/tank', { body: { scores_on: false } });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'no scores please');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.ok(!system.includes('/_scores/'), 'the scoreboard is not named');
+  assert.ok(!system.includes('scoreboard'), 'not even in passing');
+  // The paragraphs around it are intact.
+  assert.match(system, /"\+ Controls"/);
+  assert.match(system, /BRIEF\.md — the file map/);
+});
+
 // The brief is the one project file that goes into the system prompt whole, so
 // it is the one an agent can grow until it crowds out everything else.
 test('an oversized brief is cut, and says where', async (t) => {

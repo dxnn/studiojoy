@@ -156,6 +156,10 @@ export function openDb(dbPath) {
   // Off by default: a game becomes publicly listed only when someone says so.
   // It was always publicly *playable* — this is about the index, not access.
   addColumnIfMissing(db, 'projects', 'published', 'INTEGER NOT NULL DEFAULT 0');
+  // On by default: the per-game switch for the public scoreboard. Off, both
+  // /_scores routes answer 404 and helpers are not told the board exists;
+  // the rows are kept, so turning it back on brings the board back (§6).
+  addColumnIfMissing(db, 'projects', 'scores_on', 'INTEGER NOT NULL DEFAULT 1');
   // What one agent turn cost, charged the same way the daily budget is. Null
   // on a human or system row, which cost nothing.
   addColumnIfMissing(db, 'messages', 'tokens', 'INTEGER');
