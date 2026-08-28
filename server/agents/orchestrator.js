@@ -68,6 +68,21 @@ const CUT_NOTICE = '[studio] Your last reply was cut off before a tool call'
   + ' Write it again, smaller: one file per call, and split a long file into'
   + ' several shorter ones.';
 
+// DeepSeek re-attaches everything it has said in the current tool-call chain
+// — reasoning included — to every continuation, and bills it as cached input,
+// accumulating until a user-role message closes the chain (spec.md §14).
+// This note is that message: pure housekeeping, appended mid-loop when
+// carrying the pile costs more than shedding it. Loop messages are never
+// persisted, so it exists only inside the fire that wrote it.
+const SHED_NOTICE = '[studio] Housekeeping note; nothing is needed from you'
+  + ' here — carry on with the task above.';
+// Shed when carrying the pile for a conservative few more rounds costs more
+// than the shed does: a shed re-pays the visible loop content since the last
+// one at full price (the branch point moves), while carrying charges a tenth
+// of the pile on every request. The floor keeps short fires from shedding.
+const SHED_HORIZON_ROUNDS = 4;
+const SHED_FLOOR_TOKENS = 8000;
+
 const BRIEF_FILE = 'BRIEF.md';
 const MAX_COMMIT_SUBJECT = 72;
 
@@ -696,6 +711,11 @@ export function createOrchestrator({
       // One entry per request the fire made: what the cache remembered, what
       // was new, what came out. The other half of the receipt.
       const requests = [];
+      // The reasoning DeepSeek is carrying for this chain, and where the
+      // appended bytes stood at the last shed — the two sides of the rule.
+      let pile = 0;
+      let shedBase = 0;
+      let sheds = 0;
       // What the last request actually carried, captured at the moment of
       // sending: the loop appends tool results it may never send.
       let sentPrompt = '';
@@ -742,6 +762,7 @@ export function createOrchestrator({
                     ?? event.usage.prompt_tokens ?? 0,
                   out: event.usage.completion_tokens ?? 0,
                 });
+                pile += event.usage.completion_tokens_details?.reasoning_tokens ?? 0;
               }
             }
           }
@@ -803,6 +824,17 @@ export function createOrchestrator({
         if (grown > LOOP_GROWTH_BYTES) hitLimit = 'context';
         if (turn === maxAssistantTurns - 1 && !hitLimit) hitLimit = 'turn';
         if (hitLimit) break;
+
+        // Another round is coming: shed the reasoning pile if carrying it is
+        // now dearer than re-paying the visible tail once (spec.md §8, §14).
+        const shedCost = (grown - shedBase) / 4;
+        if (pile >= SHED_FLOOR_TOKENS
+          && (pile / 10) * SHED_HORIZON_ROUNDS > shedCost) {
+          append({ role: 'user', content: SHED_NOTICE });
+          pile = 0;
+          shedBase = grown;
+          sheds += 1;
+        }
       }
 
       consumeBudget(db, charged);
@@ -861,7 +893,9 @@ export function createOrchestrator({
              VALUES (?, ?, ?, ?)`,
           ).run(id, project.id, JSON.stringify({
             ...context.breakdown,
-            loop: { turns: turnsUsed, tool_calls: toolCallCount, appended_bytes: grown },
+            loop: {
+              turns: turnsUsed, tool_calls: toolCallCount, appended_bytes: grown, sheds,
+            },
             requests,
           }), sentPrompt);
           return id;

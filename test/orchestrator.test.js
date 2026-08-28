@@ -493,6 +493,42 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   );
 });
 
+// DeepSeek re-bills the chain's accumulated reasoning on every continuation
+// (spec.md §14); a user-role note sheds it once carrying costs more than the
+// note does.
+test('a heavy chain sheds its reasoning pile with a studio note', async (t) => {
+  // 5k of reasoning per round: past the 8k floor after round two, and far
+  // past 2.5× the few hundred visible bytes the loop has appended.
+  const round = (p) => calls(
+    [{ name: 'write_file', input: { path: p, content: 'x' } }],
+    { reasoningTokens: 5000 },
+  );
+  const turns = [round('a.js'), round('b.js'), round('c.js'), says('Done.')];
+  // Counted at call time: the orchestrator mutates one messages array, so
+  // what llm.calls holds afterwards is the final state, not what was sent.
+  const notes = [];
+  const llm = createFakeLlm((opts, turn) => {
+    notes.push(opts.messages
+      .filter((m) => m.role === 'user' && /\[studio\] Housekeeping/.test(m.content)).length);
+    return turns[turn];
+  });
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build it');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+
+  // The note reached the model as a user turn — after round two and not
+  // before — and never reached anything persistent.
+  assert.deepEqual(notes, [0, 0, 1, 1], 'shed once, between rounds two and three');
+  assert.ok(!reply.data.body.includes('Housekeeping'));
+  const receipt = await app.client.json('GET', `/api/messages/${reply.data.id}/receipt`);
+  assert.equal(receipt.body.breakdown.loop.sheds, 1);
+});
+
 // A capability an agent is told about may as well exist: a helper told about
 // routes that answer 404 would happily build a broken board.
 test('a switched-off scoreboard leaves the preamble', async (t) => {

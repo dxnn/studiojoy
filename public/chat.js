@@ -138,10 +138,17 @@ function renderReceipt(msg, receipt) {
   }
 
   const requests = b.requests ?? [];
-  const cost = requests.map((u, i) => row(
+  const cost = [];
+  // Why the "remembered" column can drop between requests: the loop told the
+  // model to let go of its earlier thinking to keep the bill down.
+  if (loop.sheds) {
+    cost.push(row('earlier thinking set aside',
+      `${loop.sheds} time${loop.sheds === 1 ? '' : 's'}, to keep the cost down`));
+  }
+  cost.push(...requests.map((u, i) => row(
     requests.length === 1 ? 'one request' : `request ${i + 1}`,
     `${u.miss.toLocaleString()} new + ${u.hit.toLocaleString()} remembered in, ${u.out.toLocaleString()} out`,
-  ));
+  )));
   const charged = requests
     .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 10) + u.out, 0);
   if (requests.length) {

@@ -2,26 +2,28 @@
 // pinned down by test/deepseek.test.js and bin/smoke.js; this exists so
 // orchestrator tests can drive exact turn sequences with no network.
 
-export const usage = (completion = 10, prompt = 100) => ({
+export const usage = (completion = 10, prompt = 100, reasoning = 0) => ({
   prompt_tokens: prompt,
   prompt_cache_hit_tokens: 0,
   prompt_cache_miss_tokens: prompt,
   completion_tokens: completion,
+  ...(reasoning ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {}),
 });
 
-// One turn that streams some prose and stops.
-export function says(text, { reasoning = null, tokens = 10 } = {}) {
+// One turn that streams some prose and stops. `reasoningTokens` is what the
+// usage reports, for the shed rule; `reasoning` is streamed trace text.
+export function says(text, { reasoning = null, tokens = 10, reasoningTokens = 0 } = {}) {
   const events = [];
   if (reasoning) events.push({ type: 'reasoning', text: reasoning });
   if (text) events.push({ type: 'delta', text });
   events.push({
-    type: 'end', text, finish_reason: 'stop', usage: usage(tokens),
+    type: 'end', text, finish_reason: 'stop', usage: usage(tokens, 100, reasoningTokens),
   });
   return events;
 }
 
 // One turn that calls tools, optionally with a preamble.
-export function calls(toolCalls, { text = '', tokens = 20 } = {}) {
+export function calls(toolCalls, { text = '', tokens = 20, reasoningTokens = 0 } = {}) {
   const events = [];
   if (text) events.push({ type: 'delta', text });
   toolCalls.forEach((call, i) => {
@@ -33,7 +35,7 @@ export function calls(toolCalls, { text = '', tokens = 20 } = {}) {
     });
   });
   events.push({
-    type: 'end', text, finish_reason: 'tool_calls', usage: usage(tokens),
+    type: 'end', text, finish_reason: 'tool_calls', usage: usage(tokens, 100, reasoningTokens),
   });
   return events;
 }

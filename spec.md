@@ -1259,6 +1259,19 @@ when a row lands, the end event carries its id and no error flag, because
 the client treats an error after `message.new` as a fresh live entry that
 nothing would ever clear.
 
+A long chain **sheds** its reasoning pile. DeepSeek re-attaches everything it
+has said in the current tool-call chain — reasoning included — to every
+continuation, billed as cached input (§14), so a marathon fire pays a tenth
+of an ever-growing pile on each request. When another round is coming and
+carrying the pile a few more rounds (`SHED_HORIZON_ROUNDS`) would cost more
+than re-paying the visible tail once, the loop appends a one-line `[studio]`
+housekeeping note as a user turn — the same shape as the cut notice — which
+closes the chain and drops the pile from billing. Both sides of the rule are
+runtime-visible: the pile from `reasoning_tokens` per request, the shed's
+price from the bytes appended since the last one. A floor
+(`SHED_FLOOR_TOKENS`, 8k) keeps short fires from ever shedding. The note is
+never persisted, and the receipt counts the sheds.
+
 Every persisted reply also leaves a **receipt** (`message_receipts`, §3):
 the context half is captured in `buildContext` — bytes per system-prompt part,
 files sent whole and left out, transcript size and trim — and the fire adds
