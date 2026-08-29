@@ -9,3 +9,6 @@ gamestudio.db-wal
 gamestudio.db-shm
 node_modules/
 .DS_Store
+# The deployed env file holds the API key and lives on the server, outside the
+# work tree. deploy/studio.env.example is the committed template.
+deploy/*.env

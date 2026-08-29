@@ -39,6 +39,10 @@ NODE_OPTIONS=--use-env-proxy DEEPSEEK_API_KEY=$(cat tmp/deepseek.key) \
 
 No build step, no linter, no dependencies. Node ≥ 24, ESM.
 
+`deploy/` is the runbook for a real server: pm2 definition, env template,
+push-to-deploy hook. One process serves both hostnames, so it is one repo and
+one pm2 app — the thing every generic guide gets wrong here.
+
 ## Invariants worth keeping
 
 - `server/files/paths.js` is the security boundary. Everything touching a file

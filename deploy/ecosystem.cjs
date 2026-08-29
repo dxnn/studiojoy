@@ -1,0 +1,48 @@
+// pm2 process definition. `.cjs` because pm2 requires this file directly and
+// it sits outside the package's `"type": "module"`.
+//
+// Everything here is scoped to this one process: pm2 hands `env` to the studio
+// and to nothing else on the box. No shell profile is touched, no other app
+// under pm2 sees these values, and nothing is exported system-wide — which is
+// the point of putting them here rather than in ~/.bashrc or /etc/environment.
+//
+// The values live outside the repository, in an env file the deploy never
+// overwrites, so a push can never carry a key and a checkout can never lose
+// one.
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+
+const ENV_FILE = process.env.STUDIO_ENV ?? path.join(os.homedir(), 'apps/studio.env');
+
+// KEY=value per line, `#` starts a comment. No quoting and no interpolation:
+// one program reads this file and one person writes it, so paths are absolute
+// and values are literal. See studio.env.example.
+function readEnv(file) {
+  const out = {};
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+module.exports = {
+  apps: [{
+    name: 'studio',
+    // Derived from this file's own location, so the deploy directory can move
+    // without editing anything.
+    cwd: path.join(__dirname, '..'),
+    // One process, two listeners, deliberately separate origins (spec.md §7).
+    // There is no second app to define: the games origin is this one.
+    script: 'server/index.js',
+    // `node:sqlite` is experimental in Node 25; same flag as `npm start`.
+    node_args: '--disable-warning=ExperimentalWarning',
+    env: readEnv(ENV_FILE),
+    // SIGINT/SIGTERM close both listeners and the database (server/index.js),
+    // so a reload is graceful without pm2 doing anything special.
+    kill_timeout: 5000,
+  }],
+};

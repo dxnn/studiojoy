@@ -66,7 +66,7 @@ point `GAMES_URL` at the games one.
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | one directory and one git repo per project |
 | `DAILY_TOKEN_BUDGET` | `5000000` | studio-wide, resets at UTC midnight |
-| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy |
+| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy, or the login and scoreboard limiters bucket every visitor together |
 
 ## Using it
 
@@ -84,3 +84,9 @@ context. It is the place for standing instructions about the game.
 Every change is a version. The Versions tab shows what changed and can bring
 any earlier version of a file back, as a new version rather than by rewriting
 history.
+
+## Deploying
+
+[deploy/](./deploy/) — one process behind two hostnames, a pm2 definition, and
+a push-to-deploy hook. Both listeners are the same app, so it is one repo and
+one process, not two.

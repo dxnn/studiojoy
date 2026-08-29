@@ -1,0 +1,26 @@
+#!/bin/bash
+# Copy to <bare repo>/hooks/post-receive and chmod +x.
+#
+# A hook shell sources no profile, so `pm2` and `node` are usually not on PATH
+# even though they work when you log in. That is the most common way a hook
+# that looks fine does nothing at all: run `which pm2` and `which node` and put
+# those directories here. (nvm installs them under ~/.nvm/versions/node/*/bin.)
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+
+set -e
+
+APP="$HOME/apps/studio"
+REPO="$HOME/apps/studio.git"
+
+# checkout -f only overwrites tracked files, so the env file and anything under
+# studio-data/ are untouched — but neither lives in here anyway, deliberately.
+git --work-tree="$APP" --git-dir="$REPO" checkout -f main
+
+# No `npm ci`: this project has zero dependencies and no package-lock.json, so
+# `npm ci` exits 1 and takes the rest of the hook with it.
+#
+# One pm2 app, not two. The games origin is the same process (spec.md §7).
+# --update-env makes pm2 re-read the ecosystem file, which is what picks up an
+# edited ~/apps/studio.env.
+pm2 startOrReload "$APP/deploy/ecosystem.cjs" --update-env
+pm2 save
