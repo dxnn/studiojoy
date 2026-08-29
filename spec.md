@@ -894,6 +894,14 @@ outside login, in-memory like the lockouts (§11). What it writes is one
 bounded table, never a working tree — so a score commits nothing, restarts no
 preview, and never enters an agent's context.
 
+"Per-IP" is only true if the address is. Deployed, every player arrives from
+the reverse proxy, so this listener reads `X-Forwarded-For` under the same
+`TRUST_PROXY` flag as the login limiter (§13) and shares its rule: unproxied
+the header is ignored, because a client that can name its own address can
+name a fresh one per request and never be limited. Unset behind a proxy, the
+limit still holds — as one bucket for every player of every game, which is
+ten posts a minute for the whole studio.
+
 ⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
 cheap and read-only, but it is a bigger amplification than a file read, and it
 sits alongside the "no rate limiting outside login" tradeoff in §11.
@@ -1524,7 +1532,7 @@ Tests enforce each of these.
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | |
 | `DAILY_TOKEN_BUDGET` | `5000000` | |
-| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy so the per-IP login limiter sees real client addresses |
+| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy so the per-IP login and scoreboard limiters see real client addresses instead of the proxy's |
 
 `node:sqlite` is experimental in Node 25, so the start script passes
 `--disable-warning=ExperimentalWarning`.

@@ -11,6 +11,10 @@ import { json } from './http/respond.js';
 import {
   topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
 } from './scores.js';
+// The one thing this listener borrows from the studio's routes: a pure
+// function over headers. It reads no session and nothing here calls anything
+// else in that module.
+import { clientIp } from './routes/helpers.js';
 
 const ENTRY_FILE = 'index.html';
 
@@ -36,7 +40,7 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-export function createGamesApp({ db, gamesDir, scoreRate }) {
+export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) {
   if (!db) throw new Error('createGamesApp requires a db');
   const root = path.resolve(gamesDir);
 
@@ -158,7 +162,13 @@ export function createGamesApp({ db, gamesDir, scoreRate }) {
   r.post('/_scores/:slug', async (ctx) => {
     const game = scoreboardFor(ctx.params.slug);
     // The limit is checked before the body is read, so a flood costs headers.
-    limitScores(ctx.req.socket?.remoteAddress ?? 'unknown');
+    // ⚠️ Behind a reverse proxy every player arrives from the proxy's own
+    // address, so without `TRUST_PROXY=1` this is one bucket for the whole
+    // studio: ten posts a minute shared by every player of every game. The
+    // flag is what makes the forwarded address readable, and it stays a flag
+    // because unproxied anyone could send a fresh one per post and never be
+    // limited at all.
+    limitScores(clientIp(ctx));
     const body = await readJson(ctx.req, MAX_SCORE_BODY_BYTES);
     const rank = submitScore(db, game.id, body);
     ctx.res.setHeader('Cache-Control', 'no-store');
@@ -189,6 +199,6 @@ export function createGamesApp({ db, gamesDir, scoreRate }) {
     // Deliberately no X-Frame-Options: the studio embeds a game in its
     // preview pane, which DENY would break. Framing a game is harmless —
     // there is no session here to clickjack.
-    return r.handle(req, res, {});
+    return r.handle(req, res, { trustProxy });
   };
 }

@@ -57,7 +57,11 @@ const studio = http.createServer(createApp({
   secureCookies: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === '1',
 }));
-const games = http.createServer(createGamesApp({ db, gamesDir }));
+const games = http.createServer(createGamesApp({
+  db,
+  gamesDir,
+  trustProxy: process.env.TRUST_PROXY === '1',
+}));
 
 // Without these, a port clash surfaces as an unhandled 'error' event and a
 // stack trace, which says nothing useful about what to do next.

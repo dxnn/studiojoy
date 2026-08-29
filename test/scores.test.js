@@ -151,6 +151,39 @@ test('posting is rate limited per address; reading is not', async (t) => {
   assert.equal(read.body.scores[0].score, SCORE_POSTS_PER_MINUTE - 1, 'the blocked post was not stored');
 });
 
+// Behind a proxy every player shares the proxy's address, so without this the
+// whole studio gets ten posts a minute between them.
+test('the forwarded address is the bucket, but only when trusted', async (t) => {
+  const { games } = await board(t, { trustProxy: true });
+  const from = (ip, score) =>
+    games.client.json('POST', '/_scores/tank', {
+      body: { name: 'Pat', score },
+      headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` },
+    });
+
+  for (let i = 0; i < SCORE_POSTS_PER_MINUTE; i++) {
+    assert.equal((await from('203.0.113.7', i)).status, 201, `post ${i}`);
+  }
+  assert.equal((await from('203.0.113.7', 999)).status, 429, 'that player is done');
+  assert.equal((await from('203.0.113.8', 1)).status, 201, 'the next one is not');
+});
+
+test('the forwarded address is ignored when the proxy is not trusted', async (t) => {
+  const { games } = await board(t, {});
+  const from = (ip, score) =>
+    games.client.json('POST', '/_scores/tank', {
+      body: { name: 'Pat', score },
+      headers: { 'x-forwarded-for': ip },
+    });
+
+  // A fresh address per post would sidestep the limit entirely if the header
+  // were read here, which is why reading it takes a flag.
+  for (let i = 0; i < SCORE_POSTS_PER_MINUTE; i++) {
+    assert.equal((await from(`203.0.113.${i}`, i)).status, 201, `post ${i}`);
+  }
+  assert.equal((await from('203.0.113.99', 999)).status, 429);
+});
+
 test('the scoreboard reads no cookie and issues none', async (t) => {
   const { app, games } = await board(t);
 
