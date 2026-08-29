@@ -86,6 +86,56 @@ cd ~/apps/studio
 DB_PATH=$HOME/apps/studio-data/db node bin/adduser.js you@example.com "Your Name"
 ```
 
+Skip this entirely if you are moving an existing studio: accounts travel in
+the database, password hashes included.
+
+## Moving an existing studio onto the server
+
+Two things move, and they have to agree: the database, and the game trees.
+A project row without its directory is a game whose files 404; a directory
+without its row is not public at all. Chats have no directory, so nothing on
+disk corresponds to them.
+
+⚠️ Copy the database with `bin/backup.js`, never by copying `gamestudio.db`.
+The studio runs in WAL mode, so recent writes live in `gamestudio.db-wal`
+until a checkpoint — the `.db` file on its own can be hours stale.
+`VACUUM INTO` folds the WAL in and reads a consistent snapshot even mid-write.
+
+Stop the old studio first. Not for safety — the snapshot is safe against a
+live database — but because it is the cut-over: anything written after the
+snapshot stays behind, and there is no merge path back.
+
+```sh
+# on the old machine, studio stopped
+node bin/backup.js tmp/migrate.db
+scp tmp/migrate.db user@host:/tmp/migrate.db
+rsync -av --exclude='.claude' games/ user@host:apps/studio-data/games/
+```
+
+`rsync` carries each game's `.git` with it, which is the history. Don't run
+it under `sudo`: git refuses to operate on a repository owned by another
+user, and the files need to belong to whoever pm2 runs as.
+
+```sh
+# on the server
+pm2 stop studio
+
+# the empty database the first boot created — moved aside, not deleted,
+# and with it the WAL and shared-memory files that belong to it
+cd ~/apps/studio-data
+for f in db db-wal db-shm; do [ -e "$f" ] && mv "$f" "$f.empty"; done
+
+mv /tmp/migrate.db ~/apps/studio-data/db
+pm2 start studio
+pm2 logs studio --lines 20
+```
+
+The "no accounts yet" line not appearing is the confirmation: the database
+that came up is the one that travelled.
+
+From then on the server is authoritative. Running the old studio again edits
+a tree the server never sees, and the two have no way to reconcile.
+
 ## Backups
 
 The game trees recover themselves from git. The chats and accounts only live
