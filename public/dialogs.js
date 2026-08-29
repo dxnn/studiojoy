@@ -11,8 +11,8 @@ import {
 import { ASSET_DIR, assetPath, writeFiles, uploadPlan, uploadFiles } from './upload.js';
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
-  syncAttached, attachAgent, openFile, saveOpenFile, createFile, renameFile,
-  duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
+  syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
+  renameFile, duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
   deleteScore, clearScores,
 } from './main.js';
 
@@ -489,6 +489,16 @@ export function dialogFor(d) {
             render();
             if (d.then) await openFile(d.then);
           },
+        }),
+        // The way out that keeps the work, in the place the question is asked
+        // — the same words and the same green as the button in the editor bar,
+        // because it is the same button. Nothing to offer in an archived game,
+        // where saving is off. This one closes the dialog first: the save may
+        // put its own up — a conflict does — and a failure has something to
+        // say that this dialog would be sitting in front of.
+        S.project.archived ? null : h('button', {
+          class: 'filled ok', text: 'Save and close',
+          onclick: async () => { close(); await saveAndClose(d.then); },
         })));
   }
 

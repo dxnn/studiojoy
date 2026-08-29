@@ -952,6 +952,17 @@ function closeOpenFile(then = null) {
 // from.
 export const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(path));
 
+// The third answer to that question: keep the work rather than throw it away.
+// Whichever pane is open holds the unsaved thing — the text or the picture —
+// so this picks the save that belongs to it, and the file closes only once the
+// save has really landed. A conflict or a failure leaves the file open with
+// the work still in it, exactly like the button in the editor bar.
+export async function saveAndClose(then = null) {
+  if (!S.open) return;
+  const saved = S.draw ? await saveDrawing() : await saveOpenFile();
+  if (saved) await closeOpenFile(then);
+}
+
 // True when the file is saved, false when it is not — a conflict or a failure
 // — so "Save and close" knows whether closing would lose anything.
 export async function saveOpenFile({ force = false } = {}) {
@@ -1391,7 +1402,9 @@ window.addEventListener('keydown', (event) => {
 });
 
 // Saves whichever of the two has changed — the picture, the colours, or both —
-// so one button covers the work in the pane.
+// so one button covers the work in the pane. True when everything landed and
+// false when any of it did not, the same answer as saveOpenFile, so "Save and
+// close" knows whether closing would lose anything.
 async function saveDrawing() {
   const { path } = S.open;
   const drawing = S.draw;
@@ -1409,11 +1422,11 @@ async function saveDrawing() {
     // PNG, so this says what happened and touches nothing.
     if (res.status === 409) {
       say(`Someone changed ${path} while you were drawing. Close it and open it again to see theirs.`, true);
-      return;
+      return false;
     }
     if (!res.ok) {
       say(problem(res, body?.error ?? 'Could not save that picture.'), true);
-      return;
+      return false;
     }
     // This write is a commit, and a commit is a files.changed on the stream like
     // any other, so the pane may already have been rebuilt underneath by the
@@ -1428,10 +1441,11 @@ async function saveDrawing() {
   const colours = await flushPalette();
   S.previewNonce += 1;
   await refreshFiles();
-  if (!colours) return;
+  if (!colours) return false;
   if (drew && recoloured) say(`Saved ${path} and the colours.`);
   else if (recoloured) say(`Saved the colours in ${LOOK_FILE}.`);
   else say(`Saved ${path}.`);
+  return true;
 }
 
 // A rename is a move, whether or not the folder changes with it: one commit,
