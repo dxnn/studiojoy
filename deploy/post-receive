@@ -22,5 +22,5 @@ git --work-tree="$APP" --git-dir="$REPO" checkout -f main
 # One pm2 app, not two. The games origin is the same process (spec.md §7).
 # --update-env makes pm2 re-read the ecosystem file, which is what picks up an
 # edited ~/apps/studio.env.
-pm2 startOrReload "$APP/deploy/ecosystem.cjs" --update-env
+pm2 startOrReload "$APP/deploy/ecosystem.config.cjs" --update-env
 pm2 save

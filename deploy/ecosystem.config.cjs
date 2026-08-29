@@ -1,6 +1,12 @@
 // pm2 process definition. `.cjs` because pm2 requires this file directly and
 // it sits outside the package's `"type": "module"`.
 //
+// ⚠️ The `.config.cjs` ending is not decoration. pm2 decides whether a file is
+// a process definition or a script to run by matching its name against
+// `.json` / `.yaml` / `.config.js` / `.config.cjs` / `.config.mjs`. Named
+// anything else, this file is executed as a program: it defines no server, so
+// pm2 reports an app called `ecosystem` that is online and doing nothing.
+//
 // Everything here is scoped to this one process: pm2 hands `env` to the studio
 // and to nothing else on the box. No shell profile is touched, no other app
 // under pm2 sees these values, and nothing is exported system-wide — which is

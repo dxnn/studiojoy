@@ -70,7 +70,7 @@ cp ~/apps/studio/deploy/post-receive ~/apps/studio.git/hooks/post-receive
 chmod +x ~/apps/studio.git/hooks/post-receive
 $EDITOR ~/apps/studio.git/hooks/post-receive   # fix PATH, see the file
 
-pm2 start ~/apps/studio/deploy/ecosystem.cjs
+pm2 start ~/apps/studio/deploy/ecosystem.config.cjs
 pm2 save && pm2 startup        # survives a reboot
 ```
 
@@ -98,8 +98,11 @@ DB_PATH=$HOME/apps/studio-data/db node bin/backup.js ~/backups/studio-$(date +%F
 
 ## Environment
 
-`deploy/ecosystem.cjs` reads `~/apps/studio.env` and hands the values to this
-process alone. Nothing is exported to the shell, to other pm2 apps, or to
+`deploy/ecosystem.config.cjs` reads `~/apps/studio.env` and hands the values to
+this process alone. ⚠️ The `.config.cjs` ending is load-bearing: pm2 decides
+whether a file is a process definition or a script to execute by matching its
+name, and anything else — `ecosystem.cjs` included — is run as a script and
+comes up under the wrong name doing nothing. Nothing is exported to the shell, to other pm2 apps, or to
 anything else sharing the box.
 
 `deploy/studio.env.example` documents every variable; spec.md §13 is the full
