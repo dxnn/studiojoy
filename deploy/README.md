@@ -175,5 +175,12 @@ table. The two that only matter once there is a proxy in front:
   Caddy sets `flush_interval -1` for `text/event-stream` on its own; if the
   studio reads as disconnected while the process is plainly up, exclude that
   content type from `encode`.
-- Open a game's preview, break it on purpose, and confirm the problems panel
-  fills. That exercises `GAMES_URL` end to end.
+- Open a game's preview, add a `console.error('reporter check')` to any source
+  file, and confirm the problems panel fills and the tab reads `Play ⚠`.
+  ⚠️ This is the only check that catches a **redirecting** `GAMES_URL`. Name a
+  hostname that 301s to another — `www.` when the certificate is on the apex,
+  say — and the preview still plays the game, but the frame now posts from the
+  origin it was redirected to while the studio compares against the one it was
+  configured with, so every report is dropped in silence (`public/main.js`).
+  A game that can never report a problem is a helper that can never be told
+  about one.
