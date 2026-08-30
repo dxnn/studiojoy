@@ -42,22 +42,37 @@ if [ ! -d games ]; then
   exit 1
 fi
 
-# The games on the server, which is the list that matters: one made there today
-# has no local copy yet.
-remote_games=$(ssh "$host" "ls -1 $base" 2>/dev/null || true)
+# `user@host` reaches a server; anything else is a directory of game repos on
+# this machine, which is what makes the whole loop testable without one — and
+# a local mirror possible if you ever want one.
+case $host in
+  *@*|*:*) far=1 ;;
+  # Made absolute: a remote's URL is resolved from inside the repo that holds
+  # it, so a relative path here would point somewhere under games/ instead.
+  *) far=0; base=$(cd "$host" 2>/dev/null && pwd) || { echo "no such directory: $host" >&2; exit 1; } ;;
+esac
+
+# The games over there, which is the list that matters: one made on the server
+# today has no local copy yet.
+if [ "$far" = 1 ]; then
+  remote_games=$(ssh "$host" "ls -1 $base" 2>/dev/null || true)
+else
+  remote_games=$(ls -1 "$base" 2>/dev/null || true)
+fi
 if [ -z "$remote_games" ]; then
-  echo "no games found at $host:$base — is GAMES_PATH right?" >&2
+  echo "no games found at $base — is GAMES_PATH right?" >&2
   exit 1
 fi
 
 for slug in $remote_games; do
   dir="games/$slug"
-  url="$host:$base/$slug"
+  if [ "$far" = 1 ]; then url="$host:$base/$slug"; else url="$base/$slug"; fi
 
   if [ ! -d "$dir/.git" ]; then
     if [ "$what" = "link" ]; then
       echo "$slug: cloning"
-      git clone -q "$url" "$dir"
+      # -o server so a cloned game and a linked one answer to the same name.
+      git clone -q -o server "$url" "$dir"
     else
       echo "$slug: no local copy — run link first"
     fi
@@ -76,7 +91,10 @@ for slug in $remote_games; do
     echo "$slug: not linked yet — run link first"
     continue
   fi
-  git -C "$dir" fetch -q server
+  if ! git -C "$dir" fetch -q server 2>/dev/null; then
+    echo "$slug: ! could not reach the server copy"
+    continue
+  fi
 
   ahead=$(git -C "$dir" rev-list --count server/main..HEAD)
   behind=$(git -C "$dir" rev-list --count HEAD..server/main)
@@ -103,9 +121,13 @@ for slug in $remote_games; do
         echo "$slug: nothing to send"
       elif [ "$behind" != "0" ]; then
         echo "$slug: ! $behind behind — pull first, and rebase rather than force"
-      else
-        git -C "$dir" push -q server main
+      elif git -C "$dir" push -q server main 2>&1; then
         echo "$slug: pushed $ahead"
+      else
+        # Reported rather than fatal: one game the server will not take must
+        # not stop the sweep over the rest. The usual cause is the missing
+        # receive.denyCurrentBranch=updateInstead at the top of this file.
+        echo "$slug: ! push refused — see the note about denyCurrentBranch"
       fi
       ;;
     *)
