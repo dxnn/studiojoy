@@ -25,6 +25,8 @@ deliberately deferred.
   than a move (fun-slide went this way live: `2a6821d` in its repo)
 - revisit the deferred control schemes — point-and-click, and normal, the
   DOM-buttons one (ideas/control-schemes.md, "Deferred, and why")
+- build the studio header library — phone-fit title screen, HUD chips, and a
+  controls hint derived from SCHEME and the bindings (ideas/game-header.md)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
   after it (spec.md §9)
