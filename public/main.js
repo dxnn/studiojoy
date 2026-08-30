@@ -1783,6 +1783,13 @@ function renderDrawing() {
     return 'Saved';
   };
   const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveDrawing() });
+  // The same pair as the text editor, so every pane ends the same way. Closes
+  // only once the save really landed: a picture somebody else changed
+  // underneath stays open with the drawing still on it.
+  const saveClose = h('button', {
+    class: 'filled ok', text: 'Save and close',
+    onclick: async () => { if (await saveDrawing()) await closeOpenFile(); },
+  });
 
   const paint = () => {
     whole.getContext('2d')
@@ -1806,6 +1813,7 @@ function renderDrawing() {
     }
     state.textContent = unsaved();
     save.disabled = (!S.draw.dirty && !S.palette?.dirty) || S.project.archived;
+    saveClose.disabled = save.disabled;
   };
 
   const touched = () => {
@@ -2072,7 +2080,8 @@ function renderDrawing() {
         disabled: !S.draw.redo.length,
         onclick: () => stepDrawing(false),
       }),
-      save));
+      save,
+      saveClose));
 }
 
 // How big a file can be and still be recoloured on every keystroke without
