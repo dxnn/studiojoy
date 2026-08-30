@@ -12,6 +12,7 @@ import { parseConfigFile } from '../public/config-file.js';
 const read = (rel) => fs.readFileSync(new URL(`../public/${rel}`, import.meta.url), 'utf8');
 const INPUT = read('studio-lib/input/input.js');
 const ONE_BUTTON = read('templates/controls-one-button.js');
+const SWIPE_TAP = read('templates/controls-swipe-tap.js');
 const LEGACY = read('templates/controls.js');
 
 function boot({ controls, body = null } = {}) {
@@ -97,6 +98,55 @@ test('one-button: a mouse click counts, a press on a real button does not', () =
   g.Input.update();
   assert.equal(g.Input.held('action'), false, "the game's own buttons keep their presses");
   assert.equal(down.prevented, false);
+});
+
+test('the swipe-tap preset is readable as a config form', () => {
+  const parsed = parseConfigFile(SWIPE_TAP);
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['SCHEME', 'CONTROLS']);
+});
+
+test('swipe-tap: a flick is pressed for one frame and never held after it', () => {
+  const g = boot({ controls: SWIPE_TAP });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 200, y: 200 });
+  g.pointer('pointerup', { x: 120, y: 210 });
+  g.Input.update();
+  assert.equal(g.Input.pressed('left'), true);
+  g.Input.update();
+  assert.equal(g.Input.pressed('left'), false, 'a flick happens once');
+  assert.equal(g.Input.held('left'), false, 'a flick is not a state');
+  assert.equal(g.Input.released('left'), true);
+});
+
+test('swipe-tap: the tallest travel wins the direction', () => {
+  const g = boot({ controls: SWIPE_TAP });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 100, y: 300 });
+  g.pointer('pointerup', { x: 140, y: 180 });
+  g.Input.update();
+  assert.equal(g.Input.pressed('up'), true);
+  assert.equal(g.Input.pressed('right'), false);
+});
+
+test('swipe-tap: a press that stays put is a tap, and taps start the game', () => {
+  const g = boot({ controls: SWIPE_TAP });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 100, y: 100 });
+  g.pointer('pointerup', { x: 105, y: 108 });
+  g.Input.update();
+  assert.equal(g.Input.pressed('tap'), true);
+  assert.equal(g.Input.pressed('start'), true);
+  assert.equal(g.Input.pressed('left'), false);
+});
+
+test('swipe-tap: a gesture on a real button belongs to the button', () => {
+  const g = boot({ controls: SWIPE_TAP });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 100, y: 100, target: gameButton });
+  g.pointer('pointerup', { x: 100, y: 100 });
+  g.Input.update();
+  assert.equal(g.Input.pressed('tap'), false);
 });
 
 test('a declared scheme owns the screen; the old shape leaves it alone', () => {

@@ -20,7 +20,9 @@
 //
 // config/controls.js may declare SCHEME — the shape of the game on a touch
 // screen: "one-button" means a tap or a click anywhere is the button (bind
-// touch:screen). With no SCHEME, touch: bindings are drawn as an arrow pad
+// touch:screen); "swipe-tap" means four flicks and a tap (swipe:left …
+// swipe:tap) — flicks are moments, not states: read them with pressed(),
+// never held(). With no SCHEME, touch: bindings are drawn as an arrow pad
 // and round buttons.
 //
 // Use this instead of your own keydown listeners — two input systems fight
@@ -99,7 +101,7 @@ const Input = (function () {
   // The declared control scheme, or "" for the old shape — an arrow pad and
   // round buttons drawn from the touch: bindings. An unknown name gets the
   // old shape too, said once, rather than a game with no controls at all.
-  const SCHEMES = ["one-button"];
+  const SCHEMES = ["one-button", "swipe-tap"];
   let warnedScheme = false;
   function schemeName() {
     let name = "";
@@ -171,6 +173,7 @@ const Input = (function () {
     keysDown.clear();
     touchDown.clear();
     screenPointers.clear();
+    gestureStarts.clear();
   });
 
   /* Control scheme surfaces ------------------------------------------------ */
@@ -200,6 +203,32 @@ const Input = (function () {
     window.addEventListener("pointercancel", lift);
   }
 
+  // swipe-tap: flicks and taps. A gesture only exists once the finger lifts,
+  // so it reaches the game as a moment, not a state — surfaced for exactly
+  // one update as swipe:left … swipe:tap, seen by pressed() and then gone.
+  const FLICK_PX = 30; // travel that separates a flick from a tap
+  let gestureNow = new Set();
+  let gesturePending = new Set();
+  const gestureStarts = new Map(); // pointerId -> where it went down
+  function installSwipeTap() {
+    window.addEventListener("pointerdown", (e) => {
+      if (onControl(e)) return;
+      if (e.preventDefault) e.preventDefault();
+      gestureStarts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    });
+    window.addEventListener("pointerup", (e) => {
+      const start = gestureStarts.get(e.pointerId);
+      if (!start) return;
+      gestureStarts.delete(e.pointerId);
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.abs(dx) < FLICK_PX && Math.abs(dy) < FLICK_PX) gesturePending.add("tap");
+      else if (Math.abs(dx) > Math.abs(dy)) gesturePending.add(dx > 0 ? "right" : "left");
+      else gesturePending.add(dy > 0 ? "down" : "up");
+    });
+    window.addEventListener("pointercancel", (e) => { gestureStarts.delete(e.pointerId); });
+  }
+
   // Run once, on the first update: by then config/controls.js has loaded (it
   // is documented to stand in front of this file). A declared scheme also
   // owns the screen — no browser scrolling, zooming or text selection over
@@ -209,7 +238,9 @@ const Input = (function () {
   function prepare() {
     if (!surfacesInstalled) {
       surfacesInstalled = true;
-      if (schemeName() === "one-button") installOneButton();
+      const s = schemeName();
+      if (s === "one-button") installOneButton();
+      if (s === "swipe-tap") installSwipeTap();
     }
     if (!bodyOwned && schemeName() && document.body) {
       bodyOwned = true;
@@ -243,6 +274,7 @@ const Input = (function () {
       return keysDown.has(KEY_NAMES[key] || key);
     }
     if (kind === "touch") return touchDown.has(name);
+    if (kind === "swipe") return gestureNow.has(name);
     if (kind === "pad") return padDown(name.toLowerCase(), player);
     return false;
   }
@@ -261,6 +293,10 @@ const Input = (function () {
     pads = readPads();
     prepare();
     if (!overlay) buildTouchControls();
+    // Gestures finished since the last update are this frame's, and only
+    // this frame's — that is what makes a flick a moment rather than a state.
+    gestureNow = gesturePending;
+    gesturePending = new Set();
     last = now;
     now = new Set();
     const all = bindings();
@@ -359,8 +395,9 @@ const Input = (function () {
   // build it for — a laptop with a mouse gets nothing drawn over the game.
   function buildTouchControls() {
     if (overlay) return;
-    // one-button draws nothing: the screen itself is the button.
-    if (schemeName() === "one-button") return;
+    // one-button and swipe-tap draw nothing: the screen itself is the control.
+    const s = schemeName();
+    if (s === "one-button" || s === "swipe-tap") return;
     const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if (!coarse || !document.body) return;
     const names = touchNames();
