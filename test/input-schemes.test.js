@@ -14,6 +14,7 @@ const INPUT = read('studio-lib/input/input.js');
 const ONE_BUTTON = read('templates/controls-one-button.js');
 const SWIPE_TAP = read('templates/controls-swipe-tap.js');
 const SEED = read('templates/controls.js'); // the default: stick-buttons
+const DUAL_STICK = read('templates/controls-dual-stick.js');
 
 // A controls.js from before schemes existed: no SCHEME anywhere.
 const LEGACY = `
@@ -222,6 +223,43 @@ test('stick-buttons: keys still give the ends, and player 2 never sees the stick
   g.pointer('pointermove', { x: 200, y: 500 });
   g.Input.update();
   assert.equal(g.Input.axis('left', 'right', 2), 0, "the screen is player 1's");
+});
+
+test('the dual-stick preset is readable as a config form', () => {
+  const parsed = parseConfigFile(DUAL_STICK);
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['SCHEME', 'CONTROLS', 'STICK_DEADZONE']);
+});
+
+test('dual-stick: the right thumb aims, and pushing the aim stick fires', () => {
+  const g = boot({ controls: DUAL_STICK });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 600, y: 500 });
+  g.pointer('pointermove', { x: 628, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.axis('aim-left', 'aim-right'), 0.5);
+  assert.equal(g.Input.axis('left', 'right'), 0, 'the move stick is resting');
+  assert.equal(g.Input.held('fire'), true, 'a pushed aim stick fires');
+  assert.equal(g.Input.pressed('start'), true, 'and starts');
+  g.pointer('pointermove', { x: 610, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), false, 'inside the deadzone nothing fires');
+});
+
+test('dual-stick: two thumbs work the two sticks at once', () => {
+  const g = boot({ controls: DUAL_STICK });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 150, y: 500, id: 1 });
+  g.pointer('pointermove', { x: 150, y: 444, id: 1 });
+  g.pointer('pointerdown', { x: 600, y: 500, id: 2 });
+  g.pointer('pointermove', { x: 656, y: 500, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.axis('up', 'down'), -1, 'the left thumb moves');
+  assert.equal(g.Input.axis('aim-left', 'aim-right'), 1, 'the right thumb aims');
+  g.pointer('pointerup', { x: 150, y: 444, id: 1 });
+  g.Input.update();
+  assert.equal(g.Input.axis('up', 'down'), 0);
+  assert.equal(g.Input.axis('aim-left', 'aim-right'), 1, 'the other thumb stays');
 });
 
 test('a declared scheme owns the screen; the old shape leaves it alone', () => {

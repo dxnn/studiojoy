@@ -14,17 +14,17 @@
 //   ship.x += Input.axis("left", "right") * SPEED; // -1 .. 1, analog on a stick
 //
 // Two players share one keyboard and one screen: pass 2 as the last argument
-// and Input reads player2's bindings and the second controller.
+// — Input.held("left", 2) — and Input reads player2's bindings and the second
+// controller.
 //
-//   if (Input.held("left", 2)) turnOther(-1);
-//
-// config/controls.js may declare SCHEME — the shape of the game on a touch
-// screen: "one-button" means a tap or a click anywhere is the button (bind
-// touch:screen); "swipe-tap" means four flicks and a tap (swipe:left …
-// swipe:tap) — flicks are moments, not states: read them with pressed(),
-// never held(); "stick-buttons" means an analog stick under the left thumb
-// (stick:left …) beside the drawn touch: buttons. With no SCHEME, touch:
-// bindings are drawn as an arrow pad and round buttons.
+// config/controls.js may declare SCHEME, the shape of the game on a touch
+// screen. "one-button": a tap or a click anywhere is the button (touch:screen).
+// "swipe-tap": four flicks and a tap (swipe:left … swipe:tap) — moments, not
+// states, so read them with pressed(), never held(). "stick-buttons": an
+// analog stick under the left thumb (stick:left …) beside the drawn touch:
+// buttons. "dual-stick": an aim stick too (stick:aim-left …); stick:move and
+// stick:aim are held while a stick is pushed. No SCHEME: touch: bindings are
+// drawn as an arrow pad and round buttons.
 //
 // Use this instead of your own keydown listeners — two input systems fight
 // over the same keys. index.html must load config/controls.js and then
@@ -102,7 +102,7 @@ const Input = (function () {
   // The declared control scheme, or "" for the old shape — an arrow pad and
   // round buttons drawn from the touch: bindings. An unknown name gets the
   // old shape too, said once, rather than a game with no controls at all.
-  const SCHEMES = ["one-button", "swipe-tap", "stick-buttons"];
+  const SCHEMES = ["one-button", "swipe-tap", "stick-buttons", "dual-stick"];
   let warnedScheme = false;
   function schemeName() {
     let name = "";
@@ -255,6 +255,7 @@ const Input = (function () {
   function stickZones() {
     const s = schemeName();
     if (s === "stick-buttons") return { move: [0, 0.45] };
+    if (s === "dual-stick") return { move: [0, 0.5], aim: [0.5, 1] };
     return null;
   }
 
