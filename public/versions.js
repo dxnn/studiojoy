@@ -23,6 +23,7 @@ function renderDiff(patch) {
 }
 
 const IMAGE_PATH = /\.(png|jpe?g|gif|webp|svg)$/i;
+const SOUND_PATH = /\.(wav|mp3|ogg|m4a)$/i;
 
 // The pictures in a version, narrowed to the file being read when the list is
 // filtered to one: `paths` is the whole commit now, and a sprite that rode
@@ -40,6 +41,28 @@ const versionImage = (sha, path, cls) => h('img', {
   loading: 'lazy',
   onerror: (e) => e.currentTarget.closest('.shot, .shot-big')?.remove(),
 });
+
+// The sounds in a version, on the same terms as the pictures: what a version
+// of a sound changed is a thing you can only answer by hearing it.
+const soundsIn = (commit) => (commit?.paths ?? [])
+  .filter((p) => SOUND_PATH.test(p) && (!S.historyPath || p === S.historyPath));
+
+// A player is a control, so it is never inside the button that opens the row —
+// pressing play would open the changes instead, and a control inside a control
+// is not a thing a browser will honour anyway. Metadata is fetched so a
+// version that deleted the sound takes itself out, the same as a picture with
+// nothing behind it.
+const versionSound = (sha, path) => h('audio', {
+  class: 'heard',
+  controls: true,
+  preload: 'metadata',
+  src: `/api/projects/${S.slug}/history/${sha}/${encodePath(path)}`,
+  onerror: (e) => e.currentTarget.closest('.heard-row')?.remove(),
+});
+
+const soundRows = (sha, paths, named) => paths.map((p) => h('div', { class: 'heard-row' },
+  named ? h('div', { class: 'hint muted mono', text: p }) : null,
+  versionSound(sha, p)));
 
 // A path, as a way back to the file it names — which is the usual reason to
 // be reading about it. A path that is no longer in the game is plain text:
@@ -93,6 +116,7 @@ function diffDrawer() {
     ]));
 
   const pictures = imagesIn(S.diff);
+  const sounds = soundsIn(S.diff);
   const patch = patchShown();
   const text = hasHunks(patch);
   // A version that only moved the file has no hunk and no picture in it, and
@@ -107,10 +131,11 @@ function diffDrawer() {
     pictures.map((p) => h('div', { class: 'shot-big' },
       oneFile ? null : h('div', { class: 'hint muted mono', text: p }),
       versionImage(S.diff.sha, p))),
+    soundRows(S.diff.sha, sounds, !oneFile),
     text ? renderDiff(patch) : null,
     movedTo ? h('div', { class: 'hint muted' }, 'Renamed to ', fileLink(movedTo)) : null,
     movedFrom ? h('div', { class: 'hint muted' }, 'Renamed from ', fileLink(movedFrom)) : null,
-    !text && !moved && !pictures.length
+    !text && !moved && !pictures.length && !sounds.length
       ? h('div', { class: 'muted', text: 'Nothing to show for this one.' })
       : null);
 }
@@ -161,6 +186,9 @@ export function renderVersionsTab() {
           onclick: toggle,
         }, versionImage(c.sha, p))))
         : null,
+      // Same argument as the picture, for the sense a sound is made for: a
+      // commit subject cannot tell you what a version of a blip sounds like.
+      soundRows(c.sha, soundsIn(c), false),
       // Wrapped: three controls and a "Current version" do not fit a narrow
       // rail, and a label broken across two lines mid-phrase reads worse than
       // a control moved to the next line whole.

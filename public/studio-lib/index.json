@@ -10,17 +10,17 @@
       "scripts": ["config/controls.js", "studio/input.js"]
     },
     "sound": {
-      "version": 2,
+      "version": 3,
       "title": "Sounds",
-      "what": "Plays the sounds in assets/ with one call — overlapping shots, loops, mute — and never breaks the game over a missing file.",
+      "what": "Plays the sounds in assets/sounds/ with one call — overlapping shots, loops, mute — and never breaks the game over a missing file.",
       "files": ["sound.js"],
       "seeds": [],
       "scripts": ["studio/sound.js"]
     },
     "sprites": {
-      "version": 1,
+      "version": 2,
       "title": "Sprites",
-      "what": "Draws the pictures in assets/ by name, animated when the picture is a film strip of square frames, and never breaks the game over a missing one.",
+      "what": "Draws the pictures in assets/sprites/ by name, animated when the picture is a film strip of square frames, and never breaks the game over a missing one.",
       "files": ["sprites.js"],
       "seeds": [],
       "scripts": ["studio/sprites.js"]

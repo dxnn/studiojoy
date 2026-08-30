@@ -20,7 +20,8 @@ import {
 } from './pixel-editor.js';
 import { h, iconButton } from './dom.js';
 import {
-  ASSET_DIR, assetPath, writeFiles, openUpload, makeDropTarget, isFileDrag,
+  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, assetPath, writeFiles, openUpload,
+  makeDropTarget, isFileDrag,
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
 import { isQuizPath, quizModel } from './quiz-editor.js';
@@ -101,6 +102,9 @@ export const S = {
   drawRefused: null,
   soundRefused: null,
   history: [],
+  // Every version there is, against the page of them in `history` — the list
+  // is capped and the number is not.
+  historyTotal: 0,
   diff: null,
   historyPath: null,
   // The open game's kept scores, for the Scoreboard tab. Null until the tab
@@ -782,6 +786,10 @@ function onEvent(name, data) {
       if (S.open && data.paths.includes(S.open.path)) {
         if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
+          // The file on screen is untouched, but it has one more version than
+          // it had a moment ago — including when this is the commit our own
+          // save just made and the event beat the answer to it.
+          countVersions();
         } else {
           openFile(S.open.path);
         }
@@ -929,6 +937,28 @@ export async function openFile(path) {
   if (isDrawable(S.open)) await startDrawing();
   // A sound opens as the numbers that made it, when it is one of ours.
   else if (isSound(S.open)) await startSound();
+  // Last, and inside this await like everything else here: it is a number on a
+  // link, so nothing waits for it, but a render landing after openFile has
+  // settled would write the wrong address.
+  await countVersions();
+}
+
+// How many versions this file has, for the link that opens them. One commit
+// asked for and the count read off the answer — the number is the point, the
+// list is the Versions tab's job. A failure leaves the link saying "Versions",
+// which is what it said before there was a number to put on it.
+async function countVersions() {
+  const token = opening;
+  const path = S.open?.path;
+  const res = await send(
+    `/api/projects/${S.slug}/history?limit=1&path=${encodeURIComponent(path)}`,
+  );
+  if (opening !== token || S.open?.path !== path) return;
+  if (!res.ok) return;
+  const body = await res.json().catch(() => null);
+  if (opening !== token || S.open?.path !== path) return;
+  S.open.versions = body?.total ?? 0;
+  render();
 }
 
 // Closing throws away unsaved text, which is the one thing in the editor that
@@ -1250,7 +1280,12 @@ async function startDrawing() {
 }
 
 export async function createPicture(name, width, height) {
-  const path = assetPath(ASSET_DIR, `${name || 'picture'}.png`);
+  // A strip is wider than it is tall by whole frames, which is the same test
+  // the sprites library makes when it decides to animate one. So the shape
+  // picks the folder: something that moves is a sprite, and everything else is
+  // a picture to look at.
+  const dir = width > height ? SPRITE_DIR : IMAGE_DIR;
+  const path = assetPath(dir, `${name || 'picture'}.png`);
   const { failure } = await writeFiles([{ path, body: await pictureBlob(blankPicture(width, height)) }]);
   if (failure) { say(failure, true); return; }
   say(`Made ${path}.`);
@@ -1328,12 +1363,25 @@ async function saveSound() {
   return true;
 }
 
-export async function createSound(preset, name) {
-  const path = assetPath(ASSET_DIR, `${name || preset || 'sound'}.wav`);
-  const body = new Blob([soundBytes(soundFrom(preset))], { type: 'audio/wav' });
+// A name nobody has to think of. The sound is made first and named afterwards
+// — by then you have heard it, which is the only moment anybody knows what it
+// should be called — so this only has to be free and say what it is.
+function freeName(dir, stem, ext) {
+  for (let n = 1; ; n += 1) {
+    const path = `${dir}/${stem}${n > 1 ? `-${n}` : ''}${ext}`;
+    if (!S.files.some((f) => f.path === path)) return path;
+  }
+}
+
+// No dialog: the one thing it used to ask that mattered was the name, and a
+// name is a better question after you have heard the sound than before. It
+// lands as a plain blip and opens on its sliders; Rename is in the same bar.
+async function createSound() {
+  const path = freeName(SOUND_DIR, 'sound', '.wav');
+  const body = new Blob([soundBytes(soundFrom('pickup'))], { type: 'audio/wav' });
   const { failure } = await writeFiles([{ path, body }]);
   if (failure) { say(failure, true); return; }
-  say(`Made ${path}.`);
+  say(`Made ${path}. Change it with the sliders, and Rename it when it sounds like something.`);
   // Opening it is what shows the sliders — the file carries them — so making a
   // sound and changing one later are the same thing from here on.
   await openFile(path);
@@ -1614,7 +1662,8 @@ export async function loadHistory(path = null) {
   const query = path ? `?path=${encodeURIComponent(path)}` : '';
   const res = await api('GET', `/api/projects/${S.slug}/history${query}`);
   if (res.ok) {
-    S.history = res.body;
+    S.history = res.body.commits;
+    S.historyTotal = res.body.total;
     S.historyPath = path;
     S.historyStale = false;
     S.diff = null;
@@ -2421,8 +2470,15 @@ function renderFilesTab() {
     const bar = h('div', { class: 'bar' },
       h('div', { class: 'title mono', text: S.open.path }),
       h('div', { class: 'spacer' }),
+      // The count is on the link because it is the thing worth knowing before
+      // clicking it: one version means there is nothing to compare, and twelve
+      // means this file has a story. Plain "Versions" until the number lands,
+      // rather than a 0 that would be a lie for a file that exists.
       h('button', {
-        class: 'link tiny', text: 'Versions',
+        class: 'link tiny',
+        text: S.open.versions
+          ? `${S.open.versions} version${S.open.versions === 1 ? '' : 's'}`
+          : 'Versions',
         onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
       }),
       h('button', {
@@ -2561,14 +2617,12 @@ function renderFilesTab() {
       }),
       h('button', {
         class: 'quiet tiny', text: '+ Make a sound',
-        title: 'Make a sound effect and put it in assets/',
+        title: `Make a sound effect and put it in ${SOUND_DIR}/`,
         disabled: S.project.archived,
-        // Only the two things a file needs before it exists: what it is called
-        // and what it starts as. The sliders are the pane it opens in.
-        onclick: () => {
-          S.dialog = { kind: 'sound', preset: 'pickup', name: 'pickup' };
-          render();
-        },
+        // Straight to the sliders. There is nothing to ask first: a sound you
+        // have not heard yet cannot be named, and everything else about it is
+        // in the pane.
+        onclick: () => createSound(),
       }),
       // Gone once the game has it and it is current. It used to sit there with
       // nothing to do, which reads as a button that does not work.

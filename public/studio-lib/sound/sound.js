@@ -1,17 +1,17 @@
-// Plays the sounds in assets/ with one call, and never breaks the game over
-// a sound: a missing file or a not-yet-allowed autoplay is a quiet console
-// warning, not an error.
+// Plays the sounds in assets/sounds/ with one call, and never breaks the game
+// over a sound: a missing file or a not-yet-allowed autoplay is a quiet
+// console warning, not an error.
 //
-//   Sound.play("laser");        // plays assets/laser.wav
+//   Sound.play("laser");        // plays assets/sounds/laser.wav
 //   Sound.play("laser", 0.5);   // quieter — volume runs 0 to 1
 //   Sound.loop("engine");       // keeps going until stopped
 //   Sound.stop("engine");       // stops that sound, loop and overlaps alike
 //   Sound.mute();               // everything silent; call again to unmute
 //
-// A plain name is a file in assets/ without the ending: "laser" plays
-// assets/laser.wav — the files "+ Make a sound" and "+ Upload" put there. A
-// name with a dot or a slash in it is used as a path, so "assets/boom.mp3"
-// works too.
+// A plain name is a file in assets/sounds/ without the ending: "laser" plays
+// assets/sounds/laser.wav — the files "+ Make a sound" and "+ Upload" put
+// there. A name with a dot or a slash in it is used as a path, so
+// "assets/boom.mp3" works too.
 //
 // The same sound played twice quickly overlaps instead of cutting itself off
 // or being dropped — every shot gets a free player. Calling loop() every
@@ -24,7 +24,7 @@
 // register and none is ever needed — the first play() does everything — and
 // there is no list of sounds to declare: the name is the file. Replacing a
 // hand-rolled sound.js means deleting it and its script tag and changing
-// each call to the matching file's name in assets/.
+// each call to the matching file's name in assets/sounds/.
 
 const Sound = (function () {
   "use strict";
@@ -37,7 +37,9 @@ const Sound = (function () {
   let muted = false;
 
   const srcFor = (name) =>
-    name.includes("/") || name.includes(".") ? name : "assets/" + name + ".wav";
+    name.includes("/") || name.includes(".")
+      ? name
+      : "assets/sounds/" + name + ".wav";
 
   // One warning per name, ever: a missing file fired every frame would bury
   // the console the game's own problems are reported in.

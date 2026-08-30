@@ -234,6 +234,17 @@ export async function logCommits(dir, { path: filePath = null, limit = 50 } = {}
   return commits;
 }
 
+// How many versions there are, whether or not they all fit in a page of them.
+// One number rather than a longer log: the file's own bar says "12 versions"
+// before anybody opens the list, and a count that stopped at the page size
+// would be a number that quietly means "or more".
+export async function countCommits(dir, filePath = null) {
+  const args = ['rev-list', '--count', 'HEAD'];
+  if (filePath) args.push('--', filePath);
+  const out = (await git(dir, args)).toString('utf8').trim();
+  return Number(out) || 0;
+}
+
 // Raw bytes of a path at a commit. Buffer, not string, because a project can
 // hold images.
 export async function showFile(dir, sha, filePath) {

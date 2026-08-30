@@ -8,7 +8,7 @@ import {
   MAX_PROJECT_BYTES, MAX_PROJECT_FILES,
 } from '../files/tree.js';
 import {
-  logCommits, showFile, diffCommit, commitPaths, commitPathsTouched,
+  logCommits, countCommits, showFile, diffCommit, commitPaths, commitPathsTouched,
   treeAtCommit, restoreTree, GitError, isSha,
 } from '../files/git.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
@@ -42,10 +42,15 @@ export function historyRoutes(r) {
     requireAuth(ctx);
     const project = requireProject(ctx, { files: true });
     const dir = projectDirFor(ctx, project);
-    const commits = await logCommits(dir, {
-      path: optionalPath(ctx.query), limit: limitFrom(ctx.query),
-    });
-    json(ctx.res, 200, commits);
+    const path = optionalPath(ctx.query);
+    // `total` is every version, `commits` at most a page of them: the file's
+    // own bar wants the number without the list, and asks for one commit to
+    // get it.
+    const [commits, total] = await Promise.all([
+      logCommits(dir, { path, limit: limitFrom(ctx.query) }),
+      countCommits(dir, path),
+    ]);
+    json(ctx.res, 200, { commits, total });
   });
 
   r.get('/api/projects/:slug/history/:sha/*path', async (ctx) => {

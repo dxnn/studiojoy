@@ -468,11 +468,18 @@ gets added. A file no entry matches is described plainly with a link to save it,
 since the server already serves an unknown extension as a download (§4). Three
 choices worth naming:
 
-- **`assets/` by default, and the agent preamble says so.** A folder the
-  helpers already reference is worth more than a folder nobody agreed on. The
-  dialog shows the path each file will take before anything is sent, so where
-  the file lands is a decision rather than something to undo — which matters
-  more now that an upload is not necessarily art.
+- **Three folders under `assets/`, by what the file is.** A sound goes to
+  `assets/sounds/`, a *strip* to `assets/sprites/`, any other picture to
+  `assets/images/`, and anything else to `assets/`. The folder is not tidiness:
+  the sound player and the sprites library resolve a plain name inside the
+  first two, so `Sound.play("laser")` and `Sprites.draw(ctx, "hero", x, y)`
+  find a file nobody had to path out — and a picture that does not move is in
+  `assets/images/`, drawn by its whole path, because it is not what that call
+  is for. The agent preamble names all three. A dropped picture is decoded
+  before the dialog opens, since only its shape can say which of the two it is;
+  the dialog then shows the path each file will take before anything is sent,
+  and one box overrules every one of them for the drop that belongs somewhere
+  else entirely.
 - **The filename is tidied, not trusted.** Lowercased, runs of non-alphanumerics
   to one dash, extension kept, and `checkProjectPath` validates the result
   regardless. Two files that tidy to one name are refused rather than one
@@ -484,7 +491,7 @@ choices worth naming:
 An asset opens in the pane as the thing itself — `img`, `audio` or `video`
 pointed at the studio's own read route — because there is nothing to edit. An
 agent never sees its bytes (§8), and `write_file` takes text, so a helper can
-point a game at `assets/hero.png` but cannot create or change it.
+point a game at `assets/sprites/hero.png` but cannot create or change it.
 
 A code file opens with its syntax coloured, by the studio's own tokenizer
 (`public/highlight.js`) rather than a library: comments, strings, numbers,
@@ -626,6 +633,21 @@ in it. `logCommits` carries the paths each commit touched — from `--name-only`
 in the same process, because fifty extra git invocations to discover that a
 version has no picture in it would cost more than the feature is worth.
 
+A commit that touched a sound gets a player on the same terms, pointed at the
+same read-at-a-commit route, because a subject line cannot tell you what a
+version of a blip sounded like. It sits beside the row's controls rather than
+inside the button that opens them: a player is a control, and pressing play
+must not open the changes. It preloads metadata only, so a version that
+deleted the sound removes its own row the way a picture with nothing behind it
+does.
+
+The history route answers `{ commits, total }`: a page of versions, and how
+many there are. The count is a `rev-list --count` beside the log, and it is
+what the open file's own bar says — `12 versions` rather than `Versions`,
+asked for with `limit=1` when the file opens, because the number is worth
+knowing before deciding whether the list is worth opening. A count that
+stopped at the page size would be a number quietly meaning "or more".
+
 A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
 Entirely client-side: `public/config-file.js` reads the `const NAME = value;`
@@ -659,14 +681,14 @@ The **sound player** (`studio/sound.js`) is the second library, and the one
 that proved the shape: it needed no orchestrator edit — its API note is its
 file header — only the file, an `index.json` entry, and the Files tab's offer
 buttons going generic (`+ Sounds` beside `+ Controls`). `Sound.play("laser")`
-plays `assets/laser.wav` — the files the sound editor writes — with a pooled
+plays `assets/sounds/laser.wav` — the files the sound editor writes — with a pooled
 element per shot, so rapid fire overlaps instead of dropping or cutting
 itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
 autoplay is one console warning, never an error: a game must not break over a
 sound.
 
 The **sprites library** (`studio/sprites.js`) is the third. One sprite is one
-file: `Sprites.draw(ctx, "hero", x, y)` draws `assets/hero.png`, and a PNG
+file: `Sprites.draw(ctx, "hero", x, y)` draws `assets/sprites/hero.png`, and a PNG
 whose width is a whole multiple of its height is a **strip** — square frames
 side by side, cycled by a shared clock (`Sprites.tick()` once a frame, 8 fps
 unless the call says otherwise; `frame` pins one, `scale`/`flip` transform,

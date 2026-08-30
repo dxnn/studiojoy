@@ -56,12 +56,12 @@ function boot() {
   return { Sound: sandbox.Sound, made, warnings };
 }
 
-test('a plain name is a wav in assets/, a path is itself', () => {
+test('a plain name is a wav in assets/sounds/, a path is itself', () => {
   const { Sound, made } = boot();
   Sound.play('laser');
   Sound.play('assets/boom.mp3');
   Sound.play('music.ogg');
-  assert.deepEqual(made.map((a) => a.src), ['assets/laser.wav', 'assets/boom.mp3', 'music.ogg']);
+  assert.deepEqual(made.map((a) => a.src), ['assets/sounds/laser.wav', 'assets/boom.mp3', 'music.ogg']);
 });
 
 test('rapid fire overlaps: every shot plays, none are dropped or cut', () => {
@@ -130,7 +130,7 @@ test('a sound that cannot play warns once and never throws', () => {
   made[0].fail();
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /ghost/);
-  assert.match(warnings[0], /assets\/ghost\.wav/);
+  assert.match(warnings[0], /assets\/sounds\/ghost\.wav/);
 
   // A rejected play() — autoplay before the first click — is the same quiet
   // warning, and the once-guard covers both paths together.

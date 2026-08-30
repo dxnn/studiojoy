@@ -8,10 +8,34 @@ import {
 
 /* Uploads ----------------------------------------------------------------- */
 
-// Where a picture or sound lands unless you say otherwise. The agent preamble
-// names the same folder, so a dropped sprite is already at the path a helper
-// will write in its code.
+// Where a file lands unless you say otherwise, by what it is. The agent
+// preamble names the same folders and the libraries look in them, so a sound
+// dropped here is already at the path `Sound.play("laser")` resolves to.
+//
+// A *strip* — a picture whose width is a whole multiple of its height — is a
+// sprite; any other picture is one to look at. That is the same rule the
+// sprites library uses to decide whether a file animates, so the folder a
+// picture lands in and the way it is drawn agree.
 export const ASSET_DIR = 'assets';
+export const SOUND_DIR = `${ASSET_DIR}/sounds`;
+export const IMAGE_DIR = `${ASSET_DIR}/images`;
+export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
+
+// A dropped picture has to be decoded before its shape can say which of the
+// two folders it belongs in, so this is async and the dialog waits for it.
+// Anything that will not decode is a picture the studio cannot measure, and
+// goes where the ones it cannot animate go.
+export async function uploadItems(files) {
+  return Promise.all(files.map(async (file) => {
+    if (file.type?.startsWith('audio/')) return { file, folder: SOUND_DIR };
+    if (!file.type?.startsWith('image/')) return { file, folder: ASSET_DIR };
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    const strip = !!bitmap && bitmap.width > bitmap.height
+      && bitmap.width % bitmap.height === 0;
+    bitmap?.close();
+    return { file, folder: strip ? SPRITE_DIR : IMAGE_DIR };
+  }));
+}
 
 // Mirrors MAX_FILE_BYTES in server/files/tree.js. Checked here too so an
 // oversized file is named in the dialog rather than failing halfway up.
@@ -41,10 +65,15 @@ export function assetPath(folder, filename) {
 // What an upload would do, worked out before anything is sent so the dialog can
 // show it: where each file lands, whether it replaces one already there, and
 // the reason a file is being left out.
-export function uploadPlan(folder, files) {
+//
+// `folder` is the override typed into the dialog. Empty — which is how it
+// starts — means each file goes to the folder its kind says, so a drop of a
+// sound and two sprites lands in two places without anybody choosing twice.
+export function uploadPlan(folder, items) {
   const taken = new Set();
-  return files.map((file) => {
-    const path = assetPath(folder, file.name);
+  return items.map((item) => {
+    const { file } = item;
+    const path = assetPath(folder || item.folder, file.name);
     let problem = null;
     if (file.size > MAX_UPLOAD_BYTES) {
       problem = `too big — ${MAX_UPLOAD_MB} MB is the most`;
@@ -119,7 +148,13 @@ function uploadProblem(status, path, error) {
   return error ?? `Could not add ${path}.`;
 }
 
-export const openUpload = (files) => { S.dialog = { kind: 'upload', files }; render(); };
+// Measured before the dialog opens rather than inside it: the dialog's whole
+// job is to show the path each file will take, and a path that changed a
+// moment after it appeared would be the one thing it must not do.
+export const openUpload = async (files) => {
+  S.dialog = { kind: 'upload', items: await uploadItems(files) };
+  render();
+};
 
 // Dropping onto the list is the quickest way in on a laptop; the button beside
 // New file is the one that works on a tablet. Both end in the same dialog.

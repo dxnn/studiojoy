@@ -218,9 +218,13 @@ the game played clean afterwards.
 Art can be put in from the studio: `+ Upload` beside `+ New file`, or
 a drop onto the file tree, both landing in a dialog that shows the path each
 file will take before anything is sent. Client-side only — the `PUT` route
-already took raw bytes. Files go to `assets/`, one commit each, and the
-preamble now names that folder so a helper references art rather than inventing
-a path. An **asset** opens in the pane as the picture, sound or video itself.
+already took raw bytes. Files go under `assets/` by what they are — a sound to
+`assets/sounds/`, a strip to `assets/sprites/`, any other picture to
+`assets/images/` — one commit each, and the preamble names all three so a
+helper references art rather than inventing a path. A dropped picture is
+decoded before the dialog opens, because only its shape says whether it is a
+strip; the folder box is empty and overrules every row at once when a drop
+belongs somewhere else. An **asset** opens in the pane as the picture, sound or video itself.
 Browser-checked end to end, including drag-and-drop, a name collision and an
 oversized file being refused before upload, one commit per new file and none for
 an identical replace, and the bytes coming back byte-identical on the public
@@ -282,12 +286,12 @@ the game is current and loaded. The suite's games are born empty on purpose:
 argument. The **input module** is the first library: one call,
 `Input.held("left")`, covers the keyboard, a game controller and a touchscreen,
 for one player or two. The **sound player** is the second — `Sound.play("laser")`
-plays `assets/laser.wav` with overlap, loops and mute, and a missing file or a
+plays `assets/sounds/laser.wav` with overlap, loops and mute, and a missing file or a
 blocked autoplay is a warning, never an error — which also proved the shape:
 it needed no orchestrator edit, only its file, its `index.json` entry, and the
 Files-tab offer buttons going generic. The **sprites library** is the third:
 one sprite is one file, `Sprites.draw(ctx, "hero", x, y)` draws
-`assets/hero.png`, and a PNG whose width is a whole multiple of its height is
+`assets/sprites/hero.png`, and a PNG whose width is a whole multiple of its height is
 a **strip** of square frames played on a shared clock — no registry, no config
 file, the shape of the picture is the declaration. A strip opens in the pixel
 editor one frame at a time: frame buttons, a live looping preview, Copy/Paste
@@ -304,8 +308,9 @@ A `.wav` the studio wrote opens as the **sound editor** — the sliders that mad
 it — because the numbers ride inside the file as a JSON comment in its
 `LIST`/`INFO`/`ICMT` chunk, which every player skips and the samples never
 feel. So making a sound and changing one a week later are one surface:
-`+ Make a sound` asks only for a name and a preset, writes the file, and opens
-it. A `.wav` from anywhere else has no note, so it opens as the player with the
+`+ Make a sound` asks nothing at all, writes a blip to `assets/sounds/` under a
+free name, and opens it — the name is a better question once you have heard it,
+and Rename is in the same bar. A `.wav` from anywhere else has no note, so it opens as the player with the
 reason underneath, and nothing in a note is trusted — a value no slider could
 produce is the default instead. Editing an asset beside a file would have come
 apart on the first rename; spec.md §6 has the argument. Browser-checked end to
@@ -426,6 +431,18 @@ from disk. Browser-checked against a copy of flip-for-what: `All files changed
 (9)` on Alice's refactor, one diff section when filtered and nine when not, no
 sprite thumbnails in a code file's history, and `assets/café.txt` linking
 through to the file.
+
+A version of a sound is playable where it stands: any `.wav` (or `.mp3`,
+`.ogg`, `.m4a`) a commit touched gets a player in its row and in the open
+drawer, pointed at the read-at-a-commit route, preloading metadata only.
+⚠️ It sits beside the row's controls, never inside the button that opens them
+— a player is a control, and pressing play must not open the changes.
+
+The history route answers `{ commits, total }`, not a bare array. `total` is a
+`rev-list --count`, and the open file's bar says `12 versions` instead of
+`Versions` — fetched with `limit=1` when the file opens, and refreshed on any
+`files.changed` for that file, including the one your own save makes, which
+reaches the browser before the answer to the `PUT` does.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

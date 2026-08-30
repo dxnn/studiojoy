@@ -23,10 +23,11 @@ test('history lists commits newest first', async (t) => {
 
   const res = await app.client.json('GET', '/api/projects/tank/history');
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.map((c) => c.subject), [
+  assert.deepEqual(res.body.commits.map((c) => c.subject), [
     'update game.js', 'create game.js', 'init tank',
   ]);
-  const [head] = res.body;
+  assert.equal(res.body.total, 3, 'every version, not just the page of them');
+  const [head] = res.body.commits;
   assert.match(head.sha, /^[0-9a-f]{40}$/);
   assert.equal(head.short, head.sha.slice(0, 7));
   assert.equal(head.author, 'Dann');
@@ -40,17 +41,21 @@ test('history filters by path and honours a limit', async (t) => {
   await put(app, 'a.txt', '2');
 
   const forA = await app.client.json('GET', '/api/projects/tank/history?path=a.txt');
-  assert.deepEqual(forA.body.map((c) => c.subject), ['update a.txt', 'create a.txt']);
+  assert.deepEqual(forA.body.commits.map((c) => c.subject), ['update a.txt', 'create a.txt']);
   // Each of these commits is one file, which is what tells the versions list
   // there is no whole version worth offering.
-  assert.deepEqual(forA.body.map((c) => c.paths), [['a.txt'], ['a.txt']]);
+  assert.deepEqual(forA.body.commits.map((c) => c.paths), [['a.txt'], ['a.txt']]);
+  assert.equal(forA.body.total, 2, 'counted for the file, not the game');
 
   const limited = await app.client.json('GET', '/api/projects/tank/history?limit=2');
-  assert.equal(limited.body.length, 2);
+  assert.equal(limited.body.commits.length, 2);
+  // The page is short and the count is not: that is the whole reason both are
+  // in the answer.
+  assert.equal(limited.body.total, 4);
 
   // A nonsense limit falls back to the default rather than erroring.
   const bad = await app.client.json('GET', '/api/projects/tank/history?limit=abc');
-  assert.equal(bad.body.length, 4);
+  assert.equal(bad.body.commits.length, 4);
 });
 
 test('a hostile ?path= is refused', async (t) => {
@@ -167,7 +172,7 @@ test('a diff is the whole commit, whatever the reader is looking at', async (t) 
   // is the reported fault: a nine-file commit read from one of its files
   // looked like a one-file commit, so there was nothing to click through to.
   const forOne = await app.client.json('GET', '/api/projects/tank/history?path=game.js');
-  assert.deepEqual(forOne.body[0].paths.sort(), ['game.js', 'notes.md']);
+  assert.deepEqual(forOne.body.commits[0].paths.sort(), ['game.js', 'notes.md']);
 
   // A leftover ?path= from an older client is ignored rather than obeyed:
   // there is one answer to this question now.

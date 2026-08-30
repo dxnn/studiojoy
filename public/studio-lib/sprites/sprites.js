@@ -1,8 +1,8 @@
-// Draws the pictures in assets/ by name, animated when the picture is a
-// film strip: square frames side by side in one file.
+// Draws the pictures in assets/sprites/ by name, animated when the picture is
+// a film strip: square frames side by side in one file.
 //
 //   Sprites.tick();                          // once a frame, at the top
-//   Sprites.draw(ctx, "hero", x, y);         // draws assets/hero.png
+//   Sprites.draw(ctx, "hero", x, y);         // draws assets/sprites/hero.png
 //   Sprites.draw(ctx, "hero", x, y, { frame: 0, scale: 2, flip: true, fps: 12 });
 //
 // A picture whose width is a whole multiple of its height is a strip: a
@@ -17,6 +17,8 @@
 // it, and a picture still loading draws nothing rather than crashing the
 // game. A file that cannot load is one console warning, then silence. Make
 // a strip with "+ Draw a picture" — pick how many frames — or upload one.
+// A picture that does not move lives in assets/images/ instead, and is drawn
+// by its path: Sprites.draw(ctx, "assets/images/sky.png", 0, 0).
 
 const Sprites = (function () {
   "use strict";
@@ -29,7 +31,9 @@ const Sprites = (function () {
   let clock = 0;
 
   const srcFor = (name) =>
-    name.includes("/") || name.includes(".") ? name : "assets/" + name + ".png";
+    name.includes("/") || name.includes(".")
+      ? name
+      : "assets/sprites/" + name + ".png";
 
   function warnOnce(entry, name) {
     if (entry.warned) return;

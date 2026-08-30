@@ -57,11 +57,11 @@ function boot() {
   };
 }
 
-test('a plain name is a png in assets/, a path is itself', () => {
+test('a plain name is a png in assets/sprites/, a path is itself', () => {
   const { Sprites, made, ctx } = boot();
   Sprites.draw(ctx, 'hero', 0, 0);
   Sprites.draw(ctx, 'assets/big backdrop.jpeg', 0, 0);
-  assert.deepEqual(made.map((i) => i.src), ['assets/hero.png', 'assets/big backdrop.jpeg']);
+  assert.deepEqual(made.map((i) => i.src), ['assets/sprites/hero.png', 'assets/big backdrop.jpeg']);
 });
 
 test('a picture still loading draws nothing and never throws', () => {
@@ -136,6 +136,6 @@ test('a file that cannot load warns once and stays silent', () => {
   made[0].fail();
   Sprites.draw(ctx, 'ghost', 0, 0);
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /assets\/ghost\.png/);
+  assert.match(warnings[0], /assets\/sprites\/ghost\.png/);
   assert.equal(draws.length, 0);
 });

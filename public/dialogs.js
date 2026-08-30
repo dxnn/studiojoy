@@ -4,14 +4,14 @@
 
 import { h } from './dom.js';
 import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
-import { SOUND_PRESETS } from './sound-maker.js';
-import { SOUND_WORDS } from './sound-form.js';
-import { ASSET_DIR, uploadPlan, uploadFiles } from './upload.js';
+import {
+  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles,
+} from './upload.js';
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createSound, LIBRARY_DIR, deleteScore, clearScores,
+  LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
 /* Render: dialogs -------------------------------------------------------- */
@@ -235,13 +235,16 @@ export function dialogFor(d) {
   // afterwards. Any kind of file: what the studio can show it as is a separate
   // question, answered by MEDIA_KINDS when it is opened.
   if (d.kind === 'upload') {
-    const folder = h('input', { placeholder: 'leave empty for the top of the game' });
-    folder.value = ASSET_DIR;
+    // Empty on purpose: each file already knows the folder its kind goes to,
+    // and the rows below say so in full. Typing here overrules all of them at
+    // once, which is the only thing one box can honestly do for a drop of
+    // several kinds.
+    const folder = h('input', { placeholder: 'each one goes where its kind goes' });
     const list = h('div', { class: 'plan' });
     const ok = h('button', { class: 'filled', text: 'Add it' });
 
     const paint = () => {
-      const plan = uploadPlan(folder.value.trim(), d.files);
+      const plan = uploadPlan(folder.value.trim(), d.items);
       list.replaceChildren(...plan.map((it) => h('div', {
         class: `plan-row${it.problem ? ' skip' : ''}`,
       },
@@ -253,13 +256,13 @@ export function dialogFor(d) {
     paint();
     folder.addEventListener('input', paint);
     ok.addEventListener('click', async () => {
-      const plan = uploadPlan(folder.value.trim(), d.files).filter((it) => !it.problem);
+      const plan = uploadPlan(folder.value.trim(), d.items).filter((it) => !it.problem);
       close();
       await uploadFiles(plan);
     });
 
-    return wrap(d.files.length === 1 ? 'Upload this file' : `Upload ${d.files.length} files`,
-      h('label', { text: 'Which folder? assets/ is where pictures and sounds go; anything else can go where it belongs.' }), folder,
+    return wrap(d.items.length === 1 ? 'Upload this file' : `Upload ${d.items.length} files`,
+      h('label', { text: `Which folder? Sounds go to ${SOUND_DIR}/, pictures to ${IMAGE_DIR}/, film strips to ${SPRITE_DIR}/ — put something here to send them all somewhere else instead.` }), folder,
       list,
       h('div', { class: 'actions' }, cancel, ok));
   }
@@ -298,36 +301,6 @@ export function dialogFor(d) {
           const called = name.value.trim();
           close();
           await createPicture(called, side * count, side);
-        },
-      })));
-  }
-
-  // Two questions, the same two the picture is asked: what it is called and
-  // what it starts as. The sliders are not here — they are the pane the file
-  // opens in, so making a sound and changing it a week later are one surface
-  // rather than two.
-  if (d.kind === 'sound') {
-    const name = h('input', { placeholder: 'laser' });
-    name.value = d.name;
-    // The preset names the file too, until somebody types a name of their own.
-    name.addEventListener('input', () => { d.named = true; });
-    const preset = h('select', {
-      onchange: (e) => {
-        d.preset = e.currentTarget.value;
-        if (!d.named) { d.name = d.preset; name.value = d.name; }
-      },
-    }, Object.keys(SOUND_PRESETS).map((n) => h('option', { value: n, text: SOUND_WORDS[n] ?? n })));
-    preset.value = d.preset;
-    return wrap('Make a sound',
-      h('label', { text: 'Start from' }), preset,
-      h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It lands in assets/ as a .wav, one version like anything else, and opens with its sliders — a sound made here can be changed here whenever you like.' }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make it',
-        onclick: async () => {
-          const called = name.value.trim();
-          close();
-          await createSound(preset.value, called);
         },
       })));
   }
