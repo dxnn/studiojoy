@@ -10,8 +10,11 @@ deliberately deferred.
   made without leaving the studio
 - let a person lock a game file: helpers get its API note, not its bytes,
   and cannot write it (ideas/api-notes.md)
-- a studio-wide "which games are behind" view. Per-project the button already
-  says Update; across games there is nowhere that shows it
+- ! push the three migrated games — asteriskoids, vroooooooom and
+  qiby-is-rizzing-at-you are committed locally and unpushed; the server needs
+  `receive.denyCurrentBranch=updateInstead` per repo first (deploy/README.md)
+- give each game its own four colours in its `config/look.js` — they all wear
+  the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, then the point-and-click adventure — each
   with its own editor mode where one fits (ideas/templates.md)
 - the spot picker for adventures: drag a box on the open picture, it writes
