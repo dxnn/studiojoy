@@ -64,11 +64,11 @@ one pm2 app — the thing every generic guide gets wrong here.
   container needs a `data-scroll` name or it will jump to the top on the next
   render.
 - ⚠️ Opening a file is several awaits long — bytes, then for a picture a decode
-  and the palette — so clicks overlap. `openFile` takes a token and every step
-  after an await drops its result if a newer open has started; `startDrawing`
-  belongs to the open that called it. Without that, two clicks in the list left
-  whichever request finished last on screen, which is how one picture ended up
-  under another one's name.
+  and the palette, for a sound a second read — so clicks overlap. `openFile`
+  takes a token and every step after an await drops its result if a newer open
+  has started; `startDrawing` and `startSound` belong to the open that called
+  them. Without that, two clicks in the list left whichever request finished
+  last on screen, which is how one picture ended up under another one's name.
 - ⚠️ Nothing calls `fetch` directly. `send()` does, and answers with status 0
   instead of throwing when there is no connection, so every `if (!res.ok)`
   already written covers a dead network. A failed request also sets
@@ -299,6 +299,18 @@ draw across everything. `+ Draw a picture` offers a frame count.
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or
 a live canvas API, so what is played or shown is what gets saved, and both are
 checked in `npm test` with no browser.
+
+A `.wav` the studio wrote opens as the **sound editor** — the sliders that made
+it — because the numbers ride inside the file as a JSON comment in its
+`LIST`/`INFO`/`ICMT` chunk, which every player skips and the samples never
+feel. So making a sound and changing one a week later are one surface:
+`+ Make a sound` asks only for a name and a preset, writes the file, and opens
+it. A `.wav` from anywhere else has no note, so it opens as the player with the
+reason underneath, and nothing in a note is trusted — a value no slider could
+produce is the default instead. Editing an asset beside a file would have come
+apart on the first rename; spec.md §6 has the argument. Browser-checked end to
+end: made, changed, saved, closed, reopened with the slider where it was left,
+and one commit each way.
 
 Browser-checked end to end: three commits from `+ Controls` with the tags in
 front of the game's own script, a real `.wav` and a real 16×16 PNG on disk,

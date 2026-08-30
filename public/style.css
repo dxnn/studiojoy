@@ -965,10 +965,10 @@ pre.diff .hunk { color: var(--accent); }
 
 /* A row per parameter: what it is called, the slider, where it is now, and the
    comment saying what it does — the config form's bargain, without a file.
-   Written as `.dialog label.knob` because `.dialog label` above is a class and
-   an element, and would otherwise win and stack the four parts vertically. */
+   Lives in the sound editor pane rather than a dialog, so it is a bare
+   `label.knob`; nothing above it claims plain labels there. */
 .knobs { display: flex; flex-direction: column; }
-.dialog label.knob {
+label.knob {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) 46px;
   align-items: center;
@@ -980,6 +980,11 @@ pre.diff .hunk { color: var(--accent); }
 .knob-value { font-size: 12px; text-align: right; color: var(--muted); }
 .knob-note { grid-column: 2 / -1; font-size: 11px; margin-top: -2px; }
 .knob input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.knob select { width: 100%; }
+/* The sliders scroll and the bar under them does not, the same shape as every
+   other pane. */
+.sound { display: flex; flex-direction: column; min-height: 0; }
+.sound .knobs { padding-bottom: 6px; }
 
 /* Narrow ------------------------------------------------------------------ */
 

@@ -3,7 +3,7 @@
 Five asks, sorted by what each one forces rather than what it costs.
 
 Four are built. The **input module** (controllers, touch and couch
-multiplayer), the **sound maker**, and the **pixel editor** forced nothing:
+multiplayer), the **sound editor**, and the **pixel editor** forced nothing:
 the pane already opened a file as something other than text, and `PUT`
 already took raw bytes and committed one file per request, so each was a
 branch in the pane and a `PUT` at the end of it. See spec.md §6 and the

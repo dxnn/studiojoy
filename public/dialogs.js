@@ -1,55 +1,18 @@
 // Every dialog in the studio, behind one dialogFor(S.dialog). A dialog is a
 // decision in progress: the address is held while one is open (see syncUrl),
 // and the actions a dialog fires live in main.js — this file is the questions.
-// The sound maker is here too, because the dialog is the whole of it.
 
 import { h } from './dom.js';
 import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
-import {
-  SOUND_PARAMS, SOUND_PRESETS, WAVES, soundFrom, randomSound, soundBytes,
-} from './sound-maker.js';
-import { ASSET_DIR, assetPath, writeFiles, uploadPlan, uploadFiles } from './upload.js';
+import { SOUND_PRESETS } from './sound-maker.js';
+import { SOUND_WORDS } from './sound-form.js';
+import { ASSET_DIR, uploadPlan, uploadFiles } from './upload.js';
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
-  renameFile, duplicateFile, deleteFile, restore, rollback, createPicture, LIBRARY_DIR,
-  deleteScore, clearScores,
+  renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
+  createSound, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
-
-/* Sounds ------------------------------------------------------------------ */
-
-// Plain words for the four shapes, with the real name kept: a ten-year-old
-// picks "buzzy", and the one who wants to know what a square wave is can see
-// it. Same bargain as helper/agent.
-const WAVE_WORDS = {
-  square: 'Buzzy (square)', saw: 'Sharp (saw)', sine: 'Smooth (sine)', noise: 'Noisy (noise)',
-};
-
-const SOUND_WORDS = {
-  pickup: 'Pick up', laser: 'Laser', explosion: 'Explosion', powerup: 'Power up',
-  hit: 'Hit', jump: 'Jump', blip: 'Blip',
-};
-
-let soundUrl = null;
-
-// The bytes played are the bytes that would be saved, so there is no way to
-// hear one thing and keep another. The last URL is let go on the next play
-// rather than on a timer: an object URL held forever is a leak, and one
-// revoked too early is a sound that will not play twice.
-function playSound(params) {
-  if (soundUrl) URL.revokeObjectURL(soundUrl);
-  soundUrl = URL.createObjectURL(new Blob([soundBytes(params)], { type: 'audio/wav' }));
-  new Audio(soundUrl).play().catch(() => { /* a browser that will not autoplay */ });
-}
-
-async function saveSound(params, name) {
-  const path = assetPath(ASSET_DIR, `${name || 'sound'}.wav`);
-  const body = new Blob([soundBytes(params)], { type: 'audio/wav' });
-  const { failure } = await writeFiles([{ path, body }]);
-  if (failure) { say(failure, true); return; }
-  say(`Saved ${path}.`);
-  await openFile(path);
-}
 
 /* Render: dialogs -------------------------------------------------------- */
 
@@ -339,82 +302,34 @@ export function dialogFor(d) {
       })));
   }
 
+  // Two questions, the same two the picture is asked: what it is called and
+  // what it starts as. The sliders are not here — they are the pane the file
+  // opens in, so making a sound and changing it a week later are one surface
+  // rather than two.
   if (d.kind === 'sound') {
-    const sliders = new Map();
-    const readouts = new Map();
-
-    const wave = h('select', {
-      onchange: (e) => { d.sound.wave = e.currentTarget.value; playSound(d.sound); },
-    }, WAVES.map((w) => h('option', { value: w, text: WAVE_WORDS[w] })));
-
     const name = h('input', { placeholder: 'laser' });
-    name.addEventListener('input', () => { d.name = name.value; d.named = true; });
-
-    const shown = (p) => (p.step >= 1 ? String(Math.round(d.sound[p.key])) : d.sound[p.key].toFixed(2));
-
-    // Painted in place rather than through render(), which would rebuild the
-    // slider under the thumb that is dragging it — the same trap as the
-    // problems panel.
-    const paint = () => {
-      for (const p of SOUND_PARAMS) {
-        sliders.get(p.key).value = d.sound[p.key];
-        readouts.get(p.key).textContent = shown(p);
-      }
-      wave.value = d.sound.wave;
-      name.value = d.name;
-    };
-
-    const knobs = h('div', { class: 'knobs' }, SOUND_PARAMS.map((p) => {
-      const readout = h('span', { class: 'knob-value mono' });
-      const slider = h('input', {
-        type: 'range', min: p.min, max: p.max, step: p.step,
-        // Dragging moves the number beside it; letting go is what plays the
-        // sound, so a slow drag is not forty overlapping sounds.
-        oninput: (e) => {
-          d.sound[p.key] = Number(e.currentTarget.value);
-          readout.textContent = shown(p);
-        },
-        onchange: () => playSound(d.sound),
-      });
-      sliders.set(p.key, slider);
-      readouts.set(p.key, readout);
-      return h('label', { class: 'knob' },
-        h('span', { class: 'knob-name', text: p.label }),
-        slider,
-        readout,
-        h('span', { class: 'knob-note hint muted', text: p.comment }));
-    }));
-
-    // A preset renames the file too, until someone types a name of their own.
-    const load = (sound, called) => {
-      d.sound = sound;
-      if (called && !d.named) d.name = called;
-      paint();
-      playSound(d.sound);
-    };
-    paint();
-
-    return wide('Make a sound',
-      h('div', { class: 'row wrap' },
-        Object.keys(SOUND_PRESETS).map((n) => h('button', {
-          class: 'quiet tiny', text: SOUND_WORDS[n] ?? n, onclick: () => load(soundFrom(n), n),
-        })),
-        h('button', { class: 'quiet tiny', text: 'Surprise me', onclick: () => load(randomSound()) })),
-      h('label', { text: 'Shape' }), wave,
-      knobs,
+    name.value = d.name;
+    // The preset names the file too, until somebody types a name of their own.
+    name.addEventListener('input', () => { d.named = true; });
+    const preset = h('select', {
+      onchange: (e) => {
+        d.preset = e.currentTarget.value;
+        if (!d.named) { d.name = d.preset; name.value = d.name; }
+      },
+    }, Object.keys(SOUND_PRESETS).map((n) => h('option', { value: n, text: SOUND_WORDS[n] ?? n })));
+    preset.value = d.preset;
+    return wrap('Make a sound',
+      h('label', { text: 'Start from' }), preset,
       h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It lands in assets/ as a .wav, one version like anything else.' }),
-      h('div', { class: 'actions' },
-        cancel,
-        h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(d.sound) }),
-        h('button', {
-          class: 'filled', text: 'Save it',
-          onclick: async () => {
-            const { sound, name: called } = d;
-            close();
-            await saveSound(sound, called);
-          },
-        })));
+      h('p', { class: 'hint muted', text: 'It lands in assets/ as a .wav, one version like anything else, and opens with its sliders — a sound made here can be changed here whenever you like.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Make it',
+        onclick: async () => {
+          const called = name.value.trim();
+          close();
+          await createSound(preset.value, called);
+        },
+      })));
   }
 
   if (d.kind === 'delete-file') {

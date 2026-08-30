@@ -503,20 +503,44 @@ is pure — no DOM — and covered by `npm test`.
 An asset can also be **made** here rather than added, by two tools that end in
 the same `PUT`, at the same tidied path, in one commit each.
 
-`+ Make a sound` opens the **sound maker**: a preset, a row of sliders with a
-comment on each, and a `.wav`. The render is arithmetic in
-`public/sound-maker.js` rather than Web Audio — a few hundred samples per
-millisecond of blip, then the 44 bytes of a PCM header — which buys two things.
-The studio plays the encoded bytes, so what is heard is what is saved rather
-than a live approximation of it; and the whole thing is checked in `npm test`
-without a browser, which no `AudioContext` would allow.
+`+ Make a sound` asks two things — what it is called, and which preset it
+starts from — writes the `.wav`, and opens it in the **sound editor**: a
+preset row, a shape, and a slider per number with its comment beside it. The
+render is arithmetic in `public/sound-maker.js` rather than Web Audio — a few
+hundred samples per millisecond of blip, then the 44 bytes of a PCM header —
+which buys two things. The studio plays the encoded bytes, so what is heard is
+what is saved rather than a live approximation of it; and the whole thing is
+checked in `npm test` without a browser, which no `AudioContext` would allow.
+
+The editor is also simply how a `.wav` opens, which is the point: a sound is
+worth changing a week later, and samples cannot be turned back into sliders.
+So the numbers ride inside the file they made, as the **sound note** — a JSON
+comment in a `LIST`/`INFO`/`ICMT` chunk, about 200 bytes, sitting between
+`fmt ` and `data`. RIFF is a list of chunks and every player skips the ones it
+does not know, so the sound is unchanged: the samples are byte for byte what
+they would have been without it. Three choices worth naming:
+
+- **In the file, not beside it.** A `laser.json` next to `laser.wav` would have
+  been less code and would have come apart the first time somebody renamed,
+  duplicated or restored one of the pair. `move`, `duplicate` and Versions all
+  work on one file at a time, and none of them would have to learn about a
+  second.
+- **A comment chunk rather than a private one.** `ICMT` is the documented place
+  for a note about a sound, so an audio editor shows it rather than dropping it
+  on the next save. A chunk of the studio's own invention would have been
+  invisible everywhere and no easier to write.
+- **Nothing in the file is trusted.** The bytes may have been uploaded. A value
+  that is not a number the sliders could have produced is replaced by the
+  default, so a hand-edited note is a strange sound at worst, never a broken
+  editor. A `.wav` with no note — anything made before this, or made anywhere
+  else — opens as the player it always did, with one line saying why.
 
 `+ Draw a picture` makes a transparent PNG at the size asked for and opens it
 in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
 side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas keeps
 them, so opening an uploaded picture loses nothing. The tools are in
 `public/pixel-editor.js` and are arithmetic over bytes for the same reason the
-sound maker is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
+sound editor is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
 choices worth naming:
 
 - **There is no look-only view of a picture.** There was, behind a link, and it
@@ -635,7 +659,7 @@ The **sound player** (`studio/sound.js`) is the second library, and the one
 that proved the shape: it needed no orchestrator edit — its API note is its
 file header — only the file, an `index.json` entry, and the Files tab's offer
 buttons going generic (`+ Sounds` beside `+ Controls`). `Sound.play("laser")`
-plays `assets/laser.wav` — the files the sound maker creates — with a pooled
+plays `assets/laser.wav` — the files the sound editor writes — with a pooled
 element per shot, so rapid fire overlaps instead of dropping or cutting
 itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
 autoplay is one console warning, never an error: a game must not break over a
@@ -1747,7 +1771,8 @@ public/
   main.js         the SPA's core: state, transport, URL, stream, the file,
                   drawing and history actions, and render()
   dom.js          h(), and the icon buttons
-  sidebar.js  chat.js  versions.js  config-form.js  dialogs.js  upload.js
+  sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
+  dialogs.js  upload.js
                   one pane or feature each, importing the core from main.js
   config-file.js  patch.js  pixel-editor.js  sound-maker.js
                   pure logic, shared with npm test

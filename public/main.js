@@ -5,11 +5,12 @@
 // This file holds what everything else leans on — the state, the transport,
 // the URL, the stream, and the file, drawing and history actions — plus
 // render(), which composes the panes that live in the modules beside it:
-// dom.js, sidebar.js, chat.js, versions.js, config-form.js, dialogs.js,
-// upload.js.
+// dom.js, sidebar.js, chat.js, versions.js, config-form.js, sound-form.js,
+// dialogs.js, upload.js.
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
-import { soundFrom } from './sound-maker.js';
+import { soundFrom, soundBytes, soundIn } from './sound-maker.js';
+import { renderSoundForm, playSound } from './sound-form.js';
 import {
   PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
@@ -74,6 +75,9 @@ export const S = {
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
   draw: null,
+  // The same for a sound: the numbers the open .wav came off, while it is
+  // open. {params, dirty}
+  sound: null,
   // Which tool, how wide and which colours are a person's choice, not the
   // file's, so they outlive opening a different picture — and outlive the file
   // being re-read underneath the editor, which a save itself causes.
@@ -92,8 +96,10 @@ export const S = {
   // a setting that lives in whichever browser happened to make it.
   // {colours, text, from} — text is null when the game has no look.js yet.
   palette: null,
-  // Why a picture is not open for drawing on, when it is not.
+  // Why a picture is not open for drawing on, or a sound not open for
+  // changing, when they are not.
   drawRefused: null,
+  soundRefused: null,
   history: [],
   diff: null,
   historyPath: null,
@@ -774,7 +780,7 @@ function onEvent(name, data) {
       S.historyStale = true;
       if (S.tab === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
       if (S.open && data.paths.includes(S.open.path)) {
-        if (S.open.dirty || S.draw?.dirty) {
+        if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
         } else {
           openFile(S.open.path);
@@ -913,12 +919,16 @@ export async function openFile(path) {
   };
   S.draw = null;
   S.drawRefused = null;
+  S.sound = null;
+  S.soundRefused = null;
   S.tab = 'files';
   render();
   // A picture opens as a picture you can draw on. There was a second way to
   // look at one and it showed it at exactly the same size, so it was a control
   // that did nothing but cost a click.
   if (isDrawable(S.open)) await startDrawing();
+  // A sound opens as the numbers that made it, when it is one of ours.
+  else if (isSound(S.open)) await startSound();
 }
 
 // Closing throws away unsaved text, which is the one thing in the editor that
@@ -929,7 +939,7 @@ export async function openFile(path) {
 // stray click is a great deal easier to make.
 function closeOpenFile(then = null) {
   if (!S.open) return;
-  if (S.open.dirty || S.draw?.dirty) {
+  if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
     S.dialog = { kind: 'close-file', path: S.open.path, then };
     render();
     return;
@@ -943,6 +953,8 @@ function closeOpenFile(then = null) {
   S.open = null;
   S.draw = null;
   S.drawRefused = null;
+  S.sound = null;
+  S.soundRefused = null;
   render();
 }
 
@@ -959,7 +971,10 @@ export const chooseFile = (path) => (S.open ? closeOpenFile(path) : openFile(pat
 // the work still in it, exactly like the button in the editor bar.
 export async function saveAndClose(then = null) {
   if (!S.open) return;
-  const saved = S.draw ? await saveDrawing() : await saveOpenFile();
+  let saved;
+  if (S.draw) saved = await saveDrawing();
+  else if (S.sound) saved = await saveSound();
+  else saved = await saveOpenFile();
   if (saved) await closeOpenFile(then);
 }
 
@@ -1243,6 +1258,87 @@ export async function createPicture(name, width, height) {
   await openFile(path);
 }
 
+/* Sounds ------------------------------------------------------------------- */
+
+// Anything the browser calls audio is offered to the editor. What decides is
+// the file itself: one the studio wrote carries the numbers it was made from,
+// and anything else — an uploaded .wav, an .mp3 — has nothing to slide and
+// stays the player it always was.
+const isSound = (open) => !!open?.mime?.startsWith('audio/');
+
+// The numbers come back out of the file rather than out of anything the studio
+// kept, so what the sliders show is what is on disk. Same ownership rule as
+// the picture: a sound read after a newer file has been asked for is dropped.
+async function startSound() {
+  const token = opening;
+  const stale = () => opening !== token;
+  const path = S.open.path;
+
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  if (stale()) return;
+  if (!res.ok) {
+    S.soundRefused = problem(res, 'The studio could not read this sound.');
+    say(S.soundRefused, true);
+    return;
+  }
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (stale()) return;
+  const params = soundIn(bytes);
+  if (!params) {
+    // Said out loud rather than left as a player with no sliders: the numbers
+    // cannot be worked back out of the samples, and without a line here that
+    // reads as the studio forgetting how to open its own files.
+    S.soundRefused = 'This one was not made here, so there are no numbers to change. It plays like any other sound.';
+    render();
+    return;
+  }
+  S.sound = { params, dirty: false };
+  render();
+}
+
+// True when it landed and false when it did not, like the other two.
+async function saveSound() {
+  const { path } = S.open;
+  const holding = S.sound;
+  const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
+    method: 'PUT', headers, body: new Blob([soundBytes(holding.params)], { type: 'audio/wav' }),
+  });
+  const body = await res.json().catch(() => null);
+  // Two sounds cannot be compared in a dialog any more than two pictures can,
+  // and the numbers are the whole file, so this says what happened and touches
+  // nothing.
+  if (res.status === 409) {
+    say(`Someone changed ${path} while you were working on it. Close it and open it again to hear theirs.`, true);
+    return false;
+  }
+  if (!res.ok) {
+    say(problem(res, body?.error ?? 'Could not save that sound.'), true);
+    return false;
+  }
+  // The save is a commit and a commit rebuilds the pane, so only the editor
+  // that asked may finish the job.
+  if (S.sound === holding && S.open?.path === path) {
+    S.open.etag = body.etag;
+    S.sound.dirty = false;
+  }
+  S.previewNonce += 1;
+  await refreshFiles();
+  say(`Saved ${path}.`);
+  return true;
+}
+
+export async function createSound(preset, name) {
+  const path = assetPath(ASSET_DIR, `${name || preset || 'sound'}.wav`);
+  const body = new Blob([soundBytes(soundFrom(preset))], { type: 'audio/wav' });
+  const { failure } = await writeFiles([{ path, body }]);
+  if (failure) { say(failure, true); return; }
+  say(`Made ${path}.`);
+  // Opening it is what shows the sliders — the file carries them — so making a
+  // sound and changing one later are the same thing from here on.
+  await openFile(path);
+}
+
 /* The game's colours ------------------------------------------------------- */
 
 // The palette is a *config file* like any other, which is the whole point:
@@ -1484,7 +1580,7 @@ export async function duplicateFile(from, to) {
   await refreshFiles();
   // The duplicate is the file you are about to change, so it opens — unless
   // the original holds unsaved work, which openFile would silently drop.
-  if (!S.open?.dirty && !S.draw?.dirty) await openFile(to);
+  if (!S.open?.dirty && !S.draw?.dirty && !S.sound?.dirty) await openFile(to);
   say(`Made ${to}.`);
 }
 
@@ -1718,6 +1814,34 @@ function renderMedia({ path, mime }) {
   return h('div', { class: 'pad muted grow' },
     h('p', { text: 'The studio has no way to show this one, but it is part of the game like any other file.' }),
     h('p', {}, h('a', { href: src, download: path.split('/').pop() }, 'Save it to open somewhere else')));
+}
+
+// The sound as its numbers, with the same bar under it as every other pane.
+// The sliders paint themselves (sound-form.js); this is the part that knows
+// whether they have been saved.
+function renderSoundEditor() {
+  const state = h('span', { class: 'hint muted' });
+  const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveSound() });
+  const saveClose = h('button', {
+    class: 'filled ok', text: 'Save and close',
+    onclick: async () => { if (await saveSound()) await closeOpenFile(); },
+  });
+  const paint = () => {
+    state.textContent = S.sound.dirty ? 'Not saved yet' : 'Saved';
+    save.disabled = !S.sound.dirty || S.project.archived;
+    saveClose.disabled = save.disabled;
+  };
+  const changed = () => { S.sound.dirty = true; paint(); };
+  paint();
+
+  return h('div', { class: 'sound grow' },
+    h('div', { class: 'scroll pad', 'data-scroll': 'sound' }, renderSoundForm(S.sound.params, changed)),
+    h('div', { class: 'editor-bar row' },
+      state,
+      h('div', { class: 'spacer' }),
+      h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(S.sound.params) }),
+      save,
+      saveClose));
 }
 
 // Everything here is painted into one canvas and one pair of nodes rather
@@ -2336,9 +2460,10 @@ function renderFilesTab() {
       : null;
 
     if (S.open.content === null) {
+      const refused = S.drawRefused ?? S.soundRefused;
       editor.push(h('div', { class: 'editor' }, bar,
-        S.draw ? renderDrawing() : renderMedia(S.open),
-        S.drawRefused ? h('div', { class: 'pad hint muted', text: S.drawRefused }) : null));
+        S.draw ? renderDrawing() : S.sound ? renderSoundEditor() : renderMedia(S.open),
+        refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
     } else if (quiz?.ok) {
       editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
     } else if (parsed?.ok && !S.open.asText) {
@@ -2438,8 +2563,10 @@ function renderFilesTab() {
         class: 'quiet tiny', text: '+ Make a sound',
         title: 'Make a sound effect and put it in assets/',
         disabled: S.project.archived,
+        // Only the two things a file needs before it exists: what it is called
+        // and what it starts as. The sliders are the pane it opens in.
         onclick: () => {
-          S.dialog = { kind: 'sound', sound: soundFrom('pickup'), name: 'pickup' };
+          S.dialog = { kind: 'sound', preset: 'pickup', name: 'pickup' };
           render();
         },
       }),
