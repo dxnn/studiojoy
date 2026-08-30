@@ -26,7 +26,8 @@ deliberately deferred.
   game refactor, so ask a helper to do it rather than doing it by hand)
 - migrate `redwolf-radness` — still one big file, so this is a rebuild rather
   than a move (fun-slide went this way live: `2a6821d` in its repo)
-- support touch controls
+- build the four control schemes — one button, swipe and tap, stick and
+  buttons, dual stick (ideas/control-schemes.md)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
   after it (spec.md §9)
