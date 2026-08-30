@@ -236,6 +236,13 @@ export function openDb(dbPath) {
   // After the column, not with the other CREATEs: on a database written before
   // chats there is nothing to index until the line above has run.
   db.exec('CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages (chat_id, id)');
+  // The human-only chat used to be called "Just us". Renaming the rows rather
+  // than translating the name on the way out: it is a name somebody can change
+  // themselves, so there is nowhere else it could honestly live. Anything the
+  // studio's people have since renamed keeps its own name — this only moves
+  // rows still carrying the old default.
+  db.prepare('UPDATE chats SET name = ? WHERE name = ? AND bots = 0')
+    .run(HOME_CHAT, OLD_HOME_CHAT);
   intoChats(db);
   // Every project that predates authorship gets the person who made it, which
   // is the only honest answer available: nothing else in the row says who
@@ -253,47 +260,50 @@ export function openDb(dbPath) {
 
 // The name of the chat every project is born with, and the one no helper can
 // be put into. Exported because creation writes it and the client shows it.
-export const HOME_CHAT = 'Just us';
+export const HOME_CHAT = 'Humans only';
+// What it was called before, kept for the one statement that renames it.
+const OLD_HOME_CHAT = 'Just us';
 // Where a project that predates chats has its conversation put: helpers were
 // in it, so it is the chat that allows them.
 const CARRIED_CHAT = 'Building';
 
-// Every project has at least one chat, and the first one is human only. A
-// database written before chats existed has one thread per project and its
-// helpers attached to the project; this gives both a chat to live in without
-// changing what anybody said or who was talking.
+// Every project has two chats: the human-only one it opens on, and one where
+// helpers can be put. A database written before chats existed has one thread
+// per project and its helpers attached to the project; this gives both a chat
+// to live in without changing what anybody said or who was talking.
 //
-// Two chats come out of a project with a history: the human-only one, made
-// first so it sorts first and is what a new game opens on, and `Building`,
-// which takes the messages and the helpers because that is where they already
-// were. A project with neither gets only the human-only one.
+// ⚠️ Both, unconditionally. The first version of this made `Building` only for
+// a project that had something to carry into it, which left a game nobody had
+// talked in yet with nowhere a helper could ever be put — the two conditions
+// below are about what moves, never about whether the chat exists.
 function intoChats(db) {
   const projects = db.prepare(
     `SELECT p.id, p.created_at,
-            (SELECT COUNT(*) FROM messages m WHERE m.project_id = p.id) AS messages,
-            (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) AS chats
+            (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) AS chats,
+            (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id AND c.bots = 1) AS bot_chats
        FROM projects p`,
   ).all();
   const old = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_agents'").all();
   const hasOld = old.length > 0;
 
   for (const project of projects) {
-    if (project.chats > 0) continue;
-    db.prepare(
-      'INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, 0, ?)',
-    ).run(project.id, HOME_CHAT, project.created_at);
-
-    const carried = hasOld
-      ? db.prepare('SELECT COUNT(*) AS n FROM project_agents WHERE project_id = ?').get(project.id).n
-      : 0;
-    if (project.messages === 0 && carried === 0) continue;
+    if (project.chats === 0) {
+      db.prepare(
+        'INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, 0, ?)',
+      ).run(project.id, HOME_CHAT, project.created_at);
+    }
+    // A chat that allows helpers already exists — under whatever name it has
+    // since been given, which is why this counts the flag and not the name.
+    if (project.bot_chats > 0) continue;
 
     const building = db.prepare(
       'INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, 1, ?)',
     ).run(project.id, CARRIED_CHAT, project.created_at);
+    // Both no-ops for a project that has nothing from before chats: a thread
+    // already in a chat is not stranded, and the old table may not exist.
     db.prepare('UPDATE messages SET chat_id = ? WHERE project_id = ? AND chat_id IS NULL')
       .run(building.lastInsertRowid, project.id);
-    if (carried > 0) {
+    if (hasOld) {
       db.prepare(
         `INSERT INTO chat_agents
            (chat_id, agent_id, chatty, cooldown_until, response_pending, attached_by, attached_at)

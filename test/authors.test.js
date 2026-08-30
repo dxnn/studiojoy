@@ -81,7 +81,7 @@ test('anyone can talk in the human-only chat of any game', async (t) => {
     body: { body: 'let me help', chat_id: work },
   });
   assert.equal(nope.status, 403);
-  assert.match(nope.body.error, /Just us/);
+  assert.match(nope.body.error, /Humans only/);
 });
 
 test('an author adds somebody, and then they can change it', async (t) => {

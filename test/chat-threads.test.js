@@ -30,10 +30,10 @@ test('a game is born with a human-only chat and one that takes helpers', async (
 
   assert.deepEqual(
     detail.body.chats.map((c) => [c.name, c.bots]),
-    [['Just us', false], ['Building', true]],
+    [['Humans only', false], ['Building', true]],
   );
   // The one it opens on when nothing says otherwise is the human-only one.
-  assert.equal(detail.body.chat.name, 'Just us');
+  assert.equal(detail.body.chat.name, 'Humans only');
   assert.equal(detail.body.chat.bots, false);
 });
 
@@ -72,7 +72,7 @@ test('a chat is made, renamed, and capped', async (t) => {
   assert.equal(renamed.body.name, 'Pictures');
 
   const list = await app.client.json('GET', '/api/projects/tank/chats');
-  assert.deepEqual(list.body.chats.map((c) => c.name), ['Just us', 'Building', 'Pictures']);
+  assert.deepEqual(list.body.chats.map((c) => c.name), ['Humans only', 'Building', 'Pictures']);
 
   for (let i = 0; i < 17; i += 1) {
     const res = await app.client.json('POST', '/api/projects/tank/chats', {
@@ -199,7 +199,7 @@ test('a database from before chats comes forward with its history', (t) => {
   // The game with a history gets two: the human-only one it now opens on, and
   // Building, which is where the conversation actually was.
   const old = chats.filter((c) => c.project_id === 1);
-  assert.deepEqual(old.map((c) => [c.name, c.bots]), [['Just us', 0], ['Building', 1]]);
+  assert.deepEqual(old.map((c) => [c.name, c.bots]), [['Humans only', 0], ['Building', 1]]);
   const building = old[1];
 
   // Every message moved with it, and nothing was left without a home.
@@ -217,10 +217,12 @@ test('a database from before chats comes forward with its history', (t) => {
     'the old table is dropped, not left behind',
   );
 
-  // A project nobody ever talked in needs no Building chat.
+  // A project nobody ever talked in gets both as well. It has nothing to
+  // carry, but a game with nowhere a helper can be put is a game that cannot
+  // be worked on at all — which is what it used to be left as.
   assert.deepEqual(
-    chats.filter((c) => c.project_id === 2).map((c) => c.name),
-    ['Just us'],
+    chats.filter((c) => c.project_id === 2).map((c) => [c.name, c.bots]),
+    [['Humans only', 0], ['Building', 1]],
   );
 
   // Opening it again changes nothing: the upgrade is not a thing that runs
@@ -228,5 +230,44 @@ test('a database from before chats comes forward with its history', (t) => {
   up.close();
   const again = openDb(file);
   assert.equal(again.prepare('SELECT COUNT(*) c FROM chats').get().c, chats.length);
+  again.close();
+});
+
+// The shape a studio was left in by the first version of the upgrade above: a
+// game that had never been talked in came forward with only its human-only
+// chat, so there was nowhere in it a helper could ever be put. Reopening the
+// database is what fixes it — there is no repair script.
+test('a game left without a chat that takes helpers gets one, and Just us is renamed', (t) => {
+  const dir = scratchDir('one-chat-db');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'db');
+
+  const first = openDb(file);
+  first.prepare(
+    `INSERT INTO users (id, email, password_hash, display_name, created_at)
+     VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z')`,
+  ).run();
+  first.prepare(
+    `INSERT INTO projects (id, slug, name, kind, created_by, created_at)
+     VALUES (1, 'quiet', 'Never Used', 'game', 1, '2026-01-01T00:00:00.000Z')`,
+  ).run();
+  // Exactly what the old upgrade left behind, old name and all.
+  first.prepare(
+    `INSERT INTO chats (project_id, name, bots, created_at)
+     VALUES (1, 'Just us', 0, '2026-01-01T00:00:00.000Z')`,
+  ).run();
+  first.close();
+
+  const up = openDb(file);
+  const chats = up.prepare('SELECT name, bots FROM chats WHERE project_id = 1 ORDER BY id').all();
+  assert.deepEqual(
+    chats.map((c) => [c.name, c.bots]),
+    [['Humans only', 0], ['Building', 1]],
+  );
+  up.close();
+
+  // And not a second Building on the way back through.
+  const again = openDb(file);
+  assert.equal(again.prepare('SELECT COUNT(*) c FROM chats WHERE project_id = 1').get().c, 2);
   again.close();
 });
