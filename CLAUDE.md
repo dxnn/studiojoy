@@ -552,7 +552,7 @@ What it moved, beyond colour: the sidebar is one list at a time behind
 the helpers, from `GET /api/users` (names, no addresses); the whole-game actions are
 an **actions drawer** under the game's name instead of the foot of the Play
 tab; the **Play tab is gone** — the preview lives at the top of the rail and
-folds to a row that still plays; and a game's `config/look.js` can name four
+folds to a row that still plays and still opens the game in its own tab; and a game's `config/look.js` can name four
 colours the studio wears while that game is open. The design's own `support.js`
 is a React runtime from the tool that produced it and has no place here.
 
