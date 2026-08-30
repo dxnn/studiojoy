@@ -1737,3 +1737,8 @@ button.act.open.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); 
 .person input.cfg-num { flex: 0 0 7rem; }
 .person .hint { flex: 0 0 auto; }
 .person button.on { color: var(--num); border-color: color-mix(in oklab, var(--num) 50%, transparent); }
+
+/* Nearly out of tokens for the day, in the same grey line as what the reply
+   cost. Gold, because it is a number worth looking at — the one thing that
+   colour means here. */
+.tokens .low { color: var(--num); font-weight: 700; }

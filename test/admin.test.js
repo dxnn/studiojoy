@@ -175,3 +175,42 @@ test('a reply is billed to whoever asked, and their allowance stops them alone',
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Second.');
   assert.equal(llm.calls.length, 2, 'somebody else’s day is their own');
 });
+
+// The number the warning under a reply is drawn from. It is on /api/me and
+// nowhere else: an allowance is not a thing to show the room.
+test('you can see your own day, and nobody else’s', async (t) => {
+  const llm = createFakeLlm([says('Working on it.')]);
+  const { app, robin, theirs } = await two(t, { llm });
+  await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { daily_tokens: 1000 } });
+
+  await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  const agent = await app.client.json('POST', '/api/agents', {
+    body: { name: 'Designer', description: 'You design games.' },
+  });
+  const chat = await workChat(app, 'tank');
+  await theirs.json('POST', `/api/projects/tank/chats/${chat}/agents`, {
+    body: { agent_id: agent.body.id, chatty: true },
+  });
+
+  const stream = await openStream(theirs);
+  t.after(() => stream.close());
+  await theirs.json('POST', '/api/projects/tank/messages', {
+    body: { body: 'make a start', chat_id: chat },
+  });
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const me = await theirs.json('GET', '/api/me');
+  assert.equal(me.body.daily_tokens, 1000);
+  assert.ok(me.body.spent_today > 0, 'their own spend is theirs to see');
+
+  // The admin's own row says nothing about Robin's day.
+  const mine = await app.client.json('GET', '/api/me');
+  assert.equal(mine.body.daily_tokens, null);
+  assert.equal(mine.body.spent_today, 0);
+
+  // And a message carries no allowance with it, so a thread cannot leak one.
+  const thread = await theirs.json(`GET`, `/api/projects/tank?chat=${chat}`);
+  for (const m of thread.body.messages) {
+    assert.ok(!('daily_tokens' in m) && !('spent_today' in m));
+  }
+});

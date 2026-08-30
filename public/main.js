@@ -572,6 +572,27 @@ export async function loadAgents() {
 
 // The people in the studio, for the Crew tab. Names only, and only ever read:
 // an account is made with `npm run adduser` and by nothing in here.
+// Your own numbers, re-read after a reply that was billed to you. `/api/me`
+// carries what you may spend in a day and what you have spent of it, so the
+// warning under a reply is drawn from your own row and never from anybody
+// else's — an allowance is not a thing to show the room.
+export async function loadMe() {
+  const res = await api('GET', '/api/me');
+  if (res.ok) S.me = res.body;
+}
+
+// How close you are to your own daily limit, or null when there is nothing to
+// say: no allowance, or not near it yet. Within a tenth of it is the line —
+// far enough out that there is time to finish a thought.
+export function nearQuota() {
+  const limit = S.me?.daily_tokens;
+  if (!limit) return null;
+  const spent = S.me.spent_today ?? 0;
+  const left = Math.max(0, limit - spent);
+  if (left > limit * 0.1) return null;
+  return { spent, limit, left };
+}
+
 export async function loadPeople() {
   const res = await api('GET', '/api/users');
   if (res.ok) S.people = res.body;
@@ -778,6 +799,10 @@ function onEvent(name, data) {
       if (!here(data)) return;
       S.project.messages.push(data);
       render();
+      // A reply costs somebody their allowance, and if that somebody is you,
+      // the line under it should say so. Only worth asking when you have an
+      // allowance at all.
+      if (data.agent_id !== null && S.me?.daily_tokens) loadMe().then(render);
       return;
     }
 

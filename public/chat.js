@@ -8,7 +8,7 @@ import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, say, sizeText, setPublished, setOpenEdit,
-  openChat, createChat, frozen,
+  openChat, createChat, frozen, nearQuota,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -54,6 +54,11 @@ function tintStyle(agent, id) {
 // reply left a receipt, the token count is the link that opens it — a reply
 // from before receipts existed stays a plain note, because a note that lights
 // up must open something.
+// The last thing in the thread, which is where a warning about your own day
+// belongs: on every reply it would be a drumbeat, and on an old one it would
+// be about a number that has since moved.
+const newest = (msg) => S.project?.messages?.at(-1)?.id === msg.id;
+
 function footnote(msg) {
   const parts = [];
   if (msg.tokens) {
@@ -71,6 +76,17 @@ function footnote(msg) {
     parts.push(msg.trimmed === 1
       ? 'did not see the first message'
       : `did not see the first ${msg.trimmed} messages`);
+  }
+  // Your own day, in the place the cost of a reply is already written. Shown
+  // on the newest reply only, and only to the person whose day it is.
+  const near = msg.agent_id !== null && newest(msg) ? nearQuota() : null;
+  if (near) {
+    parts.push(h('span', {
+      class: 'low',
+      text: near.left === 0
+        ? 'that is all your tokens for today'
+        : `${near.left.toLocaleString()} of your ${near.limit.toLocaleString()} tokens left today`,
+    }));
   }
   if (parts.length === 0) return null;
   const children = [];

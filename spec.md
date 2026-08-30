@@ -1673,6 +1673,13 @@ runaway loop draining the API key, whoever set it off; a person's
 Both are set in the admin panel; the studio-wide one falls back to the built-in
 5,000,000 when nothing has been set.
 
+Within a tenth of your allowance, the line under the newest reply says so —
+in the same grey line that already says what that reply cost, and in gold,
+which is what a number worth looking at is coloured everywhere else. It is
+drawn from `/api/me` alone, re-read after a reply that could have moved it, so
+it is your own day and never anybody else's: no message carries an allowance,
+and a thread cannot leak one.
+
 A reply is billed to **whoever asked for it**: the newest human message in that
 chat when the fire started. An agent has no owner to bill, and the person whose
 turn it is is the one who wanted the answer — a continuation goes on the same

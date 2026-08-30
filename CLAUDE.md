@@ -191,7 +191,10 @@ tab. The first account has it; ⚠️ the studio keeps at least one, and a passw
 set there ends that person's sessions. Tokens now have two walls — the
 studio-wide budget and a person's `daily_tokens` — and a reply is billed to
 whoever asked for it, so one person running out stops their helpers and nobody
-else's (spec.md §10). `bin/adduser.js` still works and makes the first account
+else's (spec.md §10). Within a tenth of your allowance, the token line under
+the newest reply says how much is left, in gold — drawn from `/api/me`, which
+is re-read after a reply, so it is your own day and no message ever carries
+somebody's allowance. `bin/adduser.js` still works and makes the first account
 an admin.
 
 A file can be copied **between games**: `Copy to…` on the open file's bar, or
