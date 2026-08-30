@@ -166,12 +166,24 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_scores_project
      ON scores (project_id, score DESC, id)`,
 
-  // Single row. One studio-wide daily budget, because agents have no owner
-  // to bill (spec.md §3).
+  // What one person's helpers spent on one day, so an allowance can be
+  // checked without a rollover column per user: a day that is not today is
+  // simply a row nothing reads. Also the only record of who spent what, which
+  // the admin panel shows.
+  `CREATE TABLE IF NOT EXISTS user_tokens (
+    user_id INTEGER NOT NULL REFERENCES users,
+    day TEXT NOT NULL,
+    tokens INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+  )`,
+
+  // Single row: the studio-wide budget, which is the outer wall around every
+  // person's own allowance.
   `CREATE TABLE IF NOT EXISTS studio_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     tokens_used_today INTEGER NOT NULL DEFAULT 0,
-    budget_reset_at TEXT NOT NULL
+    budget_reset_at TEXT NOT NULL,
+    daily_token_budget INTEGER
   )`,
 ];
 
@@ -201,10 +213,25 @@ export function openDb(dbPath) {
   // Which conversation a message is in. A database from before chats existed
   // has one thread per project; the upgrade gives that thread a home rather
   // than leaving it stranded (see intoChats).
+  // Who may run the studio: add an account, rename one, set what it may
+  // spend, take it away. Exactly one bit, and the first account gets it —
+  // somebody has to be able to make the second one.
+  addColumnIfMissing(db, 'users', 'admin', 'INTEGER NOT NULL DEFAULT 0', (d) => {
+    d.prepare(
+      'UPDATE users SET admin = 1 WHERE id = (SELECT MIN(id) FROM users)',
+    ).run();
+  });
+  // What one person's helpers may spend in a day. Null is no allowance of
+  // their own — only the studio-wide budget, which is the outer wall either
+  // way.
+  addColumnIfMissing(db, 'users', 'daily_tokens', 'INTEGER');
   // Off by default: a game is its authors' until they say otherwise. On, any
   // account in the studio may change it — which is a thing you choose, not a
   // thing that happens because nobody got round to adding you.
   addColumnIfMissing(db, 'projects', 'open_edit', 'INTEGER NOT NULL DEFAULT 0');
+  // The studio-wide budget, editable in the admin panel rather than a
+  // constant in the source. Null means the built-in default still applies.
+  addColumnIfMissing(db, 'studio_state', 'daily_token_budget', 'INTEGER');
   addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
   // After the column, not with the other CREATEs: on a database written before
   // chats there is nothing to index until the line above has run.

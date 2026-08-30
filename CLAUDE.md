@@ -184,6 +184,25 @@ Since v0: a project is a game or a **chat** (`projects.kind`). A chat has no
 working tree and nothing on disk, so every file route, the games origin, and
 the agent's tools and context all refuse or omit it.
 
+The studio has one role, **admin** (`users.admin`), and it is about running the
+studio rather than about games: accounts, names, passwords, per-person
+**allowances** and the studio-wide budget, all in Studio settings on the Crew
+tab. The first account has it; ⚠️ the studio keeps at least one, and a password
+set there ends that person's sessions. Tokens now have two walls — the
+studio-wide budget and a person's `daily_tokens` — and a reply is billed to
+whoever asked for it, so one person running out stops their helpers and nobody
+else's (spec.md §10). `bin/adduser.js` still works and makes the first account
+an admin.
+
+A file can be copied **between games**: `Copy to…` on the open file's bar, or
+`POST /files/import` — the bytes as they are now, one commit in the game it
+lands in, no history and no link. Reading the source is every account's, so the
+only rights checked are the target's.
+
+The preview reloads itself. There is no Reload button and has not been since
+the reskin: every commit bumps `previewNonce`, which is in the iframe's `src`,
+so a helper's write, a save or an upload all restart the game on their own.
+
 Games have **authors** now, and the studio is no longer flat: an account reads
 everything and changes only games it authors — or games marked **open**, which
 an author sets to let the whole studio in. `canEdit` is the rule and

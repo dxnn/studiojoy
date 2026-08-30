@@ -99,7 +99,7 @@ export function deleteSession(db, token) {
 export function userForToken(db, token) {
   if (!token) return null;
   return db.prepare(
-    `SELECT u.id, u.email, u.display_name, u.created_at
+    `SELECT u.id, u.email, u.display_name, u.admin, u.daily_tokens, u.created_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ?`,
   ).get(token) ?? null;
@@ -134,8 +134,10 @@ export function clearedSessionCookie({ secure = false } = {}) {
   return parts.join('; ');
 }
 
-// Studio access is presence in `users` and nothing else (spec.md §3), so
-// there is no role to check here — a resolved session is full authority.
+// A resolved session says who you are, and the row carries the two things
+// that decide what you may do beyond reading: `admin`, which is the studio's
+// only role, and `daily_tokens`, which is what your helpers may spend. What
+// you may change in a game is a question about that game (server/authors.js).
 export function currentUser(ctx) {
   const cookies = parseCookies(ctx.req.headers.cookie);
   return userForToken(ctx.db, cookies[SESSION_COOKIE]);
@@ -206,6 +208,20 @@ export const DEFAULT_IP_LOCKOUT = {
   lockoutMs: 10 * 60 * 1000,
 };
 
+// Short enough for a ten-year-old to remember, long enough that it is not a
+// word. The studio is a handful of people behind one login; the account list
+// is the real boundary (spec.md §11).
+export const MIN_PASSWORD_CHARS = 6;
+
+// Changing somebody's password. The caller ends their sessions — a password
+// changed because it leaked has to end the leak too.
+export function setPassword(db, userId, password) {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .run(hashPassword(password), userId);
+}
+
+// The first account is the studio's admin: somebody has to be able to make the
+// second one, and there is nobody else to ask.
 export function createUser(db, { email, password, displayName }, now = new Date()) {
   const normalized = normalizeEmail(email);
   if (!normalized || !normalized.includes('@')) {
@@ -219,10 +235,11 @@ export function createUser(db, { email, password, displayName }, now = new Date(
   if (name.length > MAX_DISPLAY_NAME_CHARS) {
     throw new Error(`display name is longer than ${MAX_DISPLAY_NAME_CHARS} characters`);
   }
+  const first = db.prepare('SELECT COUNT(*) AS c FROM users').get().c === 0;
   const info = db.prepare(
-    `INSERT INTO users (email, password_hash, display_name, created_at)
-     VALUES (?, ?, ?, ?)`,
-  ).run(normalized, hashPassword(password), name, now.toISOString());
-  return db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?')
+    `INSERT INTO users (email, password_hash, display_name, admin, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(normalized, hashPassword(password), name, first ? 1 : 0, now.toISOString());
+  return db.prepare('SELECT id, email, display_name, admin, created_at FROM users WHERE id = ?')
     .get(info.lastInsertRowid);
 }

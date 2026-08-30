@@ -11,7 +11,8 @@ import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createChat, setAuthors, frozen, LIBRARY_DIR, deleteScore, clearScores,
+  createChat, setAuthors, frozen, loadStudio, studioChange, copyFileTo,
+  LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
 /* Render: dialogs -------------------------------------------------------- */
@@ -309,6 +310,115 @@ export function dialogFor(d) {
   // authors on the other, and one button between them each way. ⚠️ Only an
   // author sees this at all — being able to work on an open game is not the
   // same as deciding who does.
+  // Running the studio: who is in it, what each person's helpers may spend in
+  // a day, and the wall around everybody. Only an admin can open it — the
+  // button is not drawn for anybody else, and the server refuses regardless.
+  //
+  // Painted in place for the same reason as the authors dialog: a dialog node
+  // outlives every render, so a rebuilt list would never appear.
+  if (d.kind === 'studio') {
+    const list = h('div', { class: 'plan' });
+    const budget = h('input', { type: 'number', min: '0', class: 'cfg-num' });
+    const box = h('div', { class: 'col' });
+
+    const number = (value) => (value === null || value === undefined ? '' : String(value));
+
+    const paint = () => {
+      const data = S.admin;
+      if (!data) { list.replaceChildren(h('div', { class: 'muted', text: 'Reading…' })); return; }
+      budget.value = number(data.budget.limit);
+      list.replaceChildren(...data.people.map((person) => {
+        const name = h('input', { value: person.display_name });
+        name.value = person.display_name;
+        const allowance = h('input', {
+          type: 'number', min: '0', class: 'cfg-num',
+          placeholder: 'no limit',
+          title: 'Tokens this person’s helpers may spend in a day',
+        });
+        allowance.value = number(person.daily_tokens);
+        return h('div', { class: 'person' },
+          name,
+          h('span', {
+            class: 'hint muted mono',
+            title: 'Spent today',
+            text: `${person.spent_today.toLocaleString()} today`,
+          }),
+          allowance,
+          h('button', {
+            class: 'quiet tiny', text: 'Save',
+            onclick: () => studioChange('PATCH', `/users/${person.id}`, {
+              display_name: name.value.trim(),
+              daily_tokens: allowance.value === '' ? null : Number(allowance.value),
+            }).then(paint),
+          }),
+          h('button', {
+            class: `quiet tiny${person.admin ? ' on' : ''}`,
+            text: person.admin ? 'Admin' : 'Make admin',
+            title: person.admin ? 'Can run the studio' : 'Let them run the studio',
+            onclick: () => studioChange('PATCH', `/users/${person.id}`, {
+              admin: !person.admin,
+            }).then(paint),
+          }),
+          h('button', {
+            class: 'quiet tiny', text: 'Password',
+            title: 'Give them a new password',
+            onclick: () => {
+              const next = window.prompt(`A new password for ${person.display_name}`);
+              if (next) studioChange('PATCH', `/users/${person.id}`, { password: next }).then(paint);
+            },
+          }),
+          h('button', {
+            class: 'danger tiny', text: 'Take out',
+            disabled: person.id === S.me.id,
+            title: person.id === S.me.id ? 'Somebody else has to take you out' : `Take ${person.display_name} out of the studio`,
+            onclick: () => {
+              // Everything else in here is reversible in a click; this is not.
+              if (!window.confirm(`Take ${person.display_name} out of the studio? What they said stays.`)) return;
+              studioChange('DELETE', `/users/${person.id}`).then(paint);
+            },
+          }));
+      }));
+    };
+
+    const email = h('input', { placeholder: 'them@example.com' });
+    const who = h('input', { placeholder: 'Their name' });
+    const pass = h('input', { placeholder: 'A password they can remember' });
+    box.append(
+      h('div', { class: 'section-label', text: 'In the studio' }),
+      list,
+      h('div', { class: 'section-label', text: 'Add somebody' }),
+      h('div', { class: 'person' }, who, email, pass, h('button', {
+        class: 'filled tiny', text: 'Add them',
+        onclick: async () => {
+          const ok = await studioChange('POST', '/users', {
+            display_name: who.value.trim(), email: email.value.trim(), password: pass.value,
+          });
+          if (!ok) return;
+          who.value = ''; email.value = ''; pass.value = '';
+          paint();
+        },
+      })),
+      h('div', { class: 'section-label', text: 'The whole studio, in a day' }),
+      h('div', { class: 'person' },
+        budget,
+        h('span', { class: 'hint muted', text: 'tokens a day for everybody together' }),
+        h('button', {
+          class: 'quiet tiny', text: 'Save',
+          onclick: () => studioChange('PATCH', '/studio', {
+            daily_token_budget: budget.value === '' ? null : Number(budget.value),
+          }).then(paint),
+        })),
+    );
+
+    if (!S.admin) loadStudio().then(paint);
+    paint();
+    return wide('Studio settings',
+      h('p', { class: 'hint muted', text: 'Everyone here can read every game and talk in every “Just us”. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
+      box,
+      h('div', { class: 'actions' },
+        h('button', { class: 'filled', text: 'Done', onclick: close })));
+  }
+
   if (d.kind === 'authors') {
     // Painted in place, not through render(): a dialog is built once and
     // re-appended by every later render, so a rebuilt list would never appear.
@@ -359,6 +469,35 @@ export function dialogFor(d) {
           if (!called) return;
           close();
           await createChat(called);
+        },
+      })));
+  }
+
+  // A file into another game. The list is the games you may change: copying
+  // out of this one takes nothing from it, so what decides is where it lands.
+  if (d.kind === 'copy-to') {
+    const games = S.projects.filter((p) => p.kind !== 'chat' && p.slug !== S.slug && p.can_edit);
+    const where = h('select', {}, games.map((p) => h('option', { value: p.slug, text: p.name })));
+    const name = h('input');
+    name.value = d.path;
+    const err = h('p', { class: 'error' });
+    if (games.length === 0) {
+      return wrap('Copy this file into another game',
+        h('p', { text: 'There is no other game you can change. A game you are an author of, or one that is open to everyone, can take a copy.' }),
+        h('div', { class: 'actions' }, h('button', { class: 'filled', text: 'Close', onclick: close })));
+    }
+    return wrap('Copy this file into another game',
+      h('label', { text: 'Which game?' }), where,
+      h('label', { text: 'Call it' }), name,
+      h('p', { class: 'hint muted', text: 'The bytes are copied as they are now. The two games stay strangers — this one keeps its file, and neither one hears about the other again.' }),
+      err,
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Copy it',
+        onclick: async () => {
+          const to = name.value.trim();
+          if (!to) { err.textContent = 'Give it a name.'; return; }
+          close();
+          await copyFileTo(where.value, d.path, to);
         },
       })));
   }

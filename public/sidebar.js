@@ -174,6 +174,15 @@ function crewRows(matches) {
       : nothing('Nobody yet — accounts are made with npm run adduser.'),
     h('div', { class: 'section-label', text: 'Helpers' }),
     helpers,
+    // Only an admin has anything to open here, so only an admin is offered it.
+    // The server refuses the routes behind it either way.
+    S.me.admin
+      ? h('div', { class: 'pad' }, h('button', {
+        class: 'quiet tiny', text: 'Studio settings',
+        title: 'People, passwords and what each of them may spend',
+        onclick: () => { S.dialog = { kind: 'studio' }; render(); },
+      }))
+      : null,
   ];
 }
 

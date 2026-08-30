@@ -65,9 +65,11 @@ export const S = {
   authError: null,
   projects: [],
   agents: [],
-  // The studio's people, for the Crew tab. Read once at boot: accounts are
-  // made at a command line, so this list does not change while you are in here.
+  // The studio's people, for the Crew tab.
   people: [],
+  // Everything the admin panel shows, while it is open. Null until then: it
+  // is the one part of the studio most accounts may not even read.
+  admin: null,
   slug: null,
   project: null,
   // The conversation on screen, and every conversation this game has. A game
@@ -1798,6 +1800,50 @@ export async function toggleChatty(a) {
     : `${a.name} will wait until you type @${a.name.split(' ')[0]}.`);
 }
 
+// A file into another game: the bytes and nothing else. The route reads the
+// source and writes the target, so the rights it checks are the target's.
+export async function copyFileTo(slug, from, to) {
+  const res = await api('POST', `/api/projects/${slug}/files/import`, {
+    from_slug: S.slug, from_path: from, to_path: to,
+  });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not copy that file.', true);
+    return;
+  }
+  const game = S.projects.find((p) => p.slug === slug);
+  say(`Copied ${to} into ${game?.name ?? slug}.`);
+}
+
+/* Running the studio ------------------------------------------------------- */
+
+// The panel's data, fetched when it opens and re-fetched after every change:
+// the numbers in it — what somebody has spent today — are the server's to
+// know, and stale ones would be worse than a moment's wait.
+export async function loadStudio() {
+  const res = await api('GET', '/api/admin/studio');
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not read the studio settings.', true);
+    return false;
+  }
+  S.admin = res.body;
+  return true;
+}
+
+// One call for every change the panel makes, so every one of them ends with
+// the same refreshed numbers.
+export async function studioChange(method, path, body) {
+  const res = await api(method, `/api/admin${path}`, body);
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not do that.', true);
+    return false;
+  }
+  await loadStudio();
+  // A name may have changed, and it is on messages and in the crew list.
+  await loadPeople();
+  render();
+  return true;
+}
+
 /* Chats -------------------------------------------------------------------- */
 
 // Switching conversations inside one game. Not openProject: the files, the
@@ -2574,6 +2620,14 @@ function renderFilesTab() {
         class: 'quiet tiny', text: 'Duplicate',
         disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'duplicate-file', path: S.open.path }; render(); },
+      }),
+      // Into another game. Not disabled by frozen(): copying out of a game
+      // takes nothing from it, and the rights that matter are the ones on the
+      // game it lands in — which is what the dialog offers.
+      h('button', {
+        class: 'quiet tiny', text: 'Copy to…',
+        title: 'Copy this file into another game',
+        onclick: () => { S.dialog = { kind: 'copy-to', path: S.open.path }; render(); },
       }),
       h('button', {
         class: 'danger tiny', text: 'Delete',

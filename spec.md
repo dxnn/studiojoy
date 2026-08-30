@@ -115,6 +115,30 @@ version history, edits in the same editor as everything else, and can be
 updated by an agent as the design evolves. When present it is injected into
 every agent's context (§8).
 
+### `users` — the two columns that are not identity
+
+| column | type | notes |
+|---|---|---|
+| `admin` | INTEGER NOT NULL DEFAULT 0 | may run the studio: add an account, rename one, set an allowance, hand out this bit |
+| `daily_tokens` | INTEGER NULL | what this person's helpers may spend in a day. Null is no allowance of their own |
+
+The first account made is an admin — somebody has to be able to make the
+second — and an upgrade gives the bit to the lowest id. ⚠️ The studio keeps at
+least one admin: demoting or removing the last is a 409, because a studio
+nobody can run is one nobody can add an account to either.
+
+### `user_tokens`
+
+| column | type | notes |
+|---|---|---|
+| `user_id` | INTEGER NOT NULL → users | |
+| `day` | TEXT NOT NULL | UTC date, `YYYY-MM-DD` |
+| `tokens` | INTEGER NOT NULL DEFAULT 0 | |
+
+PK `(user_id, day)`. What one person's helpers spent on one day — no rollover
+column per person, because a day that is not today is simply a row nothing
+reads. Also the only record of who spent what, which is what the panel shows.
+
 ### `project_authors`
 
 | column | type | notes |
@@ -470,6 +494,24 @@ addresses to do its job.
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
 
+#### Running the studio
+
+Every route here requires `users.admin`; everything else in the API is open to
+any account (§11).
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/admin/studio` | — | the people, what each has spent today, and the studio-wide budget |
+| POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
+| PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `password` | change one |
+| DELETE | `/api/admin/users/:id` | — | take somebody out of the studio |
+| PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody |
+
+⚠️ A password set here ends that person's sessions: a password changed because
+somebody else knew it has to end the somebody else's session too. Removing an
+account leaves their messages — a thread with holes in it is worse than a name
+nobody can sign in as — and refuses if they are the only author of a game.
+
 #### Chats
 
 | method | path | body | effect |
@@ -522,6 +564,13 @@ receipt routes check only that someone is signed in.
 | DELETE | `/api/projects/:slug/files/*path` | commits |
 | POST | `/api/projects/:slug/files/move` | `{from, to}` — `git mv`, commits |
 | POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
+| POST | `/api/projects/:slug/files/import` | `{from_slug, from_path, to_path?}` — copies a file **in from another game**, commits; 409 if `to_path` exists |
+
+`import` is the copy/paste between games. Reading the source is every
+account's, so the only rights that matter are the ones on the game it lands
+in: it takes `write: true` on `:slug` and nothing on the source. The bytes are
+copied as they are — no history, no link, and the two games are strangers
+afterwards.
 
 `PUT` takes a **raw body**, not `multipart/form-data`. That removes the need
 to hand-roll multipart parsing and fits a file tree better than an upload
@@ -1618,6 +1667,19 @@ and a reasoning trace is never persisted at all (§8).
 
 ## 10. Limits
 
+**Two token walls.** The studio-wide daily budget is the outer one and stops a
+runaway loop draining the API key, whoever set it off; a person's
+`daily_tokens` is the inner one, so one person cannot spend everybody's day.
+Both are set in the admin panel; the studio-wide one falls back to the built-in
+5,000,000 when nothing has been set.
+
+A reply is billed to **whoever asked for it**: the newest human message in that
+chat when the fire started. An agent has no owner to bill, and the person whose
+turn it is is the one who wanted the answer — a continuation goes on the same
+person's day, because it is the rest of their answer. Out of allowance, their
+helpers answer with a `[studio]` note naming them and the studio carries on for
+everybody else.
+
 - Message body: 32 KB (utf-8 bytes).
 - JSON request body: 64 KB. Raw file `PUT` body: 10 MB.
 - Email: 254 chars. Display name: 100. Project name: 200. Slug: 40.
@@ -1655,6 +1717,11 @@ and a reasoning trace is never persisted at all (§8).
   user and their sessions.
 
 ### Who may change what
+
+The studio has exactly one role: `users.admin`, which is about running the
+studio — accounts, names, passwords, allowances, the studio-wide budget — and
+nothing about games. An admin has no more right to somebody's game than
+anybody else; authorship is a separate question with a separate answer.
 
 Being in `users` gets you into the studio and lets you **read** all of it:
 every game, every version, every conversation, every file. That is deliberate

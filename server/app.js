@@ -11,6 +11,7 @@ import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import { agentRoutes } from './routes/agents.js';
 import { chatRoutes } from './routes/chats.js';
+import { adminRoutes } from './routes/admin.js';
 import { fileRoutes } from './routes/files.js';
 import { historyRoutes } from './routes/history.js';
 import { messageRoutes } from './routes/messages.js';
@@ -44,6 +45,7 @@ export function createApp({
   // API first: the static catch-all below matches every GET path, so route
   // order is what keeps `/api/...` from being read as a filename.
   authRoutes(r);
+  adminRoutes(r);
   projectRoutes(r);
   agentRoutes(r);
   chatRoutes(r);

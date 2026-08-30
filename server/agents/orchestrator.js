@@ -7,6 +7,7 @@ import { hasErrors, listErrors } from '../runtime.js';
 import { tokensCharged, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
 import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
+  studioLimit, userHasBudget, chargeUser,
 } from '../budget.js';
 import { messagePublic, agentAuthorFor } from '../routes/helpers.js';
 import { parseMentions, agentEligible } from './mentions.js';
@@ -727,12 +728,34 @@ export function createOrchestrator({
     });
 
     try {
-      if (!hasBudget(db, dailyTokenBudget)) {
+      // Billed to whoever asked: the newest human message in this chat is
+      // whose turn this reply answers. A continuation has no new human turn,
+      // so it goes on the same person's day — it is the rest of their answer.
+      const asker = db
+        .prepare(
+          `SELECT u.id, u.display_name, u.daily_tokens
+             FROM messages m JOIN users u ON u.id = m.user_id
+            WHERE m.chat_id = ? AND m.user_id IS NOT NULL
+            ORDER BY m.id DESC LIMIT 1`,
+        )
+        .get(chat.id) ?? null;
+
+      if (!hasBudget(db, studioLimit(db, dailyTokenBudget))) {
         postSystemMessage(db, broker, {
           project,
           chat,
           agentId: row.agent_id,
           body: `${row.agent_name} could not reply: the studio is out of tokens for today.`,
+        });
+        return;
+      }
+      // One person's day running out stops their helpers and nobody else's.
+      if (!userHasBudget(db, asker)) {
+        postSystemMessage(db, broker, {
+          project,
+          chat,
+          agentId: row.agent_id,
+          body: `${row.agent_name} could not reply: ${asker.display_name} has used up today's tokens. It starts again tomorrow.`,
         });
         return;
       }
@@ -907,6 +930,7 @@ export function createOrchestrator({
       }
 
       consumeBudget(db, charged);
+      chargeUser(db, asker?.id, charged);
 
       const changed = toolset ? toolset.changedPaths() : [];
       if (streamFailed && !replyText && changed.length === 0) {
@@ -1015,7 +1039,9 @@ export function createOrchestrator({
         // something to answer — without it the agent's own reply would be
         // newest and the fire would no-op.
         const used = continued.get(row.id) ?? 0;
-        if (used < maxContinuations && hasBudget(db, dailyTokenBudget)) {
+        if (used < maxContinuations
+            && hasBudget(db, studioLimit(db, dailyTokenBudget))
+            && userHasBudget(db, asker)) {
           continued.set(row.id, used + 1);
           postSystemMessage(db, broker, {
             project,

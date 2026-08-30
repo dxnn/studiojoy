@@ -1721,3 +1721,19 @@ button.act.open.on {
   color: oklch(0.88 0.1 155);
 }
 button.act.open.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+
+/* One person in the studio settings: their name, what they have spent, what
+   they may spend, and the things an admin can do to the account. */
+.person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.person:last-child { border-bottom: none; }
+.person input { flex: 1 1 8rem; min-width: 6rem; }
+.person input.cfg-num { flex: 0 0 7rem; }
+.person .hint { flex: 0 0 auto; }
+.person button.on { color: var(--num); border-color: color-mix(in oklab, var(--num) 50%, transparent); }

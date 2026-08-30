@@ -1,4 +1,5 @@
 import { json, noContent, HttpError } from '../http/respond.js';
+import { userSpentToday } from '../budget.js';
 import { readJson } from '../http/body.js';
 import {
   normalizeEmail, verifyPassword, verifyAgainstDummy, createSession,
@@ -74,6 +75,13 @@ export function authRoutes(r) {
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      // The studio's only role, so the interface knows whether to offer the
+      // panel. Every route behind it checks for itself.
+      admin: user.admin === 1,
+      // What this person's helpers may spend in a day, and what they have
+      // spent: shown to them, not only to whoever set it.
+      daily_tokens: user.daily_tokens ?? null,
+      spent_today: userSpentToday(ctx.db, user.id),
       games_url: ctx.gamesUrl,
     });
   });

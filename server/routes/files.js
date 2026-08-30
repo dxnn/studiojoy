@@ -2,7 +2,7 @@ import { json, HttpError } from '../http/respond.js';
 import { readJson, readRaw } from '../http/body.js';
 import { mimeForPath, isTextPath, OCTET_STREAM } from '../http/static.js';
 import { requireAuth } from '../auth.js';
-import { resolveProjectPath } from '../files/paths.js';
+import { resolveProjectPath, requireSlug } from '../files/paths.js';
 import {
   listTree, readFileAt, writeFileAt, removeFileAt, assertCapacity, etagFor,
   MAX_FILE_BYTES,
@@ -55,6 +55,42 @@ export function fileRoutes(r) {
         project_slug: project.slug, paths: [from.rel, to.rel],
       });
       json(ctx.res, 200, { from: from.rel, to: to.rel, commit: sha });
+    });
+  });
+
+  // A file out of another game. Reading the source is every account's, so
+  // this needs the same rights any other write to *this* game needs and
+  // nothing more: the bytes are copied, the source is untouched, and the two
+  // games stay strangers afterwards — no link, no history carried over.
+  r.post('/api/projects/:slug/files/import', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    const body = await readJson(ctx.req);
+
+    const fromSlug = requireSlug(String(body.from_slug ?? ''));
+    const source = ctx.db.prepare('SELECT * FROM projects WHERE slug = ?').get(fromSlug);
+    if (!source || source.kind === 'chat') throw new HttpError(404, 'no such game to copy from');
+    if (source.id === project.id) throw new HttpError(400, 'that is the same game — use Duplicate');
+
+    const from = resolveProjectPath(projectDirFor(ctx, source), body.from_path);
+    const to = resolveProjectPath(projectDirFor(ctx, project), body.to_path ?? body.from_path);
+    const bytes = await readFileAt(from.abs);
+    if (bytes === null) throw new HttpError(404, `${from.rel} is not in ${source.name}`);
+    if (await readFileAt(to.abs) !== null) {
+      throw new HttpError(409, `${to.rel} is already here — pick another name`);
+    }
+
+    const dir = projectDirFor(ctx, project);
+    const sha = await ctx.mutex.run(project.slug, async () => {
+      await assertCapacity(dir, { addingBytes: bytes.length, isNewFile: true });
+      await writeFileAt(to.abs, bytes);
+      return commitPaths(dir, [to.rel], `copy ${to.rel} from ${source.slug}`, authorFor(user));
+    });
+    ctx.broker.broadcast('files.changed', {
+      project_slug: project.slug, paths: [to.rel],
+    });
+    json(ctx.res, 201, {
+      path: to.rel, size: bytes.length, etag: etagFor(bytes), commit: sha, from: from.rel,
     });
   });
 

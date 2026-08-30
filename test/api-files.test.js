@@ -361,3 +361,67 @@ test('concurrent writes to one project all land', async (t) => {
   // One initial commit plus ten writes.
   assert.equal((await logCommits(dir, { limit: 100 })).length, 11);
 });
+
+// Copy/paste between games: the bytes, and nothing else — no history, no link
+// back, and the source untouched.
+test('a file is copied in from another game', async (t) => {
+  const { app } = await project(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Snake', slug: 'snake' } });
+  await put(app, 'js%2Fengine.js', 'const engine = 1;');
+
+  const copied = await app.client.json('POST', '/api/projects/snake/files/import', {
+    body: { from_slug: 'tank', from_path: 'js/engine.js' },
+  });
+  assert.equal(copied.status, 201);
+  assert.equal(copied.body.path, 'js/engine.js');
+
+  const there = await app.client.request('GET', '/api/projects/snake/files/js%2Fengine.js');
+  assert.equal(await there.text(), 'const engine = 1;');
+  const [head] = await logCommits(path.join(app.gamesDir, 'snake'), { limit: 1 });
+  assert.match(head.subject, /copy js\/engine\.js from tank/);
+
+  // The original is still there, and its history did not come along.
+  const back = await app.client.request('GET', '/api/projects/tank/files/js%2Fengine.js');
+  assert.equal(back.status, 200);
+  await back.text();
+
+  // Twice is a conflict rather than a silent overwrite, and a name it does
+  // not have is a 404 with the game named.
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/snake/files/import', {
+      body: { from_slug: 'tank', from_path: 'js/engine.js' },
+    })).status,
+    409,
+  );
+  const missing = await app.client.json('POST', '/api/projects/snake/files/import', {
+    body: { from_slug: 'tank', from_path: 'js/nothing.js' },
+  });
+  assert.equal(missing.status, 404);
+  assert.match(missing.body.error, /not in Tank/);
+});
+
+test('copying in takes the rights of the game it lands in', async (t) => {
+  const { app } = await project(t);
+  await put(app, 'js%2Fengine.js', 'const engine = 1;');
+
+  const other = app.newClient();
+  await signIn(app, {
+    email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: other,
+  });
+  await other.json('POST', '/api/projects', { body: { name: 'Robins', slug: 'robins' } });
+
+  // Robin may read Tank, so Robin may copy out of it into Robin's own game.
+  assert.equal(
+    (await other.json('POST', '/api/projects/robins/files/import', {
+      body: { from_slug: 'tank', from_path: 'js/engine.js' },
+    })).status,
+    201,
+  );
+  // And may not copy into somebody else's.
+  assert.equal(
+    (await other.json('POST', '/api/projects/tank/files/import', {
+      body: { from_slug: 'robins', from_path: 'js/engine.js', to_path: 'js/sneak.js' },
+    })).status,
+    403,
+  );
+});
