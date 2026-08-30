@@ -219,16 +219,20 @@ is why everything that was disabled for an archived game is disabled for
 somebody else's. Every existing project got its creator as its author.
 
 A project holds several **chats** — conversations, `chats` in the database.
-Every one is born with two: `Just us`, which it opens on, and `Building`. ⚠️
-`Just us` is human only, and that is enforced where a helper would be *put in*
+Every one is born with two: `Humans only`, which it opens on, and `Building`. ⚠️
+`Humans only` is human only, and that is enforced where a helper would be *put in*
 (`assertBotsAllowed`), not where one would answer: a room that promises nobody
 is listening keeps that promise at the door. A helper belongs to a chat rather
 than a game — `chat_agents`, with the chatty switch, the cooldown and the dirty
 bit all per chat — and its transcript, its pins and its history floor are that
 chat's alone. The URL carries `?chat=`; the browser remembers the last one per
-game. A database from before this upgrades in place: `intoChats` gives each
-project the human-only chat and moves its thread and helpers into `Building`,
-then drops `project_agents`. Tested against a hand-built old database.
+game. A database from before this upgrades in place: `intoChats` gives every
+project both chats and moves its thread and helpers into `Building`, then drops
+`project_agents`; a database still carrying `Just us` has that row renamed.
+⚠️ Both chats unconditionally — the first version made `Building` only where
+there was something to carry, which left a game nobody had talked in yet with
+nowhere a helper could be put. Tested against a hand-built old database and
+against that shape.
 
 Browser-checked, not just intended: on the games origin `document.cookie` is
 empty and `localStorage` works, and the studio cannot read into the preview
@@ -277,7 +281,10 @@ handed fun-slide as a rebuild, a helper wrote `BRIEF.md`/`SPEC.md`, a commented
 `config/` set and small `js/` files in one commit (`2a6821d` in its repo), and
 the game played clean afterwards.
 
-Art can be put in from the studio: `+ Upload` beside `+ New file`, or
+Art can be put in from the studio: `+ Upload` under **Add a file** — the one
+button above the file list, whose dialog holds all four of `+ New file`,
+`+ Upload`, `+ Draw a picture` and `+ Make a sound`, with the preamble naming
+the button and the four choices by exactly those words — or
 a drop onto the file tree, both landing in a dialog that shows the path each
 file will take before anything is sent. Client-side only — the `PUT` route
 already took raw bytes. Files go under `assets/` by what they are — a sound to

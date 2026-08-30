@@ -20,7 +20,7 @@ import {
 } from './pixel-editor.js';
 import { h, iconButton } from './dom.js';
 import {
-  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, assetPath, writeFiles, openUpload,
+  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, assetPath, writeFiles,
   makeDropTarget, isFileDrag,
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
@@ -1360,7 +1360,7 @@ function freeName(dir, stem, ext) {
 // No dialog: the one thing it used to ask that mattered was the name, and a
 // name is a better question after you have heard the sound than before. It
 // lands as a plain blip and opens on its sliders; Rename is in the same bar.
-async function createSound() {
+export async function createSound() {
   const path = freeName(SOUND_DIR, 'sound', '.wav');
   const body = new Blob([soundBytes(soundFrom('pickup'))], { type: 'audio/wav' });
   const { failure } = await writeFiles([{ path, body }]);
@@ -2737,18 +2737,6 @@ function renderFilesTab() {
     }
   }
 
-  // The picker is what makes uploading work on a tablet, where there is
-  // nothing to drag from. Hidden because the styled button opens it.
-  const picker = h('input', {
-    type: 'file', multiple: true, hidden: true,
-    onchange: (e) => {
-      const files = [...e.currentTarget.files];
-      // Cleared so picking the same file twice in a row still fires.
-      e.currentTarget.value = '';
-      if (files.length) openUpload(files);
-    },
-  });
-
   // With a file open the list shrinks to about five rows and the editor takes
   // everything else; with nothing open the list fills the pane.
   const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}`, 'data-scroll': 'files' },
@@ -2759,33 +2747,16 @@ function renderFilesTab() {
   if (!frozen()) makeDropTarget(tree);
 
   return [
+    // One button, four ways in. The four used to sit here in a row that
+    // wrapped to two lines in a narrow rail and put the rarest of them beside
+    // the commonest; which kind of file you are adding is a question, so it is
+    // asked in a dialog.
     h('div', { class: 'pad row wrap' },
       h('button', {
-        class: 'quiet tiny', text: '+ New file',
+        class: 'quiet tiny', text: 'Add a file',
+        title: 'Make a file, upload one, draw a picture or make a sound',
         disabled: frozen(),
-        onclick: () => { S.dialog = { kind: 'new-file' }; render(); },
-      }),
-      h('button', {
-        class: 'quiet tiny', text: '+ Upload',
-        title: 'Put any file from this device into the game',
-        disabled: frozen(),
-        onclick: () => picker.click(),
-      }),
-      picker,
-      h('button', {
-        class: 'quiet tiny', text: '+ Draw a picture',
-        title: 'Draw a sprite and put it in assets/',
-        disabled: frozen(),
-        onclick: () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); },
-      }),
-      h('button', {
-        class: 'quiet tiny', text: '+ Make a sound',
-        title: `Make a sound effect and put it in ${SOUND_DIR}/`,
-        disabled: frozen(),
-        // Straight to the sliders. There is nothing to ask first: a sound you
-        // have not heard yet cannot be named, and everything else about it is
-        // in the pane.
-        onclick: () => createSound(),
+        onclick: () => { S.dialog = { kind: 'add-file' }; render(); },
       }),
       h('div', { class: 'spacer' }),
       S.pinned.size
@@ -2846,6 +2817,14 @@ function renderPreview() {
     prefs.set('preview', S.previewOpen ? 'open' : 'closed');
     render();
   };
+  // The same control either way — folded, the row around it is a button too,
+  // so the click must not also reach it and unfold the game.
+  const openInTab = (stop) => h('a', {
+    href: S.project.play_url,
+    target: '_blank',
+    rel: 'noreferrer',
+    onclick: stop ? (e) => e.stopPropagation() : null,
+  }, h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' }));
 
   return h('div', { class: `preview-wrap${S.previewOpen ? '' : ' collapsed'}` },
     // Built either way: the iframe is only in the tree when it is open, so a
@@ -2855,19 +2834,20 @@ function renderPreview() {
       ? h('div', { class: 'preview-foot' },
         best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
         h('div', { class: 'spacer' }),
-        h('a', { href: S.project.play_url, target: '_blank', rel: 'noreferrer' },
-          h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' })),
+        openInTab(false),
         h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
       : null,
     // Folded: one row. The same control that hid it brings it back — Hide ▲
     // and Show ▼ are one button in two states, in the place the eye already
-    // is — and the whole row is a way in too, because it lights up.
+    // is — and the whole row is a way in too, because it lights up. Open comes
+    // with it: playing the game in its own tab is the one thing you would fold
+    // the preview away and still want.
     S.previewOpen ? null : h('div', {
       class: 'preview-row', title: `Show ${S.project.name}`, onclick: shut,
     },
     h('span', { class: 'play', text: '▶' }),
     h('span', { class: 'pname', text: `Play ${S.project.name}` }),
-    best === null ? null : h('span', { class: 'best', text: showScore(best) }),
+    openInTab(true),
     h('button', {
       class: 'icon', text: 'Show ▼', title: 'Show the game',
       // The row under it is a button in all but name; letting the click reach
@@ -2877,10 +2857,7 @@ function renderPreview() {
     // Rendered either way. Folding the game away stops it running, but the
     // problems it already reported are still the answer to "why is it broken",
     // and a panel that vanished with the frame would take them with it.
-    renderProblems(),
-    S.previewOpen
-      ? h('div', { class: 'hint muted', text: 'Anyone with the link can play this. It updates as soon as a file changes.' })
-      : null);
+    renderProblems());
 }
 
 // Drag the rail's left edge. Pointer capture keeps the drag on this element,

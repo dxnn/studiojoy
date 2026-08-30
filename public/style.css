@@ -455,11 +455,13 @@ a:hover { color: var(--accent-hi); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Three times the size it was. It is the only thing saying the game's name
+   opens anything, and at 0.55em nobody found it. */
 .bar button.title::after {
   content: '▾';
   flex-shrink: 0;
-  font-size: 0.55em;
-  line-height: 1;
+  font-size: 1.65em;
+  line-height: 0.5;
   color: var(--muted);
   transition: transform 180ms ease, color 140ms ease;
 }
@@ -1070,27 +1072,25 @@ details.thinking .trace {
   gap: 0;
   background: none;
 }
+/* The box and Send on one line. Send is bottom-aligned so dragging the box
+   taller leaves it where the hand already is. */
+.composer .say { display: flex; gap: 10px; align-items: flex-end; }
 .composer textarea {
+  flex: 1;
+  min-width: 0;
   resize: vertical;
   min-height: 68px;
   border: 1px solid color-mix(in oklab, var(--look-primary) 45%, transparent);
-  border-bottom: none;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg);
   background: oklch(0.19 0.04 350 / 0.75);
   padding: 13px 15px;
   font-size: 14.5px;
 }
 .composer textarea:focus-visible { outline-offset: -2px; }
-/* The hint and Send share one strip under the box, so the whole composer
-   reads as a single card. */
-.composer .row:last-child {
-  border: 1px solid color-mix(in oklab, var(--look-primary) 45%, transparent);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  background: oklch(0.19 0.04 350 / 0.75);
-  padding: 9px 15px 11px;
-}
 .composer .hint { font-size: 12.5px; color: var(--muted); }
+/* What is pinned, over the box — said only when something is. */
+.composer .hint.pins { padding: 0 2px 7px; }
+.composer .say button.filled { flex: 0 0 auto; padding: 11px 20px; }
 /* Send takes the game's colours, not the studio's: it is a message to this
    game's crew. */
 .composer button.filled {
@@ -1442,9 +1442,9 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .preview-foot button.icon:hover:not(:disabled) { color: #fff; background: oklch(0.98 0.01 300 / 0.12); }
 .preview-frame { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 
-/* Collapsed: one row that keeps the two things you would miss — a way to play
-   and the best score — and the file list grows into the space. Add .collapsed
-   to .preview-wrap; nothing else moves. */
+/* Collapsed: one row that keeps the two things you would miss — a way to show
+   the game again and a way to open it in its own tab — and the file list grows
+   into the space. Add .collapsed to .preview-wrap; nothing else moves. */
 .preview-wrap.collapsed .preview-frame,
 .preview-wrap.collapsed .preview-foot { display: none; }
 .preview-wrap.collapsed .preview-row { display: flex; }
@@ -1471,7 +1471,9 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
   flex-shrink: 0;
 }
 .preview-row .pname { flex: 1; font-size: 13px; font-weight: 700; color: #fdf4f6; }
-.preview-row .best { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--num); }
+/* An inline-flex anchor propagates its underline to the button inside it,
+   which the inline one in the foot does not. */
+.preview-row a { display: inline-flex; text-decoration: none; }
 /* Show ▼ against the frame's Hide ▲: one control in two states, so it reads
    the same folded as it does open. */
 .preview-row button.icon {
@@ -1620,6 +1622,31 @@ pre.diff .hunk { color: var(--accent); }
 .dialog h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 .dialog label { display: block; margin: 8px 0 3px; font-size: 13px; color: var(--muted); }
 .dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+/* A dialog that asks which of several things you meant: one wide row each,
+   the name over what it does. Whole-row buttons, because the sentence under
+   the name is as much a part of the choice as the name is. */
+.choices { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+.choices .choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+}
+.choices .choice:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  color: inherit;
+}
+.choices .cname { font-size: 14px; font-weight: 700; }
+.choices .choice:hover .cname { color: var(--accent); }
+.choices .cwhat { font-size: 12.5px; color: var(--muted); }
 .dialog.wide { max-width: 560px; }
 
 /* A row per parameter: what it is called, the slider, where it is now, and the

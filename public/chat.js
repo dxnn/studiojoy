@@ -290,20 +290,10 @@ function renderLive(agentId, entry) {
 function helperGap() {
   if (!S.project || frozen()) return null;
   // The human-only chat is not missing its helpers; it is the room without
-  // them. Saying "nobody will answer" there would read as a fault.
-  if (S.chat && !S.chat.bots) {
-    const elsewhere = S.chats.find((c) => c.bots);
-    return h('div', { class: 'notice' },
-      'This one is just for the humans — no helpers, ever. ',
-      elsewhere
-        ? h('button', {
-          class: 'link',
-          text: `Go to ${elsewhere.name}`,
-          onclick: () => openChat(elsewhere.id),
-        })
-        : null,
-      elsewhere ? ' to ask for something.' : null);
-  }
+  // them. Nothing is said about it: the chat is called Humans only, which is
+  // the whole of the explanation, and a standing notice under a name that
+  // already says it is furniture.
+  if (S.chat && !S.chat.bots) return null;
   if (S.project.agents.length > 0) {
     // Attached, but every one of them is waiting to be called by name.
     if (S.project.agents.some((a) => a.chatty)) return null;
@@ -357,11 +347,11 @@ function renderActs(p) {
   // the author list and nothing they can press.
   const yours = Boolean(p.mine);
   return h('div', { class: `acts${S.actsOpen ? ' open' : ''}` },
-    // Making a copy takes nothing from anybody, so it is the one thing here
-    // that is not an author's alone.
+    // Forking takes nothing from anybody, so it is the one thing here that is
+    // not an author's alone.
     h('button', {
       class: 'act fork',
-      text: 'Make a copy',
+      text: 'Fork',
       title: 'Start a new game from a copy of this one',
       disabled: p.archived,
       onclick: () => { S.dialog = { kind: 'fork' }; render(); },
@@ -371,7 +361,7 @@ function renderActs(p) {
       title: 'The games list is the page everyone sees at the games address',
       disabled: !yours,
       onclick: () => setPublished(!listed),
-    }, h('span', { class: 'dot' }), listed ? 'Take out of the list' : 'Put in the list'),
+    }, h('span', { class: 'dot' }), listed ? 'Unpublish' : 'Publish'),
     h('span', {
       class: `state${listed ? ' live' : ''}`,
       text: listed ? 'In the games list' : 'Only people with the link',
@@ -464,13 +454,12 @@ export function renderChat() {
     : (talkable ? 'Ask for something…' : `Only ${p.name}’s authors can write here.`);
   box.disabled = !talkable;
 
-  // A chat has no files, so it has nothing to pin and no tip to give.
-  let pinNote = '';
-  if (!isChat()) {
-    pinNote = S.pinned.size
-      ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
-      : 'Tip: pin a file on the right to point at it.';
-  }
+  // Said only when there is something to say. The standing tip that used to
+  // live here was a line of instructions under every message anybody ever
+  // typed; what pinning is for is discoverable from the checkbox itself.
+  const pinNote = !isChat() && S.pinned.size
+    ? `Sending ${S.pinned.size} pinned file${S.pinned.size === 1 ? '' : 's'}.`
+    : '';
 
   // Without an attached helper nothing is eligible to answer, and a message
   // just sits there. Say so before it happens rather than leaving silence to
@@ -527,11 +516,13 @@ export function renderChat() {
     isChat() ? null : renderActs(p),
     renderChatTabs(),
     scroller,
+    // Send sits beside the box rather than under it: the strip it used to have
+    // to itself was a whole row of studio for one button, and the box is wide
+    // enough to give the width up.
     h('div', { class: 'composer' },
       gap,
-      box,
-      h('div', { class: 'row' },
-        h('span', { class: 'hint', text: pinNote }),
-        h('div', { class: 'spacer' }),
+      pinNote ? h('div', { class: 'hint pins', text: pinNote }) : null,
+      h('div', { class: 'say' },
+        box,
         h('button', { class: 'filled', text: 'Send', disabled: !talkable, onclick: sendComposer }))));
 }

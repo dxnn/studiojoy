@@ -168,10 +168,15 @@ in the studio may change it. It is an author's decision — see §11.
 | `bots` | INTEGER NOT NULL DEFAULT 1 | 0 = human only: no *helper* may be put in it at all |
 | `created_at` | TEXT NOT NULL | |
 
-One conversation inside a project. Every project is born with two: `Just us`
-(`bots = 0`), which is the one it opens on, and `Building`, where helpers can
-be put. A game may have up to 20. There is no delete: a chat holds what people
-said in it, and nothing else in the studio throws words away.
+One conversation inside a project. Every project is born with two:
+`Humans only` (`bots = 0`), which is the one it opens on, and `Building`, where
+helpers can be put. A game may have up to 20. There is no delete: a chat holds
+what people said in it, and nothing else in the studio throws words away.
+
+⚠️ Both, unconditionally, and for an upgraded database too. `intoChats` used to
+make `Building` only where there was a thread or a line-up to carry into it,
+which left a game nobody had talked in yet with nowhere a helper could ever be
+put. The condition belongs to what moves, not to whether the chat exists.
 
 ⚠️ `bots = 0` is enforced where a helper would be **put in** (`assertBotsAllowed`
 on the attach route and on the fork's copy), not where one would answer. A room
@@ -582,7 +587,8 @@ returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
-`+ Upload` puts **any** file into the game the same way: the studio reads the
+`+ Upload` — one of the four choices behind **Add a file**, the single button
+above the file list — puts **any** file into the game the same way: the studio reads the
 dropped or picked `File` and `PUT`s its bytes, one request and one commit per
 file. Client-side only; no route knows an upload from an edit, and no route
 knows one kind of file from another — `checkProjectPath` validates the shape of
@@ -1401,7 +1407,7 @@ kept in step, and `test/orchestrator.test.js` asserts each one is present:
 
 | what an agent cannot do | what it is told to say |
 |---|---|
-| make or change a picture or a sound | ask for the path by name, and name the button: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
+| make or change a picture or a sound | ask for the path by name, and name the button — `Add a file`, and which of its choices: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
 | change a *studio library* | call it, say what needs changing, and load it with its `<script>` tag when writing `index.html` |
 
 One exception is worth stating, because it is easy to get wrong in both

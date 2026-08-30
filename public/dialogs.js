@@ -5,14 +5,14 @@
 import { h } from './dom.js';
 import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
 import {
-  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles,
+  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload,
 } from './upload.js';
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createChat, setAuthors, frozen, loadStudio, studioChange, copyFileTo,
-  LIBRARY_DIR, deleteScore, clearScores,
+  createChat, createSound, setAuthors, frozen, loadStudio, studioChange,
+  copyFileTo, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
 /* Render: dialogs -------------------------------------------------------- */
@@ -221,6 +221,44 @@ export function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, make));
   }
 
+  // Four ways to put a file in the game, behind the one button above the file
+  // list. The names are the ones the agent preamble tells a helper to ask for
+  // by — renaming one here means renaming it there.
+  if (d.kind === 'add-file') {
+    // The picker is what makes uploading work on a tablet, where there is
+    // nothing to drag from. It lives in the dialog now, with the button that
+    // opens it; the dialog node outlives every render, so it stays connected.
+    const picker = h('input', {
+      type: 'file', multiple: true, hidden: true,
+      onchange: (e) => {
+        const files = [...e.currentTarget.files];
+        // Cleared so picking the same file twice in a row still fires.
+        e.currentTarget.value = '';
+        // The upload dialog replaces this one, so there is nothing to close.
+        if (files.length) openUpload(files);
+      },
+    });
+    const choice = (label, what, onclick) => h('button', { class: 'choice', onclick },
+      h('span', { class: 'cname', text: label }),
+      h('span', { class: 'cwhat', text: what }));
+
+    return wrap('Add a file',
+      h('div', { class: 'choices' },
+        choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
+          () => { S.dialog = { kind: 'new-file' }; render(); }),
+        choice('+ Upload', 'Any file from this device. Pictures and sounds go to assets/.',
+          () => picker.click()),
+        choice('+ Draw a picture', 'A sprite or a backdrop, square by square.',
+          () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); }),
+        // Straight to the sliders. There is nothing to ask first: a sound you
+        // have not heard yet cannot be named, and everything else about it is
+        // in the pane.
+        choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
+          () => { close(); createSound(); })),
+      picker,
+      h('div', { class: 'actions' }, cancel));
+  }
+
   if (d.kind === 'new-file') {
     const path = h('input', { placeholder: 'js/game.js' });
     return wrap('New file',
@@ -413,7 +451,7 @@ export function dialogFor(d) {
     if (!S.admin) loadStudio().then(paint);
     paint();
     return wide('Studio settings',
-      h('p', { class: 'hint muted', text: 'Everyone here can read every game and talk in every “Just us”. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
+      h('p', { class: 'hint muted', text: 'Everyone here can read every game and talk in every “Humans only”. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
       box,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
@@ -449,7 +487,7 @@ export function dialogFor(d) {
     };
     paint();
     return wrap('Who can edit this game',
-      h('p', { class: 'hint muted', text: 'Anyone in the studio can read this game, play it and talk in \u201cJust us\u201d. These are the people who can change it.' }),
+      h('p', { class: 'hint muted', text: 'Anyone in the studio can read this game, play it and talk in \u201cHumans only\u201d. These are the people who can change it.' }),
       list,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
@@ -461,7 +499,7 @@ export function dialogFor(d) {
     const name = h('input', { placeholder: 'Art, or Music, or Bug hunt' });
     return wrap('Start another chat',
       h('label', { text: 'What is it about?' }), name,
-      h('p', { class: 'hint muted', text: 'A new chat can have helpers in it. The one called “Just us” never can.' }),
+      h('p', { class: 'hint muted', text: 'A new chat can have helpers in it. The one called “Humans only” never can.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Start it',
         onclick: async () => {
@@ -536,13 +574,13 @@ export function dialogFor(d) {
     name.value = `${S.project.name} copy`;
     const slug = h('input', { placeholder: 'leave empty to pick one for you' });
     const err = h('p', { class: 'error' });
-    return wrap('Make a copy of this game',
+    return wrap('Fork this game',
       h('p', { text: 'The new game starts with all the same files and helpers. The chat starts fresh.' }),
-      h('label', { text: 'What is the copy called?' }), name,
+      h('label', { text: 'What is the fork called?' }), name,
       h('label', { text: 'Web address' }), slug,
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make the copy',
+        class: 'filled', text: 'Fork it',
         onclick: async () => {
           const body = { name: name.value.trim() };
           if (slug.value.trim()) body.slug = slug.value.trim();
