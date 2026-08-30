@@ -1713,3 +1713,11 @@ label.knob {
 }
 .chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
 .chat-tab.add { padding: 5px 10px; font-size: 14px; }
+
+/* The open switch in the actions drawer, beside publish: same shape, and the
+   dot lit when the whole studio is in. */
+button.act.open.on {
+  border-color: color-mix(in oklab, var(--ok) 60%, transparent);
+  color: oklch(0.88 0.1 155);
+}
+button.act.open.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }

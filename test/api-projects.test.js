@@ -386,7 +386,10 @@ test('publishing is a boolean, games only, and shows in the payload', async (t) 
   assert.equal(chat.status, 400);
 });
 
-test('any account can edit any project', async (t) => {
+// Superseded by authorship (test/authors.test.js): every account still reads
+// every project, but changing one takes being an author of it or the game
+// being open. What is left of the old rule is the reading half.
+test('any account can read any project', async (t) => {
   const app = await setup();
   t.after(() => app.close());
   await signIn(app);
@@ -396,7 +399,8 @@ test('any account can edit any project', async (t) => {
   await signIn(app, {
     email: 'sam@example.com', password: 'pw', displayName: 'Sam', client: other,
   });
-  const res = await other.json('PATCH', '/api/projects/tank', { body: { name: 'Sam Was Here' } });
+  const res = await other.json('GET', '/api/projects/tank');
   assert.equal(res.status, 200);
-  assert.equal(res.body.name, 'Sam Was Here');
+  assert.equal(res.body.name, 'Tank');
+  assert.equal(res.body.can_edit, false);
 });

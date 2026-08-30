@@ -6,7 +6,7 @@
 import { patchFor, hasHunks, renameIn } from './patch.js';
 import { h } from './dom.js';
 import {
-  S, render, encodePath, chooseFile, loadHistory, loadDiff, urlAs,
+  S, render, encodePath, chooseFile, loadHistory, loadDiff, urlAs, frozen,
 } from './main.js';
 
 /* Versions ----------------------------------------------------------------- */
@@ -220,7 +220,7 @@ export function renderVersionsTab() {
         // the row rather than disappearing, so the newest version says what it
         // is instead of being the one row with nothing on the right.
         current ? h('span', { class: 'current', text: 'Current version' }) : null,
-        S.historyPath && !current && !S.project.archived
+        S.historyPath && !current && !frozen()
           ? h('button', {
             class: 'quiet tiny', text: 'Bring this file back',
             onclick: () => {
@@ -229,7 +229,7 @@ export function renderVersionsTab() {
             },
           })
           : null,
-        !S.historyPath && !S.project.archived
+        !S.historyPath && !frozen()
           ? h('button', {
             class: 'quiet tiny', text: 'Bring everything back',
             onclick: () => {

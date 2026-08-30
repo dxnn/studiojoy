@@ -17,11 +17,14 @@ import { PROJECT_KINDS, tx } from '../db.js';
 import {
   startChats, listChats, homeChat, requireChat, chatPublic,
 } from '../chats.js';
+import {
+  addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
+} from '../authors.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
 
-function projectPublic(db, row) {
+function projectPublic(db, row, user = null) {
   const last = db
     .prepare(
       `SELECT body, created_at FROM messages
@@ -35,6 +38,14 @@ function projectPublic(db, row) {
     archived: row.archived === 1,
     published: row.published === 1,
     scores_on: row.scores_on === 1,
+    // Who may change it, and whether you are one of them. `authors` is on
+    // every project in the list, not only the open one: the sidebar sorts
+    // games into yours, open and everyone else's, and needs to know which is
+    // which before you have opened any of them.
+    open_edit: row.open_edit === 1,
+    authors: listAuthors(db, row.id),
+    mine: user ? isAuthor(db, row.id, user.id) : false,
+    can_edit: user ? canEdit(db, row, user) : false,
     created_by: row.created_by,
     created_at: row.created_at,
     last_message_at: last?.created_at ?? row.created_at,
@@ -44,9 +55,9 @@ function projectPublic(db, row) {
 
 export function projectRoutes(r) {
   r.get('/api/projects', (ctx) => {
-    requireAuth(ctx);
+    const user = requireAuth(ctx);
     const rows = ctx.db.prepare('SELECT * FROM projects ORDER BY id DESC').all();
-    json(ctx.res, 200, rows.map((row) => projectPublic(ctx.db, row)));
+    json(ctx.res, 200, rows.map((row) => projectPublic(ctx.db, row, user)));
   });
 
   r.post('/api/projects', async (ctx) => {
@@ -116,13 +127,16 @@ export function projectRoutes(r) {
     // one where helpers can be put. A project with nowhere to ask for anything
     // would need a second click before it could be used at all.
     startChats(ctx.db, row.id, now);
-    const payload = projectPublic(ctx.db, row);
+    // The person who made it is its first author: everything else about
+    // authorship starts from somebody being able to say who else is in.
+    addAuthor(ctx.db, row.id, user.id, user.id, now);
+    const payload = projectPublic(ctx.db, row, user);
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
     json(ctx.res, 201, payload);
   });
 
   r.get('/api/projects/:slug', async (ctx) => {
-    requireAuth(ctx);
+    const user = requireAuth(ctx);
     const project = requireProject(ctx);
     // Which conversation this request is about. The messages and the helpers
     // both belong to it, not to the project: everything below the title bar
@@ -156,7 +170,7 @@ export function projectRoutes(r) {
       : listErrors(ctx.db, project.id, await currentSha(dir)).map(errorPublic);
 
     json(ctx.res, 200, {
-      ...projectPublic(ctx.db, project),
+      ...projectPublic(ctx.db, project, user),
       chats: listChats(ctx.db, project.id).map(chatPublic),
       chat: chatPublic(chat),
       // No games origin means the request carried no usable hostname to build
@@ -179,7 +193,7 @@ export function projectRoutes(r) {
 
   r.patch('/api/projects/:slug', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { write: true });
     const body = await readJson(ctx.req);
     const name = body.name === undefined
       ? undefined
@@ -228,9 +242,10 @@ export function projectRoutes(r) {
     json(ctx.res, 200, { scores, scores_on: project.scores_on === 1 });
   });
 
+  // Moderating a game's board is changing that game.
   r.delete('/api/projects/:slug/scores/:id', (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { write: true });
     const id = Number(ctx.params.id);
     if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a score id');
     const { changes } = ctx.db
@@ -242,7 +257,7 @@ export function projectRoutes(r) {
 
   r.delete('/api/projects/:slug/scores', (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { write: true });
     ctx.db.prepare('DELETE FROM scores WHERE project_id = ?').run(project.id);
     noContent(ctx.res);
   });
@@ -289,6 +304,9 @@ export function projectRoutes(r) {
       // thread in each: a fork is the files and the helpers, not the
       // conversation that produced them.
       const work = startChats(ctx.db, id, now);
+      // A copy is the copier's game. Whoever wrote the original is named in
+      // its history, which is where that belongs.
+      addAuthor(ctx.db, id, user.id, user.id, now);
       // The helpers come along, into the chat that allows them; their
       // cooldowns and pending flags do not. Which chat they were in over there
       // does not survive, because the chats themselves do not.
@@ -318,7 +336,57 @@ export function projectRoutes(r) {
     });
 
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
-    json(ctx.res, 201, projectPublic(ctx.db, row));
+    json(ctx.res, 201, projectPublic(ctx.db, row, user));
+  });
+
+  // Who may change this game. ⚠️ Authors-only even when the game is open:
+  // open means anybody may work on it, not that anybody may decide who does.
+  r.post('/api/projects/:slug/authors', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, anyone: true });
+    requireAuthor(ctx.db, project, user);
+    const body = await readJson(ctx.req);
+    const id = Number(body.user_id);
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a user id');
+    const person = ctx.db.prepare('SELECT id, display_name FROM users WHERE id = ?').get(id);
+    if (!person) throw new HttpError(404, 'no such person');
+
+    addAuthor(ctx.db, project.id, person.id, user.id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: project.archived === 1,
+    });
+    json(ctx.res, 201, { authors: listAuthors(ctx.db, project.id) });
+  });
+
+  r.delete('/api/projects/:slug/authors/:user_id', (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, anyone: true });
+    requireAuthor(ctx.db, project, user);
+    const id = Number(ctx.params.user_id);
+    if (!Number.isInteger(id)) throw new HttpError(404, 'no such person');
+
+    removeAuthor(ctx.db, project.id, id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: project.archived === 1,
+    });
+    json(ctx.res, 200, { authors: listAuthors(ctx.db, project.id) });
+  });
+
+  // Open: anybody in the studio may change this game. An author's decision,
+  // and only an author's — see the note above.
+  r.post('/api/projects/:slug/open', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, anyone: true });
+    requireAuthor(ctx.db, project, user);
+    const body = await readJson(ctx.req);
+    const open = optionalBool(body.open_edit, 'open_edit');
+    if (open === undefined) throw new HttpError(400, 'open_edit is required');
+
+    ctx.db.prepare('UPDATE projects SET open_edit = ? WHERE id = ?').run(open ? 1 : 0, project.id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: project.archived === 1,
+    });
+    json(ctx.res, 200, { open_edit: open });
   });
 
   // Publishing lists a game in the public catalog. It does not change who can
@@ -326,7 +394,7 @@ export function projectRoutes(r) {
   // is only about being findable.
   r.post('/api/projects/:slug/publish', async (ctx) => {
     requireAuth(ctx);
-    const project = requireProject(ctx);
+    const project = requireProject(ctx, { write: true });
     if (project.kind !== 'game') {
       throw new HttpError(400, 'a chat has nothing to publish');
     }
@@ -346,10 +414,16 @@ export function projectRoutes(r) {
   // Archiving is reversible and never affects the public game, so it takes a
   // boolean rather than being a one-way door.
   r.post('/api/projects/:slug/archive', async (ctx) => {
-    requireAuth(ctx);
+    const user = requireAuth(ctx);
     const slug = requireSlug(ctx.params.slug);
     const project = ctx.db.prepare('SELECT * FROM projects WHERE slug = ?').get(slug);
     if (!project) throw new HttpError(404, 'no such project');
+    // Not requireProject({write:true}): this route is the one that reopens an
+    // archived game, and that check refuses an archived one on principle. The
+    // authorship half of it still applies.
+    if (!canEdit(ctx.db, project, user)) {
+      throw new HttpError(403, `${project.name} is not yours to change — ask one of its authors`);
+    }
 
     const body = await readJson(ctx.req);
     const archived = body.archived === undefined ? true : body.archived;

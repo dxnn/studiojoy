@@ -3,7 +3,7 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, api, openProject, attachAgent, SIDE_SEARCH,
+  S, render, prefs, api, openProject, attachAgent, SIDE_SEARCH, frozen,
 } from './main.js';
 
 /* Render: sidebar --------------------------------------------------------- */
@@ -104,16 +104,40 @@ export function renderSidebar() {
 // everything has to say it was the filter.
 const nothing = (empty) => h('div', { class: 'pad muted', text: S.sideFind ? 'Nothing with that in its name.' : empty });
 
+// Three groups, in the order you care about them: the games you are an author
+// of, the ones anybody may work on, and everyone else's — which you can read,
+// play and talk about, and not change. A group with nothing in it says
+// nothing: two headings over an empty studio is furniture.
+const GAME_GROUPS = [
+  { id: 'mine', label: 'Yours', of: (p) => p.mine },
+  { id: 'open', label: 'Open to everyone', of: (p) => !p.mine && p.open_edit },
+  { id: 'others', label: 'Everyone else’s', of: (p) => !p.mine && !p.open_edit },
+];
+
 function gameRows(matches) {
-  const rows = S.projects
-    .filter((p) => p.kind !== 'chat' && matches(p.name))
-    .map((p) => h('button', {
-      class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
-      onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
-    },
-    h('div', { class: 'item-name', text: p.name }),
-    h('div', { class: 'item-sub', text: p.preview || 'No messages yet' })));
-  return rows.length ? rows : nothing('No games yet. Make one!');
+  const games = S.projects.filter((p) => p.kind !== 'chat' && matches(p.name));
+  const row = (p) => h('button', {
+    class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
+    title: p.mine ? p.name : `${p.name} — ${p.authors.map((a) => a.display_name).join(', ')}`,
+    onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
+  },
+  h('div', { class: 'item-name', text: p.name }),
+  // Somebody else's game says whose: that is the thing you want to know
+  // about a game you cannot change.
+  h('div', {
+    class: 'item-sub',
+    text: p.mine
+      ? (p.preview || 'No messages yet')
+      : (p.authors.map((a) => a.display_name).join(', ') || 'Nobody'),
+  }));
+
+  const out = [];
+  for (const group of GAME_GROUPS) {
+    const rows = games.filter(group.of);
+    if (rows.length === 0) continue;
+    out.push(h('div', { class: 'section-label', text: group.label }), rows.map(row));
+  }
+  return out.length ? out : nothing('No games yet. Make one!');
 }
 
 // A chat is a game with the game taken out: the same thread and the same
@@ -158,7 +182,7 @@ function crewRows(matches) {
 // dot here means the one on screen.
 function helperRows(matches) {
   const attached = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
-  const canAdd = Boolean(S.project) && !S.project.archived;
+  const canAdd = Boolean(S.project) && !frozen();
 
   const rows = S.agents.filter((a) => matches(a.name)).map((agent) => {
     const here = attached.has(agent.id);

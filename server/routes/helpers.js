@@ -1,21 +1,36 @@
 import path from 'node:path';
 import { HttpError } from '../http/respond.js';
 import { requireSlug } from '../files/paths.js';
+import { requireAuth } from '../auth.js';
+import { canEdit } from '../authors.js';
 
 // Load the project named by :slug. Reads 404 on an unknown slug; writes also
 // 409 on an archived one (spec.md §6). Archiving stops edits, not reads, and
 // never stops the public game being served.
 //
+// ⚠️ `write: true` is also where authorship is checked, which is why it is on
+// this one function rather than spread over thirty routes: a route that writes
+// says so here, and saying so is what makes it refuse somebody who is not an
+// author of a game that is not open (spec.md §11). A route that means to be an
+// exception says `anyone: true` and takes the check itself — the human-only
+// chat is the only one today.
+//
 // `files: true` marks a route that reaches the working tree. A chat has no
 // working tree — no directory, no repo — so this is the one place that keeps
 // such a route from being handed a path that does not exist (spec.md §12).
-export function requireProject(ctx, { write = false, files = false } = {}) {
+export function requireProject(ctx, { write = false, files = false, anyone = false } = {}) {
   const slug = requireSlug(ctx.params.slug);
   const project = ctx.db
     .prepare('SELECT * FROM projects WHERE slug = ?')
     .get(slug);
   if (!project) throw new HttpError(404, 'no such project');
   if (write && project.archived) throw new HttpError(409, 'project is archived');
+  if (write && !anyone) {
+    const user = requireAuth(ctx);
+    if (!canEdit(ctx.db, project, user)) {
+      throw new HttpError(403, `${project.name} is not yours to change — ask one of its authors`);
+    }
+  }
   if (files && project.kind === 'chat') {
     throw new HttpError(409, 'that is a chat, not a game: it has no files');
   }

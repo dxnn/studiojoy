@@ -49,6 +49,18 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   )`,
 
+  // Who may change a game. Presence in `users` is still what gets you into
+  // the studio; this is what gets you into somebody else's game. The person
+  // who made it is its first author, and an author is the only one who can add
+  // another — see server/authors.js.
+  `CREATE TABLE IF NOT EXISTS project_authors (
+    project_id INTEGER NOT NULL REFERENCES projects,
+    user_id INTEGER NOT NULL REFERENCES users,
+    added_by INTEGER NOT NULL REFERENCES users,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, user_id)
+  )`,
+
   // A conversation inside a project. Every project has at least one, made
   // with it: the human-only chat, which is what "no bots allowed" means as a
   // row rather than as an absence — `bots = 0` is refused at attach time, not
@@ -189,11 +201,22 @@ export function openDb(dbPath) {
   // Which conversation a message is in. A database from before chats existed
   // has one thread per project; the upgrade gives that thread a home rather
   // than leaving it stranded (see intoChats).
+  // Off by default: a game is its authors' until they say otherwise. On, any
+  // account in the studio may change it — which is a thing you choose, not a
+  // thing that happens because nobody got round to adding you.
+  addColumnIfMissing(db, 'projects', 'open_edit', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
   // After the column, not with the other CREATEs: on a database written before
   // chats there is nothing to index until the line above has run.
   db.exec('CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages (chat_id, id)');
   intoChats(db);
+  // Every project that predates authorship gets the person who made it, which
+  // is the only honest answer available: nothing else in the row says who
+  // worked on it.
+  db.prepare(
+    `INSERT OR IGNORE INTO project_authors (project_id, user_id, added_by, added_at)
+     SELECT id, created_by, created_by, created_at FROM projects`,
+  ).run();
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,

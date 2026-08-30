@@ -285,6 +285,12 @@ function keepDiffInView() {
 
 export const isChat = () => S.project?.kind === 'chat';
 
+// Whether this game is yours to change: you are one of its authors, or it is
+// open to the whole studio. Archived is the other half of the same question —
+// everything that was disabled for an archived game is disabled for somebody
+// else's, and for the same reason: the answer to a click would be a refusal.
+export const frozen = () => !S.project || S.project.archived || !S.project.can_edit;
+
 // A picture is the first file whose byte count nobody can read, so sizes are
 // rounded once they leave kilobyte territory.
 export const sizeText = (bytes) => (bytes < 1024
@@ -1623,6 +1629,40 @@ export async function deleteFile(path) {
   say(`Deleted ${path}. You can get it back from Versions.`);
 }
 
+// Open: anybody in the studio may change this game. An author's decision, and
+// only an author's — the server says so too.
+export async function setOpenEdit(open) {
+  const res = await api('POST', `/api/projects/${S.slug}/open`, { open_edit: open });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not change that.', true);
+    return;
+  }
+  S.project.open_edit = open;
+  await loadProjects();
+  say(open
+    ? 'Anybody in the studio can change this game now.'
+    : 'Only this game’s authors can change it now.');
+  render();
+}
+
+// Who may change this game. The list comes back whole, so nothing here has to
+// guess what the server did with a name it did not recognise.
+export async function setAuthors(method, userId) {
+  const path = method === 'POST'
+    ? `/api/projects/${S.slug}/authors`
+    : `/api/projects/${S.slug}/authors/${userId}`;
+  const res = await api(method, path, method === 'POST' ? { user_id: userId } : undefined);
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not change who can edit this.', true);
+    return;
+  }
+  S.project.authors = res.body.authors;
+  S.project.mine = res.body.authors.some((a) => a.id === S.me.id);
+  S.project.can_edit = S.project.mine || S.project.open_edit;
+  await loadProjects();
+  render();
+}
+
 export async function setPublished(published) {
   const res = await api('POST', `/api/projects/${S.slug}/publish`, { published });
   if (!res.ok) {
@@ -1908,7 +1948,7 @@ function renderSoundEditor() {
   });
   const paint = () => {
     state.textContent = S.sound.dirty ? 'Not saved yet' : 'Saved';
-    save.disabled = !S.sound.dirty || S.project.archived;
+    save.disabled = !S.sound.dirty || frozen();
     saveClose.disabled = save.disabled;
   };
   const changed = () => { S.sound.dirty = true; paint(); };
@@ -2016,7 +2056,7 @@ function renderDrawing() {
         .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
     }
     state.textContent = unsaved();
-    save.disabled = (!S.draw.dirty && !S.palette?.dirty) || S.project.archived;
+    save.disabled = (!S.draw.dirty && !S.palette?.dirty) || frozen();
     saveClose.disabled = save.disabled;
   };
 
@@ -2064,7 +2104,7 @@ function renderDrawing() {
 
   let last = null;
   canvas.addEventListener('pointerdown', (event) => {
-    if (S.project.archived) return;
+    if (frozen()) return;
     event.preventDefault();
     const [x, y] = spotOf(event);
     if (S.drawPrefs.tool === 'pick') {
@@ -2238,7 +2278,7 @@ function renderDrawing() {
       frameMode && S.draw.copied ? h('button', {
         class: 'quiet tiny', text: 'Paste frame',
         title: 'Paste the copied frame over this one — one Undo takes it back',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => {
           if (picture.step) closed();
           opened();
@@ -2527,12 +2567,12 @@ function renderFilesTab() {
       }),
       h('button', {
         class: 'quiet tiny', text: 'Rename',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'rename-file', path: S.open.path }; render(); },
       }),
       h('button', {
         class: 'quiet tiny', text: 'Duplicate',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'duplicate-file', path: S.open.path }; render(); },
       }),
       h('button', {
@@ -2605,14 +2645,14 @@ function renderFilesTab() {
             : null,
           h('button', {
             class: 'filled', id: 'save-btn', text: 'Save',
-            disabled: !S.open.dirty || S.project.archived,
+            disabled: !S.open.dirty || frozen(),
             onclick: () => saveOpenFile(),
           }),
           // Closes only once the save really landed: a conflict or a failure
           // keeps the file open with the words still in it.
           h('button', {
             class: 'filled ok', id: 'save-close-btn', text: 'Save and close',
-            disabled: !S.open.dirty || S.project.archived,
+            disabled: !S.open.dirty || frozen(),
             onclick: async () => { if (await saveOpenFile()) closeOpenFile(); },
           }))));
     }
@@ -2637,32 +2677,32 @@ function renderFilesTab() {
       class: 'pad muted',
       text: 'No files yet. Ask a helper to make one, or drop a file here.',
     }));
-  if (!S.project.archived) makeDropTarget(tree);
+  if (!frozen()) makeDropTarget(tree);
 
   return [
     h('div', { class: 'pad row wrap' },
       h('button', {
         class: 'quiet tiny', text: '+ New file',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'new-file' }; render(); },
       }),
       h('button', {
         class: 'quiet tiny', text: '+ Upload',
         title: 'Put any file from this device into the game',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => picker.click(),
       }),
       picker,
       h('button', {
         class: 'quiet tiny', text: '+ Draw a picture',
         title: 'Draw a sprite and put it in assets/',
-        disabled: S.project.archived,
+        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); },
       }),
       h('button', {
         class: 'quiet tiny', text: '+ Make a sound',
         title: `Make a sound effect and put it in ${SOUND_DIR}/`,
-        disabled: S.project.archived,
+        disabled: frozen(),
         // Straight to the sliders. There is nothing to ask first: a sound you
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.

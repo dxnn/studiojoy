@@ -115,6 +115,25 @@ version history, edits in the same editor as everything else, and can be
 updated by an agent as the design evolves. When present it is injected into
 every agent's context (§8).
 
+### `project_authors`
+
+| column | type | notes |
+|---|---|---|
+| `project_id` | INTEGER NOT NULL → projects | |
+| `user_id` | INTEGER NOT NULL → users | |
+| `added_by` | INTEGER NOT NULL → users | |
+| `added_at` | TEXT NOT NULL | |
+
+PK `(project_id, user_id)`. Who may change a game. The person who made it is
+its first author; an author adds the next one. A project that predates this
+gets its `created_by`, which is the only honest answer the row holds.
+
+⚠️ A game keeps at least one author: removing the last is a 409. A game with
+none could be changed by nobody, and nobody could open it either.
+
+`projects.open_edit` is the other half: 0 by default, and 1 means any account
+in the studio may change it. It is an author's decision — see §11.
+
 ### `chats`
 
 | column | type | notes |
@@ -1635,6 +1654,41 @@ and a reasoning trace is never persisted at all (§8).
   a password on stdin with echo off. `npm run deluser -- <email>` removes the
   user and their sessions.
 
+### Who may change what
+
+Being in `users` gets you into the studio and lets you **read** all of it:
+every game, every version, every conversation, every file. That is deliberate
+— the account list is a handful of people who know each other, and a studio
+where you cannot see how somebody's game works is not a studio.
+
+**Changing** a game takes being one of its **authors** — the person who made
+it, plus anyone an author has added — or the game being **open**, which its
+authors set when they want the whole studio in it. `canEdit` in
+`server/authors.js` is the whole rule, and `requireProject({ write: true })`
+in `routes/helpers.js` is the one place it is applied: a route says it writes,
+and saying so is what makes it refuse. A route that means to be an exception
+says `anyone: true` and takes the check itself.
+
+Two exceptions, both on purpose:
+
+- ⚠️ **The human-only chat of every game is everyone's.** Anyone in the studio
+  may post in it, whoever's game it is. Talking to the people here is not
+  editing their game, and a game you can see but cannot say a word about is a
+  strange thing to be able to see. Every other chat takes the game's own rule.
+- ⚠️ **The author list is authors-only, even when the game is open.** Open
+  means anybody may work on it, not that anybody may decide who does — so
+  `POST /authors`, `DELETE /authors/:id` and `POST /open` all require
+  authorship rather than editability. Without that, "open" would be a door
+  anybody could lock behind them.
+
+**Forking is not editing.** A copy takes nothing from the original, so anyone
+who can read a game can copy it; the copy belongs to whoever made it, and is
+not open even if the original was.
+
+The client mirrors the rule rather than enforcing it: `frozen()` in `main.js`
+is `archived || !can_edit`, and every control that was disabled for an
+archived game is disabled for somebody else's. The server is what refuses.
+
 ### Accepted security tradeoffs (v0)
 
 - **No CSRF token.** `SameSite=Lax` plus the `readJson` content-type guard
@@ -1645,9 +1699,9 @@ and a reasoning trace is never persisted at all (§8).
   rotation are deferred to v1 (§15) and belong to the same gate as the rest
   of this list.
 - **No rate limiting outside login and the scoreboard.** An authenticated
-  user can flood message posts and file writes; bounded only by the token
-  budget and size caps. The trust boundary here is the account list, which
-  the operator controls by hand. The scoreboard is rate limited because its
+  user can flood message posts and file writes on a game they may change;
+  bounded only by the token budget and size caps. The trust boundary here is
+  the account list, which the operator controls by hand. The scoreboard is rate limited because its
   writers are the public, not the account list (§6, §10).
 - **`.svg` is served to the public.** On the games origin that's harmless —
   scripts inside it can't reach the studio origin or its cookie.

@@ -7,7 +7,7 @@
 
 import { quizText, freshKey } from './quiz-editor.js';
 import { h } from './dom.js';
-import { S, render, saveOpenFile } from './main.js';
+import { S, render, saveOpenFile, frozen } from './main.js';
 
 function commit(model) {
   S.open.content = quizText(model);
@@ -120,7 +120,7 @@ export function renderQuizForm(model) {
       }),
       h('button', {
         class: 'filled', id: 'save-btn', text: 'Save',
-        disabled: !S.open.dirty || S.project.archived,
+        disabled: !S.open.dirty || frozen(),
         onclick: () => saveOpenFile(),
       })),
   ];

@@ -184,6 +184,18 @@ Since v0: a project is a game or a **chat** (`projects.kind`). A chat has no
 working tree and nothing on disk, so every file route, the games origin, and
 the agent's tools and context all refuse or omit it.
 
+Games have **authors** now, and the studio is no longer flat: an account reads
+everything and changes only games it authors — or games marked **open**, which
+an author sets to let the whole studio in. `canEdit` is the rule and
+`requireProject({ write: true })` is the single place it is applied; a route
+that means to be an exception says `anyone: true`. ⚠️ Two exceptions, both
+deliberate: anyone may talk in any game's human-only chat, and the author list
+stays authors-only even when the game is open — open is about the work, not
+about who decides. The sidebar's Games tab sorts into Yours, Open to everyone
+and Everyone else's; `frozen()` in the client is `archived || !can_edit`, which
+is why everything that was disabled for an archived game is disabled for
+somebody else's. Every existing project got its creator as its author.
+
 A project holds several **chats** — conversations, `chats` in the database.
 Every one is born with two: `Just us`, which it opens on, and `Building`. ⚠️
 `Just us` is human only, and that is enforced where a helper would be *put in*

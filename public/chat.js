@@ -7,8 +7,8 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
-  composerBox, sendComposer, send, say, sizeText, setPublished,
-  openChat, createChat,
+  composerBox, sendComposer, send, say, sizeText, setPublished, setOpenEdit,
+  openChat, createChat, frozen,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -272,7 +272,7 @@ function renderLive(agentId, entry) {
 // eligible. Nothing in the interface used to say that, so an unanswered
 // message looked like a broken app. Two distinct gaps, two distinct fixes.
 function helperGap() {
-  if (!S.project || S.project.archived) return null;
+  if (!S.project || frozen()) return null;
   // The human-only chat is not missing its helpers; it is the room without
   // them. Saying "nobody will answer" there would read as a fault.
   if (S.chat && !S.chat.bots) {
@@ -335,7 +335,14 @@ function helperGap() {
 // because it is a decision about the game you were looking at.
 function renderActs(p) {
   const listed = Boolean(p.published);
+  const open = Boolean(p.open_edit);
+  // Only an author decides who works on this game — being able to work on it
+  // is not the same thing (see server/authors.js). Somebody else's drawer is
+  // the author list and nothing they can press.
+  const yours = Boolean(p.mine);
   return h('div', { class: `acts${S.actsOpen ? ' open' : ''}` },
+    // Making a copy takes nothing from anybody, so it is the one thing here
+    // that is not an author's alone.
     h('button', {
       class: 'act fork',
       text: 'Make a copy',
@@ -346,6 +353,7 @@ function renderActs(p) {
     h('button', {
       class: `act publish${listed ? ' on' : ''}`,
       title: 'The games list is the page everyone sees at the games address',
+      disabled: !yours,
       onclick: () => setPublished(!listed),
     }, h('span', { class: 'dot' }), listed ? 'Take out of the list' : 'Put in the list'),
     h('span', {
@@ -356,7 +364,29 @@ function renderActs(p) {
     h('button', {
       class: 'act',
       text: 'Rename',
+      disabled: frozen(),
       onclick: () => { S.dialog = { kind: 'rename' }; render(); },
+    }),
+    // Who may change it. The names are not a control — an author is added and
+    // taken out in the dialog, where the studio's people are listed.
+    h('span', {
+      class: 'state',
+      title: 'Everyone who can change this game',
+      text: `By ${p.authors.map((a) => a.display_name).join(', ') || 'nobody'}`,
+    }),
+    h('button', {
+      class: `act open${open ? ' on' : ''}`,
+      title: open
+        ? 'Anybody in the studio can change this game'
+        : 'Only its authors can change this game',
+      disabled: !yours,
+      onclick: () => setOpenEdit(!open),
+    }, h('span', { class: 'dot' }), open ? 'Open to everyone' : 'Authors only'),
+    h('button', {
+      class: 'act',
+      text: 'Who can edit',
+      disabled: !yours,
+      onclick: () => { S.dialog = { kind: 'authors' }; render(); },
     }));
 }
 
@@ -375,7 +405,7 @@ function renderChatTabs() {
     h('div', { class: 'spacer' }),
     h('button', {
       class: 'chat-tab add', text: '+', title: 'Start another chat in this game',
-      disabled: S.project.archived,
+      disabled: frozen(),
       onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
     }));
 }
@@ -408,9 +438,15 @@ export function renderChat() {
     },
   }, h('div', { class: 'messages' }, items));
 
+  // ⚠️ The composer follows the chat, not the game: the human-only chat of
+  // every game is everyone's, so somebody who cannot change a thing here can
+  // still say something in it. Everywhere else it takes the game's own rule.
+  const talkable = p.archived ? false : (S.chat?.bots === false || !frozen());
   const box = composerBox;
-  box.placeholder = p.archived ? 'This game is finished (archived).' : 'Ask for something…';
-  box.disabled = p.archived;
+  box.placeholder = p.archived
+    ? 'This game is finished (archived).'
+    : (talkable ? 'Ask for something…' : `Only ${p.name}’s authors can write here.`);
+  box.disabled = !talkable;
 
   // A chat has no files, so it has nothing to pin and no tip to give.
   let pinNote = '';
@@ -481,5 +517,5 @@ export function renderChat() {
       h('div', { class: 'row' },
         h('span', { class: 'hint', text: pinNote }),
         h('div', { class: 'spacer' }),
-        h('button', { class: 'filled', text: 'Send', disabled: p.archived, onclick: sendComposer }))));
+        h('button', { class: 'filled', text: 'Send', disabled: !talkable, onclick: sendComposer }))));
 }

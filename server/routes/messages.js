@@ -4,7 +4,8 @@ import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
 import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic } from './helpers.js';
-import { requireChat } from '../chats.js';
+import { requireChat, homeChat } from '../chats.js';
+import { canEdit } from '../authors.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
 const MAX_CONTEXT_PATHS = 50;
@@ -32,12 +33,21 @@ function normalizeContextPaths(value) {
 export function messageRoutes(r) {
   r.post('/api/projects/:slug/messages', async (ctx) => {
     const user = requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
+    // Not `write: true` — the check belongs to the chat rather than the game,
+    // and this is the one route where they differ.
+    const project = requireProject(ctx, { write: true, anyone: true });
     const body = await readJson(ctx.req);
     // Which conversation this is in. Absent means the one the project opens
     // on, so an older client posts into the human-only chat rather than into
     // whichever one it guessed.
     const chat = requireChat(ctx.db, project, body.chat_id);
+    // ⚠️ The human-only chat of every game is everyone's: talking to the people
+    // in the studio is not editing their game, and a game you can see but
+    // cannot say a word about is a strange thing to be able to see. Every
+    // other chat is where the work happens, so it takes the game's own rule.
+    if (chat.bots === 1 && !canEdit(ctx.db, project, user)) {
+      throw new HttpError(403, `${project.name} is not yours to change — you can still talk in ${homeChat(ctx.db, project.id).name}`);
+    }
 
     if (typeof body.body !== 'string') throw new HttpError(400, 'body must be a string');
     const text = body.body.trim();

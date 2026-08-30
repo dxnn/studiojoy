@@ -11,7 +11,7 @@ import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createChat, LIBRARY_DIR, deleteScore, clearScores,
+  createChat, setAuthors, frozen, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
 /* Render: dialogs -------------------------------------------------------- */
@@ -305,6 +305,46 @@ export function dialogFor(d) {
       })));
   }
 
+  // Who may change this game. The studio's people on one side, this game's
+  // authors on the other, and one button between them each way. ⚠️ Only an
+  // author sees this at all — being able to work on an open game is not the
+  // same as deciding who does.
+  if (d.kind === 'authors') {
+    // Painted in place, not through render(): a dialog is built once and
+    // re-appended by every later render, so a rebuilt list would never appear.
+    // Same reason the sliders and the upload plan paint themselves.
+    const list = h('div', { class: 'plan' });
+    const paint = () => {
+      const authors = S.project.authors ?? [];
+      const has = new Set(authors.map((a) => a.id));
+      list.replaceChildren(...S.people.map((person) => {
+        const author = has.has(person.id);
+        return h('div', { class: 'plan-row' },
+          h('span', { text: person.display_name }),
+          person.id === S.me.id ? h('span', { class: 'tag', text: 'you' }) : null,
+          h('div', { class: 'spacer' }),
+          h('button', {
+            class: author ? 'quiet tiny' : 'filled tiny',
+            text: author ? 'Take out' : 'Add',
+            // The last author cannot go: the server refuses it too, and a
+            // button that always answers with a red banner is worse than no
+            // button at all.
+            disabled: author && authors.length <= 1,
+            onclick: async () => {
+              await setAuthors(author ? 'DELETE' : 'POST', person.id);
+              paint();
+            },
+          }));
+      }));
+    };
+    paint();
+    return wrap('Who can edit this game',
+      h('p', { class: 'hint muted', text: 'Anyone in the studio can read this game, play it and talk in \u201cJust us\u201d. These are the people who can change it.' }),
+      list,
+      h('div', { class: 'actions' },
+        h('button', { class: 'filled', text: 'Done', onclick: close })));
+  }
+
   // A new chat always takes helpers: the one that does not is the one the
   // game was born with.
   if (d.kind === 'new-chat') {
@@ -402,7 +442,7 @@ export function dialogFor(d) {
         // where saving is off. This one closes the dialog first: the save may
         // put its own up — a conflict does — and a failure has something to
         // say that this dialog would be sitting in front of.
-        S.project.archived ? null : h('button', {
+        frozen() ? null : h('button', {
           class: 'filled ok', text: 'Save and close',
           onclick: async () => { close(); await saveAndClose(d.then); },
         })));

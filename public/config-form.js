@@ -4,7 +4,7 @@
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
 import { h } from './dom.js';
-import { S, render, saveOpenFile } from './main.js';
+import { S, render, saveOpenFile, frozen } from './main.js';
 
 /* Config form -------------------------------------------------------------- */
 
@@ -139,7 +139,7 @@ export function renderConfigForm(decls) {
       }),
       h('button', {
         class: 'filled', id: 'save-btn', text: 'Save',
-        disabled: !S.open.dirty || S.project.archived,
+        disabled: !S.open.dirty || frozen(),
         onclick: () => saveOpenFile(),
       })),
   ];
