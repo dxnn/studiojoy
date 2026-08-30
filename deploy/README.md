@@ -151,14 +151,43 @@ deploy/sync-games.sh user@host pull     # fast-forward only; refuses if diverged
 deploy/sync-games.sh user@host push     # send local commits back
 ```
 
-⚠️ `push` needs one thing on the server, once per game: a game repo there has
-its branch checked out, and git refuses to push into that by default.
+⚠️ `push` needs one thing on the server, and it is worth doing once rather than
+once per game: a game repo there has its branch checked out, and git refuses to
+push into that by default.
 
 ```sh
-for g in ~/apps/studio-data/games/*/; do
-  git -C "$g" config receive.denyCurrentBranch updateInstead
-done
+git config --global \
+  "includeIf.gitdir:/home/ubuntu/apps/studio-data/games/.path" \
+  /home/ubuntu/.gitconfig-games
+
+git config --file /home/ubuntu/.gitconfig-games \
+  receive.denyCurrentBranch updateInstead
 ```
+
+A conditional include covers every repo under that directory, including games
+the studio has not created yet: the setting is read by `receive-pack` at push
+time, so the `git init` that makes a new game never needs to know about it.
+Setting it per repo works too, and is the trap — it comes apart on the first
+game made after somebody last ran the loop, silently, months later. Scoping it
+this way rather than setting `receive.denyCurrentBranch` globally also keeps it
+off every other repo on the account; `studio.git` is bare, where the setting is
+inert either way.
+
+⚠️ Three ways to get it wrong, all of them silent. The **trailing slash** is
+what makes it mean "anything under here" — without it nothing matches. The
+pattern is compared against the **resolved** path, so write out what `readlink
+-f ~/apps/studio-data/games` prints rather than assuming. And let `git config`
+write the file: the `includeIf` subsection quoting is the part that is easy to
+break by hand.
+
+Check that it took, before pushing anything:
+
+```sh
+git -C ~/apps/studio-data/games/asteriskoids config --get receive.denyCurrentBranch
+```
+
+Empty means the include is not matching, and the trailing slash is the first
+thing to look at.
 
 `updateInstead` is the mechanism rather than a workaround: it moves the
 server's **working tree**, which is what the studio reads and what the games

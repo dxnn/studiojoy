@@ -13,13 +13,20 @@
 # GAMES_PATH overrides where the games live on the server; the default matches
 # the layout in this runbook.
 #
-# ⚠️ `push` needs one thing on the server, once per game, because a game repo
-# there is a working tree and git refuses to push into the branch one has
-# checked out:
+# ⚠️ `push` needs one thing on the server, once for the whole server rather
+# than once per game, because a game repo there is a working tree and git
+# refuses to push into the branch one has checked out. A conditional include
+# reaches every game, including the ones the studio has not made yet:
 #
-#   for g in ~/apps/studio-data/games/*/; do
-#     git -C "$g" config receive.denyCurrentBranch updateInstead
-#   done
+#   git config --global \
+#     "includeIf.gitdir:/home/ubuntu/apps/studio-data/games/.path" \
+#     /home/ubuntu/.gitconfig-games
+#   git config --file /home/ubuntu/.gitconfig-games \
+#     receive.denyCurrentBranch updateInstead
+#
+# That path is the games directory as `readlink -f` prints it, trailing slash
+# included; both matter, and deploy/README.md says why. Setting it per repo
+# works and is the trap — it comes apart on the next game somebody makes.
 #
 # `updateInstead` is the point rather than a workaround: it updates the server's
 # working tree, which is what the studio reads and the games origin serves, so

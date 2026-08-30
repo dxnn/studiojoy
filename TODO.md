@@ -12,7 +12,7 @@ deliberately deferred.
   and cannot write it (ideas/api-notes.md)
 - ! push the three migrated games — asteriskoids, vroooooooom and
   qiby-is-rizzing-at-you are committed locally and unpushed; the server needs
-  `receive.denyCurrentBranch=updateInstead` per repo first (deploy/README.md)
+  its `receive.denyCurrentBranch=updateInstead` include first (deploy/README.md)
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, then the point-and-click adventure — each
