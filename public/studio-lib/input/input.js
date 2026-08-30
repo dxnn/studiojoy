@@ -466,11 +466,15 @@ const Input = (function () {
   let overlay = null;
 
   function touchNames() {
+    // Deduplicated: two actions sharing one touch: name — fire and start on
+    // the same button, say — are one button, pressed for both.
     const out = [];
     const actions = bindings().player1 || {};
     for (const action of Object.keys(actions)) {
       for (const binding of listOf(actions[action])) {
-        if (binding.startsWith("touch:")) out.push(binding.slice(6));
+        if (binding.startsWith("touch:") && out.indexOf(binding.slice(6)) === -1) {
+          out.push(binding.slice(6));
+        }
       }
     }
     return out;
