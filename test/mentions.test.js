@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMentions, agentEligible } from '../server/agents/mentions.js';
+import { parseMentions, agentEligible } from '../server/mentions.js';
 
 const eligible = (name, body, chatty = false) =>
   agentEligible({ name, chatty }, parseMentions(body));

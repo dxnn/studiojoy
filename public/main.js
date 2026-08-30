@@ -293,6 +293,14 @@ export const isChat = () => S.project?.kind === 'chat';
 // else's, and for the same reason: the answer to a click would be a refusal.
 export const frozen = () => !S.project || S.project.archived || !S.project.can_edit;
 
+// Whether a message can be sent into the chat on screen. ⚠️ The chat's rule
+// and not the game's: the human-only chat of every game is everyone's, so
+// somebody who cannot change a thing here can still say something in it.
+export const canTalk = () => {
+  if (!S.project || S.project.archived) return false;
+  return S.chat?.bots === false || !frozen();
+};
+
 // A picture is the first file whose byte count nobody can read, so sizes are
 // rounded once they leave kilobyte territory.
 export const sizeText = (bytes) => (bytes < 1024
@@ -598,6 +606,65 @@ export async function loadPeople() {
   if (res.ok) S.people = res.body;
 }
 
+/* Being called by name ----------------------------------------------------- */
+
+// The mark on a game, a chat or a conversation pill saying somebody called you
+// there and you have not read it. The studio's own cyan, because it is the
+// studio talking to you rather than the game — and not gold, which is a score
+// or a version and nothing else.
+export const calledMark = (n) => (n
+  ? h('span', {
+    class: 'called',
+    text: `@${n}`,
+    title: n === 1 ? 'Somebody called you by name here' : `${n} messages here call you by name`,
+  })
+  : null);
+
+// Clicking somebody in the Crew list points what you are typing at them. The
+// handle is the first word of their name — a mention is one token, and the
+// server matches on a prefix of the whole name, so "@Robin" reaches Robin Fox.
+export function mentionPerson(person) {
+  // The Crew tab is reachable with no game open and with somebody else's
+  // Building on screen, and the row lights up either way — so it answers
+  // rather than going dead under the pointer.
+  if (!canTalk()) { say('Open a chat you can write in first, then click a name.'); return; }
+  const handle = (person.display_name ?? '').trim().split(/\s+/)[0].replace(/[^A-Za-z0-9_-]/g, '');
+  // A name with no letters or digits in it cannot be written as one token, so
+  // there is nothing honest to insert.
+  if (!handle) {
+    say(`${person.display_name} cannot be called by name — that name has no letters or digits in it.`, true);
+    return;
+  }
+
+  const box = composerBox;
+  const at = box.selectionStart ?? box.value.length;
+  const before = box.value.slice(0, at);
+  const after = box.value.slice(at);
+  // A space either side unless there already is one: dropped mid-sentence, an
+  // @name run into the word before it is not a mention at all.
+  const lead = before && !/\s$/.test(before) ? ' ' : '';
+  const tail = after.startsWith(' ') ? '' : ' ';
+  box.value = `${before}${lead}@${handle}${tail}${after}`;
+  const caret = before.length + lead.length + handle.length + 1 + tail.length;
+  box.focus();
+  box.setSelectionRange(caret, caret);
+  if (S.slug) S.drafts.set(S.slug, box.value);
+}
+
+// Opening a chat is reading it, so anything in it that called you stops
+// asking. The counts are dropped here rather than refetched: the answer is
+// arithmetic, and a round trip would repaint the sidebar a beat late.
+async function readMentions() {
+  const chat = S.chats.find((c) => c.id === S.chat?.id);
+  if (!chat?.mentions) return;
+  const had = chat.mentions;
+  chat.mentions = 0;
+  const row = S.projects.find((p) => p.slug === S.slug);
+  if (row) row.mentions = Math.max(0, (row.mentions ?? 0) - had);
+  if (S.project) S.project.mentions = Math.max(0, (S.project.mentions ?? 0) - had);
+  await api('POST', `/api/projects/${S.slug}/chats/${S.chat.id}/seen`);
+}
+
 // The address is render()'s to write — opening a game only sets the state.
 // Wrap the call in urlAs('replace', …) when it is not a navigation.
 export async function openProject(slug, { view = null } = {}) {
@@ -656,6 +723,7 @@ export async function openProject(slug, { view = null } = {}) {
   // survive the switch the same way.
   S.live = liveMapFor(slug, S.chat?.id);
   S.autoscroll = true;
+  readMentions();
   S.palette = null;
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
@@ -795,6 +863,23 @@ function onEvent(name, data) {
         const entry = map.get(data.agent_id);
         if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
         map.delete(data.agent_id);
+      }
+      // Somebody called you by name. Where the message landed decides what
+      // happens to it: in the chat you are looking at it is already read, and
+      // anywhere else it leaves a mark on that game until you go and look.
+      if (data.mentions?.includes(S.me?.id)) {
+        if (here(data)) {
+          api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
+        } else {
+          const row = S.projects.find((p) => p.slug === data.project_slug);
+          if (row) row.mentions = (row.mentions ?? 0) + 1;
+          if (mine(data)) {
+            const chat = S.chats.find((c) => c.id === data.chat_id);
+            if (chat) chat.mentions = (chat.mentions ?? 0) + 1;
+            if (S.project) S.project.mentions = (S.project.mentions ?? 0) + 1;
+          }
+          render();
+        }
       }
       if (!here(data)) return;
       S.project.messages.push(data);
@@ -1890,6 +1975,7 @@ export async function openChat(id) {
   // just left keeps writing into that one.
   S.live = liveMapFor(S.slug, S.chat.id);
   S.autoscroll = true;
+  readMentions();
   prefs.set(`chat-${S.slug}`, S.chat.id);
   render();
 }

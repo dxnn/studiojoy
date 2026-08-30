@@ -20,6 +20,7 @@ import {
 import {
   addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
 } from '../authors.js';
+import { unseenInProject, unseenInChat } from '../mentions.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -50,6 +51,10 @@ function projectPublic(db, row, user = null) {
     created_at: row.created_at,
     last_message_at: last?.created_at ?? row.created_at,
     preview: last ? last.body.slice(0, 80) : '',
+    // How many messages in this project have called *you* by name and not
+    // been read. Yours alone — every list in the sidebar is drawn for one
+    // person, so this is never somebody else's mark.
+    mentions: user ? unseenInProject(db, user.id, row.id) : 0,
   };
 }
 
@@ -171,7 +176,12 @@ export function projectRoutes(r) {
 
     json(ctx.res, 200, {
       ...projectPublic(ctx.db, project, user),
-      chats: listChats(ctx.db, project.id).map(chatPublic),
+      // Per chat as well as per project: the mark on the game says somebody
+      // called you, and the mark on the pill says where.
+      chats: listChats(ctx.db, project.id).map((c) => ({
+        ...chatPublic(c),
+        mentions: unseenInChat(ctx.db, user.id, c.id),
+      })),
       chat: chatPublic(chat),
       // No games origin means the request carried no usable hostname to build
       // one from, which is a null play url rather than a URL around a guess.

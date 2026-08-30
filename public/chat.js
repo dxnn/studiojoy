@@ -8,7 +8,7 @@ import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, say, sizeText, setPublished, setOpenEdit,
-  openChat, createChat, frozen, nearQuota,
+  openChat, createChat, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -407,7 +407,12 @@ function renderChatTabs() {
       class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
       title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
-    }, c.bots ? null : h('span', { class: 'hush', text: '·' }), c.name)),
+    },
+    c.bots ? null : h('span', { class: 'hush', text: '·' }),
+    c.name,
+    // The mark on the game says somebody called you; this says in which
+    // conversation.
+    calledMark(c.mentions))),
     h('div', { class: 'spacer' }),
     h('button', {
       class: 'chat-tab add', text: '+', title: 'Start another chat in this game',
@@ -444,10 +449,8 @@ export function renderChat() {
     },
   }, h('div', { class: 'messages' }, items));
 
-  // ⚠️ The composer follows the chat, not the game: the human-only chat of
-  // every game is everyone's, so somebody who cannot change a thing here can
-  // still say something in it. Everywhere else it takes the game's own rule.
-  const talkable = p.archived ? false : (S.chat?.bots === false || !frozen());
+  // ⚠️ The composer follows the chat, not the game — see canTalk().
+  const talkable = canTalk();
   const box = composerBox;
   box.placeholder = p.archived
     ? 'This game is finished (archived).'

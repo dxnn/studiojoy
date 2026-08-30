@@ -184,6 +184,16 @@ Since v0: a project is a game or a **chat** (`projects.kind`). A chat has no
 working tree and nothing on disk, so every file route, the games origin, and
 the agent's tools and context all refuse or omit it.
 
+People can be called by name too. Clicking a human in the sidebar's Crew tab
+drops `@Firstname` into the composer, and an `@` in a human message leaves that
+person a **mark** — the cyan `@n` on the game, the chat and the conversation
+pill — until they open the chat it was said in. `server/mentions.js` is now
+both halves: the same rule that makes a helper eligible resolves a person's
+name. A mark is a `mentions` row, so it survives the tab; ⚠️ clearing it is its
+own route (`…/chats/:id/seen`), not a side effect of the GET that opens a chat,
+because the client also needs it when a mention lands in the chat on screen.
+Nothing an agent writes ever leaves one.
+
 The studio has one role, **admin** (`users.admin`), and it is about running the
 studio rather than about games: accounts, names, passwords, per-person
 **allowances** and the studio-wide budget, all in Studio settings on the Crew

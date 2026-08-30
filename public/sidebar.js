@@ -4,6 +4,7 @@
 import { h } from './dom.js';
 import {
   S, render, prefs, api, openProject, attachAgent, SIDE_SEARCH, frozen,
+  mentionPerson, calledMark,
 } from './main.js';
 
 /* Render: sidebar --------------------------------------------------------- */
@@ -121,7 +122,9 @@ function gameRows(matches) {
     title: p.mine ? p.name : `${p.name} — ${p.authors.map((a) => a.display_name).join(', ')}`,
     onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
   },
-  h('div', { class: 'item-name', text: p.name }),
+  h('div', { class: 'item-name' },
+    h('span', { class: 'iname', text: p.name }),
+    calledMark(p.mentions)),
   // Somebody else's game says whose: that is the thing you want to know
   // about a game you cannot change.
   h('div', {
@@ -149,28 +152,36 @@ function chatRows(matches) {
       h('button', {
         class: 'hname', text: p.name, title: p.name,
         onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
-      })));
+      }),
+      calledMark(p.mentions)));
   return rows.length ? rows : nothing('No chats yet. Start one with + New chat.');
 }
 
 // The crew is everyone in the studio, in two kinds: the people, then the
 // helpers. Both belong to the studio rather than to one game, which is why
-// they share a tab — and why the people are a list rather than a control:
-// there is nothing to do to a person from in here.
+// they share a tab. A person's name is one thing to click: it drops "@Robin"
+// into what you are typing, and whoever that is gets a mark on this game until
+// they read it. Your own name is not — calling yourself is furniture. A name
+// clicked with nowhere to write it answers rather than going dead: the row
+// lights up, so it has to do something when it is pressed.
 function crewRows(matches) {
   const people = S.people.filter((p) => matches(p.display_name));
   const helpers = helperRows(matches);
   return [
     h('div', { class: 'section-label', text: 'Humans' }),
     people.length
-      ? people.map((p) => h('div', { class: 'srow' },
-        h('button', {
-          class: 'hname',
-          text: p.display_name,
-          title: p.id === S.me.id ? 'You' : p.display_name,
-          disabled: true,
-        }),
-        p.id === S.me.id ? h('span', { class: 'tag', text: 'you' }) : null))
+      ? people.map((p) => {
+        const you = p.id === S.me.id;
+        return h('div', { class: 'srow' },
+          h('button', {
+            class: 'hname',
+            text: p.display_name,
+            title: you ? 'You' : `Say something to ${p.display_name}`,
+            disabled: you,
+            onclick: () => mentionPerson(p),
+          }),
+          you ? h('span', { class: 'tag', text: 'you' }) : null);
+      })
       : nothing('Nobody yet — accounts are made with npm run adduser.'),
     h('div', { class: 'section-label', text: 'Helpers' }),
     helpers,

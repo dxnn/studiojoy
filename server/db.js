@@ -179,6 +179,22 @@ const MIGRATIONS = [
 
   // Single row: the studio-wide budget, which is the outer wall around every
   // person's own allowance.
+  // One row per person a message called by name, unseen until they open the
+  // chat it was said in. A row rather than an event because the mark has to
+  // outlive the tab that was open when it landed, and per chat because reading
+  // one conversation says nothing about what was said in another.
+  `CREATE TABLE IF NOT EXISTS mentions (
+    message_id INTEGER NOT NULL REFERENCES messages,
+    user_id INTEGER NOT NULL REFERENCES users,
+    chat_id INTEGER NOT NULL REFERENCES chats,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    seen INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mentions_waiting
+     ON mentions (user_id, seen, project_id)`,
+
   `CREATE TABLE IF NOT EXISTS studio_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     tokens_used_today INTEGER NOT NULL DEFAULT 0,

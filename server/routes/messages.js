@@ -6,6 +6,7 @@ import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic } from './helpers.js';
 import { requireChat, homeChat } from '../chats.js';
 import { canEdit } from '../authors.js';
+import { mentionedUsers, recordMentions } from '../mentions.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
 const MAX_CONTEXT_PATHS = 50;
@@ -63,6 +64,10 @@ export function messageRoutes(r) {
     }
 
     const now = new Date().toISOString();
+    // Who this message calls by name — the people, not the helpers, who are
+    // woken by the orchestrator further down. Resolved before the write so the
+    // rows land in the same transaction as the message they belong to.
+    const named = mentionedUsers(ctx.db, text, user.id);
     const messageId = tx(ctx.db, () => {
       const info = ctx.db
         .prepare(
@@ -76,12 +81,18 @@ export function messageRoutes(r) {
           .prepare('INSERT INTO message_context (message_id, path) VALUES (?, ?)')
           .run(id, p);
       }
+      recordMentions(ctx.db, {
+        messageId: id, chatId: chat.id, projectId: project.id, users: named, now,
+      });
       return id;
     });
 
     const row = ctx.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
     const payload = messagePublic(ctx.db, row, project.slug);
-    ctx.broker.broadcast('message.new', payload);
+    // On the broadcast and not on the answer to this request: it is the other
+    // tabs that need to know, and each one keeps only the mark that is its
+    // own. A person's ids are no secret here — the Crew tab lists everybody.
+    ctx.broker.broadcast('message.new', { ...payload, mentions: named });
 
     // Fired after the message is durable and broadcast, so the human's own
     // message always appears before any agent reply. Agents are woken only by

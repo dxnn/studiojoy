@@ -2,9 +2,10 @@
 // rename one. There is no delete: a chat holds everything anybody said in it,
 // and nothing else in the studio throws away words.
 
-import { json, HttpError } from '../http/respond.js';
+import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
+import { markSeen } from '../mentions.js';
 import { requireProject, requireString } from './helpers.js';
 import {
   createChat, listChats, requireChat, chatPublic,
@@ -37,6 +38,21 @@ export function chatRoutes(r) {
     const chat = createChat(ctx.db, project.id, { name, bots: 1 });
     ctx.broker.broadcast('chats.changed', { project_slug: project.slug });
     json(ctx.res, 201, chatPublic(chat));
+  });
+
+  // "I have read this one." Clears the marks left on this chat by anything
+  // that called you by name. Not a side effect of the GET that opens the chat:
+  // a read that writes is a read somebody else's tab can trip, and the client
+  // also calls this when a mention lands in the chat already on screen.
+  //
+  // Every account may do it, for any chat: reading is everybody's (spec.md
+  // §3), and it clears nothing but your own rows.
+  r.post('/api/projects/:slug/chats/:chat_id/seen', (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx);
+    const chat = requireChat(ctx.db, project, ctx.params.chat_id);
+    markSeen(ctx.db, user.id, chat.id);
+    noContent(ctx.res);
   });
 
   r.patch('/api/projects/:slug/chats/:chat_id', async (ctx) => {

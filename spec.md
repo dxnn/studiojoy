@@ -254,6 +254,38 @@ has chats. Covered by a test that builds the old shape in a file and opens it.
 PK `(message_id, path)`. Records which files a human explicitly pinned on that
 turn. Drives the context chips in the UI and the pin rules in §8.
 
+### `mentions`
+
+| column | type | notes |
+|---|---|---|
+| `message_id` | INTEGER NOT NULL → messages | |
+| `user_id` | INTEGER NOT NULL → users | the person the message called by name |
+| `chat_id` | INTEGER NOT NULL → chats | |
+| `project_id` | INTEGER NOT NULL → projects | denormalised, for the sidebar's count |
+| `seen` | INTEGER NOT NULL DEFAULT 0 | |
+| `created_at` | TEXT NOT NULL | |
+
+PK `(message_id, user_id)`. One row per person an `@name` in a **human**
+message reached, written in the same transaction as the message. `server/
+mentions.js` resolves both kinds of name with one rule — normalise to lowercase
+alphanumerics, match the whole name or a prefix of at least two characters — so
+`@Robin` reaches Robin Fox the same way `@Level` reaches Level Designer. Never
+for the person who wrote it, and never for an agent reply: agents are not told
+who the people are, and a helper echoing a name should not ring a bell.
+
+A row rather than an event, because the mark has to outlive the tab that was
+open when it landed; per chat rather than per project, because reading one
+conversation says nothing about what was said in another. `POST
+…/chats/:id/seen` is the only thing that clears it, and it clears nobody else's
+rows. ⚠️ Not a side effect of the GET that opens a chat: a read that writes is
+one somebody else's tab can trip, and the client needs the same call for a
+mention that lands in the chat already on screen.
+
+Counts ride the payloads that are already drawn per person — `mentions` on each
+project in `GET /api/projects` and on each chat in the project detail — and the
+`message.new` broadcast carries `mentions: [user_id]` so a tab that is not
+looking can paint its own mark without refetching.
+
 ### `message_writes`
 
 | column | type | notes |
@@ -524,6 +556,7 @@ nobody can sign in as — and refuses if they are the only author of a game.
 | GET | `/api/projects/:slug/chats` | — | this project's conversations |
 | POST | `/api/projects/:slug/chats` | `{name}` | a new one, always allowing helpers |
 | PATCH | `/api/projects/:slug/chats/:chat_id` | `{name}` | rename |
+| POST | `/api/projects/:slug/chats/:chat_id/seen` | — | clear your own *marks* on that chat |
 
 `GET /api/projects/:slug` and `GET /api/projects/:slug/messages` both take
 `?chat=`; `POST .../messages` takes `chat_id` in the body. Absent, all three

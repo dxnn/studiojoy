@@ -10,7 +10,7 @@ import {
   studioLimit, userHasBudget, chargeUser,
 } from '../budget.js';
 import { messagePublic, agentAuthorFor } from '../routes/helpers.js';
-import { parseMentions, agentEligible } from './mentions.js';
+import { parseMentions, agentEligible } from '../mentions.js';
 import { createToolset } from './tools.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
