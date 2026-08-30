@@ -1,4 +1,14 @@
-/* How the quiz looks. Colours, sizes and roundness — change anything. */
+/* How the quiz looks. Colours, sizes and roundness — change anything.
+
+   The four colours come from config/look.js, which the studio reads too, so
+   the game and the studio around it wear the same set. The values here are
+   only what to use if that file goes missing. */
+:root {
+  --primary: oklch(0.72 0.19 20);
+  --accent: oklch(0.78 0.15 350);
+  --highlight: oklch(0.85 0.15 95);
+  --deep: #191033;
+}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -6,7 +16,7 @@ body {
   display: grid;
   place-items: center;
   font-family: system-ui, sans-serif;
-  background: linear-gradient(160deg, #2b1e66, #0e4a56);
+  background: linear-gradient(160deg, var(--deep), color-mix(in oklab, var(--primary) 45%, var(--deep)));
   color: #fff;
   text-align: center;
 }
@@ -21,11 +31,11 @@ button {
   margin: 10px 0;
   padding: 14px 18px;
   font-size: 1.1em;
-  border: 2px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid color-mix(in oklab, var(--accent) 60%, transparent);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   cursor: pointer;
 }
-button:hover { background: rgba(255, 255, 255, 0.25); }
+button:hover { background: color-mix(in oklab, var(--primary) 35%, transparent); }
 button.big { font-size: 1.3em; padding: 18px; }

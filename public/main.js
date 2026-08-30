@@ -29,7 +29,7 @@ import { renderQuizForm } from './quiz-form.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
-import { renderSidebar } from './sidebar.js';
+import { renderSidebar, wordmark } from './sidebar.js';
 import { dialogFor } from './dialogs.js';
 
 const root = document.getElementById('root');
@@ -94,6 +94,10 @@ export const S = {
   // a setting that lives in whichever browser happened to make it.
   // {colours, text, from} — text is null when the game has no look.js yet.
   palette: null,
+  // The four colours the open game lends the studio, out of the same file.
+  // Empty for a game that names none of them, which is a game wearing the
+  // studio's own.
+  look: {},
   // Why a picture is not open for drawing on, or a sound not open for
   // changing, when they are not.
   drawRefused: null,
@@ -127,12 +131,25 @@ export const S = {
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
   railWidth: railClamp(Number(prefs.get('rail', '360'))),
-  // true = expanded. The game list is always shown; the two small sections
-  // under it fold away.
-  sections: {
-    chats: prefs.get('sec-chats', 'open') !== 'closed',
-    helpers: prefs.get('sec-helpers', 'open') !== 'closed',
-  },
+  // Which of the sidebar's three lists is showing — games, chats or helpers.
+  // Three stacked sections fought each other for the height of the pane; one
+  // list at a time, with tabs over it, is the same three things and one
+  // decision. Remembered like the rail width, because it is a place you work
+  // from rather than a step in a task.
+  sideTab: ['games', 'chats', 'helpers'].includes(prefs.get('side-tab', 'games'))
+    ? prefs.get('side-tab', 'games')
+    : 'games',
+  // What is typed in the sidebar's search box: a filter over the list on
+  // screen, not a query. Deliberately not remembered — a filter still in force
+  // tomorrow is a list with things missing from it.
+  sideFind: '',
+  // Whether the drawer under a game's name is open. Not remembered: it is a
+  // thing you opened to do something with, not a view.
+  actsOpen: false,
+  // Whether the game is showing at the top of the rail or folded to one row.
+  // Remembered next to the rail width: on a small screen the file list is
+  // worth the whole pane, and that is a preference, not a step.
+  previewOpen: prefs.get('preview', 'open') !== 'closed',
 };
 
 // The composer is built once and reused by every render. render() replaces
@@ -175,6 +192,9 @@ export async function sendComposer() {
 // The node surviving is not enough: removing it from the document blurs it
 // and drops the caret. Both are put back after the tree is rebuilt.
 const EDITOR_AREA = 'editor-area';
+// The sidebar's filter box. Every keystroke in it re-renders the pane it is
+// in, so without this it would lose the caret on its own second character.
+export const SIDE_SEARCH = 'side-find';
 
 function focusSnapshot() {
   const el = document.activeElement;
@@ -191,9 +211,10 @@ function focusSnapshot() {
       scroll: el.scrollTop,
     };
   }
-  if (el !== composerBox && el?.id !== EDITOR_AREA) return null;
+  if (el !== composerBox && el?.id !== EDITOR_AREA && el?.id !== SIDE_SEARCH) return null;
   return {
     composer: el === composerBox,
+    id: el.id,
     start: el.selectionStart,
     end: el.selectionEnd,
     scroll: el.scrollTop,
@@ -202,7 +223,7 @@ function focusSnapshot() {
 
 function restoreFocus(snap) {
   if (!snap) return;
-  const el = snap.el ?? (snap.composer ? composerBox : document.getElementById(EDITOR_AREA));
+  const el = snap.el ?? (snap.composer ? composerBox : document.getElementById(snap.id));
   // A remembered element that did not make it back into the tree — the render
   // that ran was the one closing its dialog — has nowhere to put the focus.
   if (!el || (snap.el && !el.isConnected)) return;
@@ -350,7 +371,10 @@ const slugFromUrl = () => {
   return match ? match[1] : null;
 };
 
-const RAIL_TABS = ['files', 'play', 'versions', 'scoreboard'];
+// Three, not four: the preview the Play tab held is now the top of the rail
+// whatever is open under it. A `?tab=play` link from before falls back to
+// Files, which is where its preview is anyway.
+const RAIL_TABS = ['files', 'versions', 'scoreboard'];
 
 // The URL is the view: which game, which tab, which file, which version — so
 // what someone is looking at is always the thing they can send to somebody
@@ -570,7 +594,20 @@ export async function openProject(slug, { view = null } = {}) {
   S.palette = null;
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
+  // So does an open actions drawer.
+  S.actsOpen = false;
   render();
+  // The best score is on the preview now, so it is fetched with the game
+  // rather than when the Scoreboard tab is opened. One small request, and the
+  // tab still refetches on its own — the public posts while the studio idles.
+  // The game's own four colours come out of config/look.js in the same
+  // breath: the studio wears them from the first paint, not from whenever a
+  // picture is opened.
+  if (!isChat()) {
+    await loadScores();
+    await loadPalette();
+    render();
+  }
   // The rail keeps whichever tab you were on unless a URL says otherwise, so
   // arriving at a game with Versions already open has to fetch now. Waiting
   // for the next click on the tab is what made the list look empty until you
@@ -758,6 +795,10 @@ function onEvent(name, data) {
     case 'files.changed': {
       if (!mine(data)) return;
       refreshFiles();
+      // A helper changing the game's colours retints the studio. Not while
+      // there are unsaved ones in the editor: re-reading would throw those
+      // away, and they are on their way into this same file.
+      if (data.paths.includes(LOOK_FILE) && !S.palette?.dirty) loadPalette().then(render);
       // An agent just rewrote the game; show the new version.
       S.previewNonce += 1;
       // Those problems belonged to the version that was just replaced. The
@@ -1256,6 +1297,22 @@ async function createSound() {
 // helper can read the same list the drawing tools offer.
 const LOOK_FILE = 'config/look.js';
 
+// The four colours a game lends the studio while it is open, read from `LOOK`
+// in the same file and set on the shell as --look-primary and friends. The
+// names are the game's own to change; what each one means is in GLOSSARY.md,
+// and the short of it is: primary is the game's voice, accent is its second,
+// highlight is a number worth looking at, deep is the dark behind them.
+const LOOK_ROLES = ['primary', 'accent', 'highlight', 'deep'];
+
+// ⚠️ This string is written into a style attribute, so it is checked rather
+// than trusted: no semicolon or colon, so a value cannot close the declaration
+// and start another, and no url() or var(). A colour that does not pass is
+// simply not applied, which leaves the studio's own default standing.
+const isLookColour = (value) => typeof value === 'string'
+  && value.length <= 64
+  && /^[a-z0-9#(),.%\s/-]+$/i.test(value)
+  && !/url|expression|var\s*\(/i.test(value);
+
 const paletteColours = () => S.palette?.colours ?? PALETTE;
 
 // The colour being drawn with is whatever is in the chosen square, so putting a
@@ -1288,12 +1345,24 @@ ${rows.join('\n')}
 
 async function loadPalette() {
   S.palette = { colours: [...PALETTE], text: null, from: null };
+  S.look = {};
   if (!S.files.some((f) => f.path === LOOK_FILE)) return;
   const res = await send(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`);
   if (!res.ok) return;
   const text = await res.text();
   S.palette.text = text;
   const parsed = parseConfigFile(text);
+  // The same file, read once for two things: the squares the drawing tools
+  // offer, and the four colours the studio wears while this game is open.
+  const look = parsed.ok ? parsed.decls.find((d) => d.name === 'LOOK') : null;
+  const values = look?.node?.value;
+  if (values && typeof values === 'object' && !Array.isArray(values)) {
+    for (const name of LOOK_ROLES) {
+      // A colour and nothing else: this string goes into a style attribute, so
+      // anything that is not plainly a colour is dropped rather than trusted.
+      if (isLookColour(values[name])) S.look[name] = values[name].trim();
+    }
+  }
   const found = parsed.ok ? parsed.decls.find((d) => d.name === 'PALETTE') : null;
   // A look.js that holds other things but no PALETTE is normal — a game's own
   // colours belong in there too. The studio's list is then still the default,
@@ -1506,7 +1575,7 @@ export async function deleteFile(path) {
   say(`Deleted ${path}. You can get it back from Versions.`);
 }
 
-async function setPublished(published) {
+export async function setPublished(published) {
   const res = await api('POST', `/api/projects/${S.slug}/publish`, { published });
   if (!res.ok) {
     say(res.body?.error ?? 'Could not change that.', true);
@@ -1689,7 +1758,7 @@ function renderAuth() {
 
   return h('div', { class: 'auth-page' },
     h('form', { class: 'auth-card', onsubmit: submit },
-      h('h1', { class: 'auth-title', text: 'Game Studio' }),
+      h('h1', { class: 'auth-title' }, wordmark('Game', 'Studio')),
       h('p', { class: 'auth-tag', text: 'Build games with your helpers.' }),
       h('label', { for: 'email', text: 'Email' }), email,
       h('label', { for: 'password', text: 'Password' }), password,
@@ -2250,6 +2319,19 @@ function closedDirs() {
 
 const dirOf = (p) => (p.includes('/') ? p.slice(0, p.indexOf('/')) : null);
 
+// A dot per row, coloured by what the file is for: the page the game starts
+// at, the code, the library it may not change. Everything else — art, sounds,
+// words — keeps the muted default, because a colour per extension is a legend
+// nobody reads. Gold is not here on purpose: it means a number or a version
+// everywhere else in the studio, and a file is neither.
+function fileDot(f) {
+  const colour = f.library ? 'var(--ok)'
+    : f.path === 'index.html' ? 'var(--accent)'
+      : /\.(js|css|json|html)$/i.test(f.path) ? 'var(--agent)'
+        : null;
+  return h('span', { class: 'fdot', style: colour ? `background:${colour}` : null });
+}
+
 function renderFilesTab() {
   const fileRow = (f, top) => h('div', {
     class: `file${top ? ' inset' : ''}${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
@@ -2281,6 +2363,7 @@ function renderFilesTab() {
       render();
     },
   }),
+  fileDot(f),
   // No handler of its own — the click reaches the row. Still a button so the
   // row can be got at by keyboard. Inside a folder the row shows the rest of
   // the path — the folder's own row already says the front of it.
@@ -2310,6 +2393,9 @@ function renderFilesTab() {
             render();
           },
         },
+        // Square and amber against the files' round dots, which is the whole
+        // difference between a folder row and a file row at a glance.
+        h('span', { class: 'fdot' }),
         h('button', { class: 'fname', text: `${shut ? '▸' : '▾'} ${top}/` }),
         h('span', {
           class: 'fsize',
@@ -2505,8 +2591,6 @@ function paintProblems() {
     e.location ? h('span', { class: 'where', text: e.location }) : null,
     h('span', { text: e.message }),
     e.times > 1 ? h('span', { class: 'muted', text: ` (${e.times} times)` }) : null)));
-  // The only sign of trouble when you are looking at another tab.
-  if (problemNodes.tab) problemNodes.tab.textContent = S.errors.length ? 'Play ⚠' : 'Play';
 }
 
 function renderProblems() {
@@ -2515,47 +2599,61 @@ function renderProblems() {
     h('div', { class: 'problems-head', text: 'The game ran into trouble' }),
     list,
     h('div', { class: 'hint muted', text: 'Your helpers can see this. Ask them to fix it.' }));
-  problemNodes = { box, list, tab: null };
+  problemNodes = { box, list };
   paintProblems();
   return box;
 }
 
-function renderPlayTab() {
-  // The preview loads the studio's wrapper — the game's own index.html with
-  // the reporter injected — while the link beside it, and everyone playing,
-  // gets the untouched page. That is why no game carries a script tag for
-  // this and why every game already reports.
+// The best anybody has scored, for the strip under the preview. Only when the
+// board is on and the scores happen to be loaded — a number that is sometimes
+// absent is better than a request fired to fill a label.
+const bestScore = () => (S.project.scores_on !== 0 && S.scores?.length ? S.scores[0].score : null);
+
+const showScore = (n) => n.toLocaleString();
+
+// The preview, which is no longer a tab: a game is the thing you are working
+// on, so it sits at the top of the rail whatever else is open. Collapsed, it
+// is one row that still plays.
+//
+// The frame loads the studio's wrapper — the game's own index.html with the
+// reporter injected — while Open, and everyone playing, gets the untouched
+// page. That is why no game carries a script tag for this and why every game
+// already reports.
+function renderPreview() {
+  const best = bestScore();
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
-  return [h('div', { class: 'scroll', 'data-scroll': 'play' },
-    h('div', { class: 'preview-wrap' },
-      h('div', { class: 'row' },
-        h('button', { class: 'quiet tiny', text: '⟳ Reload', onclick: () => { S.previewNonce += 1; render(); } }),
+  const shut = () => {
+    S.previewOpen = !S.previewOpen;
+    prefs.set('preview', S.previewOpen ? 'open' : 'closed');
+    render();
+  };
+
+  return h('div', { class: `preview-wrap${S.previewOpen ? '' : ' collapsed'}` },
+    // Built either way: the iframe is only in the tree when it is open, so a
+    // collapsed preview is not a game running silently in the background.
+    S.previewOpen ? h('iframe', { class: 'preview-frame', src: url, title: 'Game preview' }) : null,
+    S.previewOpen
+      ? h('div', { class: 'preview-foot' },
+        best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
         h('div', { class: 'spacer' }),
         h('a', { href: S.project.play_url, target: '_blank', rel: 'noreferrer' },
-          h('button', { class: 'quiet tiny', text: 'Open in a tab' }))),
-      h('iframe', { class: 'preview-frame', src: url, title: 'Game preview' }),
-      renderProblems(),
-      h('div', { class: 'hint muted', text: 'Anyone with the link can play this. It updates as soon as a file changes.' }),
-      h('div', { class: 'mono muted', text: S.project.play_url }),
-      h('div', { class: 'row' },
-        h('button', {
-          class: S.project.published ? 'quiet tiny' : 'filled tiny',
-          text: S.project.published ? 'Take out of the games list' : 'Put in the games list',
-          title: 'The games list is the page everyone sees at the games address',
-          onclick: () => setPublished(!S.project.published),
-        }),
-        h('div', { class: 'spacer' }),
-        h('button', {
-          class: 'quiet tiny', text: 'Make a copy',
-          title: 'Start a new game from a copy of this one',
-          onclick: () => { S.dialog = { kind: 'fork' }; render(); },
-        })),
-      h('div', {
-        class: 'hint muted',
-        text: S.project.published
-          ? 'This game is in the list everyone can see.'
-          : 'Not in the list yet. It still works for anyone with the link.',
-      })))];
+          h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' })),
+        h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
+      : null,
+    S.previewOpen ? null : h('div', {
+      class: 'preview-row', title: 'Show the game', onclick: shut,
+    },
+    h('span', { class: 'play', text: '▶' }),
+    h('span', { class: 'pname', text: `Play ${S.project.name}` }),
+    best === null ? null : h('span', { class: 'best', text: showScore(best) }),
+    h('span', { text: '▼' })),
+    // Rendered either way. Folding the game away stops it running, but the
+    // problems it already reported are still the answer to "why is it broken",
+    // and a panel that vanished with the frame would take them with it.
+    renderProblems(),
+    S.previewOpen
+      ? h('div', { class: 'hint muted', text: 'Anyone with the link can play this. It updates as soon as a file changes.' })
+      : null);
 }
 
 // Drag the rail's left edge. Pointer capture keeps the drag on this element,
@@ -2604,23 +2702,19 @@ function renderRail() {
   });
 
   let body = [];
-  if (S.tab === 'play') body = renderPlayTab();
-  else if (S.tab === 'versions') body = renderVersionsTab();
+  if (S.tab === 'versions') body = renderVersionsTab();
   else if (S.tab === 'scoreboard') body = renderScoreboardTab();
   else body = renderFilesTab();
 
-  // The badge is the only sign of trouble when you are looking at another tab.
-  // Handed to the problems panel so a problem arriving mid-game can update it
-  // without a render.
-  const playTab = tab('play', S.errors.length ? 'Play ⚠' : 'Play');
-  if (problemNodes) problemNodes.tab = playTab;
-
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
     railGrip(),
-    h('div', { class: 'bar' },
+    // Above the tabs and outside them: the game is what the rail is about, and
+    // it used to be a tab you had to leave the files to see.
+    renderPreview(),
+    h('div', { class: 'pad row' },
       h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
       h('div', { class: 'tabs' },
-        tab('files', 'Files'), playTab, tab('versions', 'Versions'),
+        tab('files', 'Files'), tab('versions', 'Versions'),
         tab('scoreboard', 'Scoreboard'))),
     ...body);
 }
@@ -2656,9 +2750,15 @@ export function render() {
 
   // A chat has no files, versions or preview, so it has no rail at all and
   // the thread takes the whole width.
+  // The open game lends the studio its four colours, as an inline style on the
+  // shell — the chat pane, its buttons, the composer, the drawer and the rail
+  // read them and nothing else does. A game that names none of them leaves the
+  // studio's own defaults standing, so a partial look is fine.
   const app = h('div', {
     class: `app${S.sidebar ? '' : ' side-closed'}${isChat() ? ' no-rail' : ''}`,
-    style: `--rail:${S.railWidth}px`,
+    style: [`--rail:${S.railWidth}px`, ...LOOK_ROLES
+      .filter((name) => S.look[name])
+      .map((name) => `--look-${name}:${S.look[name]}`)].join(';'),
   }, renderSidebar(), renderChat(), isChat() ? null : renderRail());
   root.append(app);
 

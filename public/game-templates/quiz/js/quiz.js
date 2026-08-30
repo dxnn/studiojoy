@@ -20,6 +20,15 @@
 
   const show = (...nodes) => root.replaceChildren(...nodes);
 
+  // The colours in config/look.js, handed to the stylesheet as the variables
+  // it draws from. The same four the studio takes while this game is open, so
+  // changing one there changes both.
+  if (window.LOOK) {
+    for (const name of ["primary", "accent", "highlight", "deep"]) {
+      if (LOOK[name]) document.documentElement.style.setProperty("--" + name, LOOK[name]);
+    }
+  }
+
   function start() {
     for (const key of Object.keys(RESULTS)) tally[key] = 0;
     at = -1;

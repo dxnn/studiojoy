@@ -7,7 +7,7 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
-  composerBox, sendComposer, send, say, sizeText,
+  composerBox, sendComposer, send, say, sizeText, setPublished,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -298,12 +298,48 @@ function helperGap() {
         S.narrowPane = 'games';
         S.sidebar = true;
         prefs.set('sidebar', 'open');
-        S.sections.helpers = true;
-        prefs.set('sec-helpers', 'open');
+        // On the tab it will land on, so the new helper is where the eye goes
+        // when the dialog closes.
+        S.sideTab = 'helpers';
+        prefs.set('side-tab', 'helpers');
         S.dialog = { kind: 'new-agent' };
         render();
       },
     }), '.');
+}
+
+// What you can do to the whole game, folded away under its name. These used to
+// sit at the foot of the Play tab, which put them under the preview of a game
+// you were in the middle of playing, and out of reach from every other tab.
+//
+// Closed, the drawer is zero-height rather than absent: it animates open, and
+// a node that is not there cannot transition. It closes when the game changes,
+// because it is a decision about the game you were looking at.
+function renderActs(p) {
+  const listed = Boolean(p.published);
+  return h('div', { class: `acts${S.actsOpen ? ' open' : ''}` },
+    h('button', {
+      class: 'act fork',
+      text: 'Make a copy',
+      title: 'Start a new game from a copy of this one',
+      disabled: p.archived,
+      onclick: () => { S.dialog = { kind: 'fork' }; render(); },
+    }),
+    h('button', {
+      class: `act publish${listed ? ' on' : ''}`,
+      title: 'The games list is the page everyone sees at the games address',
+      onclick: () => setPublished(!listed),
+    }, h('span', { class: 'dot' }), listed ? 'Take out of the list' : 'Put in the list'),
+    h('span', {
+      class: `state${listed ? ' live' : ''}`,
+      text: listed ? 'In the games list' : 'Only people with the link',
+    }),
+    h('div', { class: 'spacer' }),
+    h('button', {
+      class: 'act',
+      text: 'Rename',
+      onclick: () => { S.dialog = { kind: 'rename' }; render(); },
+    }));
 }
 
 export function renderChat() {
@@ -374,7 +410,17 @@ export function renderChat() {
         class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
         onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
       }),
-      h('div', { class: 'title', text: p.name }),
+      // The name is the way into the game's own actions — the ones that are
+      // about the whole game rather than the conversation. A chat has none of
+      // them, so its name is just a name.
+      isChat()
+        ? h('div', { class: 'title', text: p.name })
+        : h('button', {
+          class: 'title',
+          'aria-expanded': S.actsOpen ? 'true' : 'false',
+          title: S.actsOpen ? 'Hide what you can do with this game' : 'What you can do with this game',
+          onclick: () => { S.actsOpen = !S.actsOpen; render(); },
+        }, h('span', { class: 'label', text: p.name })),
       h('button', {
         class: 'icon tiny', text: '✎', title: 'Rename this game',
         onclick: () => { S.dialog = { kind: 'rename' }; render(); },
@@ -388,6 +434,7 @@ export function renderChat() {
         title: 'Start working on this again',
         onclick: () => { S.dialog = { kind: 'archive' }; render(); },
       })),
+    isChat() ? null : renderActs(p),
     scroller,
     h('div', { class: 'composer' },
       gap,

@@ -97,7 +97,8 @@ test('a game born from the quiz template holds its starter tree', async (t) => {
   const dir = path.join(app.gamesDir, 'quizzy');
   const templateRoot = path.join(publicDir, 'game-templates', 'quiz');
   for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css',
-    'config/questions.js', 'config/words.js', 'js/quiz.js', 'assets/pick.wav']) {
+    'config/look.js', 'config/questions.js', 'config/words.js', 'js/quiz.js',
+    'assets/sounds/pick.wav']) {
     assert.deepEqual(
       fs.readFileSync(path.join(dir, f)),
       fs.readFileSync(path.join(templateRoot, f)),
