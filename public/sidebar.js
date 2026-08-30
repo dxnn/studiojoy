@@ -154,8 +154,8 @@ function crewRows(matches) {
 }
 
 // Helpers belong to the studio, not to one game, so they live beside the game
-// list. Which game a helper is *in* is shown and changed in that game's title
-// bar instead.
+// list. Which *chat* a helper is in is shown and changed in that chat: the
+// dot here means the one on screen.
 function helperRows(matches) {
   const attached = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
   const canAdd = Boolean(S.project) && !S.project.archived;
@@ -165,9 +165,11 @@ function helperRows(matches) {
     return h('div', { class: `srow${here ? ' here' : ''}` },
       h('button', {
         class: 'hname',
+        // A helper is in a conversation, not in a game, so the row is about
+        // the chat on screen.
         title: here
-          ? `${agent.name} is in this game`
-          : (canAdd ? `Put ${agent.name} in this game` : agent.name),
+          ? `${agent.name} is in this chat`
+          : (canAdd ? `Put ${agent.name} in this chat` : agent.name),
         disabled: here || !canAdd,
         onclick: () => attachAgent(agent),
       }, here ? h('span', { class: 'dot', text: '●' }) : null, agent.name),

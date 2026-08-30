@@ -184,6 +184,18 @@ Since v0: a project is a game or a **chat** (`projects.kind`). A chat has no
 working tree and nothing on disk, so every file route, the games origin, and
 the agent's tools and context all refuse or omit it.
 
+A project holds several **chats** — conversations, `chats` in the database.
+Every one is born with two: `Just us`, which it opens on, and `Building`. ⚠️
+`Just us` is human only, and that is enforced where a helper would be *put in*
+(`assertBotsAllowed`), not where one would answer: a room that promises nobody
+is listening keeps that promise at the door. A helper belongs to a chat rather
+than a game — `chat_agents`, with the chatty switch, the cooldown and the dirty
+bit all per chat — and its transcript, its pins and its history floor are that
+chat's alone. The URL carries `?chat=`; the browser remembers the last one per
+game. A database from before this upgrades in place: `intoChats` gives each
+project the human-only chat and moves its thread and helpers into `Building`,
+then drops `project_agents`. Tested against a hand-built old database.
+
 Browser-checked, not just intended: on the games origin `document.cookie` is
 empty and `localStorage` works, and the studio cannot read into the preview
 iframe. ⚠️ Read that first one narrowly — `document.cookie` is empty because

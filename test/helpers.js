@@ -179,6 +179,25 @@ export async function startGames(fixture, opts = {}) {
   };
 }
 
+// The chat helpers can be put in. Every project is born with two — the
+// human-only one it opens on, and this — so a test that wants an agent to
+// answer wants this one.
+export async function workChat(app, slug = 'tank') {
+  const res = await app.client.json('GET', `/api/projects/${slug}`);
+  const chat = res.body.chats?.find((c) => c.bots);
+  if (!chat) throw new Error(`no chat allowing helpers in ${slug}`);
+  return chat.id;
+}
+
+// Put an agent in that chat. The route is per chat, so this is the two calls
+// every test that wants a helper answering has to make.
+export async function putInChat(app, slug, agentId, body = {}) {
+  const chatId = body.chat_id ?? await workChat(app, slug);
+  return app.client.json('POST', `/api/projects/${slug}/chats/${chatId}/agents`, {
+    body: { agent_id: agentId, ...body },
+  });
+}
+
 export async function signIn(fixture, {
   email = 'dann@example.com', password = 'hunter2', displayName = 'Dann',
   client = fixture.client,

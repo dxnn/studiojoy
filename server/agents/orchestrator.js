@@ -218,14 +218,14 @@ function briefText(buffer) {
 // file block; the emphasis itself rides on the last user message, next to the
 // runtime errors, because pins change turn to turn and a label inside the
 // block re-billed everything behind it as a cache miss.
-function pinnedPaths(db, projectId) {
+function pinnedPaths(db, chatId) {
   const recentTurns = db
     .prepare(
       `SELECT id FROM messages
-        WHERE project_id = ? AND user_id IS NOT NULL
+        WHERE chat_id = ? AND user_id IS NOT NULL
         ORDER BY id DESC LIMIT ?`,
     )
-    .all(projectId, PINNED_TURNS)
+    .all(chatId, PINNED_TURNS)
     .map((r) => r.id);
   if (recentTurns.length === 0) return new Set();
   const placeholders = recentTurns.map(() => '?').join(',');
@@ -293,9 +293,11 @@ function libraryLines(files) {
     + 'Use read_file if you need to see inside one.';
 }
 
-async function buildFileBlock(db, project, dir) {
+async function buildFileBlock(db, chat, dir) {
   const { files } = await listTree(dir);
-  const pinned = pinnedPaths(db, project.id);
+  // Pins are per conversation: what somebody pointed at in one chat is not
+  // what the helper in another one should be looking at.
+  const pinned = pinnedPaths(db, chat.id);
   // A file already on disk that path validation refuses is listed but never
   // opened: no tool can act on it and the games origin will not serve it, so
   // an agent needs to know it is there to explain why it 404s at runtime.
@@ -398,7 +400,7 @@ async function buildErrorBlock(db, project, dir) {
     + lines.join('\n');
 }
 
-function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new Map()) {
+function historyTurns(db, chat, agent, lastFiredMaxId = 0, historyFloor = new Map()) {
   // The floor is where the transcript starts once it has ever been trimmed.
   // Trimming exactly to the cap moved the seam one message per fire, and the
   // seam line at the transcript's front re-billed the whole transcript as a
@@ -406,14 +408,14 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new
   // kept suffix outgrows a cap it jumps, cutting back to half so it can hold
   // still again. In memory only; a restart re-derives it, which costs one
   // fire of misses (same trade as lastFired).
-  const floor = historyFloor.get(project.id) ?? 0;
+  const floor = historyFloor.get(chat.id) ?? 0;
   const rows = db
     .prepare(
       `SELECT * FROM (
-         SELECT * FROM messages WHERE project_id = ? AND id > ? ORDER BY id DESC LIMIT ?
+         SELECT * FROM messages WHERE chat_id = ? AND id > ? ORDER BY id DESC LIMIT ?
        ) ORDER BY id ASC`,
     )
-    .all(project.id, floor, MAX_HISTORY_MESSAGES);
+    .all(chat.id, floor, MAX_HISTORY_MESSAGES);
 
   const userNames = new Map(
     db.prepare('SELECT id, display_name FROM users').all().map((u) => [u.id, u.display_name]),
@@ -467,8 +469,8 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new
     while (turns.length > 1 && (total > byteTarget || turns.length > turnTarget)) {
       total -= turns[0].text.length;
       historyFloor.set(
-        project.id,
-        Math.max(historyFloor.get(project.id) ?? 0, turns[0].id),
+        chat.id,
+        Math.max(historyFloor.get(chat.id) ?? 0, turns[0].id),
       );
       turns.shift();
     }
@@ -481,8 +483,8 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new
   // used to with nothing saying where the join was.
   const oldest = turns[0]?.id ?? 0;
   const older = oldest > 0
-    ? db.prepare('SELECT COUNT(*) AS n FROM messages WHERE project_id = ? AND id < ?')
-      .get(project.id, oldest).n
+    ? db.prepare('SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND id < ?')
+      .get(chat.id, oldest).n
     : 0;
   if (older > 0) {
     turns.unshift({
@@ -504,11 +506,11 @@ function historyTurns(db, project, agent, lastFiredMaxId = 0, historyFloor = new
 }
 
 async function buildContext({
-  db, project, dir, agent, lastFiredMaxId = 0,
+  db, project, chat, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
   historyFloor = new Map(),
 }) {
-  const { turns, trimmed } = historyTurns(db, project, agent, lastFiredMaxId, historyFloor);
+  const { turns, trimmed } = historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
@@ -522,7 +524,7 @@ async function buildContext({
   // changes, the brief and the description rarely do, the files often. Putting
   // the files here rather than on the last message is what turns a 0% cache
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
-  const fileBlock = isChat ? null : await buildFileBlock(db, project, dir);
+  const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir);
   const preamble = isChat ? null : studioPreamble({
     project,
     canEdit: agent.file_tools,
@@ -592,14 +594,14 @@ function promptText(system, messages) {
   return parts.join('\n\n');
 }
 
-function postSystemMessage(db, broker, { project, agentId, body }) {
+function postSystemMessage(db, broker, { project, chat, agentId, body }) {
   const now = new Date().toISOString();
   const info = db
     .prepare(
-      `INSERT INTO messages (project_id, agent_id, kind, body, created_at)
-       VALUES (?, ?, 'system', ?, ?)`,
+      `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at)
+       VALUES (?, ?, ?, 'system', ?, ?)`,
     )
-    .run(project.id, agentId, body, now);
+    .run(project.id, chat.id, agentId, body, now);
   const row = db.prepare('SELECT * FROM messages WHERE id = ?').get(Number(info.lastInsertRowid));
   broker.broadcast('message.new', messagePublic(db, row, project.slug));
 }
@@ -622,15 +624,15 @@ export function createOrchestrator({
   // Agents mid-fire. A message arriving now sets the dirty bit; the running
   // fire picks it up when it finishes.
   const firing = new Set();
-  // project_agents.id -> MAX(messages.id) when that agent last fired
+  // chat_agents.id -> MAX(messages.id) when that agent last fired
   // successfully. Used to reorder context so a message that arrived
   // mid-stream is presented after the reply that never saw it. Lost on
   // restart, which only costs one turn of ordering.
   const lastFired = new Map();
-  // project_agents.id -> continuations spent since the last human message.
+  // chat_agents.id -> continuations spent since the last human message.
   // A fresh human turn is a fresh allowance, so this is cleared there.
   const continued = new Map();
-  // projects.id -> the message id the transcript starts after, once it has
+  // chats.id -> the message id the transcript starts after, once it has
   // ever been trimmed (historyTurns). Holding the boundary still between
   // fires is what keeps the transcript prefix cacheable; in memory only,
   // like lastFired.
@@ -653,49 +655,59 @@ export function createOrchestrator({
 
   // Only human messages make agents eligible — bot-to-bot dampening. Agents
   // still see each other's replies as context.
-  function onHumanMessage(project, message) {
+  //
+  // Only the helpers in *this chat* are woken. A helper in another one is not
+  // listening here, and the human-only chat has none by construction: it can
+  // hold no chat_agents rows at all (assertBotsAllowed), so this loop is empty
+  // there rather than filtered there.
+  function onHumanMessage(project, message, chat) {
     if (project.archived) return;
+    const chatId = chat?.id ?? message.chat_id;
+    if (!chatId) return;
     const mentions = parseMentions(message.body);
     const attached = db
       .prepare(
-        `SELECT pa.id, pa.chatty, pa.cooldown_until, a.name
-           FROM project_agents pa
-           JOIN agents a ON a.id = pa.agent_id
-          WHERE pa.project_id = ? AND a.deleted = 0`,
+        `SELECT ca.id, ca.chatty, ca.cooldown_until, a.name
+           FROM chat_agents ca
+           JOIN agents a ON a.id = ca.agent_id
+          WHERE ca.chat_id = ? AND a.deleted = 0`,
       )
-      .all(project.id);
+      .all(chatId);
 
     for (const row of attached) {
       if (!agentEligible({ name: row.name, chatty: row.chatty === 1 }, mentions)) continue;
       continued.delete(row.id);
-      db.prepare('UPDATE project_agents SET response_pending = 1 WHERE id = ?').run(row.id);
+      db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?').run(row.id);
       if (firing.has(row.id)) continue;
       const readyAt = row.cooldown_until ? new Date(row.cooldown_until).getTime() : 0;
       schedule(row.id, readyAt);
     }
   }
 
-  async function fireAgent(projectAgentId) {
+  async function fireAgent(chatAgentId) {
     const row = db
       .prepare(
-        `SELECT pa.id, pa.project_id, pa.agent_id, pa.response_pending,
+        `SELECT ca.id, ca.chat_id, ca.agent_id, ca.response_pending,
+                c.project_id, c.name AS chat_name,
                 a.name AS agent_name, a.description, a.model, a.reasoning,
                 a.file_tools, a.deleted,
                 p.slug, p.name AS project_name, p.kind, p.archived, p.scores_on
-           FROM project_agents pa
-           JOIN agents a ON a.id = pa.agent_id
-           JOIN projects p ON p.id = pa.project_id
-          WHERE pa.id = ?`,
+           FROM chat_agents ca
+           JOIN chats c ON c.id = ca.chat_id
+           JOIN agents a ON a.id = ca.agent_id
+           JOIN projects p ON p.id = c.project_id
+          WHERE ca.id = ?`,
       )
-      .get(projectAgentId);
+      .get(chatAgentId);
     if (!row || row.response_pending !== 1 || row.deleted) return;
 
     const project = {
       id: row.project_id, slug: row.slug, name: row.project_name, kind: row.kind,
       scores_on: row.scores_on,
     };
+    const chat = { id: row.chat_id, name: row.chat_name };
     const clearPending = () => db
-      .prepare('UPDATE project_agents SET response_pending = 0 WHERE id = ?')
+      .prepare('UPDATE chat_agents SET response_pending = 0 WHERE id = ?')
       .run(row.id);
 
     if (row.archived) {
@@ -708,14 +720,17 @@ export function createOrchestrator({
     clearPending();
     firing.add(row.id);
 
+    // Every event says which conversation it is about: a reply streaming into
+    // a chat nobody is looking at must not paint itself into the open one.
     const emit = (event, data = {}) => broker.broadcast(event, {
-      project_slug: row.slug, agent_id: row.agent_id, ...data,
+      project_slug: row.slug, chat_id: chat.id, agent_id: row.agent_id, ...data,
     });
 
     try {
       if (!hasBudget(db, dailyTokenBudget)) {
         postSystemMessage(db, broker, {
           project,
+          chat,
           agentId: row.agent_id,
           body: `${row.agent_name} could not reply: the studio is out of tokens for today.`,
         });
@@ -736,10 +751,10 @@ export function createOrchestrator({
       // Snapshot before streaming: anything with a higher id arrived while
       // this reply was being written and was therefore unseen by it.
       const snapshot = db
-        .prepare('SELECT COALESCE(MAX(id), 0) AS n FROM messages WHERE project_id = ?')
-        .get(project.id).n;
+        .prepare('SELECT COALESCE(MAX(id), 0) AS n FROM messages WHERE chat_id = ?')
+        .get(chat.id).n;
       const context = await buildContext({
-        db, project, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
+        db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
         maxAssistantTurns, maxToolCalls, historyFloor,
       });
       if (!context) return;
@@ -920,12 +935,12 @@ export function createOrchestrator({
         const messageId = tx(db, () => {
           const info = db
             .prepare(
-              `INSERT INTO messages (project_id, agent_id, body, created_at, tokens, trimmed)
-               VALUES (?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO messages (project_id, chat_id, agent_id, body, created_at, tokens, trimmed)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
             )
             // Null rather than 0 when nothing was trimmed: the column is a
             // report of something having happened, not a running total.
-            .run(project.id, agent.id, replyText, now, charged, context.trimmed || null);
+            .run(project.id, chat.id, agent.id, replyText, now, charged, context.trimmed || null);
           const id = Number(info.lastInsertRowid);
           // A write of identical bytes produces no commit, so there is
           // nothing to record and nothing changed to report.
@@ -972,18 +987,21 @@ export function createOrchestrator({
         // — a dead upstream retried automatically could loop on the failure.
         postSystemMessage(db, broker, {
           project,
+          chat,
           agentId: agent.id,
           body: `${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`,
         });
       } else if (pendingCut || (hitLength && changed.length === 0)) {
         postSystemMessage(db, broker, {
           project,
+          chat,
           agentId: agent.id,
           body: `${row.agent_name} ran out of output budget mid-reply; a file may be missing or incomplete.`,
         });
       } else if (hitLimit === 'tool') {
         postSystemMessage(db, broker, {
           project,
+          chat,
           agentId: agent.id,
           body: `${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`,
         });
@@ -1001,14 +1019,16 @@ export function createOrchestrator({
           continued.set(row.id, used + 1);
           postSystemMessage(db, broker, {
             project,
+            chat,
             agentId: agent.id,
             body: `${row.agent_name} is not finished yet — carrying on from where they stopped.`,
           });
-          db.prepare('UPDATE project_agents SET response_pending = 1 WHERE id = ?')
+          db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?')
             .run(row.id);
         } else {
           postSystemMessage(db, broker, {
             project,
+            chat,
             agentId: agent.id,
             body: hitLimit === 'context'
               ? `${row.agent_name} had too much to hold in one reply and stopped. Ask them to keep going if you want more.`
@@ -1021,10 +1041,10 @@ export function createOrchestrator({
       try {
         // Cooldown runs from the end of the response, not its start.
         const readyAt = Date.now() + cooldownMs;
-        db.prepare('UPDATE project_agents SET cooldown_until = ? WHERE id = ?')
+        db.prepare('UPDATE chat_agents SET cooldown_until = ? WHERE id = ?')
           .run(new Date(readyAt).toISOString(), row.id);
         const fresh = db
-          .prepare('SELECT response_pending FROM project_agents WHERE id = ?')
+          .prepare('SELECT response_pending FROM chat_agents WHERE id = ?')
           .get(row.id);
         if (fresh?.response_pending === 1) schedule(row.id, readyAt);
       } catch (err) {

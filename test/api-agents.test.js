@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn } from './helpers.js';
+import { setup, signIn, putInChat, workChat } from './helpers.js';
 
 async function studio(t) {
   const app = await setup();
@@ -124,39 +124,57 @@ test('an unknown or non-numeric agent id is 404', async (t) => {
   }
 });
 
-test('attaching an agent to a project, and detaching it', async (t) => {
+test('putting a helper in a chat, and taking it out', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
+  const chat = await workChat(app, 'tank');
 
-  const attach = await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const attach = await putInChat(app, 'tank', agent.body.id, { chatty: true });
   assert.equal(attach.status, 201);
   assert.equal(attach.body.chatty, true);
+  assert.equal(attach.body.chat_id, chat);
 
-  const detail = await app.client.json('GET', '/api/projects/tank');
+  // The helpers on the project detail are that chat's, so the read names it.
+  const detail = await app.client.json('GET', `/api/projects/tank?chat=${chat}`);
   assert.equal(detail.body.agents.length, 1);
   assert.equal(detail.body.agents[0].name, 'Designer');
   assert.equal(detail.body.agents[0].chatty, true);
+  // And the chat it opens on has none of them.
+  assert.deepEqual((await app.client.json('GET', '/api/projects/tank')).body.agents, []);
 
-  // Attaching twice is a conflict, not a duplicate row.
-  assert.equal(
-    (await app.client.json('POST', '/api/projects/tank/agents', {
-      body: { agent_id: agent.body.id },
-    })).status,
-    409,
-  );
+  // Twice in one chat is a conflict, not a duplicate row.
+  assert.equal((await putInChat(app, 'tank', agent.body.id)).status, 409);
 
   const patched = await app.client.json(
-    'PATCH', `/api/projects/tank/agents/${agent.body.id}`, { body: { chatty: false } },
+    'PATCH', `/api/projects/tank/chats/${chat}/agents/${agent.body.id}`,
+    { body: { chatty: false } },
   );
   assert.equal(patched.body.chatty, false);
 
-  const del = await app.client.request('DELETE', `/api/projects/tank/agents/${agent.body.id}`);
+  const del = await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${chat}/agents/${agent.body.id}`,
+  );
   assert.equal(del.status, 204);
   await del.text();
-  assert.deepEqual((await app.client.json('GET', '/api/projects/tank')).body.agents, []);
+  assert.deepEqual(
+    (await app.client.json('GET', `/api/projects/tank?chat=${chat}`)).body.agents, [],
+  );
+});
+
+// ⚠️ The human-only chat is human-only at the door, not at the point where
+// somebody would have answered.
+test('no helper can be put in the chat a project opens on', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
+  const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
+  const detail = await app.client.json('GET', '/api/projects/tank');
+  const home = detail.body.chats.find((c) => !c.bots);
+
+  const res = await putInChat(app, 'tank', agent.body.id, { chat_id: home.id });
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /just for the humans/);
+  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM chat_agents').get().c, 0);
 });
 
 test('deleting an agent detaches it everywhere', async (t) => {
@@ -164,68 +182,65 @@ test('deleting an agent detaches it everywhere', async (t) => {
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   await app.client.json('POST', '/api/projects', { body: { name: 'Snake' } });
   const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
+  const chats = {};
   for (const slug of ['tank', 'snake']) {
-    await app.client.json('POST', `/api/projects/${slug}/agents`, {
-      body: { agent_id: agent.body.id },
-    });
+    chats[slug] = await workChat(app, slug);
+    await putInChat(app, slug, agent.body.id);
   }
   await (await app.client.request('DELETE', `/api/agents/${agent.body.id}`)).text();
 
   for (const slug of ['tank', 'snake']) {
-    assert.deepEqual((await app.client.json('GET', `/api/projects/${slug}`)).body.agents, []);
+    assert.deepEqual(
+      (await app.client.json('GET', `/api/projects/${slug}?chat=${chats[slug]}`)).body.agents, [],
+    );
   }
-  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM project_agents').get().c, 0);
+  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM chat_agents').get().c, 0);
 });
 
-test('a project holds at most ten agents', async (t) => {
+test('a chat holds at most ten helpers', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   for (let i = 0; i < 10; i += 1) {
     const agent = await makeAgent(app, { name: `Agent ${i}`, description: 'd' });
-    const res = await app.client.json('POST', '/api/projects/tank/agents', {
-      body: { agent_id: agent.body.id },
-    });
-    assert.equal(res.status, 201, `agent ${i}`);
+    assert.equal((await putInChat(app, 'tank', agent.body.id)).status, 201, `agent ${i}`);
   }
   const extra = await makeAgent(app, { name: 'Eleventh', description: 'd' });
-  const res = await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: extra.body.id },
-  });
+  const res = await putInChat(app, 'tank', extra.body.id);
   assert.equal(res.status, 409);
-  assert.match(res.body.error, /10 agents/);
+  assert.match(res.body.error, /10 helpers/);
 });
 
-test('an archived project accepts no agent changes', async (t) => {
+test('an archived project accepts no helper changes', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
-  await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: agent.body.id },
-  });
+  const chat = await workChat(app, 'tank');
+  await putInChat(app, 'tank', agent.body.id, { chat_id: chat });
   await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
 
+  assert.equal((await putInChat(app, 'tank', agent.body.id, { chat_id: chat })).status, 409);
   assert.equal(
-    (await app.client.json('POST', '/api/projects/tank/agents', {
-      body: { agent_id: agent.body.id },
-    })).status,
+    (await app.client.json(
+      'PATCH', `/api/projects/tank/chats/${chat}/agents/${agent.body.id}`,
+      { body: { chatty: true } },
+    )).status,
     409,
   );
-  assert.equal(
-    (await app.client.json('PATCH', `/api/projects/tank/agents/${agent.body.id}`, {
-      body: { chatty: true },
-    })).status,
-    409,
+  const del = await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${chat}/agents/${agent.body.id}`,
   );
-  const del = await app.client.request('DELETE', `/api/projects/tank/agents/${agent.body.id}`);
   assert.equal(del.status, 409);
   await del.text();
 });
 
-test('detaching an agent that was never attached is 404', async (t) => {
+test('taking out a helper that was never in the chat is 404', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
-  const del = await app.client.request('DELETE', `/api/projects/tank/agents/${agent.body.id}`);
+  const chat = await workChat(app, 'tank');
+  const del = await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${chat}/agents/${agent.body.id}`,
+  );
   assert.equal(del.status, 404);
   await del.text();
 });

@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { setup, signIn, startGames, openStream } from './helpers.js';
+import {
+  setup, signIn, startGames, openStream, putInChat, workChat,
+} from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 import { WRAPPER_PATH } from '../server/reporter.js';
 import { currentSha } from '../server/files/git.js';
@@ -17,9 +19,8 @@ async function studio(t, { llm = null, agent = false } = {}) {
     const created = await app.client.json('POST', '/api/agents', {
       body: { name: 'Designer', description: 'You design games.' },
     });
-    await app.client.json('POST', '/api/projects/tank/agents', {
-      body: { agent_id: created.body.id, chatty: true },
-    });
+    app.chatId = await workChat(app, 'tank');
+    await putInChat(app, 'tank', created.body.id, { chatty: true, chat_id: app.chatId });
   }
   return { app, dir: path.join(app.gamesDir, 'tank') };
 }
@@ -185,7 +186,9 @@ test('problems reach the next fire, and a commit retires them', async (t) => {
     { message: 'TypeError: sprite is undefined', location: 'js/game.js:41' },
   ]);
 
-  await app.client.json('POST', '/api/projects/tank/messages', { body: { body: 'why is it broken' } });
+  await app.client.json('POST', '/api/projects/tank/messages', {
+    body: { body: 'why is it broken', chat_id: app.chatId },
+  });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'I see it.');
 
   const sent = llm.lastCall().messages.at(-1).content;
@@ -203,7 +206,9 @@ test('problems reach the next fire, and a commit retires them', async (t) => {
   const reopened = await app.client.json('GET', '/api/projects/tank');
   assert.deepEqual(reopened.body.errors, []);
 
-  await app.client.json('POST', '/api/projects/tank/messages', { body: { body: 'and now?' } });
+  await app.client.json('POST', '/api/projects/tank/messages', {
+    body: { body: 'and now?', chat_id: app.chatId },
+  });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'All quiet now.');
   assert.doesNotMatch(llm.lastCall().messages.at(-1).content, /PROBLEMS THE RUNNING GAME/);
 });
@@ -239,7 +244,9 @@ test('a game with no problems says nothing about problems', async (t) => {
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
-  await app.client.json('POST', '/api/projects/tank/messages', { body: { body: 'make a start' } });
+  await app.client.json('POST', '/api/projects/tank/messages', {
+    body: { body: 'make a start', chat_id: app.chatId },
+  });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Sure.');
   assert.doesNotMatch(llm.lastCall().messages.at(-1).content, /PROBLEMS/);
   // Nothing about the reporter reaches the model: it is injected by the

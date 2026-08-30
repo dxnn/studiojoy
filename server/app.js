@@ -10,6 +10,7 @@ import { createLockout, DEFAULT_EMAIL_LOCKOUT, DEFAULT_IP_LOCKOUT } from './auth
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import { agentRoutes } from './routes/agents.js';
+import { chatRoutes } from './routes/chats.js';
 import { fileRoutes } from './routes/files.js';
 import { historyRoutes } from './routes/history.js';
 import { messageRoutes } from './routes/messages.js';
@@ -45,6 +46,7 @@ export function createApp({
   authRoutes(r);
   projectRoutes(r);
   agentRoutes(r);
+  chatRoutes(r);
   fileRoutes(r);
   historyRoutes(r);
   messageRoutes(r);

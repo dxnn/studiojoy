@@ -1687,3 +1687,29 @@ label.knob {
 @media (max-width: 860px) { .only-narrow { display: inline-flex; } }
 .only-wide { display: inline-flex; }
 @media (max-width: 860px) { .only-wide { display: none; } }
+
+/* The conversations in one game, over the thread. The human-only one wears a
+   dot rather than the open chat's colour: it is the room where nobody is
+   listening, which is worth seeing before you type in it. */
+.chat-tabs {
+  padding: 8px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  flex: 0 0 auto;
+}
+.chat-tab {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border-soft) 80%, transparent);
+  background: none;
+  color: var(--muted);
+}
+.chat-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.chat-tab.on {
+  color: #fff;
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 28%, transparent);
+}
+.chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
+.chat-tab.add { padding: 5px 10px; font-size: 14px; }

@@ -115,12 +115,35 @@ version history, edits in the same editor as everything else, and can be
 updated by an agent as the design evolves. When present it is injected into
 every agent's context (§8).
 
-### `project_agents`
+### `chats`
 
 | column | type | notes |
 |---|---|---|
 | `id` | INTEGER PK | |
 | `project_id` | INTEGER NOT NULL → projects | |
+| `name` | TEXT NOT NULL | ≤ 60 chars |
+| `bots` | INTEGER NOT NULL DEFAULT 1 | 0 = human only: no *helper* may be put in it at all |
+| `created_at` | TEXT NOT NULL | |
+
+One conversation inside a project. Every project is born with two: `Just us`
+(`bots = 0`), which is the one it opens on, and `Building`, where helpers can
+be put. A game may have up to 20. There is no delete: a chat holds what people
+said in it, and nothing else in the studio throws words away.
+
+⚠️ `bots = 0` is enforced where a helper would be **put in** (`assertBotsAllowed`
+on the attach route and on the fork's copy), not where one would answer. A room
+that promises nobody is listening has to keep that promise at the door; an
+eligibility-time check would be one forgotten call away from a helper sitting
+in it silently.
+
+Index `idx_chats_project ON chats (project_id, id)`.
+
+### `chat_agents`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `chat_id` | INTEGER NOT NULL → chats | |
 | `agent_id` | INTEGER NOT NULL → agents | |
 | `chatty` | INTEGER NOT NULL DEFAULT 0 | responds to every human message, not just mentions |
 | `cooldown_until` | TEXT NULL | null = no active cooldown |
@@ -128,8 +151,11 @@ every agent's context (§8).
 | `attached_by` | INTEGER NOT NULL → users | |
 | `attached_at` | TEXT NOT NULL | |
 
-`UNIQUE (project_id, agent_id)`. Hard delete on detach — nothing references
-these rows (cooldown state is disposable), so `new-y`'s soft-delete dance
+`UNIQUE (chat_id, agent_id)`. A helper is in a conversation, not in a game: the
+line-up, the chatty switch, the cooldown and the dirty bit are all per chat,
+because every one of them is about one conversation. Hard delete on detach —
+nothing references these rows (cooldown state is disposable), so `new-y`'s
+soft-delete dance
 isn't needed here.
 
 ### `messages`
@@ -138,6 +164,7 @@ isn't needed here.
 |---|---|---|
 | `id` | INTEGER PK | |
 | `project_id` | INTEGER NOT NULL → projects | |
+| `chat_id` | INTEGER NULL → chats | which conversation. Nullable in the column only so a database from before chats can be upgraded in place; every row written since has one |
 | `user_id` | INTEGER NULL → users | set for human messages; the API adds `user_name` beside it, read at the time it is served rather than stored, so the thread says what somebody is called today. The client has no user list to look one up in — an agent's name it can resolve, a person's it cannot |
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner |
@@ -156,7 +183,18 @@ per-project participant row, so messages point straight at `users` / `agents`.
 
 A **reasoning trace** is never stored here. See §8.
 
-Index `idx_messages_project ON messages (project_id, id)`.
+Indexes `idx_messages_project ON messages (project_id, id)` and
+`idx_messages_chat ON messages (chat_id, id)` — the second is created after the
+column, not with the other tables, because on an upgrade there is nothing to
+index until the column exists.
+
+**The upgrade.** A database written before chats has one thread per project and
+its helpers on the project. `intoChats` in `db.js` gives each project the
+human-only chat first, and — for a project that has messages or helpers — a
+`Building` chat second, which takes every message and every helper as they
+were. `project_agents` is then dropped rather than left to disagree with
+`chat_agents`. It runs on every open and does nothing to a project that already
+has chats. Covered by a test that builds the old shape in a file and opens it.
 
 ### `message_context`
 
@@ -413,6 +451,23 @@ addresses to do its job.
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
 
+#### Chats
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/projects/:slug/chats` | — | this project's conversations |
+| POST | `/api/projects/:slug/chats` | `{name}` | a new one, always allowing helpers |
+| PATCH | `/api/projects/:slug/chats/:chat_id` | `{name}` | rename |
+
+`GET /api/projects/:slug` and `GET /api/projects/:slug/messages` both take
+`?chat=`; `POST .../messages` takes `chat_id` in the body. Absent, all three
+mean the chat the project opens on — so a client that knows nothing about
+chats posts into the human-only one rather than into whichever one it guessed.
+A chat id belonging to another project is a 404: from here it is simply not
+one of this project's.
+
+There is no route that deletes a chat.
+
 #### Agents
 
 | method | path | body | effect |
@@ -421,9 +476,9 @@ addresses to do its job.
 | POST | `/api/agents` | `{name, description, model?, reasoning?, file_tools?}` | create |
 | PATCH | `/api/agents/:id` | any of the above | update |
 | DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects |
-| POST | `/api/projects/:slug/agents` | `{agent_id, chatty?}` | attach |
-| PATCH | `/api/projects/:slug/agents/:agent_id` | `{chatty}` | update |
-| DELETE | `/api/projects/:slug/agents/:agent_id` | — | detach |
+| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat |
+| PATCH | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | `{chatty}` | update |
+| DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out |
 
 #### Messages
 
@@ -1072,10 +1127,16 @@ for it — a token would close the logout residue and nothing else.
 
 ### Eligibility
 
-On each human message, every attached agent is evaluated. Eligible if
-`chatty = 1` **or** the body contains an `@mention` matching the agent's name
-(case-insensitive). Agent messages never make agents eligible — bot-to-bot
-dampening — but agents do see each other's messages as context.
+On each human message, the helpers **in that chat** are evaluated — nobody
+else's conversation is woken by it. Eligible if `chatty = 1` **or** the body
+contains an `@mention` matching the agent's name (case-insensitive). Agent
+messages never make agents eligible — bot-to-bot dampening — but agents do see
+each other's messages as context.
+
+The human-only chat has no helpers to evaluate, by construction rather than by
+a filter here: nothing can be written into `chat_agents` for it. A fire's
+transcript, its pins and its history floor are all that chat's, so a helper
+sees the conversation it is in and no other.
 
 ### Dirty bit + cooldown
 

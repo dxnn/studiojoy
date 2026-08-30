@@ -70,6 +70,11 @@ export const S = {
   people: [],
   slug: null,
   project: null,
+  // The conversation on screen, and every conversation this game has. A game
+  // is born with two — the human-only one it opens on, and one where helpers
+  // can be put — and can have as many as it wants (spec.md §3).
+  chat: null,
+  chats: [],
   files: [],
   // What the game said when it ran, for the version of the files on disk now.
   errors: [],
@@ -385,7 +390,10 @@ const RAIL_TABS = ['files', 'versions', 'scoreboard'];
 // the filter under Versions. One name because it is one idea.
 const viewFromUrl = () => {
   const q = new URLSearchParams(location.search);
-  return { tab: q.get('tab'), file: q.get('file'), version: q.get('version') };
+  return {
+    tab: q.get('tab'), file: q.get('file'), version: q.get('version'),
+    chat: q.get('chat'),
+  };
 };
 
 // The inverse of applyView, and written in the same two branches so the pair
@@ -393,6 +401,11 @@ const viewFromUrl = () => {
 function urlNow() {
   if (!S.slug) return '/';
   const q = new URLSearchParams();
+  // Which conversation, unless it is the one the project opens on: a link to
+  // a game means its front door, and a chat is a place inside it.
+  if (S.chat && S.chats.length > 1 && S.chat.id !== S.chats[0].id) {
+    q.set('chat', String(S.chat.id));
+  }
   if (!isChat()) {
     if (S.tab !== 'files') q.set('tab', S.tab);
     if (S.tab === 'files' && S.open) q.set('file', S.open.path);
@@ -467,7 +480,11 @@ export const historyNeedsLoad = (path) => path !== S.historyPath
 // of a file has to close it. Every part is optional, and a part that is no
 // longer there — a deleted file, a commit off the end of the list — simply
 // does not open; the rest of the view still arrives.
-async function applyView({ tab, file, version }) {
+async function applyView({ tab, file, version, chat }) {
+  // The chat first: it is the only part of the view a chat-kind project has,
+  // and switching it replaces the thread the rest of this is arranged around.
+  const wanted = chat === null || chat === undefined ? S.chats[0]?.id : Number(chat);
+  if (wanted && wanted !== S.chat?.id) await openChat(wanted);
   if (isChat()) return;
   S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
   const want = file ?? null;
@@ -576,13 +593,22 @@ export async function openProject(slug, { view = null } = {}) {
     render();
     return;
   }
-  const res = await api('GET', `/api/projects/${slug}`);
+  // Which conversation to open in: the one the address names, else the one
+  // you were last in here, else the one the project opens on. A remembered id
+  // that no longer exists falls back the same way, because the server answers
+  // 404 and the retry carries no chat at all.
+  const wanted = view?.chat ?? prefs.get(`chat-${slug}`, null);
+  let res = await api('GET', `/api/projects/${slug}${wanted ? `?chat=${wanted}` : ''}`);
+  if (res.status === 404 && wanted) res = await api('GET', `/api/projects/${slug}`);
   if (!res.ok) {
     say(res.status === 404 ? 'That game does not exist.' : 'Could not open that game.', true);
     return;
   }
   S.slug = slug;
   S.project = res.body;
+  S.chats = res.body.chats ?? [];
+  S.chat = res.body.chat ?? null;
+  if (S.chat) prefs.set(`chat-${slug}`, S.chat.id);
   S.files = res.body.files;
   S.errors = res.body.errors ?? [];
   S.pinned = new Set();
@@ -599,7 +625,7 @@ export async function openProject(slug, { view = null } = {}) {
   // keeps filling them while you are elsewhere, and coming back picks this
   // game's up again. Kept traces are bounded and keyed by message id, so they
   // survive the switch the same way.
-  S.live = liveMapFor(slug);
+  S.live = liveMapFor(slug, S.chat?.id);
   S.autoscroll = true;
   S.palette = null;
   // An open receipt belongs to a message in the game being left.
@@ -664,6 +690,15 @@ function mine(data) {
   return data.project_slug === S.slug;
 }
 
+// The same event, for the conversation on screen. A game's chats share a
+// stream, so a reply streaming into one must not paint itself into another —
+// and an event from before chats existed, or about the project rather than a
+// chat, has no chat_id and belongs wherever it lands.
+function here(data) {
+  return mine(data) && (data.chat_id === undefined || data.chat_id === null
+    || data.chat_id === S.chat?.id);
+}
+
 // Reasoning traces are never persisted (spec.md §8), so the copy held here is
 // the only one there will ever be: it survives the message landing, and
 // nothing else. Bounded, because a long session would otherwise hold every
@@ -686,17 +721,20 @@ function keepTrace(messageId, text, open) {
 // screen still lands in its buffer — it just paints nothing.
 const liveBySlug = new Map();
 
-function liveMapFor(slug) {
-  let map = liveBySlug.get(slug);
+// Keyed by chat, not by game: two conversations in one game can have a helper
+// mid-reply at the same time, and one buffer for both would interleave them.
+function liveMapFor(slug, chatId = null) {
+  const key = `${slug}:${chatId ?? ''}`;
+  let map = liveBySlug.get(key);
   if (!map) {
     map = new Map();
-    liveBySlug.set(slug, map);
+    liveBySlug.set(key, map);
   }
   return map;
 }
 
-function liveFor(slug, agentId) {
-  const map = liveMapFor(slug);
+function liveFor(slug, chatId, agentId) {
+  const map = liveMapFor(slug, chatId);
   let entry = map.get(agentId);
   if (!entry) {
     entry = { reply: '', trace: '', tool: null, error: false, nodes: null, open: false };
@@ -724,29 +762,29 @@ function onEvent(name, data) {
       // than vanishing: it is never saved, so this session is the only place
       // it will ever exist.
       if (data.agent_id !== null) {
-        const map = liveMapFor(data.project_slug);
+        const map = liveMapFor(data.project_slug, data.chat_id);
         const entry = map.get(data.agent_id);
         if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
         map.delete(data.agent_id);
       }
-      if (!mine(data)) return;
+      if (!here(data)) return;
       S.project.messages.push(data);
       render();
       return;
     }
 
     case 'agent.stream.start': {
-      liveMapFor(data.project_slug).set(data.agent_id, {
+      liveMapFor(data.project_slug, data.chat_id).set(data.agent_id, {
         reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
       });
-      if (mine(data)) render();
+      if (here(data)) render();
       return;
     }
 
     case 'agent.stream.reasoning': {
-      const entry = liveFor(data.project_slug, data.agent_id);
+      const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.trace += data.delta;
-      if (!mine(data)) return;
+      if (!here(data)) return;
       if (entry.nodes) {
         entry.nodes.trace.textContent = entry.trace;
         entry.nodes.thinking.hidden = false;
@@ -755,9 +793,9 @@ function onEvent(name, data) {
     }
 
     case 'agent.stream.chunk': {
-      const entry = liveFor(data.project_slug, data.agent_id);
+      const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.reply += data.delta;
-      if (!mine(data)) return;
+      if (!here(data)) return;
       if (entry.nodes) {
         entry.nodes.reply.textContent = entry.reply;
         entry.nodes.reply.hidden = false;
@@ -767,9 +805,9 @@ function onEvent(name, data) {
     }
 
     case 'agent.tool': {
-      const entry = liveFor(data.project_slug, data.agent_id);
+      const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.tool = data.path ? `${data.tool} ${data.path}` : data.tool;
-      if (!mine(data)) return;
+      if (!here(data)) return;
       if (entry.nodes) entry.nodes.tool.textContent = toolLabel(entry.tool);
       else render();
       return;
@@ -779,14 +817,14 @@ function onEvent(name, data) {
       if (data.error) {
         // Kept, not painted: coming back to this game should still show that
         // its helper hit a wall.
-        const entry = liveFor(data.project_slug, data.agent_id);
+        const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
         entry.error = true;
         entry.tool = null;
       } else if (!data.message_id) {
         // Nothing was written and nothing said.
-        liveMapFor(data.project_slug).delete(data.agent_id);
+        liveMapFor(data.project_slug, data.chat_id).delete(data.agent_id);
       }
-      if (mine(data)) render();
+      if (here(data)) render();
       return;
     }
 
@@ -1672,7 +1710,8 @@ export async function rollback(sha) {
 // its agent list rather than refetching it. A refetch would throw away the
 // open file, the pins, and anything mid-stream.
 export async function attachAgent(agent) {
-  const res = await api('POST', `/api/projects/${S.slug}/agents`, {
+  if (!S.chat) return;
+  const res = await api('POST', `/api/projects/${S.slug}/chats/${S.chat.id}/agents`, {
     agent_id: agent.id, chatty: true,
   });
   if (!res.ok) {
@@ -1689,23 +1728,26 @@ export async function attachAgent(agent) {
     responding: false,
   });
   S.project.agents.sort((a, b) => a.name.localeCompare(b.name));
-  say(`${agent.name} joined this game and will answer your messages.`);
+  say(`${agent.name} joined ${S.chat.name} and will answer your messages there.`);
 }
 
 export async function detachAgent(a) {
-  const res = await api('DELETE', `/api/projects/${S.slug}/agents/${a.agent_id}`);
+  const res = await api(
+    'DELETE', `/api/projects/${S.slug}/chats/${S.chat.id}/agents/${a.agent_id}`,
+  );
   if (!res.ok) {
     say(res.body?.error ?? 'Could not take that helper out.', true);
     return;
   }
   S.project.agents = S.project.agents.filter((x) => x.agent_id !== a.agent_id);
-  say(`${a.name} is no longer in this game.`);
+  say(`${a.name} is no longer in ${S.chat.name}.`);
 }
 
 export async function toggleChatty(a) {
-  const res = await api('PATCH', `/api/projects/${S.slug}/agents/${a.agent_id}`, {
-    chatty: !a.chatty,
-  });
+  const res = await api(
+    'PATCH', `/api/projects/${S.slug}/chats/${S.chat.id}/agents/${a.agent_id}`,
+    { chatty: !a.chatty },
+  );
   if (!res.ok) {
     say(res.body?.error ?? 'Could not change that helper.', true);
     return;
@@ -1714,6 +1756,53 @@ export async function toggleChatty(a) {
   say(a.chatty
     ? `${a.name} will answer every message.`
     : `${a.name} will wait until you type @${a.name.split(' ')[0]}.`);
+}
+
+/* Chats -------------------------------------------------------------------- */
+
+// Switching conversations inside one game. Not openProject: the files, the
+// pins and the open file all belong to the game rather than to the chat, and
+// throwing them away to read a different thread would be the same mistake
+// Back used to make.
+export async function openChat(id) {
+  if (!S.project || id === S.chat?.id) return;
+  const res = await api('GET', `/api/projects/${S.slug}?chat=${id}`);
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not open that chat.', true);
+    return;
+  }
+  S.chat = res.body.chat;
+  S.chats = res.body.chats;
+  S.project.messages = res.body.messages;
+  S.project.agents = res.body.agents;
+  // Each chat has its own live buffers, so a helper mid-reply in the one you
+  // just left keeps writing into that one.
+  S.live = liveMapFor(S.slug, S.chat.id);
+  S.autoscroll = true;
+  prefs.set(`chat-${S.slug}`, S.chat.id);
+  render();
+}
+
+export async function createChat(name) {
+  const res = await api('POST', `/api/projects/${S.slug}/chats`, { name });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not make that chat.', true);
+    return;
+  }
+  S.chats.push(res.body);
+  await openChat(res.body.id);
+  say(`${res.body.name} is ready. Helpers can be put in this one.`);
+}
+
+export async function renameChat(id, name) {
+  const res = await api('PATCH', `/api/projects/${S.slug}/chats/${id}`, { name });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not rename that chat.', true);
+    return;
+  }
+  S.chats = S.chats.map((c) => (c.id === id ? res.body : c));
+  if (S.chat?.id === id) S.chat = res.body;
+  render();
 }
 
 // The project payload carries its own copy of each attached helper's details,
@@ -1734,6 +1823,7 @@ export function syncAttached() {
 async function sendMessage(text) {
   const res = await api('POST', `/api/projects/${S.slug}/messages`, {
     body: text,
+    chat_id: S.chat?.id,
     context_paths: [...S.pinned],
   });
   if (!res.ok) say(res.body?.error ?? 'Could not send that.', true);

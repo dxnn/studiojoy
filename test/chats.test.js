@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, signIn, startGames, openStream } from './helpers.js';
+import {
+  setup, signIn, startGames, openStream, putInChat, workChat,
+} from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 
 // A chat is a project with no working tree: same thread, same agents, no
@@ -144,14 +146,13 @@ test('an agent in a chat gets no file tools and no file block', async (t) => {
   const agent = await app.client.json('POST', '/api/agents', {
     body: { name: 'Pal', description: 'You are friendly.', file_tools: true },
   });
-  await app.client.json('POST', '/api/projects/random/agents', {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const chatId = await workChat(app, 'random');
+  await putInChat(app, 'random', agent.body.id, { chatty: true, chat_id: chatId });
 
   const stream = await openStream(app.client);
   t.after(() => stream.close());
   await app.client.json('POST', '/api/projects/random/messages', {
-    body: { body: 'hi there' },
+    body: { body: 'hi there', chat_id: chatId },
   });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
@@ -172,14 +173,13 @@ test('a chat agent with no description sends no system prompt at all', async (t)
   const agent = await app.client.json('POST', '/api/agents', {
     body: { name: 'Blank', description: '' },
   });
-  await app.client.json('POST', '/api/projects/random/agents', {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const chatId = await workChat(app, 'random');
+  await putInChat(app, 'random', agent.body.id, { chatty: true, chat_id: chatId });
 
   const stream = await openStream(app.client);
   t.after(() => stream.close());
   const posted = await app.client.json('POST', '/api/projects/random/messages', {
-    body: { body: 'hello?' },
+    body: { body: 'hello?', chat_id: chatId },
   });
   assert.equal(posted.status, 201);
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
@@ -195,14 +195,13 @@ test('an agent in a game still gets its file tools', async (t) => {
   const agent = await app.client.json('POST', '/api/agents', {
     body: { name: 'Builder', description: 'You build.', file_tools: true },
   });
-  await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const chatId = await workChat(app, 'tank');
+  await putInChat(app, 'tank', agent.body.id, { chatty: true, chat_id: chatId });
 
   const stream = await openStream(app.client);
   t.after(() => stream.close());
   await app.client.json('POST', '/api/projects/tank/messages', {
-    body: { body: 'make a tank' },
+    body: { body: 'make a tank', chat_id: chatId },
   });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 

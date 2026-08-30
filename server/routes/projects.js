@@ -14,6 +14,9 @@ import {
   messagePublic,
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
+import {
+  startChats, listChats, homeChat, requireChat, chatPublic,
+} from '../chats.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -109,6 +112,10 @@ export function projectRoutes(r) {
       )
       .run(slug, name, kind, user.id, now);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
+    // Two conversations from the start: the human-only one it opens on, and
+    // one where helpers can be put. A project with nowhere to ask for anything
+    // would need a second click before it could be used at all.
+    startChats(ctx.db, row.id, now);
     const payload = projectPublic(ctx.db, row);
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
     json(ctx.res, 201, payload);
@@ -117,23 +124,27 @@ export function projectRoutes(r) {
   r.get('/api/projects/:slug', async (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx);
+    // Which conversation this request is about. The messages and the helpers
+    // both belong to it, not to the project: everything below the title bar
+    // changes when you switch chats, and the files do not.
+    const chat = requireChat(ctx.db, project, ctx.query.get('chat'));
     const messages = ctx.db
       .prepare(
         `SELECT * FROM (
-           SELECT * FROM messages WHERE project_id = ? ORDER BY id DESC LIMIT ?
+           SELECT * FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?
          ) ORDER BY id ASC`,
       )
-      .all(project.id, RECENT_MESSAGES);
+      .all(chat.id, RECENT_MESSAGES);
     const agents = ctx.db
       .prepare(
-        `SELECT pa.agent_id, pa.chatty, pa.cooldown_until, pa.response_pending,
+        `SELECT ca.agent_id, ca.chatty, ca.cooldown_until, ca.response_pending,
                 a.name, a.model, a.reasoning, a.file_tools
-           FROM project_agents pa
-           JOIN agents a ON a.id = pa.agent_id
-          WHERE pa.project_id = ? AND a.deleted = 0
+           FROM chat_agents ca
+           JOIN agents a ON a.id = ca.agent_id
+          WHERE ca.chat_id = ? AND a.deleted = 0
           ORDER BY a.name`,
       )
-      .all(project.id);
+      .all(chat.id);
     // A chat has no working tree to list and nothing to play.
     const isChat = project.kind === 'chat';
     const dir = isChat ? null : projectDirFor(ctx, project);
@@ -146,6 +157,8 @@ export function projectRoutes(r) {
 
     json(ctx.res, 200, {
       ...projectPublic(ctx.db, project),
+      chats: listChats(ctx.db, project.id).map(chatPublic),
+      chat: chatPublic(chat),
       // No games origin means the request carried no usable hostname to build
       // one from, which is a null play url rather than a URL around a guess.
       play_url: isChat || !ctx.gamesUrl ? null : `${ctx.gamesUrl}/${project.slug}/`,
@@ -272,25 +285,35 @@ export function projectRoutes(r) {
         )
         .run(slug, name, user.id, now);
       const id = Number(info.lastInsertRowid);
-      // The helpers come along; their cooldowns and pending flags do not.
+      // The copy starts with the same two chats every game gets, and a fresh
+      // thread in each: a fork is the files and the helpers, not the
+      // conversation that produced them.
+      const work = startChats(ctx.db, id, now);
+      // The helpers come along, into the chat that allows them; their
+      // cooldowns and pending flags do not. Which chat they were in over there
+      // does not survive, because the chats themselves do not.
       const attached = ctx.db
-        .prepare('SELECT agent_id, chatty FROM project_agents WHERE project_id = ?')
+        .prepare(
+          `SELECT DISTINCT ca.agent_id, MAX(ca.chatty) AS chatty
+             FROM chat_agents ca JOIN chats c ON c.id = ca.chat_id
+            WHERE c.project_id = ? GROUP BY ca.agent_id`,
+        )
         .all(source.id);
       for (const a of attached) {
         ctx.db
           .prepare(
-            `INSERT INTO project_agents (project_id, agent_id, chatty, attached_by, attached_at)
+            `INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
              VALUES (?, ?, ?, ?, ?)`,
           )
-          .run(id, a.agent_id, a.chatty, user.id, now);
+          .run(work.id, a.agent_id, a.chatty, user.id, now);
       }
       // Says where it came from, in the thread, where a kid will see it.
       ctx.db
         .prepare(
-          `INSERT INTO messages (project_id, kind, body, created_at)
-           VALUES (?, 'system', ?, ?)`,
+          `INSERT INTO messages (project_id, chat_id, kind, body, created_at)
+           VALUES (?, ?, 'system', ?, ?)`,
         )
-        .run(id, `This game started as a copy of "${source.name}".`, now);
+        .run(id, work.id, `This game started as a copy of "${source.name}".`, now);
       return ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
     });
 

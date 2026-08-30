@@ -49,26 +49,45 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   )`,
 
-  // Hard delete on detach is safe here: nothing references these rows, and
-  // the cooldown state they carry is disposable.
-  `CREATE TABLE IF NOT EXISTS project_agents (
+  // A conversation inside a project. Every project has at least one, made
+  // with it: the human-only chat, which is what "no bots allowed" means as a
+  // row rather than as an absence — `bots = 0` is refused at attach time, not
+  // only when somebody would have answered.
+  `CREATE TABLE IF NOT EXISTS chats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL REFERENCES projects,
+    name TEXT NOT NULL,
+    bots INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_chats_project ON chats (project_id, id)`,
+
+  // Hard delete on detach is safe here: nothing references these rows, and
+  // the cooldown state they carry is disposable. Per chat rather than per
+  // project: a helper is in a conversation, so its cooldown and its dirty bit
+  // belong to that conversation too.
+  `CREATE TABLE IF NOT EXISTS chat_agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER NOT NULL REFERENCES chats,
     agent_id INTEGER NOT NULL REFERENCES agents,
     chatty INTEGER NOT NULL DEFAULT 0,
     cooldown_until TEXT,
     response_pending INTEGER NOT NULL DEFAULT 0,
     attached_by INTEGER NOT NULL REFERENCES users,
     attached_at TEXT NOT NULL,
-    UNIQUE (project_id, agent_id)
+    UNIQUE (chat_id, agent_id)
   )`,
 
   // No participant indirection: humans are implicit members of every
   // project, so a message points straight at a user or an agent. A 'system'
   // banner has neither, or an agent_id naming the agent it concerns.
+  // `chat_id` is which conversation in the project this belongs to. Nullable
+  // in the column definition only so a database written before chats existed
+  // can be upgraded in place; every row written since has one.
   `CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL REFERENCES projects,
+    chat_id INTEGER REFERENCES chats,
     user_id INTEGER REFERENCES users,
     agent_id INTEGER REFERENCES agents,
     kind TEXT,
@@ -167,11 +186,76 @@ export function openDb(dbPath) {
   // context. Null on anything but an agent reply, and on a reply that saw the
   // whole conversation (spec.md §8).
   addColumnIfMissing(db, 'messages', 'trimmed', 'INTEGER');
+  // Which conversation a message is in. A database from before chats existed
+  // has one thread per project; the upgrade gives that thread a home rather
+  // than leaving it stranded (see intoChats).
+  addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
+  // After the column, not with the other CREATEs: on a database written before
+  // chats there is nothing to index until the line above has run.
+  db.exec('CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages (chat_id, id)');
+  intoChats(db);
   db.prepare(
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,
   ).run(nextUtcMidnight());
   return db;
+}
+
+// The name of the chat every project is born with, and the one no helper can
+// be put into. Exported because creation writes it and the client shows it.
+export const HOME_CHAT = 'Just us';
+// Where a project that predates chats has its conversation put: helpers were
+// in it, so it is the chat that allows them.
+const CARRIED_CHAT = 'Building';
+
+// Every project has at least one chat, and the first one is human only. A
+// database written before chats existed has one thread per project and its
+// helpers attached to the project; this gives both a chat to live in without
+// changing what anybody said or who was talking.
+//
+// Two chats come out of a project with a history: the human-only one, made
+// first so it sorts first and is what a new game opens on, and `Building`,
+// which takes the messages and the helpers because that is where they already
+// were. A project with neither gets only the human-only one.
+function intoChats(db) {
+  const projects = db.prepare(
+    `SELECT p.id, p.created_at,
+            (SELECT COUNT(*) FROM messages m WHERE m.project_id = p.id) AS messages,
+            (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) AS chats
+       FROM projects p`,
+  ).all();
+  const old = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_agents'").all();
+  const hasOld = old.length > 0;
+
+  for (const project of projects) {
+    if (project.chats > 0) continue;
+    db.prepare(
+      'INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, 0, ?)',
+    ).run(project.id, HOME_CHAT, project.created_at);
+
+    const carried = hasOld
+      ? db.prepare('SELECT COUNT(*) AS n FROM project_agents WHERE project_id = ?').get(project.id).n
+      : 0;
+    if (project.messages === 0 && carried === 0) continue;
+
+    const building = db.prepare(
+      'INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, 1, ?)',
+    ).run(project.id, CARRIED_CHAT, project.created_at);
+    db.prepare('UPDATE messages SET chat_id = ? WHERE project_id = ? AND chat_id IS NULL')
+      .run(building.lastInsertRowid, project.id);
+    if (carried > 0) {
+      db.prepare(
+        `INSERT INTO chat_agents
+           (chat_id, agent_id, chatty, cooldown_until, response_pending, attached_by, attached_at)
+         SELECT ?, agent_id, chatty, cooldown_until, 0, attached_by, attached_at
+           FROM project_agents WHERE project_id = ?`,
+      ).run(building.lastInsertRowid, project.id);
+    }
+  }
+
+  // Dropped rather than left behind: two tables that disagree about who is in
+  // a conversation is the kind of thing that reads as a bug for a year.
+  if (hasOld) db.exec('DROP TABLE project_agents');
 }
 
 // node:sqlite has no transaction() helper and rejects a nested BEGIN, so the

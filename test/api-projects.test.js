@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, signIn } from './helpers.js';
+import { setup, signIn, putInChat, workChat } from './helpers.js';
 import { isRepo, logCommits } from '../server/files/git.js';
 import { parseConfigFile } from '../public/config-file.js';
 
@@ -302,9 +302,7 @@ test('a fork copies the files, their history, and the helpers', async (t) => {
   const agent = await app.client.json('POST', '/api/agents', {
     body: { name: 'Builder', description: 'builds' },
   });
-  await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  await putInChat(app, 'tank', agent.body.id, { chatty: true });
   await app.client.put('/api/projects/tank/files/index.html', {
     headers: { 'content-type': 'text/plain' }, rawBody: '<h1>tank</h1>',
   });
@@ -324,7 +322,9 @@ test('a fork copies the files, their history, and the helpers', async (t) => {
   assert.ok(commits.length >= 2, 'the original commits are present');
   assert.equal(fs.existsSync(path.join(dir, '.git', 'refs', 'remotes', 'origin')), false);
 
-  const detail = await app.client.json('GET', '/api/projects/tank-two');
+  // The helper came along, into the copy's own chat that allows one.
+  const forkChat = await workChat(app, 'tank-two');
+  const detail = await app.client.json('GET', `/api/projects/tank-two?chat=${forkChat}`);
   assert.deepEqual(detail.body.agents.map((a) => a.name), ['Builder']);
   // A fresh thread, saying where it came from.
   assert.equal(detail.body.messages.length, 1);

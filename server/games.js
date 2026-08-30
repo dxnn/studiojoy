@@ -92,13 +92,14 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Games</title>
+<title>Unbridled Joy</title>
 <style>
   :root { color-scheme: light dark; }
   body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 40px 20px;
          display: flex; justify-content: center; }
   main { width: 100%; max-width: 640px; }
-  h1 { font-size: 1.5rem; margin: 0 0 24px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .tag { margin: 0 0 24px; opacity: 0.7; }
   ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
   a { display: block; padding: 16px 18px; border: 1px solid currentColor;
       border-radius: 12px; text-decoration: none; font-weight: 600; }
@@ -108,7 +109,8 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
 </head>
 <body>
   <main>
-    <h1>Games</h1>
+    <h1>Unbridled Joy</h1>
+    <p class="tag">Games made by us. Click one and play it.</p>
     ${games.length ? `<ul>\n      ${cards}\n    </ul>` : '<p>No games yet.</p>'}
   </main>
 </body>

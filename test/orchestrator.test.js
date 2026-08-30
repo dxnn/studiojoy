@@ -2,14 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, signIn, openStream } from './helpers.js';
+import { setup, signIn, openStream, putInChat, workChat } from './helpers.js';
 import {
   createFakeLlm, createFailingLlm, says, calls, truncated,
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
 
-// A studio with one project and one agent attached.
+// A studio with one project, one agent, and the chat that agent is in. The
+// human-only chat a project opens on is not that chat, so every message here
+// names the one where helpers are.
 async function studio(t, { llm, chatty = true, agent = {}, ...opts } = {}) {
   const app = await setup({ llm, ...opts });
   t.after(() => app.close());
@@ -18,15 +20,20 @@ async function studio(t, { llm, chatty = true, agent = {}, ...opts } = {}) {
   const created = await app.client.json('POST', '/api/agents', {
     body: { name: 'Designer', description: 'You design games.', ...agent },
   });
-  await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: created.body.id, chatty },
-  });
-  return { app, dir: path.join(app.gamesDir, 'tank'), agentId: created.body.id };
+  const chatId = await workChat(app, 'tank');
+  await putInChat(app, 'tank', created.body.id, { chatty, chat_id: chatId });
+  app.chatId = chatId;
+  return {
+    app, dir: path.join(app.gamesDir, 'tank'), agentId: created.body.id, chatId,
+  };
 }
 
 const send = (app, body, contextPaths) =>
   app.client.json('POST', '/api/projects/tank/messages', {
-    body: { body, ...(contextPaths ? { context_paths: contextPaths } : {}) },
+    body: {
+      body, chat_id: app.chatId,
+      ...(contextPaths ? { context_paths: contextPaths } : {}),
+    },
   });
 
 test('a chatty agent answers a human message', async (t) => {
@@ -818,7 +825,7 @@ test('what a reply cost is recorded on the reply', async (t) => {
   assert.equal(budgetState(app.db).used, 265);
 
   // Nothing a person or the studio wrote costs anything.
-  const posted = await app.client.json('GET', '/api/projects/tank/messages');
+  const posted = await app.client.json('GET', `/api/projects/tank/messages?chat=${app.chatId}`);
   const human = posted.body.messages.find((m) => m.user_id !== null);
   assert.equal(human.tokens, null);
 });
@@ -1102,7 +1109,9 @@ test('a detached agent stops answering', async (t) => {
 
   await send(app, 'first');
   await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
-  await (await app.client.request('DELETE', `/api/projects/tank/agents/${agentId}`)).text();
+  await (await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${app.chatId}/agents/${agentId}`,
+  )).text();
 
   await send(app, 'second');
   await new Promise((resolve) => setTimeout(resolve, 120));
@@ -1115,9 +1124,7 @@ test('two agents both answer the same message', async (t) => {
   const second = await app.client.json('POST', '/api/agents', {
     body: { name: 'Critic', description: 'You critique.' },
   });
-  await app.client.json('POST', '/api/projects/tank/agents', {
-    body: { agent_id: second.body.id, chatty: true },
-  });
+  await putInChat(app, 'tank', second.body.id, { chatty: true, chat_id: app.chatId });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -1161,7 +1168,7 @@ test('a message posted mid-fire is picked up afterwards', async (t) => {
   // Still one fire in flight; the dirty bit is set for the next.
   assert.equal(llm.calls.length, 1);
   assert.equal(
-    app.db.prepare('SELECT response_pending FROM project_agents LIMIT 1').get().response_pending,
+    app.db.prepare('SELECT response_pending FROM chat_agents LIMIT 1').get().response_pending,
     1,
   );
 

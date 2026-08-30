@@ -8,6 +8,7 @@ import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, say, sizeText, setPublished,
+  openChat, createChat,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -272,6 +273,21 @@ function renderLive(agentId, entry) {
 // message looked like a broken app. Two distinct gaps, two distinct fixes.
 function helperGap() {
   if (!S.project || S.project.archived) return null;
+  // The human-only chat is not missing its helpers; it is the room without
+  // them. Saying "nobody will answer" there would read as a fault.
+  if (S.chat && !S.chat.bots) {
+    const elsewhere = S.chats.find((c) => c.bots);
+    return h('div', { class: 'notice' },
+      'This one is just for the humans — no helpers, ever. ',
+      elsewhere
+        ? h('button', {
+          class: 'link',
+          text: `Go to ${elsewhere.name}`,
+          onclick: () => openChat(elsewhere.id),
+        })
+        : null,
+      elsewhere ? ' to ask for something.' : null);
+  }
   if (S.project.agents.length > 0) {
     // Attached, but every one of them is waiting to be called by name.
     if (S.project.agents.some((a) => a.chatty)) return null;
@@ -280,13 +296,15 @@ function helperGap() {
       `Your helpers only answer when you call them. Try starting your message with ${names}, `,
       'or click a helper’s name at the top to make them always answer.');
   }
-  const where = isChat() ? 'chat' : 'game';
+  // The chat, not the game: a helper is in one conversation, so this one
+  // having nobody in it says nothing about the others.
+  const where = S.chat ? `“${S.chat.name}”` : 'this chat';
   // With helpers in the studio the fix is one click in the sidebar, so say
   // that rather than offering a link whose only job would be to open a
   // sidebar that is usually already open.
   if (S.agents.length > 0) {
     return h('div', { class: 'notice' },
-      `This ${where} has no helpers in it yet, so nobody will answer. `,
+      `Nobody is in ${where} yet, so nobody will answer. `,
       'Add a helper by clicking them in the sidebar.');
   }
   return h('div', { class: 'notice' },
@@ -339,6 +357,26 @@ function renderActs(p) {
       class: 'act',
       text: 'Rename',
       onclick: () => { S.dialog = { kind: 'rename' }; render(); },
+    }));
+}
+
+// One pill per conversation, over the thread. The human-only one is first
+// because it is the one the game opens on, and it wears no helper dots — it
+// can hold none. A single chat needs no row of one, so the pills appear when
+// there is a choice to make.
+function renderChatTabs() {
+  if (!S.chat || S.chats.length < 2) return null;
+  return h('div', { class: 'chat-tabs row wrap' },
+    S.chats.map((c) => h('button', {
+      class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
+      title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
+      onclick: () => openChat(c.id),
+    }, c.bots ? null : h('span', { class: 'hush', text: '·' }), c.name)),
+    h('div', { class: 'spacer' }),
+    h('button', {
+      class: 'chat-tab add', text: '+', title: 'Start another chat in this game',
+      disabled: S.project.archived,
+      onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
     }));
 }
 
@@ -435,6 +473,7 @@ export function renderChat() {
         onclick: () => { S.dialog = { kind: 'archive' }; render(); },
       })),
     isChat() ? null : renderActs(p),
+    renderChatTabs(),
     scroller,
     h('div', { class: 'composer' },
       gap,

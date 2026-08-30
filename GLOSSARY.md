@@ -1,7 +1,7 @@
 # Glossary
 
 - **game project** — the unit the studio is organised around: a chat thread plus a versioned working tree of files, playable at a public URL. A `projects` row with `kind = 'game'`. (formerly: *conversation*, in `new-y`)
-- **chat** — a `projects` row with `kind = 'chat'`: the same thread and the same attached agents as a game project, with no working tree, nothing on disk, and nothing served on the games origin.
+- **chat project** — a `projects` row with `kind = 'chat'`: no working tree, nothing on disk, nothing served on the games origin. It has *chats* like any project; they are simply all it has. (formerly: chat, before a project could hold several conversations)
 - **tint** — the per-speaker colour wash on a message bubble. Hue and blob placement are derived from a hash of the speaker's id, warm for people and green-to-blue for agents; it carries no meaning beyond identity.
 - **slug** — a project's `[a-z0-9-]` identifier. Immutable, and simultaneously the directory name under `GAMES_DIR` and the path segment on the games origin.
 - **working tree** — a project's on-disk directory. The source of truth for file content; there is no files table.
@@ -31,6 +31,7 @@
 - **task list** — `TODO.md` at a project's root: one task per line, written only when the list is long enough to be worth staging.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
+- **chat** — one conversation inside a project, and the unit a *helper* belongs to. Every project is born with two: **Just us**, which it opens on and which no helper may ever be put in, and **Building**, where they can. A game may have up to twenty; each has its own thread, its own line-up, its own cooldowns and its own pins, and a helper sees only the one it is in. Carried in the URL as `?chat=`, remembered per game in the browser. Not to be confused with a *chat project*, which is a project with no working tree — its chats are all it has.
 - **crew** — everyone in the studio, in the sidebar tab of that name: the **humans** (accounts, from `GET /api/users` — names and ids, never addresses) over the *helpers*. Both belong to the studio rather than to one game, which is what puts them on one tab. A human row is a name and nothing to click: accounts are made with `npm run adduser` and by nothing in the interface.
 - **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
 - **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)

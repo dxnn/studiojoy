@@ -23,7 +23,7 @@ test('migrations create every table the spec names', () => {
     .all()
     .map((r) => r.name);
   for (const table of [
-    'users', 'sessions', 'agents', 'projects', 'project_agents',
+    'users', 'sessions', 'agents', 'projects', 'chats', 'chat_agents',
     'messages', 'message_context', 'message_writes', 'studio_state',
   ]) {
     assert.ok(names.includes(table), `missing table ${table}`);
@@ -115,18 +115,21 @@ test('agent names are unique among the living only', () => {
   db.close();
 });
 
-test('an agent attaches to a project at most once', () => {
+test('a helper joins one chat at most once', () => {
   const db = seeded();
   const now = new Date().toISOString();
   db.prepare(
     `INSERT INTO agents (name, description, created_by, created_at) VALUES ('A', 'd', 1, ?)`,
   ).run(now);
-  const attach = () => db.prepare(
-    `INSERT INTO project_agents (project_id, agent_id, attached_by, attached_at)
+  db.prepare(
+    `INSERT INTO chats (id, project_id, name, bots, created_at) VALUES (1, 1, 'Building', 1, ?)`,
+  ).run(now);
+  const join = () => db.prepare(
+    `INSERT INTO chat_agents (chat_id, agent_id, attached_by, attached_at)
      VALUES (1, 1, 1, ?)`,
   ).run(now);
-  attach();
-  assert.throws(attach, /UNIQUE/);
+  join();
+  assert.throws(join, /UNIQUE/);
   db.close();
 });
 

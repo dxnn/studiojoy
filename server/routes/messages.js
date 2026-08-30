@@ -4,6 +4,7 @@ import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
 import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic } from './helpers.js';
+import { requireChat } from '../chats.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
 const MAX_CONTEXT_PATHS = 50;
@@ -33,6 +34,10 @@ export function messageRoutes(r) {
     const user = requireAuth(ctx);
     const project = requireProject(ctx, { write: true });
     const body = await readJson(ctx.req);
+    // Which conversation this is in. Absent means the one the project opens
+    // on, so an older client posts into the human-only chat rather than into
+    // whichever one it guessed.
+    const chat = requireChat(ctx.db, project, body.chat_id);
 
     if (typeof body.body !== 'string') throw new HttpError(400, 'body must be a string');
     const text = body.body.trim();
@@ -51,10 +56,10 @@ export function messageRoutes(r) {
     const messageId = tx(ctx.db, () => {
       const info = ctx.db
         .prepare(
-          `INSERT INTO messages (project_id, user_id, body, created_at)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT INTO messages (project_id, chat_id, user_id, body, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(project.id, user.id, text, now);
+        .run(project.id, chat.id, user.id, text, now);
       const id = Number(info.lastInsertRowid);
       for (const p of contextPaths) {
         ctx.db
@@ -70,8 +75,9 @@ export function messageRoutes(r) {
 
     // Fired after the message is durable and broadcast, so the human's own
     // message always appears before any agent reply. Agents are woken only by
-    // human messages — bot-to-bot dampening lives in the orchestrator.
-    ctx.orchestrator?.onHumanMessage(project, row);
+    // human messages — bot-to-bot dampening lives in the orchestrator — and
+    // only in this chat: a helper in another one is not listening here.
+    ctx.orchestrator?.onHumanMessage(project, row, chat);
 
     json(ctx.res, 201, payload);
   });
@@ -79,6 +85,7 @@ export function messageRoutes(r) {
   r.get('/api/projects/:slug/messages', (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx);
+    const chat = requireChat(ctx.db, project, ctx.query.get('chat'));
 
     const rawLimit = Number(ctx.query.get('limit'));
     const limit = Number.isFinite(rawLimit) && rawLimit > 0
@@ -97,18 +104,18 @@ export function messageRoutes(r) {
       ? ctx.db
         .prepare(
           `SELECT * FROM (
-             SELECT * FROM messages WHERE project_id = ? ORDER BY id DESC LIMIT ?
+             SELECT * FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?
            ) ORDER BY id ASC`,
         )
-        .all(project.id, limit)
+        .all(chat.id, limit)
       : ctx.db
         .prepare(
           `SELECT * FROM (
-             SELECT * FROM messages WHERE project_id = ? AND id < ?
+             SELECT * FROM messages WHERE chat_id = ? AND id < ?
              ORDER BY id DESC LIMIT ?
            ) ORDER BY id ASC`,
         )
-        .all(project.id, before, limit);
+        .all(chat.id, before, limit);
 
     json(ctx.res, 200, {
       messages: rows.map((m) => messagePublic(ctx.db, m, project.slug)),

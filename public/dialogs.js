@@ -11,7 +11,7 @@ import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  LIBRARY_DIR, deleteScore, clearScores,
+  createChat, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
 /* Render: dialogs -------------------------------------------------------- */
@@ -301,6 +301,24 @@ export function dialogFor(d) {
           const called = name.value.trim();
           close();
           await createPicture(called, side * count, side);
+        },
+      })));
+  }
+
+  // A new chat always takes helpers: the one that does not is the one the
+  // game was born with.
+  if (d.kind === 'new-chat') {
+    const name = h('input', { placeholder: 'Art, or Music, or Bug hunt' });
+    return wrap('Start another chat',
+      h('label', { text: 'What is it about?' }), name,
+      h('p', { class: 'hint muted', text: 'A new chat can have helpers in it. The one called “Just us” never can.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Start it',
+        onclick: async () => {
+          const called = name.value.trim();
+          if (!called) return;
+          close();
+          await createChat(called);
         },
       })));
   }

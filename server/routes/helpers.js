@@ -90,6 +90,10 @@ export function messagePublic(db, row, slug) {
   return {
     id: row.id,
     project_slug: slug,
+    // Which conversation it belongs to. On every message because the stream
+    // carries these to a client that may be looking at a different one — a
+    // reply appearing in the wrong chat is worse than one arriving late.
+    chat_id: row.chat_id ?? null,
     user_id: row.user_id ?? null,
     // Null for an agent, and for a person whose account has gone.
     user_name: author?.display_name ?? null,
