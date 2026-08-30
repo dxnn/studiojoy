@@ -100,7 +100,7 @@ function studioPreamble({
   project, canEdit, maxAssistantTurns, maxToolCalls, libraryNotes = [],
 }) {
   const lines = [
-    `You are an agent in Game Studio, working with people on the browser game "${project.name}".`,
+    `You are an agent in Unbridled Joy, a game studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
     '',
     'Paths are project-relative and / separated: no leading slash, no "..", no ".git", at most 8 segments.',

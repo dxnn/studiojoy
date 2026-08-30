@@ -1,4 +1,4 @@
-// Game Studio — the client's core. Vanilla, no build step, no framework.
+// Unbridled Joy — the client's core. Vanilla, no build step, no framework.
 // Structural changes re-render a pane; streaming text mutates live nodes in
 // place so a long reply doesn't rebuild the thread on every chunk.
 //
@@ -65,6 +65,9 @@ export const S = {
   authError: null,
   projects: [],
   agents: [],
+  // The studio's people, for the Crew tab. Read once at boot: accounts are
+  // made at a command line, so this list does not change while you are in here.
+  people: [],
   slug: null,
   project: null,
   files: [],
@@ -131,12 +134,12 @@ export const S = {
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
   railWidth: railClamp(Number(prefs.get('rail', '360'))),
-  // Which of the sidebar's three lists is showing — games, chats or helpers.
-  // Three stacked sections fought each other for the height of the pane; one
-  // list at a time, with tabs over it, is the same three things and one
-  // decision. Remembered like the rail width, because it is a place you work
-  // from rather than a step in a task.
-  sideTab: ['games', 'chats', 'helpers'].includes(prefs.get('side-tab', 'games'))
+  // Which of the sidebar's three lists is showing — games, chats or crew (the
+  // people and the helpers, in that order). Three stacked sections fought each
+  // other for the height of the pane; one list at a time, with tabs over it,
+  // is the same things and one decision. Remembered like the rail width,
+  // because it is a place you work from rather than a step in a task.
+  sideTab: ['games', 'chats', 'crew'].includes(prefs.get('side-tab', 'games'))
     ? prefs.get('side-tab', 'games')
     : 'games',
   // What is typed in the sidebar's search box: a filter over the list on
@@ -517,7 +520,7 @@ async function start() {
   if (me.status === 0) S.authError = NO_CONNECTION;
   if (me.ok) {
     S.me = me.body;
-    await Promise.all([loadProjects(), loadAgents()]);
+    await Promise.all([loadProjects(), loadAgents(), loadPeople()]);
     connectStream();
     await followUrl();
   }
@@ -540,6 +543,13 @@ export async function loadProjects() {
 export async function loadAgents() {
   const res = await api('GET', '/api/agents');
   if (res.ok) S.agents = res.body;
+}
+
+// The people in the studio, for the Crew tab. Names only, and only ever read:
+// an account is made with `npm run adduser` and by nothing in here.
+export async function loadPeople() {
+  const res = await api('GET', '/api/users');
+  if (res.ok) S.people = res.body;
 }
 
 // The address is render()'s to write — opening a game only sets the state.
@@ -1758,7 +1768,7 @@ function renderAuth() {
 
   return h('div', { class: 'auth-page' },
     h('form', { class: 'auth-card', onsubmit: submit },
-      h('h1', { class: 'auth-title' }, wordmark('Game', 'Studio')),
+      h('h1', { class: 'auth-title' }, wordmark('UNBRIDLED', 'JOY')),
       h('p', { class: 'auth-tag', text: 'Build games with your helpers.' }),
       h('label', { for: 'email', text: 'Email' }), email,
       h('label', { for: 'password', text: 'Password' }), password,
@@ -2640,13 +2650,21 @@ function renderPreview() {
           h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' })),
         h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
       : null,
+    // Folded: one row. The same control that hid it brings it back — Hide ▲
+    // and Show ▼ are one button in two states, in the place the eye already
+    // is — and the whole row is a way in too, because it lights up.
     S.previewOpen ? null : h('div', {
-      class: 'preview-row', title: 'Show the game', onclick: shut,
+      class: 'preview-row', title: `Show ${S.project.name}`, onclick: shut,
     },
     h('span', { class: 'play', text: '▶' }),
     h('span', { class: 'pname', text: `Play ${S.project.name}` }),
     best === null ? null : h('span', { class: 'best', text: showScore(best) }),
-    h('span', { text: '▼' })),
+    h('button', {
+      class: 'icon', text: 'Show ▼', title: 'Show the game',
+      // The row under it is a button in all but name; letting the click reach
+      // it as well would toggle twice and fold it straight back.
+      onclick: (e) => { e.stopPropagation(); shut(); },
+    })),
     // Rendered either way. Folding the game away stops it running, but the
     // problems it already reported are still the answer to "why is it broken",
     // and a panel that vanished with the frame would take them with it.

@@ -1,4 +1,4 @@
-# Game Studio v0 — specification
+# Unbridled Joy v0 — specification
 
 ## 1. Goals
 
@@ -391,8 +391,12 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 | POST | `/api/login` | `{email, password}` | set cookie, return user |
 | POST | `/api/logout` | — | delete session, clear cookie |
 | GET | `/api/me` | — | current user |
+| GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
 
-There is no signup route. Accounts come from `npm run adduser`.
+There is no signup route. Accounts come from `npm run adduser`. `/api/users`
+is a list of who is here, for the sidebar's Crew tab, and carries no address:
+the studio is private, but a list of names does not need to be a list of email
+addresses to do its job.
 
 #### Projects
 
@@ -675,8 +679,13 @@ Three panes: the sidebar, the conversation, the rail. The shape of each is
 settled, and each choice is about where a thing is reachable from rather than
 how it looks.
 
-**The sidebar is one list at a time** — Games, Chats, Helpers — with tabs over
-it and a box that filters the one showing. Three stacked foldable sections
+**The sidebar is one list at a time** — Games, Chats, Crew — with tabs over
+it and a box that filters the one showing. Crew is everyone in the studio in
+two kinds: **Humans** over **Helpers**, because both belong to the studio
+rather than to a game. The people come from `GET /api/users`, which is names
+and ids and deliberately no addresses; nothing in the interface makes an
+account, so the list is read once at boot and the empty state says where
+accounts come from. Three stacked foldable sections
 fought each other for the height of the pane, and folding one to see another is
 a decision nobody wanted to make twice. The tab is remembered per browser next
 to the rail width; the filter is not, because a filter still in force tomorrow

@@ -56,6 +56,18 @@ export function authRoutes(r) {
     noContent(ctx.res);
   });
 
+  // Who else is in the studio. Names only: the sidebar's Crew tab shows the
+  // people beside the helpers, and an email address is more than a list of who
+  // is here needs. There is no route that makes one — accounts come from
+  // `npm run adduser` and nowhere else (§11).
+  r.get('/api/users', (ctx) => {
+    requireAuth(ctx);
+    const rows = ctx.db
+      .prepare('SELECT id, display_name FROM users ORDER BY display_name COLLATE NOCASE')
+      .all();
+    json(ctx.res, 200, rows);
+  });
+
   r.get('/api/me', (ctx) => {
     const user = requireAuth(ctx);
     json(ctx.res, 200, {

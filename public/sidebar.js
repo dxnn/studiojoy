@@ -25,13 +25,15 @@ export const wordmark = (first, second) => [
 const TABS = [
   { id: 'games', label: 'Games' },
   { id: 'chats', label: 'Chats' },
-  { id: 'helpers', label: 'Helpers' },
+  { id: 'crew', label: 'Crew' },
 ];
 
 const NEW = {
   games: { label: '+ New game', dialog: { kind: 'new-project' } },
   chats: { label: '+ New chat', dialog: { kind: 'new-project', chat: true } },
-  helpers: { label: '+ New helper', dialog: { kind: 'new-agent' } },
+  // The only half of the crew this button can make. A person is an account,
+  // and accounts come from `npm run adduser` — see the note under the list.
+  crew: { label: '+ New helper', dialog: { kind: 'new-agent' } },
 };
 
 const pickTab = (id) => {
@@ -73,7 +75,7 @@ export function renderSidebar() {
 
   return h('div', { class: `pane side${S.narrowPane === 'games' ? ' show' : ''}` },
     h('div', { class: 'bar brand-bar' },
-      h('div', { class: 'brand' }, wordmark('Game', 'Studio'))),
+      h('div', { class: 'brand' }, wordmark('UNBRIDLED', 'JOY'))),
     h('div', { class: 'pad' },
       h('button', {
         class: 'filled', style: 'width:100%',
@@ -87,7 +89,7 @@ export function renderSidebar() {
     h('div', { class: 'scroll', 'data-scroll': `side-${S.sideTab}` },
       S.sideTab === 'games' ? gameRows(matches)
         : S.sideTab === 'chats' ? chatRows(matches)
-          : helperRows(matches)),
+          : crewRows(matches)),
     h('div', { class: 'who' },
       h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
       h('div', { class: 'name', text: S.me.display_name }),
@@ -125,6 +127,30 @@ function chatRows(matches) {
         onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
       })));
   return rows.length ? rows : nothing('No chats yet. Start one with + New chat.');
+}
+
+// The crew is everyone in the studio, in two kinds: the people, then the
+// helpers. Both belong to the studio rather than to one game, which is why
+// they share a tab — and why the people are a list rather than a control:
+// there is nothing to do to a person from in here.
+function crewRows(matches) {
+  const people = S.people.filter((p) => matches(p.display_name));
+  const helpers = helperRows(matches);
+  return [
+    h('div', { class: 'section-label', text: 'Humans' }),
+    people.length
+      ? people.map((p) => h('div', { class: 'srow' },
+        h('button', {
+          class: 'hname',
+          text: p.display_name,
+          title: p.id === S.me.id ? 'You' : p.display_name,
+          disabled: true,
+        }),
+        p.id === S.me.id ? h('span', { class: 'tag', text: 'you' }) : null))
+      : nothing('Nobody yet — accounts are made with npm run adduser.'),
+    h('div', { class: 'section-label', text: 'Helpers' }),
+    helpers,
+  ];
 }
 
 // Helpers belong to the studio, not to one game, so they live beside the game

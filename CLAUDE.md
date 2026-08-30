@@ -1,4 +1,8 @@
-# Game Studio
+# Unbridled Joy
+
+The studio's name, and the wordmark: UNBRIDLED, the little controller lying
+between them, JOY. The directory and the npm package are still `gamestudio`
+— they are paths, not names.
 
 A private studio where a few trusted people and DeepSeek-backed agents build
 browser games together. Each **game project** is a chat thread plus a
@@ -463,7 +467,8 @@ reaches the browser before the answer to the `PUT` does.
 The interface is the 6a direction (the handoff and its stylesheet were in
 `extra/`, which is gitignored — `public/style.css` is the copy that counts).
 What it moved, beyond colour: the sidebar is one list at a time behind
-**Games / Chats / Helpers** tabs with a filter box; the whole-game actions are
+**Games / Chats / Crew** tabs with a filter box — Crew being the humans over
+the helpers, from `GET /api/users` (names, no addresses); the whole-game actions are
 an **actions drawer** under the game's name instead of the foot of the Play
 tab; the **Play tab is gone** — the preview lives at the top of the rail and
 folds to a row that still plays; and a game's `config/look.js` can name four

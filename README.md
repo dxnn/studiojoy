@@ -1,4 +1,4 @@
-# Game Studio
+# Unbridled Joy
 
 A small private studio where a few people and DeepSeek-backed agents build
 browser games together.

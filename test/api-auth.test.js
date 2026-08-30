@@ -80,6 +80,24 @@ test('there is no signup route', async (t) => {
   }
 });
 
+// The Crew tab lists the people beside the helpers, so it needs the people.
+// Names and nothing else: a list of who is here does not need addresses in it.
+test('the crew list is names, without addresses', async (t) => {
+  const app = await setup();
+  t.after(() => app.close());
+  createUser(app.db, { email: 'bea@example.com', displayName: 'Bea', password: 'hunter22' });
+  await signIn(app);
+
+  const res = await app.client.json('GET', '/api/users');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.map((u) => u.display_name).sort(), ['Bea', 'Dann']);
+  for (const user of res.body) {
+    assert.ok(user.id, 'each one is identified');
+    assert.ok(!('email' in user), 'and no address travels with it');
+    assert.ok(!('password_hash' in user));
+  }
+});
+
 test('logout clears the cookie and the session', async (t) => {
   const app = await setup();
   t.after(() => app.close());
@@ -111,6 +129,7 @@ test('every /api route refuses an anonymous caller', async (t) => {
   t.after(() => app.close());
   const calls = [
     ['GET', '/api/me'],
+    ['GET', '/api/users'],
     ['GET', '/api/projects'],
     ['POST', '/api/projects'],
     ['GET', '/api/projects/tank'],

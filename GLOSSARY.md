@@ -31,6 +31,7 @@
 - **task list** — `TODO.md` at a project's root: one task per line, written only when the list is long enough to be worth staging.
 - **attached agent** — a `project_agents` row: one agent bound to one project, carrying its `chatty` flag and cooldown state.
 - **chatty** — an attached agent that responds to every human message, not only to `@mention`s. (from `new-y`)
+- **crew** — everyone in the studio, in the sidebar tab of that name: the **humans** (accounts, from `GET /api/users` — names and ids, never addresses) over the *helpers*. Both belong to the studio rather than to one game, which is what puts them on one tab. A human row is a name and nothing to click: accounts are made with `npm run adduser` and by nothing in the interface.
 - **helper** — what the interface calls an *agent*. Code, schema, routes, and SSE payloads say "agent" everywhere; only user-facing text says "helper", because the studio is used by kids. Do not introduce "helper" into the code.
 - **fire** — one complete agent response cycle: eligibility claimed, context built, tool loop run, message and commit persisted, cooldown set. (from `new-y`)
 - **context path** — a project path a human attaches to a message, handing that file's current content to the agents on that turn.

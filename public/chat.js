@@ -300,8 +300,8 @@ function helperGap() {
         prefs.set('sidebar', 'open');
         // On the tab it will land on, so the new helper is where the eye goes
         // when the dialog closes.
-        S.sideTab = 'helpers';
-        prefs.set('side-tab', 'helpers');
+        S.sideTab = 'crew';
+        prefs.set('side-tab', 'crew');
         S.dialog = { kind: 'new-agent' };
         render();
       },
@@ -352,7 +352,7 @@ export function renderChat() {
           class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
           onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
         }),
-        h('div', { class: 'title', text: 'Game Studio' })),
+        h('div', { class: 'title', text: 'Unbridled Joy' })),
       h('div', { class: 'scroll pad muted' },
         h('p', { text: 'Pick a game on the left, or make a new one.' }),
         h('p', { text: 'Then ask a helper to build something and watch the files appear.' })));

@@ -1,4 +1,4 @@
-/* Game Studio — the 6a direction.
+/* Unbridled Joy — the 6a direction.
 
    One dark palette with four named roles: primary (cyan) is the studio's own
    voice — New game, the open tab, the active row; accent (pink) is anything a
@@ -218,13 +218,20 @@ a:hover { color: var(--accent-hi); }
 }
 /* The wordmark at title size. UNBRIDLED is primary, JOY is crimson, and the
    slash between them is the mark — see .brand for the spans. */
+/* One line, whatever the card's width: the mark is the join between the two
+   words, and a wordmark broken across two lines is two words with a controller
+   stranded at the end of the first. The size follows the card rather than the
+   card following the size. */
 .auth-title {
   margin: 0;
-  font-size: 46px;
+  display: flex;
+  align-items: center;
+  font-size: min(40px, 9.5vw);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.1;
   letter-spacing: -0.03em;
   color: var(--accent-hi);
+  white-space: nowrap;
 }
 .auth-title .b2 { color: oklch(0.76 0.19 22); }
 .auth-title .mark { font-size: 0.6em; }
@@ -352,12 +359,14 @@ a:hover { color: var(--accent-hi); }
 /* The mark between the two words: a grey micro-controller lying at the angle a
    slash would sit at, its d-pad primary and its four buttons in four of the
    studio's colours. Three empty spans and no image — every measurement is in
-   em, so it scales with whatever size the wordmark is set at.
+   em, so it scales with whatever size the wordmark is set at. Written against
+   `.mark` rather than `.brand .mark` because the sign-in screen wears the same
+   wordmark at four times the size, and only the em sizing differs.
 
    The body is rotated, so its visual footprint is wider and much taller than
    the box it reserves in the line. That is deliberate: the letters tuck in
    against it, and the bar above has the padding to let it overhang. */
-.brand .mark {
+.mark {
   width: 1.34em;
   height: 0.84em;
   flex-shrink: 0;
@@ -376,25 +385,25 @@ a:hover { color: var(--accent-hi); }
    Named .dpad, not .pad: the studio already uses .pad as a padding utility, and
    inheriting 12px of it inflates the cross past the body it sits in. The
    explicit zero keeps any future utility off it too. */
-.brand .mark .dpad {
+.mark .dpad {
   position: relative;
   width: 0.43em;
   height: 0.43em;
   padding: 0;
   flex-shrink: 0;
 }
-.brand .mark .dpad::before,
-.brand .mark .dpad::after {
+.mark .dpad::before,
+.mark .dpad::after {
   content: '';
   position: absolute;
   border-radius: 0.04em;
   background: oklch(0.82 0.13 195);
 }
-.brand .mark .dpad::before { top: 0.148em; left: 0; width: 0.43em; height: 0.135em; }
-.brand .mark .dpad::after { top: 0; left: 0.148em; width: 0.135em; height: 0.43em; }
+.mark .dpad::before { top: 0.148em; left: 0; width: 0.43em; height: 0.135em; }
+.mark .dpad::after { top: 0; left: 0.148em; width: 0.135em; height: 0.43em; }
 /* The four buttons: four radial gradients on one span, so they cost no markup.
    Gold and crimson on top, pink and violet under. */
-.brand .mark .abxy {
+.mark .abxy {
   width: 0.375em;
   padding: 0;
   height: 0.375em;
@@ -1463,6 +1472,18 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 }
 .preview-row .pname { flex: 1; font-size: 13px; font-weight: 700; color: #fdf4f6; }
 .preview-row .best { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--num); }
+/* Show ▼ against the frame's Hide ▲: one control in two states, so it reads
+   the same folded as it does open. */
+.preview-row button.icon {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fdf4f6;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+.preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
 
 /* The four named colours, read out of look.js under the preview, so the words
    in the file and the colours on the screen are visibly the same thing. */
