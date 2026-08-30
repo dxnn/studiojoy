@@ -157,6 +157,18 @@ rather than a second control appearing. And **what lights up is what can be
 clicked**: a row that highlights under the pointer opens on a click anywhere
 in it, or it does not highlight at all.
 
+The studio is dark, always: `public/style.css` sets `color-scheme: dark` and
+there is no light theme to fall back to — the games are dark and the previews
+are dark, and a light shell around them read as two applications. Four colour
+roles carry it. **Cyan is the studio's own voice** (New game, the open tab, the
+active row) and stays cyan whatever game is open; **pink is a helper**; **gold
+is a number worth looking at** — a score, a version — and nothing else;
+**crimson is danger** and nothing else. A game's own four (`primary`, `accent`,
+`highlight`, `deep` in its `config/look.js`) colour that game's surfaces only:
+the chat pane, the composer, the actions drawer, the rail. ⚠️ Gold is the one
+to police — the moment it appears on something that is not a number, the
+direction stops working.
+
 ## Current state
 
 v0 is complete and green. Verified live end to end: a message in
@@ -447,6 +459,23 @@ The history route answers `{ commits, total }`, not a bare array. `total` is a
 `Versions` — fetched with `limit=1` when the file opens, and refreshed on any
 `files.changed` for that file, including the one your own save makes, which
 reaches the browser before the answer to the `PUT` does.
+
+The interface is the 6a direction (the handoff and its stylesheet were in
+`extra/`, which is gitignored — `public/style.css` is the copy that counts).
+What it moved, beyond colour: the sidebar is one list at a time behind
+**Games / Chats / Helpers** tabs with a filter box; the whole-game actions are
+an **actions drawer** under the game's name instead of the foot of the Play
+tab; the **Play tab is gone** — the preview lives at the top of the rail and
+folds to a row that still plays; and a game's `config/look.js` can name four
+colours the studio wears while that game is open. The design's own `support.js`
+is a React runtime from the tool that produced it and has no place here.
+
+⚠️ Two things the reskin depends on. The typefaces come from Google Fonts via a
+`<link>` in `index.html`: both stacks fall back to the system's, so a studio
+that cannot reach the font host is plainer and nothing else. And the sidebar's
+filter box is in `focusSnapshot`'s list beside the composer and the editor —
+every keystroke re-renders the pane it is in, so without that it would lose the
+caret on its own second character.
 
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 

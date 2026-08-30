@@ -669,6 +669,47 @@ Each edit re-reads the file and finds the value by path rather than reusing the
 last render's offsets: a splice moves every offset behind it, and re-rendering
 the pane per keystroke would replace the Save button under the pointer.
 
+#### The shell
+
+Three panes: the sidebar, the conversation, the rail. The shape of each is
+settled, and each choice is about where a thing is reachable from rather than
+how it looks.
+
+**The sidebar is one list at a time** — Games, Chats, Helpers — with tabs over
+it and a box that filters the one showing. Three stacked foldable sections
+fought each other for the height of the pane, and folding one to see another is
+a decision nobody wanted to make twice. The tab is remembered per browser next
+to the rail width; the filter is not, because a filter still in force tomorrow
+is a list with things missing from it. The button above the tabs makes whatever
+the open tab holds, so `+ New chat` is never a click away from the chats.
+
+**The whole-game actions are a drawer under the game's name** — the *actions
+drawer*: make a copy, put it in or take it out of the games list, rename. They
+were at the foot of the Play tab, which put them under a preview of a game
+somebody was playing and out of reach from every other tab. Closed, the drawer
+is zero-height rather than absent, so it can animate; it closes when the game
+changes, because it is a decision about the game you were looking at.
+
+**The rail is the preview and three tabs.** The preview is not a tab any more —
+a game is what the rail is about, so it sits at the top of it whatever is open
+underneath, with `Open` and `Hide` on the frame because both act on the running
+game. Folded, it is one row that still plays, remembered per browser. `Reload`
+is gone: a commit already reloads it, which is the sentence printed under it.
+The share URL row is gone too — `Open` opens the address it would have printed.
+What is left is **Files · Versions · Scoreboard**, and a `?tab=play` link from
+before falls back to Files, where its preview now is.
+
+**A game lends the studio its four colours** — its *look* — while it is open.
+`config/look.js` is read once for both the *palette* and these; the four are
+set on the shell as `--look-*`, and the chat pane, its buttons, the composer,
+the drawer and the rail are the only things that read them. The sidebar stays
+the studio's own cyan on purpose: that is what stops the studio from looking
+like whichever game is open. ⚠️ Each value is checked before it reaches a style
+attribute — no colon or semicolon, so it cannot close the declaration and open
+another, and no `url()` or `var()`. A game that names none of them wears the
+studio's defaults, so a partial look is fine, and a helper's edit to `look.js`
+re-reads it unless there are unsaved colours in the editor.
+
 ### The studio library
 
 `studio/` is a reserved directory in a game's working tree holding the studio's
@@ -1301,10 +1342,12 @@ not.
 
 The studio page checks the sender's origin against the games origin and the
 message's slug against the open project, batches for 500 ms, and posts. The
-list is broadcast as `game.errors` and painted into the Play tab **without a
-re-render**: rebuilding the tree rebuilds the preview iframe, which restarts the
-game, which reports its problems again — a loop that does not settle. This is
-the same reason a streaming reply mutates its nodes.
+list is broadcast as `game.errors` and painted into the panel under the preview
+**without a re-render**: rebuilding the tree rebuilds the preview iframe, which
+restarts the game, which reports its problems again — a loop that does not
+settle. This is the same reason a streaming reply mutates its nodes. The panel
+is rendered whether or not the preview is folded away, because problems from
+before it was folded are still the answer to why the game is broken.
 
 Two things the wrapper does not cover. A game that navigates its frame to a
 second page leaves the wrapper behind and stops reporting until it returns. And
