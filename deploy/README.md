@@ -136,6 +136,48 @@ that came up is the one that travelled.
 From then on the server is authoritative. Running the old studio again edits
 a tree the server never sees, and the two have no way to reconcile.
 
+## Working on the games from your laptop
+
+Each game is its own git repository and the server's copy is the one people are
+editing, so a local copy is a clone rather than a fork: point it at the server
+and the two stay one history. This is the way to make a change that no helper
+should have to make — a sweep across every game, a rename that has to land in
+ten places at once — with the tools on your own machine.
+
+```sh
+deploy/sync-games.sh user@host link     # add the remote, clone what is missing
+deploy/sync-games.sh user@host status   # behind / ahead / uncommitted, per game
+deploy/sync-games.sh user@host pull     # fast-forward only; refuses if diverged
+deploy/sync-games.sh user@host push     # send local commits back
+```
+
+⚠️ `push` needs one thing on the server, once per game: a game repo there has
+its branch checked out, and git refuses to push into that by default.
+
+```sh
+for g in ~/apps/studio-data/games/*/; do
+  git -C "$g" config receive.denyCurrentBranch updateInstead
+done
+```
+
+`updateInstead` is the mechanism rather than a workaround: it moves the
+server's **working tree**, which is what the studio reads and what the games
+origin serves, so the push is the deploy. It refuses if that tree has
+uncommitted changes in it, which is the safety worth having.
+
+Three things to know:
+
+- **The studio does not hear a push.** A commit made through the studio
+  broadcasts `files.changed` and every open browser follows it; a push arrives
+  behind the studio's back. The files are right immediately — everything is
+  read from disk per request — but a browser already looking at that game shows
+  what it last fetched until it is reloaded.
+- **Push when nobody is mid-turn on that game.** A helper's write and its
+  commit are one step apart, and a push landing exactly between them is
+  refused rather than merged. Rare, and harmless when it happens.
+- **Never force.** If the server moved too, the push is refused because
+  somebody's work is on the other side of it: pull, rebase, push again.
+
 ## Backups
 
 The game trees recover themselves from git. The chats and accounts only live
