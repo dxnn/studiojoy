@@ -10,9 +10,6 @@ deliberately deferred.
   made without leaving the studio
 - let a person lock a game file: helpers get its API note, not its bytes,
   and cannot write it (ideas/api-notes.md)
-- ! push the three migrated games — asteriskoids, vroooooooom and
-  qiby-is-rizzing-at-you are committed locally and unpushed; the server needs
-  its `receive.denyCurrentBranch=updateInstead` include first (deploy/README.md)
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, then the point-and-click adventure — each
