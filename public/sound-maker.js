@@ -166,12 +166,19 @@ const ascii = (view, at, text) => {
 };
 
 // 16-bit mono PCM: the plainest thing every browser and every game engine can
-// already play, and the only audio format worth hand-writing.
-export function encodeWav(samples, rate = RATE) {
-  const bytes = new Uint8Array(44 + samples.length * 2);
+// already play, and the only audio format worth hand-writing. A `note` rides
+// in front of the samples as a comment chunk; without one the file is the same
+// 44 bytes of header it always was.
+export function encodeWav(samples, rate = RATE, note = '') {
+  // A comment is stored with its terminator, and every chunk is padded to an
+  // even length.
+  const text = note ? `${note}\0` : '';
+  const pad = text.length % 2;
+  const list = note ? 20 + text.length + pad : 0;
+  const bytes = new Uint8Array(44 + list + samples.length * 2);
   const view = new DataView(bytes.buffer);
   ascii(view, 0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
+  view.setUint32(4, bytes.length - 8, true);
   ascii(view, 8, 'WAVE');
   ascii(view, 12, 'fmt ');
   view.setUint32(16, 16, true);          // rest of this chunk
@@ -181,16 +188,101 @@ export function encodeWav(samples, rate = RATE) {
   view.setUint32(28, rate * 2, true);    // bytes per second
   view.setUint16(32, 2, true);           // bytes per sample, all channels
   view.setUint16(34, 16, true);          // bits per sample
-  ascii(view, 36, 'data');
-  view.setUint32(40, samples.length * 2, true);
+  let at = 36;
+  if (note) {
+    ascii(view, at, 'LIST');
+    view.setUint32(at + 4, 12 + text.length + pad, true);
+    ascii(view, at + 8, 'INFO');
+    ascii(view, at + 12, 'ICMT');
+    view.setUint32(at + 16, text.length, true);
+    ascii(view, at + 20, text);
+    at += 20 + text.length + pad;
+  }
+  ascii(view, at, 'data');
+  view.setUint32(at + 4, samples.length * 2, true);
+  const first = at + 8;
   for (let i = 0; i < samples.length; i += 1) {
     const value = clamp(samples[i], -1, 1);
     // Negative has one more step than positive in two's complement, so the
     // two directions are scaled by their own limit rather than one of them
     // wrapping at full volume.
-    view.setInt16(44 + i * 2, Math.round(value < 0 ? value * 32768 : value * 32767), true);
+    view.setInt16(first + i * 2, Math.round(value < 0 ? value * 32768 : value * 32767), true);
   }
   return bytes;
 }
 
-export const soundBytes = (params, rate = RATE) => encodeWav(renderSound(params, rate), rate);
+/* The numbers, kept ------------------------------------------------------- */
+
+// A sound is worth changing a week later, and the numbers that made it are the
+// only way to do that — samples cannot be turned back into sliders. So they
+// ride inside the file they made: RIFF is a list of chunks and a player skips
+// every chunk it does not know, so this is a comment in the documented place
+// for one, LIST/INFO/ICMT, which an audio editor shows rather than drops. A
+// file beside the .wav would have been less to write and would have come apart
+// the first time somebody renamed or copied the sound.
+//
+// The version is what a note has to say before it is read at all, so a later
+// shape can be told from this one rather than half-understood.
+const NOTE_VERSION = 1;
+
+export const soundNote = (params) => JSON.stringify({
+  studio: NOTE_VERSION, sound: { ...DEFAULT_SOUND, ...params },
+});
+
+const say4 = (view, at) => String.fromCharCode(
+  view.getUint8(at), view.getUint8(at + 1), view.getUint8(at + 2), view.getUint8(at + 3),
+);
+
+// Walking the chunks is the only way in: `data` sits at a fixed offset only
+// while nothing else is in the file. A length that runs off the end stops the
+// walk rather than the reader — these bytes come from whatever somebody
+// uploaded.
+function commentIn(bytes) {
+  if (bytes.length < 12) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (say4(view, 0) !== 'RIFF' || say4(view, 8) !== 'WAVE') return null;
+  let at = 12;
+  while (at + 8 <= bytes.length) {
+    const size = view.getUint32(at + 4, true);
+    const body = at + 8;
+    if (say4(view, at) === 'LIST' && body + 4 <= bytes.length && say4(view, body) === 'INFO') {
+      const end = Math.min(body + size, bytes.length);
+      let sub = body + 4;
+      while (sub + 8 <= end) {
+        const held = view.getUint32(sub + 4, true);
+        if (say4(view, sub) === 'ICMT') {
+          const text = bytes.subarray(sub + 8, Math.min(sub + 8 + held, end));
+          return new TextDecoder().decode(text).replace(/\0+$/, '');
+        }
+        sub += 8 + held + (held % 2);
+      }
+    }
+    at = body + size + (size % 2);
+  }
+  return null;
+}
+
+// The sliders a .wav came off, or null when it carries nothing the studio
+// wrote — an uploaded sound, or one made before the studio kept its numbers.
+// Nothing here trusts the file: a value that is not a number the sliders could
+// have produced is the default instead.
+export function soundIn(bytes) {
+  const note = commentIn(bytes);
+  if (!note) return null;
+  let held;
+  try { held = JSON.parse(note); } catch { return null; }
+  if (held?.studio !== NOTE_VERSION || !held.sound || typeof held.sound !== 'object') return null;
+  const sound = { ...DEFAULT_SOUND };
+  if (WAVES.includes(held.sound.wave)) sound.wave = held.sound.wave;
+  for (const param of SOUND_PARAMS) {
+    const value = held.sound[param.key];
+    if (Number.isFinite(value)) sound[param.key] = clamp(value, param.min, param.max);
+  }
+  const { seed } = held.sound;
+  if (Number.isInteger(seed) && seed > 0) sound.seed = seed;
+  return sound;
+}
+
+export const soundBytes = (params, rate = RATE) => encodeWav(
+  renderSound(params, rate), rate, soundNote(params),
+);

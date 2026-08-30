@@ -1,11 +1,12 @@
-// The sound maker is arithmetic, not audio hardware, so all of it is checked
-// here: the render, the .wav bytes it becomes, and the presets a person picks
-// from before touching a single slider.
+// Making a sound is arithmetic, not audio hardware, so all of it is checked
+// here: the render, the .wav bytes it becomes, the note those bytes carry so
+// the sound editor can open them again, and the presets a person picks from
+// before touching a single slider.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RATE, SOUND_PARAMS, SOUND_PRESETS, DEFAULT_SOUND, WAVES,
-  soundFrom, renderSound, randomSound, encodeWav, soundBytes,
+  soundFrom, renderSound, randomSound, encodeWav, soundBytes, soundNote, soundIn,
 } from '../public/sound-maker.js';
 
 const peak = (samples) => samples.reduce((most, s) => Math.max(most, Math.abs(s)), 0);
@@ -103,6 +104,68 @@ test('the wav header says what the file actually is', () => {
   assert.equal(u16(bytes, 34), 16);
   assert.equal(text(bytes, 36, 4), 'data');
   assert.equal(u32(bytes, 40), samples.length * 2);
+});
+
+test('a sound the studio saved carries the numbers that made it', () => {
+  for (const name of Object.keys(SOUND_PRESETS)) {
+    assert.deepEqual(soundIn(soundBytes(soundFrom(name))), soundFrom(name), name);
+  }
+});
+
+test('the numbers do not touch the samples', () => {
+  const params = soundFrom('laser');
+  const plain = encodeWav(renderSound(params), RATE);
+  const noted = soundBytes(params);
+  const samples = plain.subarray(44);
+  assert.equal(noted.length, plain.length + 20 + soundNote(params).length + 1);
+  assert.deepEqual([...noted.subarray(noted.length - samples.length)], [...samples]);
+});
+
+test('a file that carries numbers is still a wav a player can walk', () => {
+  const bytes = soundBytes(soundFrom('jump'));
+  const view = new DataView(bytes.buffer);
+  assert.equal(text(bytes, 0, 4), 'RIFF');
+  assert.equal(u32(bytes, 4), bytes.length - 8);
+  const seen = [];
+  let at = 12;
+  while (at + 8 <= bytes.length) {
+    seen.push(text(bytes, at, 4));
+    const size = view.getUint32(at + 4, true);
+    at += 8 + size + (size % 2);
+  }
+  // Every chunk accounted for, ending exactly at the end of the file: a length
+  // that lied would leave a player reading somebody else's bytes as sound.
+  assert.deepEqual(seen, ['fmt ', 'LIST', 'data']);
+  assert.equal(at, bytes.length);
+});
+
+test('a sound from anywhere else has nothing to open', () => {
+  assert.equal(soundIn(encodeWav(renderSound(soundFrom('hit')), RATE)), null);
+  assert.equal(soundIn(new Uint8Array(0)), null);
+  assert.equal(soundIn(new Uint8Array(200)), null);
+  // A comment that is not the studio's, and one that is not even JSON.
+  assert.equal(soundIn(encodeWav(new Float32Array(4), RATE, 'made in a tracker')), null);
+  assert.equal(soundIn(encodeWav(new Float32Array(4), RATE, JSON.stringify({ studio: 99 }))), null);
+});
+
+test('nothing a file says gets past the sliders', () => {
+  const wild = JSON.stringify({
+    studio: 1,
+    sound: { freq: 1e9, volume: -50, wave: 'trombone', decay: 'soon', seed: -3 },
+  });
+  const sound = soundIn(encodeWav(new Float32Array(4), RATE, wild));
+  const freq = SOUND_PARAMS.find((p) => p.key === 'freq');
+  assert.equal(sound.freq, freq.max);
+  assert.equal(sound.volume, 0);
+  assert.equal(sound.wave, DEFAULT_SOUND.wave, 'an unknown shape is the default one');
+  assert.equal(sound.decay, DEFAULT_SOUND.decay, 'a word where a number belongs is ignored');
+  assert.equal(sound.seed, DEFAULT_SOUND.seed);
+});
+
+test('a sound saved and opened and saved again is the same file', () => {
+  const first = soundBytes(soundFrom('explosion'));
+  const again = soundBytes(soundIn(first));
+  assert.deepEqual([...again], [...first]);
 });
 
 test('the samples survive the trip into 16 bits', () => {
