@@ -13,7 +13,17 @@ const read = (rel) => fs.readFileSync(new URL(`../public/${rel}`, import.meta.ur
 const INPUT = read('studio-lib/input/input.js');
 const ONE_BUTTON = read('templates/controls-one-button.js');
 const SWIPE_TAP = read('templates/controls-swipe-tap.js');
-const LEGACY = read('templates/controls.js');
+const SEED = read('templates/controls.js'); // the default: stick-buttons
+
+// A controls.js from before schemes existed: no SCHEME anywhere.
+const LEGACY = `
+const CONTROLS = {
+  player1: {
+    left: "key:left touch:left",
+    fire: "key:space touch:GO",
+  },
+};
+`;
 
 function boot({ controls, body = null } = {}) {
   const handlers = new Map();
@@ -23,6 +33,8 @@ function boot({ controls, body = null } = {}) {
     document: { body },
     matchMedia: () => ({ matches: false }),
     console: { warn: (...args) => warnings.push(args.join(' ')) },
+    innerWidth: 800,
+    innerHeight: 600,
   };
   sandbox.window = sandbox;
   sandbox.addEventListener = (name, fn) => {
@@ -44,6 +56,9 @@ function boot({ controls, body = null } = {}) {
       };
       fire(name, event);
       return event;
+    },
+    key(name, down = true) {
+      fire(down ? 'keydown' : 'keyup', { key: name, target: null, preventDefault() {} });
     },
   };
 }
@@ -147,6 +162,66 @@ test('swipe-tap: a gesture on a real button belongs to the button', () => {
   g.pointer('pointerup', { x: 100, y: 100 });
   g.Input.update();
   assert.equal(g.Input.pressed('tap'), false);
+});
+
+// The default seed is the stick-buttons preset: the left thumb's slice of an
+// 800×600 screen is x < 360, below y 240.
+test('stick-buttons: the stick is analog, floating, and clamped', () => {
+  const g = boot({ controls: SEED });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 150, y: 500 });
+  g.pointer('pointermove', { x: 178, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0.5, 'half the radius is half the lean');
+  assert.equal(g.Input.held('right'), true);
+  assert.equal(g.Input.pressed('right'), true);
+  g.pointer('pointermove', { x: 400, y: 520 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 1, 'the lean stops at full tilt');
+  g.pointer('pointerup', { x: 400, y: 520 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0);
+  assert.equal(g.Input.released('right'), true);
+});
+
+test('stick-buttons: inside the deadzone the stick reads as resting', () => {
+  const g = boot({ controls: SEED });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 150, y: 500 });
+  g.pointer('pointermove', { x: 160, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0);
+  assert.equal(g.Input.held('right'), false);
+});
+
+test('stick-buttons: only a thumb in the stick\'s slice takes the stick', () => {
+  const g = boot({ controls: SEED });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 150, y: 500, type: 'mouse' });
+  g.pointer('pointermove', { x: 300, y: 500, type: 'mouse' });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0, 'a mouse is not a stick');
+  g.pointer('pointerdown', { x: 600, y: 500, id: 2 });
+  g.pointer('pointermove', { x: 700, y: 500, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0, "the right thumb's side is the buttons'");
+  g.pointer('pointerdown', { x: 150, y: 100, id: 3 });
+  g.pointer('pointermove', { x: 300, y: 100, id: 3 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 0, 'the top of the screen is left alone');
+});
+
+test('stick-buttons: keys still give the ends, and player 2 never sees the stick', () => {
+  const g = boot({ controls: SEED });
+  g.Input.update();
+  g.key('ArrowRight');
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right'), 1);
+  g.key('ArrowRight', false);
+  g.pointer('pointerdown', { x: 150, y: 500 });
+  g.pointer('pointermove', { x: 200, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.axis('left', 'right', 2), 0, "the screen is player 1's");
 });
 
 test('a declared scheme owns the screen; the old shape leaves it alone', () => {

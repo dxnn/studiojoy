@@ -64,9 +64,10 @@ test('the controls template is readable as a config form', () => {
   const parsed = parseConfigFile(CONTROLS);
   assert.equal(parsed.ok, true, parsed.reason);
   const names = parsed.decls.map((d) => d.name);
-  assert.deepEqual(names, ['CONTROLS', 'STICK_DEADZONE']);
+  assert.deepEqual(names, ['SCHEME', 'CONTROLS', 'STICK_DEADZONE']);
   // The comment beside each action is the whole point of the file.
-  const player1 = parsed.decls[0].node.props.find((p) => p.key === 'player1').node;
+  const controls = parsed.decls.find((d) => d.name === 'CONTROLS');
+  const player1 = controls.node.props.find((p) => p.key === 'player1').node;
   assert.equal(player1.props.find((p) => p.key === 'fire').node.comment, 'the main button');
 });
 

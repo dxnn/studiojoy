@@ -22,8 +22,9 @@
 // screen: "one-button" means a tap or a click anywhere is the button (bind
 // touch:screen); "swipe-tap" means four flicks and a tap (swipe:left …
 // swipe:tap) — flicks are moments, not states: read them with pressed(),
-// never held(). With no SCHEME, touch: bindings are drawn as an arrow pad
-// and round buttons.
+// never held(); "stick-buttons" means an analog stick under the left thumb
+// (stick:left …) beside the drawn touch: buttons. With no SCHEME, touch:
+// bindings are drawn as an arrow pad and round buttons.
 //
 // Use this instead of your own keydown listeners — two input systems fight
 // over the same keys. index.html must load config/controls.js and then
@@ -101,7 +102,7 @@ const Input = (function () {
   // The declared control scheme, or "" for the old shape — an arrow pad and
   // round buttons drawn from the touch: bindings. An unknown name gets the
   // old shape too, said once, rather than a game with no controls at all.
-  const SCHEMES = ["one-button", "swipe-tap"];
+  const SCHEMES = ["one-button", "swipe-tap", "stick-buttons"];
   let warnedScheme = false;
   function schemeName() {
     let name = "";
@@ -174,6 +175,8 @@ const Input = (function () {
     touchDown.clear();
     screenPointers.clear();
     gestureStarts.clear();
+    resetStick("move");
+    resetStick("aim");
   });
 
   /* Control scheme surfaces ------------------------------------------------ */
@@ -229,6 +232,99 @@ const Input = (function () {
     window.addEventListener("pointercancel", (e) => { gestureStarts.delete(e.pointerId); });
   }
 
+  // The virtual sticks: analog, floating — a stick's centre is wherever the
+  // thumb lands in its slice of the screen, and it reports how far the thumb
+  // has travelled from there, clamped at STICK_RADIUS pixels. stick:left …
+  // stick:down read the move stick, stick:aim-left … the aim stick, and
+  // stick:move / stick:aim are held while that stick is pushed at all.
+  const STICK_RADIUS = 56;
+  const TOUCH_STICKS = {
+    "left": ["move", "x", -1], "right": ["move", "x", 1],
+    "up": ["move", "y", -1], "down": ["move", "y", 1],
+    "aim-left": ["aim", "x", -1], "aim-right": ["aim", "x", 1],
+    "aim-up": ["aim", "y", -1], "aim-down": ["aim", "y", 1],
+  };
+  const touchSticks = {
+    move: { x: 0, y: 0, id: null, cx: 0, cy: 0 },
+    aim: { x: 0, y: 0, id: null, cx: 0, cy: 0 },
+  };
+
+  // Which sticks the scheme has, each with its slice of the screen as
+  // fractions of the width. Thumbs sit low, so the top 40% is left alone —
+  // a game's own menus and touches live there untroubled.
+  function stickZones() {
+    const s = schemeName();
+    if (s === "stick-buttons") return { move: [0, 0.45] };
+    return null;
+  }
+
+  function stickAt(x, y) {
+    const zones = stickZones();
+    if (!zones || y < window.innerHeight * 0.4) return null;
+    for (const name of Object.keys(zones)) {
+      const zone = zones[name];
+      if (x >= window.innerWidth * zone[0] && x < window.innerWidth * zone[1]) return name;
+    }
+    return null;
+  }
+
+  function stickFor(id) {
+    for (const name of Object.keys(touchSticks)) {
+      if (touchSticks[name].id === id) return name;
+    }
+    return null;
+  }
+
+  const clampStick = (v) => Math.max(-1, Math.min(1, v));
+
+  function resetStick(name) {
+    const stick = touchSticks[name];
+    stick.id = null;
+    stick.x = 0;
+    stick.y = 0;
+    hideStick(name);
+  }
+
+  function installSticks() {
+    // Only real thumbs: a mouse dragged across the screen is not a stick.
+    window.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "touch" || onControl(e)) return;
+      const name = stickAt(e.clientX, e.clientY);
+      if (!name) return;
+      const stick = touchSticks[name];
+      if (stick.id !== null) return; // one thumb per stick
+      if (e.preventDefault) e.preventDefault();
+      stick.id = e.pointerId;
+      stick.cx = e.clientX;
+      stick.cy = e.clientY;
+      showStick(name, e.clientX, e.clientY);
+    });
+    window.addEventListener("pointermove", (e) => {
+      const name = stickFor(e.pointerId);
+      if (!name) return;
+      const stick = touchSticks[name];
+      stick.x = clampStick((e.clientX - stick.cx) / STICK_RADIUS);
+      stick.y = clampStick((e.clientY - stick.cy) / STICK_RADIUS);
+      moveStick(name);
+    });
+    const lift = (e) => {
+      const name = stickFor(e.pointerId);
+      if (name) resetStick(name);
+    };
+    window.addEventListener("pointerup", lift);
+    window.addEventListener("pointercancel", lift);
+  }
+
+  function stickHeld(name) {
+    if (name === "move" || name === "aim") {
+      const stick = touchSticks[name];
+      return Math.hypot(stick.x, stick.y) > deadzone();
+    }
+    const spec = TOUCH_STICKS[name];
+    if (!spec) return false;
+    return touchSticks[spec[0]][spec[1]] * spec[2] > deadzone();
+  }
+
   // Run once, on the first update: by then config/controls.js has loaded (it
   // is documented to stand in front of this file). A declared scheme also
   // owns the screen — no browser scrolling, zooming or text selection over
@@ -241,6 +337,7 @@ const Input = (function () {
       const s = schemeName();
       if (s === "one-button") installOneButton();
       if (s === "swipe-tap") installSwipeTap();
+      if (stickZones()) installSticks();
     }
     if (!bodyOwned && schemeName() && document.body) {
       bodyOwned = true;
@@ -275,6 +372,7 @@ const Input = (function () {
     }
     if (kind === "touch") return touchDown.has(name);
     if (kind === "swipe") return gestureNow.has(name);
+    if (kind === "stick") return stickHeld(name);
     if (kind === "pad") return padDown(name.toLowerCase(), player);
     return false;
   }
@@ -337,10 +435,26 @@ const Input = (function () {
     return 0;
   }
 
+  // The same reading from the virtual stick, when a stick: binding names it.
+  // The screen is player 1's, like the drawn buttons.
+  function touchStickValue(negative, positive, player) {
+    if ((player || 1) !== 1) return 0;
+    for (const [action, way] of [[positive, 1], [negative, -1]]) {
+      for (const binding of bindingsFor(player, action)) {
+        if (!binding.startsWith("stick:")) continue;
+        const spec = TOUCH_STICKS[binding.slice(6)];
+        if (!spec) continue;
+        const value = touchSticks[spec[0]][spec[1]] * spec[2] * way;
+        return Math.abs(value) > deadzone() ? value : 0;
+      }
+    }
+    return 0;
+  }
+
   // -1 .. 1. A stick gives everything in between; keys, buttons and thumbs
-  // give the ends.
+  // on drawn buttons give the ends.
   function axis(negative, positive, player) {
-    const analog = stickValue(negative, positive, player);
+    const analog = stickValue(negative, positive, player) || touchStickValue(negative, positive, player);
     if (analog !== 0) return analog;
     return (held(positive, player) ? 1 : 0) - (held(negative, player) ? 1 : 0);
   }
@@ -391,6 +505,49 @@ const Input = (function () {
     return el;
   }
 
+  // The drawn side of a virtual stick: a resting ring and a knob, hidden
+  // until a thumb lands, following it while it is down. Only ever built in a
+  // browser with a coarse pointer — everywhere else these are no-ops and the
+  // stick is state alone.
+  let stickParts = null;
+
+  function buildStickParts() {
+    const base = document.createElement("div");
+    base.style.cssText = "position:fixed;display:none;width:120px;height:120px;border-radius:50%;"
+      + "box-sizing:border-box;border:2px solid rgba(255,255,255,.5);background:" + REST + ";"
+      + "pointer-events:none;z-index:9999;";
+    const knob = document.createElement("div");
+    knob.style.cssText = "position:absolute;left:30px;top:30px;width:56px;height:56px;border-radius:50%;"
+      + "box-sizing:border-box;border:2px solid rgba(255,255,255,.8);background:" + PUSHED + ";";
+    base.append(knob);
+    document.body.append(base);
+    return { base, knob };
+  }
+
+  function showStick(name, x, y) {
+    const part = stickParts && stickParts[name];
+    if (!part) return;
+    part.base.style.left = (x - 60) + "px";
+    part.base.style.top = (y - 60) + "px";
+    part.base.style.display = "block";
+    part.knob.style.transform = "";
+  }
+
+  function moveStick(name) {
+    const part = stickParts && stickParts[name];
+    if (!part) return;
+    const stick = touchSticks[name];
+    // 32px of knob travel keeps the knob inside the ring at full tilt.
+    part.knob.style.transform = "translate(" + (stick.x * 32) + "px," + (stick.y * 32) + "px)";
+  }
+
+  function hideStick(name) {
+    const part = stickParts && stickParts[name];
+    if (!part) return;
+    part.base.style.display = "none";
+    part.knob.style.transform = "";
+  }
+
   // Built once, on the first frame, and only where there is a touchscreen to
   // build it for — a laptop with a mouse gets nothing drawn over the game.
   function buildTouchControls() {
@@ -400,8 +557,9 @@ const Input = (function () {
     if (s === "one-button" || s === "swipe-tap") return;
     const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if (!coarse || !document.body) return;
+    const zones = stickZones();
     const names = touchNames();
-    if (!names.length) return;
+    if (!names.length && !zones) return;
 
     overlay = document.createElement("div");
     overlay.id = "touch-controls";
@@ -411,7 +569,9 @@ const Input = (function () {
       + "display:flex;align-items:flex-end;justify-content:space-between;"
       + "padding:0 18px 18px;pointer-events:none;";
 
-    const arrows = names.filter((n) => ARROWS[n]);
+    // A stick scheme's thumbside is the stick, so every touch: name is a
+    // round button; the old shape keeps its arrow pad.
+    const arrows = zones ? [] : names.filter((n) => ARROWS[n]);
     const dpad = document.createElement("div");
     dpad.style.cssText = "display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:4px;";
     const cells = { up: 2, left: 4, right: 6, down: 8 };
@@ -423,10 +583,15 @@ const Input = (function () {
 
     const buttons = document.createElement("div");
     buttons.style.cssText = "display:flex;gap:14px;align-items:flex-end;";
-    for (const name of names.filter((n) => !ARROWS[n])) buttons.append(padButton(name, name, 84));
+    const round = zones ? names : names.filter((n) => !ARROWS[n]);
+    for (const name of round) buttons.append(padButton(name, ARROWS[name] || name, 84));
 
     overlay.append(arrows.length ? dpad : document.createElement("div"), buttons);
     document.body.append(overlay);
+    if (zones) {
+      stickParts = {};
+      for (const name of Object.keys(zones)) stickParts[name] = buildStickParts();
+    }
     // A thumb lifted anywhere at all releases everything: a pointerup that
     // lands outside the button never reaches it.
     window.addEventListener("pointerup", () => touchDown.clear());
