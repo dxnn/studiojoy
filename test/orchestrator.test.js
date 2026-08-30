@@ -482,7 +482,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /Input\.update\(\)/);
   assert.match(system, /Input\.axis\("left", "right"\)/);
   assert.match(system, /config\/controls\.js/);
-  assert.match(system, /"\+ Controls"/);
+  assert.match(system, /SCHEME/, 'the note teaches the control scheme declaration');
   assert.ok(!system.includes('rather than writing key handling'), 'no fallback when held');
   assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /"\+ Make a sound"/);

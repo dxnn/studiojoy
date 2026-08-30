@@ -18,10 +18,15 @@
 //
 //   if (Input.held("left", 2)) turnOther(-1);
 //
+// config/controls.js may declare SCHEME — the shape of the game on a touch
+// screen: "one-button" means a tap or a click anywhere is the button (bind
+// touch:screen). With no SCHEME, touch: bindings are drawn as an arrow pad
+// and round buttons.
+//
 // Use this instead of your own keydown listeners — two input systems fight
 // over the same keys. index.html must load config/controls.js and then
-// studio/input.js, in front of the game's own scripts; the studio's
-// "+ Controls" button, above the file list, adds or repairs those tags.
+// studio/input.js, in front of the game's own scripts, or these calls run
+// against nothing.
 //
 // Those calls — update, held, pressed, released, axis, pads — are the whole
 // of it. There is no setup call and no listener to add: loading the file is
@@ -91,6 +96,24 @@ const Input = (function () {
     return 0.35;
   }
 
+  // The declared control scheme, or "" for the old shape — an arrow pad and
+  // round buttons drawn from the touch: bindings. An unknown name gets the
+  // old shape too, said once, rather than a game with no controls at all.
+  const SCHEMES = ["one-button"];
+  let warnedScheme = false;
+  function schemeName() {
+    let name = "";
+    try {
+      if (typeof SCHEME === "string") name = SCHEME;
+    } catch (e) { /* config/controls.js is not loaded */ }
+    if (!name || SCHEMES.indexOf(name) !== -1) return name || "";
+    if (!warnedScheme) {
+      warnedScheme = true;
+      console.warn('[input] unknown SCHEME "' + name + '" — drawing the plain touch controls');
+    }
+    return "";
+  }
+
   function bindingsFor(player, action) {
     const who = bindings()["player" + (player || 1)];
     return who ? listOf(who[action]) : [];
@@ -144,7 +167,58 @@ const Input = (function () {
 
   // A key held while the tab loses focus never sends its keyup, and would
   // otherwise stay down for the rest of the game.
-  window.addEventListener("blur", () => { keysDown.clear(); touchDown.clear(); });
+  window.addEventListener("blur", () => {
+    keysDown.clear();
+    touchDown.clear();
+    screenPointers.clear();
+  });
+
+  /* Control scheme surfaces ------------------------------------------------ */
+
+  // A press on the game's own buttons and boxes belongs to them, never to a
+  // scheme's whole-screen surface.
+  function onControl(e) {
+    const el = e.target;
+    return !!(el && el.closest && el.closest("button,a,input,textarea,select,label"));
+  }
+
+  // one-button: the whole screen is the button — a tap or a click anywhere,
+  // reaching the bindings as touch:screen. Held while any pointer is down.
+  const screenPointers = new Set();
+  function installOneButton() {
+    window.addEventListener("pointerdown", (e) => {
+      if (onControl(e)) return;
+      if (e.preventDefault) e.preventDefault();
+      screenPointers.add(e.pointerId);
+      touchDown.add("screen");
+    });
+    const lift = (e) => {
+      screenPointers.delete(e.pointerId);
+      if (screenPointers.size === 0) touchDown.delete("screen");
+    };
+    window.addEventListener("pointerup", lift);
+    window.addEventListener("pointercancel", lift);
+  }
+
+  // Run once, on the first update: by then config/controls.js has loaded (it
+  // is documented to stand in front of this file). A declared scheme also
+  // owns the screen — no browser scrolling, zooming or text selection over
+  // the game — waiting for <body> the way the overlay does.
+  let surfacesInstalled = false;
+  let bodyOwned = false;
+  function prepare() {
+    if (!surfacesInstalled) {
+      surfacesInstalled = true;
+      if (schemeName() === "one-button") installOneButton();
+    }
+    if (!bodyOwned && schemeName() && document.body) {
+      bodyOwned = true;
+      const style = document.body.style;
+      style.touchAction = "none";
+      style.userSelect = "none";
+      style.webkitUserSelect = "none";
+    }
+  }
 
   function padDown(name, player) {
     const pad = pads[(player || 1) - 1];
@@ -185,6 +259,7 @@ const Input = (function () {
 
   function update() {
     pads = readPads();
+    prepare();
     if (!overlay) buildTouchControls();
     last = now;
     now = new Set();
@@ -284,6 +359,8 @@ const Input = (function () {
   // build it for — a laptop with a mouse gets nothing drawn over the game.
   function buildTouchControls() {
     if (overlay) return;
+    // one-button draws nothing: the screen itself is the button.
+    if (schemeName() === "one-button") return;
     const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if (!coarse || !document.body) return;
     const names = touchNames();
