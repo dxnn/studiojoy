@@ -89,9 +89,6 @@ export const S = {
   drawPrefs: {
     tool: 'pencil', brush: 1, slot: 0, ghost: false,
   },
-  // What the studio offers and what this game already has, so the Controls
-  // button can say "update", or say nothing at all when there is nothing to do.
-  libraries: { studio: null, game: {} },
   // The open project's colours, read from its own config/look.js so that
   // changing one is a change to the game with a version behind it, rather than
   // a setting that lives in whichever browser happened to make it.
@@ -542,7 +539,6 @@ export async function openProject(slug, { view = null } = {}) {
     S.palette = null;
     S.live = new Map();
     S.receipt = null;
-    S.libraries = { studio: S.libraries.studio, game: {} };
     render();
     return;
   }
@@ -575,10 +571,6 @@ export async function openProject(slug, { view = null } = {}) {
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
   render();
-  if (!isChat()) {
-    await loadLibraries();
-    render();
-  }
   // The rail keeps whichever tab you were on unless a URL says otherwise, so
   // arriving at a game with Versions already open has to fetch now. Waiting
   // for the next click on the tab is what made the list look empty until you
@@ -765,12 +757,7 @@ function onEvent(name, data) {
 
     case 'files.changed': {
       if (!mine(data)) return;
-      const refreshed = refreshFiles();
-      // index.html or the manifest changing can change whether Update is
-      // offered — a helper may have written the page without the tags.
-      if (data.paths.some((p) => p === 'index.html' || p === LIBRARY_MANIFEST)) {
-        refreshed.then(loadLibraries).then(render);
-      }
+      refreshFiles();
       // An agent just rewrote the game; show the new version.
       S.previewNonce += 1;
       // Those problems belonged to the version that was just replaced. The
@@ -1061,143 +1048,18 @@ export async function createFile(path) {
 // A library is copied into a game, under studio/, rather than shared from one
 // place. That is what keeps each game's repository complete: clone it, publish
 // it, hand it to somebody, and it still runs, which neither a symlink nor a
-// submodule survives. What it costs is drift, and the manifest is what makes
-// drift visible — studio/studio.json records the version this game has, so the
-// studio can say when one is behind instead of the two quietly diverging.
+// submodule survives.
+//
+// A game gets the library once, when it is created (server/files/library.js),
+// and keeps what it was born with; studio/studio.json records which version
+// that was. There is no update from in here. Bringing an older game forward is
+// a sweep across the game repositories from a machine that has them all —
+// deploy/sync-games.sh — where the change can be read and undone, rather than
+// a button that rewrites somebody's game in one click and asks nothing.
 //
 // The rule that makes it a library and not just a folder is in
 // server/files/paths.js: a helper reads it and cannot write it.
 export const LIBRARY_DIR = 'studio';
-const LIBRARY_MANIFEST = `${LIBRARY_DIR}/studio.json`;
-const LIBRARY_INDEX = '/studio-lib/index.json';
-
-const libraryFile = (name, file) => `/studio-lib/${name}/${file}`;
-
-// In front of the game's own scripts, so anything reading a library's globals on
-// its first line finds them.
-function withScriptTags(markup, srcs) {
-  const tags = `${srcs.map((src) => `<script src="${src}"></script>`).join('\n')}\n`;
-  const script = markup.search(/<script\b/i);
-  if (script !== -1) return markup.slice(0, script) + tags + markup.slice(script);
-  const body = markup.search(/<\/body>/i);
-  if (body !== -1) return markup.slice(0, body) + tags + markup.slice(body);
-  return `${markup}\n${tags}`;
-}
-
-async function studioLibraries() {
-  const res = await send(LIBRARY_INDEX);
-  if (!res.ok) return null;
-  return (await res.json()).libraries ?? null;
-}
-
-// What this game has, by library name. Absent or unreadable reads as "none",
-// which is the same thing as far as installing goes.
-async function gameLibraries() {
-  if (!S.files.some((f) => f.path === LIBRARY_MANIFEST)) return {};
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(LIBRARY_MANIFEST)}`);
-  if (!res.ok) return {};
-  try {
-    const held = JSON.parse(await res.text());
-    return held && typeof held === 'object' ? held : {};
-  } catch {
-    return {};
-  }
-}
-
-// A library the game holds whose script tags index.html is missing: installed
-// but never loaded, which plays as a game where the controls do nothing.
-// Offering Update covers it — installLibrary re-adds missing tags, and
-// rewriting identical files commits nothing.
-async function untaggedLibraries(studio, game) {
-  const names = Object.keys(game).filter((name) => studio?.[name]?.scripts?.length);
-  if (!names.length || !S.files.some((f) => f.path === 'index.html')) return {};
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
-  if (!res.ok) return {};
-  const markup = await res.text();
-  const untagged = {};
-  for (const name of names) {
-    if (studio[name].scripts.some((src) => !markup.includes(src))) untagged[name] = true;
-  }
-  return untagged;
-}
-
-// No dialog in front of this. An upload asks first because it has a decision in
-// it — which folder — and files it is about to replace. This has neither: the
-// paths come from the manifest, a game's own seeded files are never replaced,
-// and every write is a commit that Versions can undo.
-async function loadLibraries() {
-  const studio = await studioLibraries();
-  const game = await gameLibraries();
-  S.libraries = { studio, game, untagged: await untaggedLibraries(studio, game) };
-}
-
-// null when there is nothing to offer: installed, current, and loaded by the
-// page, so no button.
-function libraryOffer(name) {
-  const library = S.libraries.studio?.[name];
-  if (!library) return null;
-  const held = S.libraries.game?.[name];
-  if (held === undefined) return { library, label: `+ ${library.title}`, updating: false };
-  if (held !== library.version) return { library, label: `Update ${library.title.toLowerCase()}`, updating: true };
-  if (S.libraries.untagged?.[name]) return { library, label: `Update ${library.title.toLowerCase()}`, updating: true };
-  return null;
-}
-
-async function installLibrary(name) {
-  const libraries = await studioLibraries();
-  const library = libraries?.[name];
-  if (!library) { say('Could not read the studio library.', true); return; }
-
-  const held = await gameLibraries();
-  const updating = held[name] !== undefined && held[name] !== library.version;
-  const writes = [];
-
-  // The library's own files, always written: this is the part worth keeping
-  // current, and a helper cannot have changed it.
-  for (const file of library.files) {
-    const res = await send(libraryFile(name, file));
-    if (!res.ok) { say(`Could not read ${file} from the studio library.`, true); return; }
-    writes.push({ path: `${LIBRARY_DIR}/${file}`, body: await res.text() });
-  }
-
-  // The game's own companion files, written once. Replacing config/controls.js
-  // would throw away buttons somebody chose.
-  const kept = [];
-  for (const seed of library.seeds ?? []) {
-    if (S.files.some((f) => f.path === seed.to)) { kept.push(seed.to); continue; }
-    const res = await send(seed.from);
-    if (!res.ok) { say(`Could not read ${seed.to} from the studio library.`, true); return; }
-    writes.push({ path: seed.to, body: await res.text() });
-  }
-
-  writes.push({ path: LIBRARY_MANIFEST, body: `${JSON.stringify({ ...held, [name]: library.version }, null, 2)}\n` });
-
-  if (S.files.some((f) => f.path === 'index.html') && library.scripts?.length) {
-    const res = await send(`/api/projects/${S.slug}/files/${encodePath('index.html')}`);
-    const markup = res.ok ? await res.text() : null;
-    const missing = (library.scripts ?? []).filter((src) => !markup?.includes(src));
-    if (markup !== null && missing.length) {
-      writes.push({ path: 'index.html', body: withScriptTags(markup, missing) });
-    }
-  }
-
-  say(updating ? `Updating ${library.title}…` : `Setting up ${library.title}…`);
-  const { done, failure } = await writeFiles(writes);
-  if (failure) {
-    say(done ? `${failure} ${done} of ${writes.length} got through.` : failure, true);
-    return;
-  }
-  say(`${library.title} ${updating ? 'updated' : 'is ready'}: version ${library.version} in ${LIBRARY_DIR}/.`
-    + (kept.length ? ` Your own ${kept.join(', ')} was left alone.` : '')
-    + ' Ask a helper to use it.');
-  // A banner is easy to miss, and with the files already in place nothing else
-  // on screen moves — which makes a button that did four commits look like a
-  // button that did nothing. The seeded file is the visible proof and the part a
-  // person actually wants to change.
-  const landing = library.seeds?.[0]?.to ?? LIBRARY_MANIFEST;
-  await loadLibraries();
-  await openFile(landing);
-}
 
 /* Drawing ----------------------------------------------------------------- */
 
@@ -2389,10 +2251,6 @@ function closedDirs() {
 const dirOf = (p) => (p.includes('/') ? p.slice(0, p.indexOf('/')) : null);
 
 function renderFilesTab() {
-  // One offer per library the studio has and this game lacks or holds stale.
-  const offers = Object.keys(S.libraries.studio ?? {}).sort()
-    .map((name) => ({ name, offer: libraryOffer(name) }))
-    .filter((o) => o.offer);
   const fileRow = (f, top) => h('div', {
     class: `file${top ? ' inset' : ''}${S.open?.path === f.path ? ' open' : ''}${f.unreachable ? ' unreachable' : ''}${f.library ? ' library' : ''}`,
     // The whole row opens the file, not just the name on it. The row is what
@@ -2624,16 +2482,6 @@ function renderFilesTab() {
         // in the pane.
         onclick: () => createSound(),
       }),
-      // Gone once the game has it and it is current. It used to sit there with
-      // nothing to do, which reads as a button that does not work.
-      ...offers.map(({ name, offer }) => h('button', {
-        class: 'quiet tiny', text: offer.label,
-        title: offer.updating
-          ? `${offer.library.what} This game has an older one.`
-          : offer.library.what,
-        disabled: S.project.archived,
-        onclick: () => installLibrary(name),
-      })),
       h('div', { class: 'spacer' }),
       S.pinned.size
         ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })

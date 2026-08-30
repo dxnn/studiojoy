@@ -278,9 +278,13 @@ itself: each held library's top comment block rides the preamble as its **API
 note**, read from the game's own copy so it matches the held version — adding
 a library needs no orchestrator edit (spec.md §4). Every game is born
 holding it — creation scaffolds the library in one commit
-(`server/files/library.js`) — so `+ Controls` only ever means an update: an
-older version, or an `index.html` missing the script tags. It disappears once
-the game is current and loaded. The suite's games are born empty on purpose:
+(`server/files/library.js`) — and keeps the version it was born with. There is
+no `+ Controls`/`+ Sounds`/`+ Sprites` any more and no update path from inside
+the studio: bringing an older game forward is a sweep across the game repos
+from a machine holding them all (`deploy/sync-games.sh`), where the change can
+be read before it lands and undone after. The preamble names the script tags
+instead, because writing `index.html` is the one part a helper does itself.
+The suite's games are born empty on purpose:
 `setup()` points `publicDir` at a fixture with no libraries, and one test in
 `api-projects.test.js` covers the real scaffold. spec.md §4 has the
 argument. The **input module** is the first library: one call,
@@ -317,8 +321,8 @@ apart on the first rename; spec.md §6 has the argument. Browser-checked end to
 end: made, changed, saved, closed, reopened with the slider where it was left,
 and one commit each way.
 
-Browser-checked end to end: three commits from `+ Controls` with the tags in
-front of the game's own script, a real `.wav` and a real 16×16 PNG on disk,
+Browser-checked end to end, back when the install button existed: three commits
+with the tags in front of the game's own script, a real `.wav` and a real 16×16 PNG on disk,
 `held`/`pressed`/`axis` and player two on the games origin, `pressed` true for
 exactly one frame, and the touch overlay appearing on a coarse pointer and
 driving the game. Not checked with a real controller — no hardware here; the

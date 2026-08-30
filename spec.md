@@ -679,8 +679,8 @@ any other file, and cloned with the repository. `studio/studio.json` is its
 
 The **sound player** (`studio/sound.js`) is the second library, and the one
 that proved the shape: it needed no orchestrator edit — its API note is its
-file header — only the file, an `index.json` entry, and the Files tab's offer
-buttons going generic (`+ Sounds` beside `+ Controls`). `Sound.play("laser")`
+file header — only the file and an `index.json` entry, which is still all a
+fourth library would need. `Sound.play("laser")`
 plays `assets/sounds/laser.wav` — the files the sound editor writes — with a pooled
 element per shot, so rapid fire overlaps instead of dropping or cutting
 itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
@@ -733,14 +733,25 @@ sit on its own version — and the manifest is what makes drift visible instead 
 silent. **Every game is born holding the library**: creation scaffolds it
 server-side (`server/files/library.js` reads `public/studio-lib/index.json`,
 writes the files under `studio/`, seeds the game's companions, records the
-versions) in one commit right after `init`. `+ Controls` is the same install
-run from the browser, kept for the games that predate this and as the update
-path: it says **Update controls** when the game holds an older version — or
-when `index.html` exists without the library's `<script>` tags, which is a game
-where the controls silently do nothing — and **is not there at all** once the
-game is current and loaded: it used to sit with nothing to do, which reads as a
-button that does not work. A new game has no `index.html` to tag, so the tags
-are the page-writer's job, and the agent preamble says so in as many words.
+versions) in one commit right after `init`. That is the only install there is.
+
+**A game keeps the version it was born with.** There was a button per library
+above the file list — `+ Controls`, `+ Sounds`, `+ Sprites` — that installed
+into an older game and updated one holding a stale copy, along with the
+machinery to notice a game whose `index.html` had lost the tags. All of it is
+gone: about 150 lines whose entire subject was games made before the current
+shape. Two things replace it, and both are better. Bringing a library forward
+across games is a sweep over the game repositories from a machine holding them
+all (`deploy/sync-games.sh`), where the diff is readable before it lands and
+revertable after — rather than a button that rewrote somebody's game in one
+click and asked nothing. And the `<script>` tags, which a new game has no
+`index.html` to receive anyway, are named in the agent preamble as the
+page-writer's job.
+
+The cost is stated rather than solved: a bug fixed in `studio/input.js` today
+reaches only games made after today, until somebody sweeps. That is the same
+bargain as copying the library in the first place, and the manifest is what
+makes it answerable — `studio/studio.json` says what each game holds.
 
 Two rules make it a library rather than a folder, and both are load-bearing:
 
@@ -760,9 +771,9 @@ Two rules make it a library rather than a folder, and both are load-bearing:
   `studio/<name>.js` is reproduced in the preamble for each library the game's
   manifest holds — read from the *game's own copy*, so the note matches the
   version the game has, and capped so a note stays a note. Adding a library to
-  the studio teaches every helper about it with no orchestrator edit; a game
-  that does not hold the input library gets one sentence pointing at
-  `+ Controls` instead of the note.
+  the studio teaches every helper about it with no orchestrator edit. A game
+  that holds no library gets no note and nothing pointed at: there is nothing
+  to add from in here.
 - **A note closes its surface.** It says its calls are the whole of it, and
   names the things the library deliberately lacks — no init, no unlock, no
   registry. Observed in a real migration trace: what an agent porting
@@ -1212,7 +1223,7 @@ kept in step, and `test/orchestrator.test.js` asserts each one is present:
 | what an agent cannot do | what it is told to say |
 |---|---|
 | make or change a picture or a sound | ask for the path by name, and name the button: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
-| add the *input module* | `+ Controls`, and meanwhile call `Input.held` rather than reading keys |
+| change a *studio library* | call it, say what needs changing, and load it with its `<script>` tag when writing `index.html` |
 
 One exception is worth stating, because it is easy to get wrong in both
 directions: `.svg` is in the text extensions, so `write_file` and `patch_file`

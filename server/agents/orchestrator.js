@@ -148,6 +148,9 @@ function studioPreamble({
       `${LIBRARY_DIR}/ is the studio's library, copied into this game so it runs anywhere, and it is the one`,
       'part of the tree you cannot write: your file tools refuse it. Read it, call it, and say so if it needs',
       `to change. ${LIBRARY_MANIFEST} says which libraries this game has and at what version.`,
+      `Each one is a plain script and needs its tag in index.html — <script src="${LIBRARY_DIR}/input.js"></script>`,
+      "and so on for the others — before the game's own scripts, or its calls run against nothing. If you write",
+      'index.html, that is yours to get right.',
     );
     // The engine's contract, never its source: each held library documents
     // itself with the note at the top of its file, read from the game's own
@@ -155,13 +158,6 @@ function studioPreamble({
     // library to the studio teaches every helper about it with no edit here.
     for (const { file, note } of libraryNotes) {
       lines.push('', `How to use ${file} — the note from the top of the file:`, note);
-    }
-    if (!libraryNotes.some((n) => n.file === `${LIBRARY_DIR}/input.js`)) {
-      lines.push(
-        '',
-        'If the game wants a controller or a touchscreen, say so rather than writing key handling from',
-        'scratch: the person can add the studio\'s input library with "+ Controls", above the file list.',
-      );
     }
     // Only while the switch is on: a helper told about routes that answer 404
     // would happily build a broken board (spec.md §6).

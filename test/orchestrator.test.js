@@ -558,13 +558,14 @@ test('a switched-off scoreboard leaves the preamble', async (t) => {
   assert.ok(!system.includes('/_scores/'), 'the scoreboard is not named');
   assert.ok(!system.includes('scoreboard'), 'not even in passing');
   // The paragraphs around it are intact.
-  assert.match(system, /"\+ Controls"/);
+  assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /BRIEF\.md — the file map/);
 });
 
-// The note assembly's other half: no held library, no note — just the one
-// sentence pointing at the button that adds it.
-test('a game without the input library is pointed at + Controls', async (t) => {
+// The note assembly's other half: no held library, no note. There is nothing
+// to point at either — a game is born holding the library and there is no way
+// to add one from the studio, so the preamble stops at the folder itself.
+test('a game without the input library gets no note about it', async (t) => {
   const llm = createFakeLlm([says('Noted.')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -574,9 +575,11 @@ test('a game without the input library is pointed at + Controls', async (t) => {
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
   const { system } = llm.lastCall();
-  assert.match(system, /rather than writing key handling/);
-  assert.match(system, /"\+ Controls"/);
   assert.ok(!system.includes('How to use studio/'), 'no note without a library');
+  assert.ok(!system.includes('+ Controls'), 'and no button to point at');
+  // The tags are the one thing a helper has to get right on its own, so they
+  // are said whether or not this game holds anything yet.
+  assert.match(system, /<script src="studio\/input\.js"><\/script>/);
 });
 
 // The brief is the one project file that goes into the system prompt whole, so
