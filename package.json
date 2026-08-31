@@ -11,7 +11,8 @@
     "backup": "node --disable-warning=ExperimentalWarning bin/backup.js",
     "deluser": "node --disable-warning=ExperimentalWarning bin/deluser.js",
     "restoreuser": "node --disable-warning=ExperimentalWarning bin/restoreuser.js",
-    "smoke": "node --disable-warning=ExperimentalWarning --use-env-proxy bin/smoke.js"
+    "smoke": "node --disable-warning=ExperimentalWarning --use-env-proxy bin/smoke.js",
+    "sweep": "node --disable-warning=ExperimentalWarning bin/sweep.js"
   },
   "engines": {
     "node": ">=24"

@@ -33,6 +33,10 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
+- `npm run sweep` — bring every game's studio library up to date: missing
+  libraries added, held ones raised, the game's own files never touched.
+  One studio-authored commit per game; archived games skipped. Run it on
+  the machine holding the games, ideally while the studio is quiet.
 
 Ports default to 8100 (studio) and 8101 (games). 8090 is deliberately left
 alone: `new-y` defaults to it and is expected to be running at the same time.
@@ -388,12 +392,15 @@ itself: each held library's top comment block rides the preamble as its **API
 note**, read from the game's own copy so it matches the held version — adding
 a library needs no orchestrator edit (spec.md §4). Every game is born
 holding it — creation scaffolds the library in one commit
-(`server/files/library.js`) — and keeps the version it was born with. There is
-no `+ Controls`/`+ Sounds`/`+ Sprites` any more and no update path from inside
-the studio: bringing an older game forward is a sweep across the game repos
-from a machine holding them all (`deploy/sync-games.sh`), where the change can
-be read before it lands and undone after. The preamble names the script tags
-instead, because writing `index.html` is the one part a helper does itself.
+(`server/files/library.js`) — and is kept current by the **sweep**:
+`npm run sweep` on the machine holding the games adds what each non-archived
+game lacks and raises what it holds, one studio-authored commit per game,
+never touching seeds or anything else of the game's own. ⚠️ Safe only under
+the **compatibility law** (spec.md §4): a library version N+1 must run every
+game that ran N — break it and the fix is by hand, game by game. There is no
+update path from inside the studio, and no `+ Controls`-style buttons; the
+preamble names the script tags instead, because writing `index.html` is the
+one part a helper does itself.
 The suite's games are born empty on purpose:
 `setup()` points `publicDir` at a fixture with no libraries, and one test in
 `api-projects.test.js` covers the real scaffold. spec.md §4 has the
@@ -466,8 +473,8 @@ to wherever the thumb lands; a flick is surfaced for exactly one update, so
 `pressed()` sees it once and `held()` never does; one-button makes the whole
 screen the button; and every preset binds start into its primary touch
 control, which closed the old no-Start-on-a-tablet gap. A `controls.js` with
-no `SCHEME` behaves exactly as before, so the version bump and a
-`deploy/sync-games.sh` sweep are safe. The default seed is the stick-buttons
+no `SCHEME` behaves exactly as before, so the version bump and the
+`npm run sweep` are safe. The default seed is the stick-buttons
 preset; the other three are `controls-<scheme>.js` beside it, for templates
 to carry — nothing in the studio picks a scheme yet. ⚠️ The input header is
 the API note and sits at ~1.97 KB against the orchestrator's 2 KB cap:
