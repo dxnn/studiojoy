@@ -726,6 +726,11 @@ export function createOrchestrator({
     const emit = (event, data = {}) => broker.broadcast(event, {
       project_slug: row.slug, chat_id: chat.id, agent_id: row.agent_id, ...data,
     });
+    // Whether a browser is holding a live entry for this fire: set by the
+    // start event, cleared by whichever end event answers it. ⚠️ The catch
+    // below reads it, and an error end sent when nothing is live *creates* a
+    // live entry the client will never clear (spec.md §9).
+    let live = false;
 
     try {
       // Billed to whoever asked: the newest human message in this chat is
@@ -787,6 +792,7 @@ export function createOrchestrator({
         : null;
 
       emit('agent.stream.start');
+      live = true;
 
       const messages = [...context.messages];
       // Everything the loop appends is counted, so a fire cannot grow past
@@ -937,6 +943,7 @@ export function createOrchestrator({
         // Nothing said and nothing written: an error end and no message row,
         // same as before there was anything to salvage.
         emit('agent.stream.end', { error: true });
+        live = false;
         return;
       }
 
@@ -954,6 +961,7 @@ export function createOrchestrator({
       if (!replyText && changed.length === 0) {
         // Neither prose nor files: nothing worth a message row.
         emit('agent.stream.end');
+        live = false;
       } else {
         const now = new Date().toISOString();
         const messageId = tx(db, () => {
@@ -997,6 +1005,7 @@ export function createOrchestrator({
         const stored = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
         broker.broadcast('message.new', messagePublic(db, stored, row.slug));
         emit('agent.stream.end', { message_id: messageId });
+        live = false;
         if (commitSha) {
           broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
         }
@@ -1061,6 +1070,47 @@ export function createOrchestrator({
               : `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`,
           });
         }
+      } else if (!replyText && changed.length === 0) {
+        // Ended cleanly and produced nothing at all: no prose, no files, no
+        // limit reached. The end event has already taken the live entry away,
+        // so without this the row just vanishes and the person is left
+        // wondering whether they were heard.
+        postSystemMessage(db, broker, {
+          project,
+          chat,
+          agentId: agent.id,
+          body: `${row.agent_name} finished without saying anything. Ask again if you were expecting a reply.`,
+        });
+      }
+    } catch (err) {
+      // ⚠️ Nothing above this catches. fireAgent is called from a timer, and
+      // its caller can only print, so every unexpected fault used to end as a
+      // console line and a browser left saying "Thinking…" for ever: the start
+      // event had gone out and nothing was ever going to answer it. A git
+      // commit that cannot take the lock, a database that will not write, a
+      // full disk — none of them are the stream failing, so none of them
+      // reached the salvage path.
+      //
+      // The end event goes first because it is the part that cannot fail:
+      // broadcast swallows a dead socket, while the database is one of the
+      // things that plausibly just broke.
+      console.error('agent fire failed', err);
+      if (live) {
+        emit('agent.stream.end', { error: true });
+        live = false;
+      }
+      try {
+        postSystemMessage(db, broker, {
+          project,
+          chat,
+          agentId: row.agent_id,
+          body: `${row.agent_name} stopped: the studio ran into a problem. Anything already saved is kept.`,
+        });
+      } catch (second) {
+        // Said as plainly as it can be: the database is a candidate for what
+        // failed in the first place, and a throw here would be the fault
+        // taking the report with it.
+        console.error('could not report the failure', second);
       }
     } finally {
       firing.delete(row.id);

@@ -1091,6 +1091,56 @@ test('a failed stream still commits the files earlier turns wrote', async (t) =>
   );
 });
 
+// Not the stream failing — the studio failing. A git lock, a database that
+// will not write, a full disk: none of them reach the salvage path above, and
+// all of them used to end as a console line with the browser still saying
+// "Thinking…", because the start event had gone out and nothing answered it.
+test('a fault after the stream starts still ends the stream and says so', async (t) => {
+  quietErrors(t);
+  const llm = createFakeLlm([says('All done.')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  // The reply's own broadcast is the easiest thing to break from out here.
+  // Once only, and not the human's message, which the fire needs to happen.
+  const real = app.broker.broadcast.bind(app.broker);
+  let broken = false;
+  app.broker.broadcast = (event, data) => {
+    if (!broken && event === 'message.new' && data.agent_id !== null) {
+      broken = true;
+      throw new Error('boom');
+    }
+    return real(event, data);
+  };
+  t.after(() => { app.broker.broadcast = real; });
+
+  await send(app, 'go');
+  const ended = await stream.waitFor((e) => e.event === 'agent.stream.end');
+  assert.equal(ended.data.error, true);
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /ran into a problem/.test(e.data.body),
+  );
+});
+
+test('a reply that produces nothing at all says so', async (t) => {
+  // No prose, no files, no limit reached: the end event takes the live entry
+  // away, so without a word the row simply vanishes.
+  const { app } = await studio(t, { llm: createFakeLlm([says('')]) });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'go');
+  const ended = await stream.waitFor((e) => e.event === 'agent.stream.end');
+  assert.equal(ended.data.message_id, undefined);
+  assert.equal(ended.data.error, undefined);
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /without saying anything/.test(e.data.body),
+  );
+});
+
 test('an archived project never fires an agent', async (t) => {
   const llm = createFakeLlm([says('should not run')]);
   const { app } = await studio(t, { llm });

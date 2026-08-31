@@ -1734,7 +1734,10 @@ used to be a hard ten-minute ceiling, which is exactly how long a healthy
 big turn — a full reasoning trace plus several files — can stream, so it
 aborted real replies mid-flight. Between chunks the gap is sub-second, and
 the longest legitimate silence is prompt processing before the first token,
-seconds even on a full cache miss.
+seconds even on a full cache miss. It is re-armed by **bytes**, not by
+content, which is only safe because the stream carries no keep-alive frames —
+measured, since a single comment frame every few seconds would hold the guard
+open for ever (§14).
 
 Truncation is still detected, and now recovered from rather than only
 reported. A tool call cut off mid-arguments wrote **nothing** — the JSON never
@@ -1757,6 +1760,25 @@ ends as a bare `agent.stream.end {error: true}` with no message row — and
 when a row lands, the end event carries its id and no error flag, because
 the client treats an error after `message.new` as a fresh live entry that
 nothing would ever clear.
+
+⚠️ **A fault that is not the stream ends the fire the same way.** A fire is
+called from a timer and its caller can only print, so anything thrown between
+the start event and the end event — a git commit that cannot take the lock, a
+database that will not write, a full disk — used to end as a console line with
+the browser still saying "Thinking…" for ever: the start event had gone out
+and nothing was ever going to answer it. None of those are the stream failing,
+so none of them reached the salvage path above. A `catch` around the whole
+fire now emits `agent.stream.end {error: true}` — but only if a start event
+went out, since an error end with nothing live *creates* the ghost entry the
+paragraph above is about — and then posts a `'system'` banner. The end event
+goes first, because it is the part that cannot fail while the database is a
+candidate for what just broke.
+
+The other silence it closes: a fire that ends cleanly having produced no
+prose, no files and no limit — the model simply said nothing — used to emit a
+bare end event that took the live entry away and left no word behind. It gets
+a `'system'` banner too. Nothing an agent does should be able to remove the
+row without replacing it with a sentence.
 
 A long chain **sheds** its reasoning pile. DeepSeek re-attaches everything it
 has said in the current tool-call chain — reasoning included — to every
@@ -2056,6 +2078,34 @@ omit the parameter for on, send `'none'` for off.
 
 In streaming, `delta.reasoning_content` arrives interleaved and ahead of
 `delta.content`. `completion_tokens_details.reasoning_tokens` reports the cost.
+
+Re-measured on a *heavy* prompt on 2026-08-31 (`tmp/probe-keepalive.mjs`,
+`tmp/probe-thinking.mjs`), because the trivial-prompt numbers above turned out
+to describe noise rather than the case that matters:
+
+- **The stream carries no comment frames.** Zero non-`data:` lines in a
+  45-second, 1.3 MB stream, and the longest gap between reads was 439 ms. The
+  idle guard below therefore cannot be held open by a keep-alive, and a
+  two-minute silence really is a dead stream. This was a guess until now.
+- **Reasoning streams at ~90 tokens/s, ~320 bytes of SSE per token.** At the
+  65,536 ceiling that is **~12 minutes and ~20 MB** for one turn's trace, all
+  of which the studio re-broadcasts to every connected tab, one frame per
+  delta (§9).
+- **The whole allowance can go to the trace.** 4096 of 4096 completion tokens
+  were reasoning, no content, no tool call, `finish_reason: 'length'`. So a
+  helper that "thought too long and did nothing" has not timed out and has not
+  faulted: it reached the output ceiling while still thinking. The
+  `hitLength && changed.length === 0` banner (§8) is the only thing that says
+  so.
+- **Still no effort ladder.** On the heavy prompt: baseline 1316 reasoning
+  tokens, `'minimal'` 692, `'low'` 482, `'medium'` 3643, `'high'` 675 — one
+  sample each, and the spread between neighbours is larger than the trend, so
+  the per-agent boolean stands. `'none'` is a real zero.
+- **A reasoning budget parameter remains unmeasured**, not disproven.
+  `thinking: {budget_tokens}`, `max_reasoning_tokens` and
+  `reasoning_max_tokens` each produced a trace within run-to-run variance of
+  the baseline at n=1, and unknown parameters are ignored silently, so nothing
+  can be concluded either way from that.
 
 ### Tools
 
