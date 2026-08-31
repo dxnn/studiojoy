@@ -6,7 +6,7 @@
 //
 // With no email, it lists who is currently removed.
 import { openDb } from '../server/db.js';
-import { normalizeEmail } from '../server/auth.js';
+import { normalizeEmail, restoreAccount } from '../server/auth.js';
 
 const [email] = process.argv.slice(2);
 const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
@@ -46,7 +46,7 @@ if (user.deleted === 0) {
 }
 
 try {
-  db.prepare('UPDATE users SET deleted = 0 WHERE id = ?').run(user.id);
+  restoreAccount(db, user.id);
   console.log(`restored ${user.display_name} <${normalized}> — they can sign in again`);
 } catch (err) {
   console.error(err.message);

@@ -47,7 +47,7 @@ test('the first account is the admin, and the next one is not', async (t) => {
 // `two` is `studio` under the name the tests read better with.
 const two = studio;
 
-test('an admin adds somebody, renames them, and takes them out', async (t) => {
+test('an admin adds somebody and renames them', async (t) => {
   const { app } = await two(t);
   const made = await app.client.json('POST', '/api/admin/users', {
     body: { email: 'Sam@Example.com', display_name: 'Sam', password: 'hunter2', daily_tokens: 5000 },
@@ -67,11 +67,9 @@ test('an admin adds somebody, renames them, and takes them out', async (t) => {
   assert.equal(renamed.body.display_name, 'Samantha');
   assert.equal(renamed.body.daily_tokens, null);
 
-  const gone = await app.client.request('DELETE', `/api/admin/users/${made.body.id}`);
-  assert.equal(gone.status, 204);
-  await gone.text();
   const panel = await app.client.json('GET', '/api/admin/studio');
-  assert.deepEqual(panel.body.people.map((p) => p.display_name), ['Dann', 'Robin']);
+  assert.deepEqual(panel.body.people.map((p) => p.display_name), ['Dann', 'Robin', 'Samantha']);
+  // Taking somebody out is not in here at all — see remove-account.test.js.
 });
 
 test('a password an admin sets works, and ends the old sessions', async (t) => {
@@ -91,16 +89,13 @@ test('a password an admin sets works, and ends the old sessions', async (t) => {
   );
 });
 
-test('the studio keeps at least one admin, and nobody removes themselves', async (t) => {
+test('the studio keeps at least one admin', async (t) => {
   const { app, admin, robin } = await two(t);
   const demote = await app.client.json('PATCH', `/api/admin/users/${admin.id}`, {
     body: { admin: false },
   });
   assert.equal(demote.status, 409);
   assert.match(demote.body.error, /at least one admin/);
-
-  const self = await app.client.json('DELETE', `/api/admin/users/${admin.id}`);
-  assert.equal(self.status, 409);
 
   // With a second admin, standing down is allowed.
   await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { admin: true } });

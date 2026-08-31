@@ -89,8 +89,10 @@ DB_PATH=$HOME/apps/studio-data/db node bin/adduser.js you@example.com "Your Name
 Skip this entirely if you are moving an existing studio: accounts travel in
 the database, password hashes included.
 
-Taking somebody out is a soft delete — one bit and their sessions, nothing
-thrown away — so it has an undo:
+After the first account, adding people is easier from the admin panel in the
+browser. ⚠️ Taking somebody out is not there and never will be — it is a soft
+delete, one bit and their sessions with nothing thrown away, and it only
+happens here:
 
 ```sh
 DB_PATH=$HOME/apps/studio-data/db node bin/deluser.js them@example.com

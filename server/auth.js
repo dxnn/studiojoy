@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
+import { tx } from './db.js';
 
 // scrypt parameters from spec.md §11. Stored format carries them so an
 // existing hash keeps verifying if these are ever raised.
@@ -221,6 +222,37 @@ export const MIN_PASSWORD_CHARS = 6;
 export function setPassword(db, userId, password) {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
     .run(hashPassword(password), userId);
+}
+
+// ⚠️ The studio keeps at least one admin: a studio nobody can run is one
+// nobody can add an account to either, and there is no way back in. Asked by
+// the panel before it demotes somebody and by `deluser` before it takes them
+// out, and the count is of admins still in the studio — a removed one is not
+// one of them.
+export function isLastAdmin(db, userId) {
+  const row = db.prepare('SELECT admin FROM users WHERE id = ?').get(userId);
+  if (!row || row.admin !== 1) return false;
+  return db
+    .prepare('SELECT COUNT(*) AS c FROM users WHERE admin = 1 AND deleted = 0')
+    .get().c <= 1;
+}
+
+// ⚠️ Taking somebody out of the studio: one bit and their sessions, never a
+// DELETE (spec.md §3). Everything else on the row and everything referencing
+// it stays, which is what makes the undo below an undo. Reachable only from
+// `npm run deluser` — there is no route and no button.
+export function removeAccount(db, userId) {
+  return tx(db, () => {
+    const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes;
+    db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(userId);
+    return sessions;
+  });
+}
+
+// Their sessions are not given back — those went on the way out, so they sign
+// in again. Everything else was never taken.
+export function restoreAccount(db, userId) {
+  db.prepare('UPDATE users SET deleted = 0 WHERE id = ?').run(userId);
 }
 
 // The first account is the studio's admin: somebody has to be able to make the

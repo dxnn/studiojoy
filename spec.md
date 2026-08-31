@@ -50,8 +50,17 @@ A row here **is** studio access, and `deleted = 0` is what makes it one.
 `deleted = 1` and drops their sessions, and touches nothing else. Their
 messages, the games they author, their `project_authors` rows, their allowance
 and what they spent are all still there, so `npm run restoreuser -- <email>`
-clears the bit and gives back the same person. It is the one destructive thing
-an admin can click that has an undo.
+clears the bit and gives back the same person.
+
+⚠️ **And it is not something anybody can click.** There is no route and no
+button: `npm run deluser -- <email>` is the only way out, going through
+`removeAccount` in `server/auth.js`, and `restoreuser` the only way back.
+Adding an account is an everyday thing and belongs in the panel beside the
+names and the allowances. Taking one out is rare, is about a person rather
+than a setting, and a red button sitting next to Save and Password invites the
+press — so it costs a terminal. The panel's other refusals stay where they
+are: the studio still keeps at least one admin (`isLastAdmin`, asked by the
+panel before it demotes and by `deluser` before it removes).
 
 The bit is read on one side of a single line. **Access** minds it: the login
 lookup, `userForToken`, `GET /api/users`, the admin panel's list, resolving an
@@ -569,13 +578,18 @@ any account (§11).
 | GET | `/api/admin/studio` | — | the people, what each has spent today, and the studio-wide budget |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
 | PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `password` | change one |
-| DELETE | `/api/admin/users/:id` | — | take somebody out of the studio — a soft delete, undone by `npm run restoreuser` (§3) |
 | PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody |
 
 ⚠️ A password set here ends that person's sessions: a password changed because
-somebody else knew it has to end the somebody else's session too. Removing an
-account leaves their messages — a thread with holes in it is worse than a name
-nobody can sign in as — and refuses if they are the only author of a game.
+somebody else knew it has to end the somebody else's session too.
+
+⚠️ **There is no `DELETE /api/admin/users/:id`, and no Remove in the panel.**
+Taking somebody out of the studio is `npm run deluser -- <email>` and nothing
+else, undone with `npm run restoreuser` (§3, §11). Adding an account is an
+everyday thing and belongs here; removing one is rare and costs a terminal on
+purpose. Every route above refuses a person who is already out — the panel
+lists only the people still in the studio, and a `PATCH` naming a removed id
+is a 404.
 
 #### Chats
 
@@ -1807,11 +1821,16 @@ everybody else.
 - Constant-time login: an unknown email is still verified against a cached
   dummy hash so timing doesn't disclose existence.
 - Account creation: `npm run adduser -- <email> "<Display Name>"` prompts for
-  a password on stdin with echo off. `npm run deluser -- <email>` removes them
-  — `users.deleted = 1` plus their sessions, never a DELETE (§3) — and
-  `npm run restoreuser -- <email>` puts them back; with no email it lists who
-  is out. ⚠️ Both refuse to take out the last admin, the same wall the panel
-  keeps.
+  a password on stdin with echo off, and the admin panel does the same thing
+  from a browser.
+- ⚠️ Account **removal** is a terminal job and only a terminal job — no route,
+  no button. `npm run deluser -- <email>` sets `users.deleted = 1` and drops
+  their sessions, never a DELETE (§3); `npm run restoreuser -- <email>` puts
+  them back, and with no email it lists who is out. `deluser` refuses the last
+  admin, the same wall the panel keeps against demoting one. The asymmetry is
+  the point: adding somebody is an everyday thing, taking somebody out is not,
+  and a red button beside Save invites a press that a `cd` and a command
+  do not.
 - A removed account takes the unknown-email path at login: the same 401, the
   same dummy-hash derivation, so the form does not say who was taken out.
 

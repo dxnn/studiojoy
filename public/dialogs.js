@@ -375,6 +375,11 @@ export function dialogFor(d) {
           title: 'Tokens this person’s helpers may spend in a day',
         });
         allowance.value = number(person.daily_tokens);
+        // ⚠️ Three buttons, and no Remove. Taking somebody out of the studio
+        // is `npm run deluser -- <email>` at a terminal and nothing else — a
+        // red button beside Save and Password invites the press, and no click
+        // can show what leaving means. There is no route behind it either
+        // (spec.md §11).
         return h('div', { class: 'person' },
           name,
           h('span', {
@@ -404,18 +409,6 @@ export function dialogFor(d) {
             onclick: () => {
               const next = window.prompt(`A new password for ${person.display_name}`);
               if (next) studioChange('PATCH', `/users/${person.id}`, { password: next }).then(paint);
-            },
-          }),
-          h('button', {
-            class: 'danger tiny', text: 'Remove',
-            disabled: person.id === S.me.id,
-            title: person.id === S.me.id ? 'Somebody else has to remove you' : `Remove ${person.display_name} from the studio`,
-            onclick: () => {
-              // Still asks first — it signs somebody out and takes their name
-              // off the crew list — but it is a soft delete, and saying so is
-              // the difference between a scary button and a careful one.
-              if (!window.confirm(`Remove ${person.display_name} from the studio? They will not be able to sign in. What they said stays, and this can be undone.`)) return;
-              studioChange('DELETE', `/users/${person.id}`).then(paint);
             },
           }));
       }));

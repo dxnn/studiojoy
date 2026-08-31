@@ -2,16 +2,16 @@
 // everybody. One bit decides who sees any of this — `users.admin`, which the
 // first account has and an admin can hand to anybody else.
 //
-// It is deliberately small. Accounts still come from `npm run adduser` when
-// there is no studio running to add them from, and everything here does the
-// same thing that script does.
+// It is deliberately small, and deliberately one-way: an account can be made
+// and changed from here, and never taken out. `npm run adduser` still exists
+// for when there is no studio running to add somebody from; `npm run deluser`
+// has no counterpart in here at all (spec.md §11).
 
-import { json, noContent, HttpError } from '../http/respond.js';
+import { json, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import {
-  requireAuth, createUser, setPassword, normalizeEmail, MIN_PASSWORD_CHARS,
+  requireAuth, createUser, setPassword, normalizeEmail, isLastAdmin, MIN_PASSWORD_CHARS,
 } from '../auth.js';
-import { tx } from '../db.js';
 import { requireString, optionalBool } from './helpers.js';
 import {
   DEFAULT_DAILY_TOKEN_BUDGET, studioLimit, userSpentToday, budgetState,
@@ -44,14 +44,8 @@ const personPublic = (db, row) => ({
   created_at: row.created_at,
 });
 
-// The last admin cannot be taken away or demoted: a studio nobody can run is
-// one nobody can add an account to either, and there is no way back in.
 function assertNotLastAdmin(db, userId) {
-  const row = db.prepare('SELECT admin FROM users WHERE id = ?').get(userId);
-  if (!row || row.admin !== 1) return;
-  const admins = db
-    .prepare('SELECT COUNT(*) AS c FROM users WHERE admin = 1 AND deleted = 0').get().c;
-  if (admins <= 1) {
+  if (isLastAdmin(db, userId)) {
     throw new HttpError(409, 'the studio keeps at least one admin — make somebody else one first');
   }
 }
@@ -140,27 +134,12 @@ export function adminRoutes(r) {
     json(ctx.res, 200, personPublic(ctx.db, ctx.db.prepare('SELECT * FROM users WHERE id = ?').get(id)));
   });
 
-  // ⚠️ Taking somebody out of the studio is a soft delete — `users.deleted`
-  // and their sessions, and not one row more. Their messages stay, which they
-  // always did; so now do their games, their editor rows and what they spent,
-  // so that `npm run restoreuser` puts back exactly the person who left. The
-  // old hard delete had to strip `project_authors` first and then refuse
-  // outright if they were a game's only author; neither is needed once the
-  // row survives, and neither could have been undone.
-  r.delete('/api/admin/users/:id', (ctx) => {
-    const me = requireAdmin(ctx);
-    const id = Number(ctx.params.id);
-    if (id === me.id) throw new HttpError(409, 'somebody else has to take you out');
-    const row = ctx.db.prepare('SELECT * FROM users WHERE id = ? AND deleted = 0').get(id);
-    if (!row) throw new HttpError(404, 'no such person');
-    assertNotLastAdmin(ctx.db, id);
-
-    tx(ctx.db, () => {
-      ctx.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
-      ctx.db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(id);
-    });
-    noContent(ctx.res);
-  });
+  // ⚠️ There is no route that takes somebody out of the studio, and no button
+  // for one. Adding an account is an everyday thing and belongs in here;
+  // removing one is rare, has consequences no click can show, and is a
+  // terminal job — `npm run deluser -- <email>`, undone with
+  // `npm run restoreuser`. A red Remove sitting beside Save and Password
+  // invites the press; a command does not (spec.md §3, §11).
 
   r.patch('/api/admin/studio', async (ctx) => {
     requireAdmin(ctx);

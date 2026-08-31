@@ -1,11 +1,16 @@
 // Taking somebody out of the studio, and putting them back.
 //
+// ⚠️ Removal has no route and no button. `npm run deluser -- <email>` is the
+// only way out, `npm run restoreuser -- <email>` the only way back, and both
+// go through `removeAccount`/`restoreAccount` in server/auth.js — which is
+// what the in-process tests here call.
+//
 // Removal is one bit — `users.deleted` — never a DELETE. What it has to close:
 // their sessions, the login form, the crew list, being named by an @, being
 // added to a game, and the admin panel. What it must not touch: their
 // messages, the games they author, their allowance, or what they spent. The
-// difference between those two lists is what makes `npm run restoreuser`
-// give back the same person who left.
+// difference between those two lists is what makes the restore give back the
+// same person who left.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +19,9 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import { setup, signIn, scratchDir } from './helpers.js';
 import { openDb } from '../server/db.js';
-import { createUser } from '../server/auth.js';
+import {
+  createUser, removeAccount, restoreAccount, isLastAdmin,
+} from '../server/auth.js';
 
 const run = promisify(execFile);
 const del = path.join(import.meta.dirname, '../bin/deluser.js');
@@ -32,17 +39,24 @@ async function two(t) {
   return { app, admin, robin, theirs: other };
 }
 
-// What the restore script does, against the fixture's in-memory database.
-const bringBack = (app, id) => app.db.prepare('UPDATE users SET deleted = 0 WHERE id = ?').run(id);
+test('there is no route that takes somebody out of the studio', async (t) => {
+  const { app, robin } = await two(t);
+  const res = await app.client.json('DELETE', `/api/admin/users/${robin.id}`);
+  assert.equal(res.status, 404, 'the /api catch-all, not a route that refused');
+  assert.match(res.body.error, /no such endpoint/);
+  // And they are still in it.
+  assert.deepEqual(
+    (await app.client.json('GET', '/api/admin/studio')).body.people.map((p) => p.display_name),
+    ['Dann', 'Robin'],
+  );
+});
 
 test('removing somebody closes every door and keeps every row', async (t) => {
   const { app, robin, theirs } = await two(t);
   await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
   await theirs.json('POST', '/api/projects/tank/messages', { body: { body: 'my game' } });
 
-  const gone = await app.client.request('DELETE', `/api/admin/users/${robin.id}`);
-  assert.equal(gone.status, 204);
-  await gone.text();
+  assert.equal(removeAccount(app.db, robin.id), 1, 'their one session went with them');
 
   // Their session is over and the form will not start another one. ⚠️ The
   // refusal is the one an unknown email gets: the login page does not say
@@ -92,9 +106,9 @@ test('restoring gives back the same person, game and all', async (t) => {
   const { app, robin, theirs } = await two(t);
   await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
   await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { daily_tokens: 4242 } });
-  await app.client.request('DELETE', `/api/admin/users/${robin.id}`).then((r) => r.text());
+  removeAccount(app.db, robin.id);
 
-  bringBack(app, robin.id);
+  restoreAccount(app.db, robin.id);
 
   // Their old password still works — nothing touched the hash.
   const back = app.newClient();
@@ -121,7 +135,7 @@ test('a removed name is not a mention, and is one again on the way back', async 
   await app.client.json('POST', '/api/projects/tank/messages', { body: { body: '@Robin look' } });
   assert.equal((await theirs.json('GET', '/api/projects/tank')).body.mentions, 1);
 
-  await app.client.request('DELETE', `/api/admin/users/${robin.id}`).then((r) => r.text());
+  removeAccount(app.db, robin.id);
   await app.client.json('POST', '/api/projects/tank/messages', { body: { body: '@Robin again' } });
   assert.equal(
     app.db.prepare('SELECT COUNT(*) AS c FROM mentions WHERE user_id = ?').get(robin.id).c,
@@ -129,7 +143,7 @@ test('a removed name is not a mention, and is one again on the way back', async 
     'the second @ left nothing; the first one is still there',
   );
 
-  bringBack(app, robin.id);
+  restoreAccount(app.db, robin.id);
   const back = app.newClient();
   await back.post('/api/login', { email: 'kid@example.com', password: 'hunter2' });
   assert.equal((await back.json('GET', '/api/projects/tank')).body.mentions, 1);
@@ -139,7 +153,7 @@ test('a removed name is not a mention, and is one again on the way back', async 
 
 test('a removed address stays theirs — adding it again points at the restore', async (t) => {
   const { app, robin } = await two(t);
-  await app.client.request('DELETE', `/api/admin/users/${robin.id}`).then((r) => r.text());
+  removeAccount(app.db, robin.id);
 
   const res = await app.client.json('POST', '/api/admin/users', {
     body: { email: 'kid@example.com', display_name: 'Robin', password: 'hunter2' },
@@ -155,21 +169,24 @@ test('a removed address stays theirs — adding it again points at the restore',
   );
 });
 
-test('the last admin cannot be removed, and neither can you remove yourself', async (t) => {
+test('the last admin is counted among the people still in the studio', async (t) => {
   const { app, admin, robin } = await two(t);
-  assert.equal((await app.client.json('DELETE', `/api/admin/users/${admin.id}`)).status, 409);
+  assert.equal(isLastAdmin(app.db, admin.id), true);
+  assert.equal(isLastAdmin(app.db, robin.id), false, 'they are not an admin at all');
 
   await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { admin: true } });
-  await app.client.request('DELETE', `/api/admin/users/${robin.id}`).then((r) => r.text());
-  // Robin was an admin and is now removed, so Dann is the last one standing —
-  // ⚠️ the count is of admins still in the studio, not of admin rows.
-  const other = app.newClient();
-  const third = await signIn(app, {
-    email: 'sam@example.com', password: 'hunter2', displayName: 'Sam', client: other,
-  });
-  await app.client.json('PATCH', `/api/admin/users/${third.id}`, { body: { admin: true } });
-  const now = await other.json('DELETE', `/api/admin/users/${admin.id}`);
-  assert.equal(now.status, 204);
+  assert.equal(isLastAdmin(app.db, admin.id), false);
+
+  // ⚠️ Removing the second admin makes the first the last one again: a removed
+  // admin cannot run anything, so they do not count.
+  removeAccount(app.db, robin.id);
+  assert.equal(isLastAdmin(app.db, admin.id), true);
+  assert.equal(
+    (await app.client.json('PATCH', `/api/admin/users/${admin.id}`, { body: { admin: false } }))
+      .status,
+    409,
+    'and the panel will not demote them either',
+  );
 });
 
 /* The two scripts ------------------------------------------------------- */
