@@ -279,6 +279,13 @@ there was something to carry, which left a game nobody had talked in yet with
 nowhere a helper could be put. Tested against a hand-built old database and
 against that shape.
 
+⚠️ Remembering the chat needs both halves. `openProject` resolves it —
+`view.chat`, else `prefs('chat-<slug>')`, else the front door — and then
+**names it to `applyView`**, which reads a missing chat as "the one the project
+opens on". Without that the game appeared in the conversation you left it in
+and switched itself to `Humans only` a beat later. Back and Forward still
+reset, because there a missing `?chat=` is the address talking.
+
 Browser-checked, not just intended: on the games origin `document.cookie` is
 empty and `localStorage` works, and the studio cannot read into the preview
 iframe. ⚠️ Read that first one narrowly — `document.cookie` is empty because

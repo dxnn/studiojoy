@@ -740,7 +740,13 @@ export async function openProject(slug, { view = null } = {}) {
   // arriving at a game with Versions already open has to fetch now. Waiting
   // for the next click on the tab is what made the list look empty until you
   // left it and came back.
-  await applyView(view ?? { tab: S.tab });
+  // ⚠️ The chat is named explicitly, whatever the view says: it was settled
+  // above, and applyView reads a missing chat as "the one the project opens
+  // on". Left out, this call undid the remembered chat a beat after opening
+  // it — the game appeared in the conversation you left it in and then
+  // switched itself to Humans only. Back and Forward still reset, because
+  // there the missing chat is the address talking.
+  await applyView({ ...(view ?? { tab: S.tab }), chat: S.chat?.id });
 }
 
 window.addEventListener('popstate', followUrl);
