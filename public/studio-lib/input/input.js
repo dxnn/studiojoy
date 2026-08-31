@@ -17,14 +17,23 @@
 // — Input.held("left", 2) — and Input reads player2's bindings and the second
 // controller.
 //
-// config/controls.js may declare SCHEME, the shape of the game on a touch
-// screen. "one-button": a tap or a click anywhere is the button (touch:screen).
-// "swipe-tap": four flicks and a tap (swipe:left … swipe:tap) — moments, not
-// states, so read them with pressed(), never held(). "stick-buttons": an
-// analog stick under the left thumb (stick:left …) beside the drawn touch:
-// buttons. "dual-stick": an aim stick too (stick:aim-left …); stick:move and
-// stick:aim are held while a stick is pushed. No SCHEME: touch: bindings are
-// drawn as an arrow pad and round buttons.
+// On a touchscreen, player 1's touch: names are drawn as buttons.
+// touch:left/right/up/down sit under one thumb — two of them as a big pair,
+// three or four as an arrow pad — and every other touch: name under the
+// other thumb. A thumb slides between neighbouring buttons without lifting.
+// toggle:NAME draws a button that latches instead: tap on, tap off, held()
+// while latched. Give it to a verb a thumb would otherwise have to hold —
+// autofire, an engine — and keep key:/pad: on the same verb, which stay
+// momentary. BUTTON_SIDE = "left" in config/controls.js mirrors the layout.
+//
+// config/controls.js may also declare SCHEME, the shape of the game on a
+// touch screen. "buttons" is the drawn-buttons shape above, and what no
+// SCHEME means. "one-button": a tap or a click anywhere is the button
+// (touch:screen). "swipe-tap": four flicks and a tap (swipe:left …
+// swipe:tap) — moments, not states, so read them with pressed(), never
+// held(). "stick-buttons": an analog stick under one thumb (stick:left …)
+// beside the drawn buttons. "dual-stick": an aim stick too (stick:aim-left
+// …); stick:move and stick:aim are held while a stick is pushed.
 //
 // Use this instead of your own keydown listeners — two input systems fight
 // over the same keys. index.html must load config/controls.js and then
@@ -99,10 +108,19 @@ const Input = (function () {
     return 0.35;
   }
 
-  // The declared control scheme, or "" for the old shape — an arrow pad and
-  // round buttons drawn from the touch: bindings. An unknown name gets the
-  // old shape too, said once, rather than a game with no controls at all.
-  const SCHEMES = ["one-button", "swipe-tap", "stick-buttons", "dual-stick"];
+  // Which corner the action buttons (and the aim stick) sit in; movement
+  // takes the other thumb. "right" unless config/controls.js says "left".
+  function buttonSide() {
+    try {
+      if (BUTTON_SIDE === "left") return "left";
+    } catch (e) { /* config/controls.js is not loaded */ }
+    return "right";
+  }
+
+  // The declared control scheme, or "" — which draws the same as "buttons".
+  // An unknown name gets that shape too, said once, rather than a game with
+  // no controls at all.
+  const SCHEMES = ["buttons", "one-button", "swipe-tap", "stick-buttons", "dual-stick"];
   let warnedScheme = false;
   function schemeName() {
     let name = "";
@@ -112,10 +130,13 @@ const Input = (function () {
     if (!name || SCHEMES.indexOf(name) !== -1) return name || "";
     if (!warnedScheme) {
       warnedScheme = true;
-      console.warn('[input] unknown SCHEME "' + name + '" — drawing the plain touch controls');
+      console.warn('[input] unknown SCHEME "' + name + '" — drawing the buttons shape');
     }
     return "";
   }
+
+  // The shape actually on the screen: the declared scheme, else "buttons".
+  const shape = () => schemeName() || "buttons";
 
   function bindingsFor(player, action) {
     const who = bindings()["player" + (player || 1)];
@@ -126,6 +147,7 @@ const Input = (function () {
 
   const keysDown = new Set();   // key names, lowercased
   const touchDown = new Set();  // touch binding names, exactly as written
+  const latched = new Set();    // toggle binding names currently on
   let pads = [];
   let now = new Set();          // "1|left" for everything held this frame
   let last = new Set();
@@ -169,15 +191,47 @@ const Input = (function () {
   window.addEventListener("keyup", (e) => { keysDown.delete(e.key.toLowerCase()); });
 
   // A key held while the tab loses focus never sends its keyup, and would
-  // otherwise stay down for the rest of the game.
+  // otherwise stay down for the rest of the game. Latches drop too: coming
+  // back to a game whose engine is still secretly on is worse than tapping.
   window.addEventListener("blur", () => {
     keysDown.clear();
     touchDown.clear();
+    latched.clear();
+    fingers.clear();
     screenPointers.clear();
     gestureStarts.clear();
     resetStick("move");
     resetStick("aim");
+    paintButtons();
   });
+
+  // The Screens library's Start button reaches the game as one frame of
+  // "start", so a game that begins from Input.pressed("start") starts from a
+  // tap on it even while the drawn controls are hidden.
+  let relayStart = false;
+  window.addEventListener("studio:start", () => { relayStart = true; });
+
+  // While a Screens title or game-over screen is up it owns the view: the
+  // drawn controls hide, thumbs release, latches drop, sticks rest.
+  // screens.js marks the body; an older copy of either library simply
+  // leaves things as they are today.
+  function screensOpen() {
+    const body = typeof document === "object" && document ? document.body : null;
+    return !!(body && body.classList && body.classList.contains("screens-open"));
+  }
+
+  let screensWasOpen = false;
+  function watchScreens() {
+    const open = screensOpen();
+    if (open === screensWasOpen) return;
+    screensWasOpen = open;
+    if (overlay) overlay.style.display = open ? "none" : "";
+    if (open) {
+      dropButtons();
+      resetStick("move");
+      resetStick("aim");
+    }
+  }
 
   /* Control scheme surfaces ------------------------------------------------ */
 
@@ -250,12 +304,16 @@ const Input = (function () {
   };
 
   // Which sticks the scheme has, each with its slice of the screen as
-  // fractions of the width. Thumbs sit low, so the top 40% is left alone —
-  // a game's own menus and touches live there untroubled.
+  // fractions of the width — on the far side from the buttons. Thumbs sit
+  // low, so the top 40% is left alone — a game's own menus and touches live
+  // there untroubled.
   function stickZones() {
     const s = schemeName();
-    if (s === "stick-buttons") return { move: [0, 0.45] };
-    if (s === "dual-stick") return { move: [0, 0.5], aim: [0.5, 1] };
+    const flip = buttonSide() === "left";
+    if (s === "stick-buttons") return flip ? { move: [0.55, 1] } : { move: [0, 0.45] };
+    if (s === "dual-stick") {
+      return flip ? { move: [0.5, 1], aim: [0, 0.5] } : { move: [0, 0.5], aim: [0.5, 1] };
+    }
     return null;
   }
 
@@ -288,8 +346,10 @@ const Input = (function () {
 
   function installSticks() {
     // Only real thumbs: a mouse dragged across the screen is not a stick.
+    // A thumb that lands on a drawn button is the button's.
     window.addEventListener("pointerdown", (e) => {
-      if (e.pointerType !== "touch" || onControl(e)) return;
+      if (e.pointerType !== "touch" || onControl(e) || screensOpen()) return;
+      if (buttonAt(e.clientX, e.clientY)) return;
       const name = stickAt(e.clientX, e.clientY);
       if (!name) return;
       const stick = touchSticks[name];
@@ -329,7 +389,8 @@ const Input = (function () {
   // Run once, on the first update: by then config/controls.js has loaded (it
   // is documented to stand in front of this file). A declared scheme also
   // owns the screen — no browser scrolling, zooming or text selection over
-  // the game — waiting for <body> the way the overlay does.
+  // the game — waiting for <body> the way the overlay does. The default
+  // shape leaves the body alone: a page-shaped game may still scroll.
   let surfacesInstalled = false;
   let bodyOwned = false;
   function prepare() {
@@ -372,6 +433,7 @@ const Input = (function () {
       return keysDown.has(KEY_NAMES[key] || key);
     }
     if (kind === "touch") return touchDown.has(name);
+    if (kind === "toggle") return latched.has(name);
     if (kind === "swipe") return gestureNow.has(name);
     if (kind === "stick") return stickHeld(name);
     if (kind === "pad") return padDown(name.toLowerCase(), player);
@@ -392,6 +454,7 @@ const Input = (function () {
     pads = readPads();
     prepare();
     if (!overlay) buildTouchControls();
+    watchScreens();
     // Gestures finished since the last update are this frame's, and only
     // this frame's — that is what makes a flick a moment rather than a state.
     gestureNow = gesturePending;
@@ -410,6 +473,10 @@ const Input = (function () {
           }
         }
       }
+    }
+    if (relayStart) {
+      relayStart = false;
+      now.add(stamp("start", 1));
     }
   }
 
@@ -465,16 +532,20 @@ const Input = (function () {
   // Only player 1 gets these: one screen has room for two thumbs, not four.
   let overlay = null;
 
-  function touchNames() {
-    // Deduplicated: two actions sharing one touch: name — fire and start on
-    // the same button, say — are one button, pressed for both.
+  // Every drawn button in declaration order: a touch: name is held while a
+  // thumb is on it, a toggle: name latches. A name bound both ways latches.
+  function drawnNames() {
     const out = [];
     const actions = bindings().player1 || {};
     for (const action of Object.keys(actions)) {
       for (const binding of listOf(actions[action])) {
-        if (binding.startsWith("touch:") && out.indexOf(binding.slice(6)) === -1) {
-          out.push(binding.slice(6));
-        }
+        const kind = binding.startsWith("touch:") ? "touch"
+          : binding.startsWith("toggle:") ? "toggle" : null;
+        if (!kind) continue;
+        const name = binding.slice(kind.length + 1);
+        const seen = out.find((b) => b.name === name);
+        if (seen) seen.toggle = seen.toggle || kind === "toggle";
+        else out.push({ name: name, toggle: kind === "toggle" });
       }
     }
     return out;
@@ -487,26 +558,176 @@ const Input = (function () {
   const REST = "rgba(18,18,26,.42)";
   const PUSHED = "rgba(18,18,26,.78)";
 
-  function padButton(name, label, size) {
-    const el = document.createElement("button");
-    el.textContent = label;
-    el.setAttribute("aria-label", name);
-    el.style.cssText = "pointer-events:auto;width:" + size + "px;height:" + size + "px;"
-      + "border-radius:50%;border:2px solid rgba(255,255,255,.8);background:" + REST + ";"
-      + "color:#fff;font:600 18px/1 system-ui,sans-serif;"
-      + "box-shadow:0 1px 4px rgba(0,0,0,.45);"
-      + "touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;";
-    const down = (on) => {
-      if (on) touchDown.add(name); else touchDown.delete(name);
-      el.style.background = on ? PUSHED : REST;
+  // Radii of the visible circles, the invisible extra ring of hit area every
+  // button gets — a thumb that lands a little off still lands — and the
+  // margin to the screen's corners.
+  const R_PAIR = 48;    // a one-axis direction pair
+  const R_CELL = 32;    // an arrow-pad cell
+  const R_ACTION = 42;  // an action button
+  const R_PRIMARY = 48; // the first action button
+  const HALO = 14;
+  const EDGE = 18;
+
+  // The drawn buttons as geometry: centres offset from the anchored edge
+  // (ox) and from the bottom (oy). Hit-testing is this arithmetic, never the
+  // DOM, so the same thumb math runs with no screen at all — the drawing is
+  // only paint.
+  let drawn = [];
+
+  function layoutButtons() {
+    const names = drawnNames();
+    if (!names.length) return [];
+    const side = buttonSide();
+    const out = [];
+
+    // Directions under one thumb: one axis is a big pair (or one big
+    // button), both axes are the arrow pad, a cell per bound direction.
+    const dirs = ["left", "right", "up", "down"].filter((n) => names.some((b) => b.name === n));
+    const dirAnchor = side === "right" ? "left" : "right";
+    const oneAxis = dirs.every((n) => n === "left" || n === "right")
+      || dirs.every((n) => n === "up" || n === "down");
+    for (const b of names.filter((b) => ARROWS[b.name])) {
+      const entry = { name: b.name, toggle: b.toggle, anchor: dirAnchor, r: oneAxis ? R_PAIR : R_CELL };
+      if (oneAxis) {
+        // ← before →, ↑ above ↓, whichever corner the pair is anchored in.
+        const k = dirs.indexOf(b.name);
+        const step = R_PAIR * 2 + 12;
+        const across = b.name === "left" || b.name === "right";
+        const flipped = across && dirAnchor === "right";
+        entry.ox = EDGE + R_PAIR + (across ? (flipped ? dirs.length - 1 - k : k) * step : 0);
+        entry.oy = EDGE + R_PAIR + (across ? 0 : (dirs.length - 1 - k) * step);
+      } else {
+        // Cell columns from the screen's left, rows from the bottom.
+        const grid = { left: [0, 1], right: [2, 1], up: [1, 2], down: [1, 0] }[b.name];
+        const gx = dirAnchor === "left" ? grid[0] : 2 - grid[0];
+        entry.ox = EDGE + R_CELL + gx * 68;
+        entry.oy = EDGE + R_CELL + grid[1] * 68;
+      }
+      out.push(entry);
+    }
+
+    // Everything else under the other thumb, climbing a diagonal from the
+    // corner: the first-declared button is the big one nearest it.
+    let k = 0;
+    for (const b of names.filter((b) => !ARROWS[b.name])) {
+      out.push({
+        name: b.name,
+        toggle: b.toggle,
+        anchor: side,
+        r: k === 0 ? R_PRIMARY : R_ACTION,
+        ox: EDGE + R_PRIMARY + k * 56,
+        oy: EDGE + R_PRIMARY + k * 76,
+      });
+      k += 1;
+    }
+    return out;
+  }
+
+  const centerX = (b) => (b.anchor === "left" ? b.ox : window.innerWidth - b.ox);
+  const centerY = (b) => window.innerHeight - b.oy;
+
+  // The button under a point, if any — the nearest centre wins where halos
+  // overlap, which is what lets a thumb rock across neighbours.
+  function buttonAt(x, y) {
+    let best = null;
+    let bestD = Infinity;
+    for (const b of drawn) {
+      const d = Math.hypot(x - centerX(b), y - centerY(b));
+      if (d <= b.r + HALO && d < bestD) {
+        best = b;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  // Which drawn button each finger is on. Sliding from one button onto the
+  // next presses it without a lift; sliding onto a toggle changes nothing,
+  // because a latch only flips on a deliberate tap.
+  const fingers = new Map(); // pointerId -> momentary name, or null
+
+  function syncFingers() {
+    for (const b of drawn) {
+      if (!b.toggle) touchDown.delete(b.name);
+    }
+    for (const name of fingers.values()) {
+      if (name) touchDown.add(name);
+    }
+    paintButtons();
+  }
+
+  function dropButtons() {
+    fingers.clear();
+    latched.clear();
+    syncFingers();
+  }
+
+  function installButtons() {
+    window.addEventListener("pointerdown", (e) => {
+      if (screensOpen()) return;
+      const b = buttonAt(e.clientX, e.clientY);
+      if (!b) return;
+      if (e.preventDefault) e.preventDefault();
+      if (b.toggle) {
+        if (latched.has(b.name)) latched.delete(b.name);
+        else latched.add(b.name);
+        fingers.set(e.pointerId, null);
+      } else {
+        fingers.set(e.pointerId, b.name);
+      }
+      syncFingers();
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!fingers.has(e.pointerId)) return;
+      const b = buttonAt(e.clientX, e.clientY);
+      const name = b && !b.toggle ? b.name : null;
+      if (fingers.get(e.pointerId) === name) return;
+      fingers.set(e.pointerId, name);
+      syncFingers();
+    });
+    const lift = (e) => {
+      if (!fingers.has(e.pointerId)) return;
+      fingers.delete(e.pointerId);
+      syncFingers();
     };
-    // No pointer capture: sliding a thumb off a button should release it,
-    // which is what a player expects and what a d-pad needs to feel right.
-    el.addEventListener("pointerdown", (e) => { e.preventDefault(); down(true); });
-    el.addEventListener("pointerup", () => down(false));
-    el.addEventListener("pointercancel", () => down(false));
-    el.addEventListener("pointerleave", () => down(false));
+    window.addEventListener("pointerup", lift);
+    window.addEventListener("pointercancel", lift);
+  }
+
+  function paintButtons() {
+    for (const b of drawn) {
+      if (!b.el) continue;
+      const on = b.toggle ? latched.has(b.name) : touchDown.has(b.name);
+      b.el.style.background = on ? PUSHED : REST;
+      b.el.style.borderColor = b.toggle && on ? "#fff" : "rgba(255,255,255,.8)";
+      b.el.style.boxShadow = b.toggle && on
+        ? "0 0 10px rgba(255,255,255,.5)" : "0 1px 4px rgba(0,0,0,.45)";
+    }
+  }
+
+  // The whole element is the hit halo, transparent, with the visible circle
+  // on a face inside it, so the browser's touch handling covers the halo
+  // too. No listeners: the window-level tracking above is the behaviour.
+  function drawButton(b) {
+    const hit = b.r + HALO;
+    const el = document.createElement("button");
+    el.setAttribute("aria-label", b.name);
+    el.style.cssText = "position:fixed;display:flex;align-items:center;justify-content:center;"
+      + (b.anchor === "left" ? "left:" : "right:") + (b.ox - hit) + "px;bottom:" + (b.oy - hit) + "px;"
+      + "width:" + hit * 2 + "px;height:" + hit * 2 + "px;padding:0;margin:0;"
+      + "background:none;border:none;border-radius:50%;z-index:9999;"
+      + "touch-action:none;user-select:none;-webkit-user-select:none;"
+      + "-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;";
+    const face = document.createElement("span");
+    face.textContent = ARROWS[b.name] || b.name;
+    face.style.cssText = "display:flex;align-items:center;justify-content:center;overflow:hidden;"
+      + "width:" + b.r * 2 + "px;height:" + b.r * 2 + "px;box-sizing:border-box;border-radius:50%;"
+      + "border:2px solid rgba(255,255,255,.8);background:" + REST + ";"
+      + "color:#fff;font:600 " + (b.r >= R_PRIMARY ? 20 : 18) + "px/1 system-ui,sans-serif;"
+      + "box-shadow:0 1px 4px rgba(0,0,0,.45);";
+    el.append(face);
     el.addEventListener("contextmenu", (e) => e.preventDefault());
+    b.el = face;
     return el;
   }
 
@@ -558,48 +779,26 @@ const Input = (function () {
   function buildTouchControls() {
     if (overlay) return;
     // one-button and swipe-tap draw nothing: the screen itself is the control.
-    const s = schemeName();
+    const s = shape();
     if (s === "one-button" || s === "swipe-tap") return;
     const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if (!coarse || !document.body) return;
     const zones = stickZones();
-    const names = touchNames();
-    if (!names.length && !zones) return;
+    drawn = layoutButtons();
+    if (!drawn.length && !zones) return;
 
+    // A group to show and hide as one; the buttons position themselves.
     overlay = document.createElement("div");
     overlay.id = "touch-controls";
-    // Tall enough for the whole arrow pad: three 64px rows and the gaps
-    // between them, plus the padding under it.
-    overlay.style.cssText = "position:fixed;left:0;right:0;bottom:0;height:218px;z-index:9999;"
-      + "display:flex;align-items:flex-end;justify-content:space-between;"
-      + "padding:0 18px 18px;pointer-events:none;";
-
-    // A stick scheme's thumbside is the stick, so every touch: name is a
-    // round button; the old shape keeps its arrow pad.
-    const arrows = zones ? [] : names.filter((n) => ARROWS[n]);
-    const dpad = document.createElement("div");
-    dpad.style.cssText = "display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:4px;";
-    const cells = { up: 2, left: 4, right: 6, down: 8 };
-    for (let i = 1; i <= 9; i += 1) {
-      const name = Object.keys(cells).find((k) => cells[k] === i && arrows.indexOf(k) !== -1);
-      const cell = name ? padButton(name, ARROWS[name], 64) : document.createElement("div");
-      dpad.append(cell);
-    }
-
-    const buttons = document.createElement("div");
-    buttons.style.cssText = "display:flex;gap:14px;align-items:flex-end;";
-    const round = zones ? names : names.filter((n) => !ARROWS[n]);
-    for (const name of round) buttons.append(padButton(name, ARROWS[name] || name, 84));
-
-    overlay.append(arrows.length ? dpad : document.createElement("div"), buttons);
+    overlay.style.cssText = "user-select:none;-webkit-user-select:none;";
+    for (const b of drawn) overlay.append(drawButton(b));
     document.body.append(overlay);
+    if (screensWasOpen) overlay.style.display = "none";
+    if (drawn.length) installButtons();
     if (zones) {
       stickParts = {};
       for (const name of Object.keys(zones)) stickParts[name] = buildStickParts();
     }
-    // A thumb lifted anywhere at all releases everything: a pointerup that
-    // lands outside the button never reaches it.
-    window.addEventListener("pointerup", () => touchDown.clear());
   }
 
   return {

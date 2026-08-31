@@ -8,10 +8,12 @@
 //   pad:up pad:down pad:left pad:right  pad:stick-left …    — its pad and sticks
 //   stick:left  stick:right  stick:up  stick:down           — the on-screen stick
 //   touch:GO                                                — drawn on a screen
+//   toggle:GO                                — drawn, and latches: tap on, tap off
 //
 // stick: names read the analog stick that appears under the left thumb on a
 // phone or tablet — it floats to wherever the thumb lands. Any touch: name
-// becomes a round button in the bottom-right with that name written on it.
+// becomes a round button in the bottom-right with that name written on it;
+// BUTTON_SIDE = "left" puts the buttons left and the stick right.
 //
 // The names on the left — left, fire, boost — are the game's own words for
 // what a player is doing. Rename them to suit the game, then use the same

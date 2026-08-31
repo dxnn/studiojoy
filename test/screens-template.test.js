@@ -57,10 +57,17 @@ function fakeDom() {
     };
     return node;
   }
+  const body = element('body');
+  const classes = new Set();
+  body.classList = {
+    add: (c) => classes.add(c),
+    remove: (c) => classes.delete(c),
+    contains: (c) => classes.has(c),
+  };
   return {
     title: 'Page Title',
     head: element('head'),
-    body: element('body'),
+    body,
     createElement: element,
   };
 }
@@ -87,18 +94,22 @@ function boot({ controls = '', words = '', coarse = false, pads = [] } = {}) {
   return sandbox.window.Screens;
 }
 
-// title() needs the fake DOM; hands back the document beside the library.
+// title() needs the fake DOM; hands back the document beside the library,
+// and what the library dispatched on the window (the start relay).
 function bootDom(opts = {}) {
+  const dispatched = [];
   const sandbox = {
     navigator: { getGamepads: () => (opts.pads || []) },
     matchMedia: (q) => ({ matches: !!opts.coarse && q === '(pointer: coarse)' }),
     console,
     document: fakeDom(),
+    Event: function Event(type) { this.type = type; },
+    dispatchEvent: (e) => dispatched.push(e.type),
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(`${opts.controls || ''}\n${opts.words || ''}\n${opts.look || ''}\n${SCREENS}`, sandbox);
-  return { Screens: sandbox.window.Screens, document: sandbox.document };
+  return { Screens: sandbox.window.Screens, document: sandbox.document, dispatched };
 }
 
 test('the seed on a keyboard: arrows, WASD and the named keys', () => {
@@ -316,4 +327,45 @@ test('chips wear the look, and without a document stay quiet', () => {
   const bare = boot({ controls: SEED });
   bare.chips({ Score: 1 });
   bare.chips({});
+});
+
+test('a title screen marks the body, so the drawn controls step aside', () => {
+  const { Screens, document } = bootDom({});
+  const first = Screens.title({});
+  assert.equal(document.body.classList.contains('screens-open'), true);
+  Screens.title({ score: 3 });
+  assert.equal(document.body.classList.contains('screens-open'), true,
+    'replacing one screen with another never unmarks');
+  first.close();
+  assert.equal(document.body.classList.contains('screens-open'), true,
+    'a stale handle cannot unmark the new screen');
+  Screens.title({}).close();
+  assert.equal(document.body.classList.contains('screens-open'), false);
+});
+
+test('the Start button says start to the input library, after closing', () => {
+  const { Screens, document, dispatched } = bootDom({});
+  let startsWhenCalled = null;
+  Screens.title({ onStart: () => { startsWhenCalled = dispatched.length; } });
+  find(document.body.children[0], 'screens-start').click();
+  assert.deepEqual(dispatched, ['studio:start']);
+  assert.equal(startsWhenCalled, 1, 'the relay is out before onStart runs');
+  assert.equal(document.body.classList.contains('screens-open'), false);
+});
+
+test('a toggle: binding is a drawn button in the hint too', () => {
+  const controls = 'const CONTROLS = { player1: { thrust: "key:up toggle:BURN" } };';
+  assert.equal(boot({ controls, coarse: true }).hint(), 'BURN to thrust');
+});
+
+test('a button wearing its own verb is not spelled twice', () => {
+  const controls = 'const CONTROLS = { player1: { fire: "key:space toggle:FIRE" } };';
+  assert.equal(boot({ controls, coarse: true }).hint(), 'FIRE');
+});
+
+test('the buttons preset on a touchscreen', () => {
+  assert.equal(
+    boot({ controls: read('templates/controls-buttons.js'), coarse: true }).hint(),
+    'Arrows to move · THRUST · FIRE',
+  );
 });

@@ -15,6 +15,7 @@ const ONE_BUTTON = read('templates/controls-one-button.js');
 const SWIPE_TAP = read('templates/controls-swipe-tap.js');
 const SEED = read('templates/controls.js'); // the default: stick-buttons
 const DUAL_STICK = read('templates/controls-dual-stick.js');
+const BUTTONS = read('templates/controls-buttons.js');
 
 // A controls.js from before schemes existed: no SCHEME anywhere.
 const LEGACY = `
@@ -26,13 +27,42 @@ const CONTROLS = {
 };
 `;
 
-function boot({ controls, body = null } = {}) {
+// Enough of a DOM for the drawn buttons: elements that hold children and
+// style properties, and a body with a classList for the screens-open mark.
+// The hit-testing itself is arithmetic in input.js, so a fake this small
+// exercises the real thumb behaviour; what it looks like needs a browser.
+function fakeElement(tag) {
+  const node = {
+    tag,
+    textContent: '',
+    children: [],
+    style: {},
+    append(...kids) { node.children.push(...kids); },
+    setAttribute() {},
+    addEventListener() {},
+    remove() {},
+  };
+  return node;
+}
+
+function fakeBody() {
+  const classes = new Set();
+  const body = fakeElement('body');
+  body.classList = {
+    add: (c) => classes.add(c),
+    remove: (c) => classes.delete(c),
+    contains: (c) => classes.has(c),
+  };
+  return body;
+}
+
+function boot({ controls, body = null, coarse = false } = {}) {
   const handlers = new Map();
   const warnings = [];
   const sandbox = {
     navigator: { getGamepads: () => [] },
-    document: { body },
-    matchMedia: () => ({ matches: false }),
+    document: { body, createElement: fakeElement },
+    matchMedia: (q) => ({ matches: coarse && q === '(pointer: coarse)' }),
     console: { warn: (...args) => warnings.push(args.join(' ')) },
     innerWidth: 800,
     innerHeight: 600,
@@ -50,6 +80,7 @@ function boot({ controls, body = null } = {}) {
   return {
     Input: sandbox.Input,
     warnings,
+    event: (name, data = {}) => fire(name, data),
     pointer(name, { id = 1, type = 'touch', x = 0, y = 0, target = null } = {}) {
       const event = {
         pointerId: id, pointerType: type, clientX: x, clientY: y, target,
@@ -279,10 +310,176 @@ test('without a scheme, no whole-screen surface is installed', () => {
   assert.equal(g.Input.held('fire'), false);
 });
 
-test('an unknown scheme is said once and falls back to the old shape', () => {
+test('an unknown scheme is said once and falls back to the buttons shape', () => {
   const g = boot({ controls: 'const SCHEME = "zorp";\n' + LEGACY });
   g.Input.update();
   g.Input.update();
   assert.equal(g.warnings.length, 1);
   assert.match(g.warnings[0], /zorp/);
+});
+
+// The buttons shape on an 800×600 screen with the preset: the turn pair's
+// centres are (66,534) and (174,534); the action diagonal climbs from the
+// right corner — THRUST at (734,534), FIRE above it at (678,458).
+const bootButtons = (controls = BUTTONS) => {
+  const body = fakeBody();
+  const g = boot({ controls, body, coarse: true });
+  g.body = body;
+  g.overlay = () => body.children.find((el) => el.id === 'touch-controls');
+  return g;
+};
+
+test('the buttons preset is readable as a config form', () => {
+  const parsed = parseConfigFile(BUTTONS);
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['SCHEME', 'CONTROLS', 'BUTTON_SIDE']);
+});
+
+test('buttons: a drawn button is held while a thumb is on it, halo included', () => {
+  const g = bootButtons();
+  g.Input.update();
+  const down = g.pointer('pointerdown', { x: 66, y: 534 });
+  assert.equal(down.prevented, true, 'a press on a control is not a scroll');
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true);
+  g.pointer('pointerup', { x: 66, y: 534 });
+  g.Input.update();
+  assert.equal(g.Input.released('left'), true);
+  g.pointer('pointerdown', { x: 66, y: 589, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true, 'the halo catches a near miss');
+  const off = g.pointer('pointerdown', { x: 400, y: 300, id: 3 });
+  assert.equal(off.prevented, false, 'the rest of the screen stays the game\'s');
+});
+
+test('buttons: a thumb rocks between neighbours without lifting', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 66, y: 534 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true);
+  g.pointer('pointermove', { x: 174, y: 534 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), false, 'the thumb left the first button');
+  assert.equal(g.Input.held('right'), true, 'and pressed the next without a lift');
+  g.pointer('pointermove', { x: 400, y: 300 });
+  g.Input.update();
+  assert.equal(g.Input.held('right'), false, 'sliding off everything releases');
+  g.pointer('pointermove', { x: 174, y: 534 });
+  g.Input.update();
+  assert.equal(g.Input.held('right'), true, 'and sliding back on presses again');
+});
+
+test('buttons: two thumbs hold two buttons, and one lift releases one', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 66, y: 534, id: 1 });
+  g.pointer('pointerdown', { x: 734, y: 534, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true);
+  assert.equal(g.Input.held('thrust'), true);
+  g.pointer('pointerup', { x: 66, y: 534, id: 1 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), false);
+  assert.equal(g.Input.held('thrust'), true, 'the other thumb is still down');
+});
+
+test('toggle: a tap latches, held() stays on, a second tap unlatches', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 678, y: 458 });
+  g.pointer('pointerup', { x: 678, y: 458 });
+  g.Input.update();
+  assert.equal(g.Input.pressed('fire'), true);
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), true, 'latched after the finger lifted');
+  assert.equal(g.Input.pressed('fire'), false);
+  g.pointer('pointerdown', { x: 678, y: 458 });
+  g.pointer('pointerup', { x: 678, y: 458 });
+  g.Input.update();
+  assert.equal(g.Input.released('fire'), true);
+  assert.equal(g.Input.held('fire'), false);
+});
+
+test('toggle: sliding onto it changes nothing, and off it drops the old button', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 734, y: 534 });
+  g.Input.update();
+  assert.equal(g.Input.held('thrust'), true);
+  g.pointer('pointermove', { x: 678, y: 458 });
+  g.Input.update();
+  assert.equal(g.Input.held('thrust'), false, 'the thumb left the thrust button');
+  assert.equal(g.Input.held('fire'), false, 'a slide never flips a latch');
+});
+
+test('toggle: latches drop when the window loses focus', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 678, y: 458 });
+  g.pointer('pointerup', { x: 678, y: 458 });
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), true);
+  g.event('blur');
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), false);
+});
+
+test('BUTTON_SIDE = "left" mirrors the whole layout', () => {
+  const g = bootButtons(BUTTONS.replace('const BUTTON_SIDE = "right"', 'const BUTTON_SIDE = "left"'));
+  g.Input.update();
+  g.pointer('pointerdown', { x: 66, y: 534, id: 1 });
+  g.Input.update();
+  assert.equal(g.Input.held('thrust'), true, 'the action diagonal moved left');
+  g.pointer('pointerdown', { x: 626, y: 534, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), true, 'the turn pair moved right, ← still left of →');
+  g.pointer('pointerdown', { x: 734, y: 534, id: 3 });
+  g.Input.update();
+  assert.equal(g.Input.held('right'), true);
+});
+
+test('a Screens screen hides the controls, drops thumbs and latches', () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.pointer('pointerdown', { x: 678, y: 458 });
+  g.pointer('pointerup', { x: 678, y: 458 });
+  g.pointer('pointerdown', { x: 66, y: 534, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), true);
+  assert.equal(g.Input.held('left'), true);
+  g.body.classList.add('screens-open');
+  g.Input.update();
+  assert.equal(g.overlay().style.display, 'none');
+  assert.equal(g.Input.held('fire'), false, 'the latch dropped');
+  assert.equal(g.Input.held('left'), false, 'the thumb was released');
+  const down = g.pointer('pointerdown', { x: 66, y: 534, id: 3 });
+  g.Input.update();
+  assert.equal(g.Input.held('left'), false, 'hidden buttons take no presses');
+  assert.equal(down.prevented, false);
+  g.body.classList.remove('screens-open');
+  g.Input.update();
+  assert.equal(g.overlay().style.display, '', 'the controls come back with the game');
+});
+
+test("the Screens start button reaches the game as one frame of start", () => {
+  const g = bootButtons();
+  g.Input.update();
+  g.event('studio:start');
+  g.Input.update();
+  assert.equal(g.Input.pressed('start'), true);
+  g.Input.update();
+  assert.equal(g.Input.pressed('start'), false);
+  assert.equal(g.Input.held('start'), false);
+});
+
+test('no SCHEME draws the same buttons shape: the arrow and GO still work', () => {
+  const body = fakeBody();
+  const g = boot({ controls: LEGACY, body, coarse: true });
+  g.Input.update();
+  g.pointer('pointerdown', { x: 734, y: 534, id: 1 });
+  g.pointer('pointerdown', { x: 66, y: 534, id: 2 });
+  g.Input.update();
+  assert.equal(g.Input.held('fire'), true, 'GO is the primary action button');
+  assert.equal(g.Input.held('left'), true);
 });

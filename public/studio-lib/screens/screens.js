@@ -18,7 +18,9 @@
 //
 // title() fills the window over the game: the name (WORDS.title, else the
 // page title), WORDS.tagline, one focused Start button — Enter starts on a
-// keyboard, the drawn touch controls stay on top — and the hint under it. A
+// keyboard, the drawn touch controls step aside while the screen is up, and
+// a tap on the button also reaches Input as one frame of "start" — and the
+// hint under it. A
 // score shows big and the button says Play again (WORDS.again). Any of it
 // can be passed instead: { name, tagline, hint, start, score, onStart } —
 // arguments beat config. Colours follow LOOK; screens- classes are the css
@@ -211,7 +213,8 @@ const Screens = (function () {
   function touchLabels(tokens) {
     const out = [];
     for (const t of tokens) {
-      if (t.kind === "touch" && t.name !== "screen" && out.indexOf(t.name) < 0) out.push(t.name);
+      if ((t.kind === "touch" || t.kind === "toggle") && t.name !== "screen"
+        && out.indexOf(t.name) < 0) out.push(t.name);
     }
     return out;
   }
@@ -267,7 +270,10 @@ const Screens = (function () {
     for (const s of m.singles) {
       if (has(s.tokens, "stick", "move") || has(s.tokens, "stick", "aim")) continue;
       const labels = touchLabels(s.tokens);
-      if (labels.length > 0) clauses.push(clause([labels.join(" or ")], s.verb));
+      if (labels.length === 0) continue;
+      const what = labels.join(" or ");
+      // "FIRE to fire" helps nobody: a button wearing its own verb is enough.
+      clauses.push(what.toLowerCase() === verbText(s.verb) ? what : clause([what], s.verb));
     }
     return sentence(clauses);
   }
@@ -359,6 +365,27 @@ const Screens = (function () {
   // One title screen at a time: a new call replaces the one on screen.
   let openTitle = null;
 
+  // While a screen is up the body wears "screens-open": the input library
+  // hides its drawn controls under it and drops what thumbs were holding.
+  // Either library missing the other simply leaves things as they are.
+  function markBody(open) {
+    if (typeof document !== "object" || !document || !document.body) return;
+    const list = document.body.classList;
+    if (!list) return;
+    if (open) list.add("screens-open");
+    else list.remove("screens-open");
+  }
+
+  // The Start button's tap, said to the input library, so a game that waits
+  // on Input.pressed("start") starts from it too — one frame, like a key.
+  function sayStart() {
+    try {
+      if (typeof Event === "function" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(new Event("studio:start"));
+      }
+    } catch (e) { /* an environment with no events has nobody to tell */ }
+  }
+
   function title(opts) {
     const o = typeof opts === "object" && opts ? opts : {};
     if (typeof document !== "object" || !document || !document.body) {
@@ -386,11 +413,13 @@ const Screens = (function () {
     if (line !== "") panel.append(el("p", "screens-hint", line));
     root.append(panel);
     document.body.append(root);
+    markBody(true);
 
     const handle = {
       close: function () {
         if (openTitle === handle) openTitle = null;
         root.remove();
+        if (openTitle === null) markBody(false);
       },
     };
     openTitle = handle;
@@ -398,6 +427,7 @@ const Screens = (function () {
     // is not wiped by the old one going away.
     button.addEventListener("click", function () {
       handle.close();
+      sayStart();
       if (typeof o.onStart === "function") o.onStart();
     });
     button.focus();
