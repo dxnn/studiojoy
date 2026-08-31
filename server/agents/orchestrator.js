@@ -240,8 +240,9 @@ function pinnedPaths(db, chatId) {
 // in the preamble so a helper learns the engine's contract without its
 // source. Read from the game's own copy under studio/, not from the studio's
 // current one, so the note always matches the version this game holds. Capped
-// so a note stays a note.
-const NOTE_BYTES = 2048;
+// so a note stays a note — raised from 2 KB when the input header grew the
+// buttons shape and toggles, which were worth the bytes.
+const NOTE_BYTES = 3072;
 
 function libraryNote(buffer) {
   const lines = [];
