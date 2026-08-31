@@ -2535,6 +2535,25 @@ function codeBox(area, path) {
   return h('div', { class: 'code' }, pre, area);
 }
 
+// An .svg is text that draws a picture, so the editor shows both: the picture
+// above the code, redrawn as you type — repainted in place on input like the
+// colours underneath it, never through render(). The swap goes through an
+// offscreen probe so a half-typed tag keeps the last drawing that worked
+// instead of flashing a broken image. In an <img> an SVG runs no scripts and
+// loads nothing, which is what makes painting unsaved text safe.
+function svgPreview(area) {
+  const img = h('img', { alt: 'The picture this file draws' });
+  const show = () => {
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(area.value)}`;
+    const probe = new Image();
+    probe.onload = () => { img.src = url; };
+    probe.src = url;
+  };
+  area.addEventListener('input', show);
+  show();
+  return h('div', { class: 'media svg-live' }, img);
+}
+
 /* The scoreboard tab -------------------------------------------------------
    The kept scores for this game, with the admin's three moves: delete one,
    delete all, and the per-game switch. All of it talks to the studio origin —
@@ -2815,6 +2834,7 @@ function renderFilesTab() {
         parsed && !parsed.ok
           ? h('div', { class: 'pad hint muted' }, `Showing the text because ${parsed.reason}.`)
           : null,
+        /\.svg$/i.test(S.open.path) ? svgPreview(area) : null,
         codeBox(area, S.open.path),
         h('div', { class: 'editor-bar row' },
           h('span', { class: 'hint muted', text: S.open.dirty ? 'Not saved yet' : 'Saved' }),

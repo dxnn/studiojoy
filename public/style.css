@@ -1304,6 +1304,11 @@ details.thinking .trace {
 .media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .media audio { width: 100%; }
 
+/* The live preview above an open .svg: the same checkerboard, held to a band
+   so a tall drawing never squeezes the code out of the pane. */
+.editor .svg-live { flex: 0 0 auto; border-bottom: 1px solid var(--border); }
+.editor .svg-live img { max-height: min(240px, 30vh); }
+
 /* Drawing on one. The canvas keeps the picture's own pixels and is scaled up
    without smoothing, so a 32-square sprite stays 32 squares however big the
    pane is.

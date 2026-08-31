@@ -334,6 +334,11 @@ archived included: a reaction is talk about the work, not a change to it. A
 reaction is never a message and never reaches an agent. `:wave:`-style
 shortcodes were deferred to TODO.md — new-y has none to copy.
 
+An `.svg` opens as the picture over the text that draws it: the preview
+redraws on every keystroke, in place like the syntax colours, and a
+half-typed tag keeps the last drawing that worked — the swap goes through an
+offscreen probe. Client-only; Versions already showed SVG thumbnails.
+
 Every part of a request is now bounded, and nothing is dropped in silence: the
 brief is cut at 32 KB with a note, a pin is priority rather than exemption so
 the file block cannot exceed `AMBIENT_BYTES`, the tool loop stops at 512 KB of
