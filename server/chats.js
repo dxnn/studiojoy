@@ -1,13 +1,16 @@
 // A chat is one conversation inside a project. A game has as many as it wants
 // — one for the humans, one per thing being built — and a project with no
-// working tree (kind = 'chat') is a project whose chats are all there is.
+// working tree (kind = 'chat') is one room and nothing else.
 //
-// Two rules give the shape:
+// Three rules give the shape:
 //
-// - **The first chat is human only.** Every project is born with it, it is
+// - **A game's first chat is human only.** Every game is born with it, it is
 //   what the studio opens on, and `bots = 0` is enforced where a helper would
 //   be put in rather than where one would answer. A room that promises nobody
 //   is listening has to keep that promise at the door.
+// - **A chat project is one room.** Not two: the whole thing is a place to
+//   talk, so a second conversation inside it, and a front door in front of
+//   that, is furniture around a room somebody already chose to open.
 // - **A helper belongs to a chat, not to a project.** The line-up, the chatty
 //   switch, the cooldown and the dirty bit are all per chat, because they are
 //   all about one conversation.
@@ -17,10 +20,14 @@ import { HOME_CHAT } from './db.js';
 
 export const MAX_CHATS_PER_PROJECT = 20;
 export const MAX_CHAT_NAME = 60;
+// How many helpers may be in one conversation. Here rather than beside the
+// route that enforces it, because being called in by name is a second way to
+// reach the same wall.
+export const MAX_AGENTS_PER_CHAT = 10;
 
-// The chat every project is born with, plus the one where the helpers are.
-// Both, from the start: a new game that could only be talked about by humans
-// would need a second click before anybody could ask for anything.
+// The chat every game is born with, beside the human-only one. Both, from the
+// start: a new game that could only be talked about by humans would need a
+// second click before anybody could ask for anything.
 const WORK_CHAT = 'Building';
 
 export function createChat(db, projectId, { name, bots = 1, now = new Date().toISOString() }) {
@@ -30,18 +37,26 @@ export function createChat(db, projectId, { name, bots = 1, now = new Date().toI
   return db.prepare('SELECT * FROM chats WHERE id = ?').get(info.lastInsertRowid);
 }
 
-// Called once, when a project is made.
+// Called once, when a game is made.
 export function startChats(db, projectId, now = new Date().toISOString()) {
   createChat(db, projectId, { name: HOME_CHAT, bots: 0, now });
   return createChat(db, projectId, { name: WORK_CHAT, bots: 1, now });
 }
+
+// Called once, when a chat project is made: the one room it has. Helpers are
+// allowed in it — a room nobody can be called into is not what somebody means
+// by starting a chat — and it wears the project's name, which is the only
+// name anybody ever gave it.
+export const startRoom = (db, projectId, name, now = new Date().toISOString()) => createChat(
+  db, projectId, { name, bots: 1, now },
+);
 
 export const listChats = (db, projectId) => db
   .prepare('SELECT * FROM chats WHERE project_id = ? ORDER BY id')
   .all(projectId);
 
 // The one a project opens on when nothing says otherwise: the first, which is
-// the human-only one.
+// a game's human-only chat and a chat project's only room.
 export const homeChat = (db, projectId) => db
   .prepare('SELECT * FROM chats WHERE project_id = ? ORDER BY id LIMIT 1')
   .get(projectId);

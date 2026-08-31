@@ -59,14 +59,19 @@ test('the starter helper joins the Building chat, and the game opens there', asy
   assert.deepEqual(alone.body.agents, []);
 });
 
+// The one room takes helpers — you can call one in by name — but nobody is
+// put in it: there is nothing to build, and a chat somebody started to talk in
+// should open on the people in it.
 test('a chat project has no building to do, so nobody joins it', async (t) => {
   const { app, steve } = await studio(t);
   await setStarter(app, steve.id);
 
   const made = await newGame(app, 'Silly ideas', 'silly-ideas', 'chat');
-  assert.equal(made.body.chat.name, 'Humans only');
+  assert.equal(made.body.chats.length, 1);
+  assert.equal(made.body.chat.name, 'Silly ideas');
+  assert.equal(made.body.chat.bots, true);
   const opened = await app.client.json(
-    'GET', `/api/projects/silly-ideas?chat=${made.body.chats[1].id}`,
+    'GET', `/api/projects/silly-ideas?chat=${made.body.chat.id}`,
   );
   assert.deepEqual(opened.body.agents, []);
 });

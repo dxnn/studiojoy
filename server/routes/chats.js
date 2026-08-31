@@ -19,14 +19,21 @@ export function chatRoutes(r) {
     json(ctx.res, 200, { chats: listChats(ctx.db, project.id).map(chatPublic) });
   });
 
-  // A new chat always allows helpers. The one that does not is the one the
-  // project was born with, and there is no way to make a second of those:
-  // "just us" is a place, not a setting.
+  // A new chat always allows helpers. The one that does not is the one a game
+  // was born with, and there is no way to make a second of those: "just us"
+  // is a place, not a setting.
   r.post('/api/projects/:slug/chats', async (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx, { write: true });
     const body = await readJson(ctx.req);
     const name = requireString(body.name, 'name', { max: MAX_CHAT_NAME });
+
+    // Games only. A chat project is one room — see server/chats.js — and the
+    // studio offers no button for this there, so anything reaching here is
+    // asking for a shape the client cannot show.
+    if (project.kind === 'chat') {
+      throw new HttpError(409, `${project.name} is one chat — start another chat of its own instead`);
+    }
 
     const count = ctx.db
       .prepare('SELECT COUNT(*) AS c FROM chats WHERE project_id = ?')

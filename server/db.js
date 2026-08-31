@@ -305,6 +305,9 @@ export function openDb(dbPath) {
   db.prepare('UPDATE chats SET name = ? WHERE name = ? AND bots = 0')
     .run(HOME_CHAT, OLD_HOME_CHAT);
   intoChats(db);
+  // After intoChats, never before: that one hands every project both chats,
+  // and this takes the second one back off the projects that are only a room.
+  intoOneRoom(db);
   // Every project that predates authorship gets the person who made it, which
   // is the only honest answer available: nothing else in the row says who
   // worked on it.
@@ -377,6 +380,45 @@ function intoChats(db) {
   // Dropped rather than left behind: two tables that disagree about who is in
   // a conversation is the kind of thing that reads as a bug for a year.
   if (hasOld) db.exec('DROP TABLE project_agents');
+}
+
+// A chat project is one room. It used to be born with two — the human-only
+// front door every project got, and `Building` behind it — which was a game's
+// shape put on a thing that is only a conversation: the studio opened it on an
+// empty room and everything anybody had said was one click further in.
+//
+// The oldest chat is the survivor, because it is the one every remembered
+// `?chat=` and every prefs entry already points at. Everything said in the
+// others moves into it, in the order it was said — message ids are global and
+// climb with time, so one chat's worth of rows reads back chronologically
+// whatever chat it came from. ⚠️ Nothing is deleted but empty rooms: the
+// messages, the marks and the helpers all move first.
+function intoOneRoom(db) {
+  const projects = db.prepare(
+    `SELECT p.id, p.name FROM projects p
+      WHERE p.kind = 'chat'
+        AND (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) > 1`,
+  ).all();
+
+  for (const project of projects) {
+    const [keep, ...rest] = db
+      .prepare('SELECT id FROM chats WHERE project_id = ? ORDER BY id')
+      .all(project.id);
+    // The front door never allowed helpers, and the room that is the whole
+    // project has to.
+    db.prepare('UPDATE chats SET bots = 1, name = ? WHERE id = ?').run(project.name, keep.id);
+    for (const chat of rest) {
+      db.prepare('UPDATE messages SET chat_id = ? WHERE chat_id = ?').run(keep.id, chat.id);
+      db.prepare('UPDATE mentions SET chat_id = ? WHERE chat_id = ?').run(keep.id, chat.id);
+      // OR IGNORE for the one collision there is: a helper in both rooms.
+      // The surviving row is the one already in the room being kept, which is
+      // the honest answer — it is where they were listening.
+      db.prepare('UPDATE OR IGNORE chat_agents SET chat_id = ? WHERE chat_id = ?')
+        .run(keep.id, chat.id);
+      db.prepare('DELETE FROM chat_agents WHERE chat_id = ?').run(chat.id);
+      db.prepare('DELETE FROM chats WHERE id = ?').run(chat.id);
+    }
+  }
 }
 
 // node:sqlite has no transaction() helper and rejects a nested BEGIN, so the

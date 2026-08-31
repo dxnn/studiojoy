@@ -16,7 +16,7 @@ import {
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
 import {
-  startChats, listChats, requireChat, chatPublic,
+  startChats, startRoom, listChats, requireChat, chatPublic,
 } from '../chats.js';
 import {
   addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
@@ -143,10 +143,13 @@ export function projectRoutes(r) {
       )
       .run(slug, name, kind, user.id, now, openEdit);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
-    // Two conversations from the start: the human-only one it opens on, and
-    // one where helpers can be put. A project with nowhere to ask for anything
-    // would need a second click before it could be used at all.
-    const work = startChats(ctx.db, row.id, now);
+    // A game gets two conversations from the start: the human-only one it
+    // opens on, and one where helpers can be put — a game with nowhere to ask
+    // for anything would need a second click before it could be used at all.
+    // A chat project gets the one room it is.
+    const work = kind === 'chat'
+      ? startRoom(ctx.db, row.id, name, now)
+      : startChats(ctx.db, row.id, now);
     // And somebody in it. A game whose Building chat is empty is a room with
     // nobody to ask, which is a second trip to the Crew tab before anything
     // can happen — so the studio's starter helper joins, and the answer says
@@ -248,6 +251,12 @@ export function projectRoutes(r) {
     }
     if (name !== undefined) {
       ctx.db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(name, project.id);
+      // A chat project's one room is the project: nobody named it separately,
+      // and nothing shows the two names apart, so leaving the old one behind
+      // in the database would only ever be a lie to read later.
+      if (project.kind === 'chat') {
+        ctx.db.prepare('UPDATE chats SET name = ? WHERE project_id = ?').run(name, project.id);
+      }
     }
     if (scoresOn !== undefined) {
       ctx.db.prepare('UPDATE projects SET scores_on = ? WHERE id = ?')

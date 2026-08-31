@@ -271,3 +271,139 @@ test('a game left without a chat that takes helpers gets one, and Just us is ren
   assert.equal(again.prepare('SELECT COUNT(*) c FROM chats WHERE project_id = 1').get().c, 2);
   again.close();
 });
+
+/* A chat project is one room ------------------------------------------------
+   A game's two chats are a game's shape: a front door for the people and a
+   workshop behind it. A project that is only a conversation has no workshop
+   to be behind, so it is one room — and helpers are allowed in it, because
+   calling one in by name is the point of having a room at all. */
+
+async function room(t) {
+  const app = await setup();
+  t.after(() => app.close());
+  await signIn(app);
+  const made = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Silly ideas', slug: 'silly-ideas', kind: 'chat' },
+  });
+  return { app, made };
+}
+
+test('a chat project is born with one room, named after itself', async (t) => {
+  const { app, made } = await room(t);
+  assert.deepEqual(made.body.chats.map((c) => [c.name, c.bots]), [['Silly ideas', true]]);
+  assert.equal(made.body.chat.name, 'Silly ideas');
+
+  const detail = await app.client.json('GET', '/api/projects/silly-ideas');
+  assert.equal(detail.body.chats.length, 1);
+  assert.equal(detail.body.chat.bots, true, 'a helper can be called into it');
+});
+
+test('a chat project takes no second chat', async (t) => {
+  const { app } = await room(t);
+  const extra = await app.client.json('POST', '/api/projects/silly-ideas/chats', {
+    body: { name: 'Serious ideas' },
+  });
+  assert.equal(extra.status, 409);
+  assert.match(extra.body.error, /one chat/);
+  assert.equal(
+    (await app.client.json('GET', '/api/projects/silly-ideas/chats')).body.chats.length,
+    1,
+  );
+});
+
+// Nobody named the room separately and nothing shows the two names apart, so
+// leaving the old one in the database would only ever be a lie to read later.
+test('renaming a chat project renames its room', async (t) => {
+  const { app } = await room(t);
+  await app.client.json('PATCH', '/api/projects/silly-ideas', {
+    body: { name: 'Sillier ideas' },
+  });
+  const detail = await app.client.json('GET', '/api/projects/silly-ideas');
+  assert.equal(detail.body.chat.name, 'Sillier ideas');
+});
+
+// The shape every chat project made before this has: the human-only front door
+// every project used to get, and Building behind it, which is where everything
+// anybody said actually is.
+test('a chat project that was born with two chats comes forward as one room', (t) => {
+  const dir = scratchDir('one-room-db');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'db');
+
+  const first = openDb(file);
+  first.exec(`
+    INSERT INTO users (id, email, password_hash, display_name, created_at)
+      VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z');
+    INSERT INTO agents (id, name, description, created_by, created_at)
+      VALUES (1, 'Alice', 'builds', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO projects (id, slug, name, kind, created_by, created_at)
+      VALUES (1, 'ideas', 'Silly ideas', 'chat', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chats (id, project_id, name, bots, created_at)
+      VALUES (1, 1, 'Humans only', 0, '2026-01-01T00:00:00.000Z'),
+             (2, 1, 'Building', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO messages (id, project_id, chat_id, user_id, body, created_at)
+      VALUES (1, 1, 1, 1, 'said at the door', '2026-01-02T00:00:00.000Z'),
+             (2, 1, 2, 1, 'said inside', '2026-01-02T00:01:00.000Z'),
+             (3, 1, 1, 1, 'said at the door again', '2026-01-02T00:02:00.000Z');
+    INSERT INTO mentions (message_id, user_id, chat_id, project_id, created_at)
+      VALUES (2, 1, 2, 1, '2026-01-02T00:01:00.000Z');
+    INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
+      VALUES (2, 1, 1, 1, '2026-01-02T00:00:00.000Z');
+  `);
+  first.close();
+
+  const up = openDb(file);
+  const chats = up.prepare('SELECT * FROM chats WHERE project_id = 1').all();
+  // The oldest is the survivor — it is the one every remembered ?chat= and
+  // every prefs entry already points at — and it wears the project's name.
+  assert.deepEqual(chats.map((c) => [c.id, c.name, c.bots]), [[1, 'Silly ideas', 1]]);
+
+  // Everything said in either room is in the one room, in the order it was
+  // said: ids are global and climb with time.
+  assert.deepEqual(
+    up.prepare('SELECT body, chat_id FROM messages ORDER BY id').all()
+      .map((m) => [m.body, m.chat_id]),
+    [['said at the door', 1], ['said inside', 1], ['said at the door again', 1]],
+  );
+  // The marks and the helpers moved with them; nothing was deleted but the
+  // empty room.
+  assert.deepEqual(up.prepare('SELECT chat_id FROM mentions').all().map((m) => m.chat_id), [1]);
+  assert.deepEqual(
+    up.prepare('SELECT chat_id, agent_id, chatty FROM chat_agents').all()
+      .map((r) => [r.chat_id, r.agent_id, r.chatty]),
+    [[1, 1, 1]],
+  );
+  up.close();
+
+  // And it does not run twice: intoChats must not put Building back.
+  const again = openDb(file);
+  assert.equal(again.prepare('SELECT COUNT(*) c FROM chats WHERE project_id = 1').get().c, 1);
+  again.close();
+});
+
+// A game is untouched by any of it: two chats is the shape a game wants.
+test('a game keeps both of its chats through the upgrade', (t) => {
+  const dir = scratchDir('game-two-chats-db');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'db');
+
+  const first = openDb(file);
+  first.exec(`
+    INSERT INTO users (id, email, password_hash, display_name, created_at)
+      VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z');
+    INSERT INTO projects (id, slug, name, kind, created_by, created_at)
+      VALUES (1, 'tank', 'Tank', 'game', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chats (id, project_id, name, bots, created_at)
+      VALUES (1, 1, 'Humans only', 0, '2026-01-01T00:00:00.000Z'),
+             (2, 1, 'Building', 1, '2026-01-01T00:00:00.000Z');
+  `);
+  first.close();
+
+  const up = openDb(file);
+  assert.deepEqual(
+    up.prepare('SELECT name, bots FROM chats WHERE project_id = 1 ORDER BY id').all()
+      .map((c) => [c.name, c.bots]),
+    [['Humans only', 0], ['Building', 1]],
+  );
+  up.close();
+});

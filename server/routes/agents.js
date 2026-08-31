@@ -4,11 +4,10 @@ import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
 import { MODEL_IDS, THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
 import { requireProject, requireString, optionalBool } from './helpers.js';
-import { requireChat, assertBotsAllowed } from '../chats.js';
+import { requireChat, assertBotsAllowed, MAX_AGENTS_PER_CHAT } from '../chats.js';
 
 const MAX_AGENT_NAME = 100;
 const MAX_DESCRIPTION = 8 * 1024;
-const MAX_AGENTS_PER_CHAT = 10;
 
 // The canonical model ids, verified against /v1/models (spec.md §14) and
 // defined next to the client that talks to them. The deepseek-chat and
