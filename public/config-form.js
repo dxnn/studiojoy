@@ -44,6 +44,15 @@ function setConfigValue(path, kind, raw, input) {
     return;
   }
   S.open.content = spliceValue(S.open.content, node, literal);
+  markUnsaved();
+}
+
+// The first keystroke is already unsaved work, even though the field only
+// commits on `change`, when focus leaves it — without this the Save button
+// stayed grey while you typed, and a click on it did nothing until you had
+// clicked somewhere else first. Patched directly, like setConfigValue: a
+// render here would replace the field mid-keystroke.
+function markUnsaved() {
   S.open.dirty = true;
   const save = document.getElementById('save-btn');
   if (save) save.disabled = false;
@@ -64,6 +73,7 @@ function configField(node, path) {
   if (node.kind === 'number') {
     const input = h('input', {
       type: 'number', step: 'any', class: 'cfg-num',
+      oninput: markUnsaved,
       onchange: (e) => setConfigValue(path, 'number', e.currentTarget.value, e.currentTarget),
     });
     input.value = String(node.value);
@@ -73,6 +83,7 @@ function configField(node, path) {
     const shown = h('span', { class: 'mono hint', text: node.value });
     const input = h('input', {
       type: 'color',
+      oninput: markUnsaved,
       onchange: (e) => {
         setConfigValue(path, 'string', e.currentTarget.value);
         shown.textContent = e.currentTarget.value;
@@ -91,6 +102,7 @@ function configField(node, path) {
     const input = h(multiline ? 'textarea' : 'input', {
       class: 'cfg-text',
       ...(multiline ? { rows: 2 } : { type: 'text' }),
+      oninput: markUnsaved,
       onchange: (e) => setConfigValue(path, 'string', e.currentTarget.value),
     });
     input.value = node.value;
