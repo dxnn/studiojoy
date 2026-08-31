@@ -6,7 +6,8 @@ import {
   initRepo, isRepo, forkRepo, currentSha,
 } from '../files/git.js';
 import { scaffoldLibraries } from '../files/library.js';
-import { listTemplates, scaffoldTemplate } from '../files/templates.js';
+import { listTemplates, scaffoldTemplate, scaffoldStart } from '../files/templates.js';
+import { joinStarter } from '../starter.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
@@ -15,7 +16,7 @@ import {
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
 import {
-  startChats, listChats, homeChat, requireChat, chatPublic,
+  startChats, listChats, requireChat, chatPublic,
 } from '../chats.js';
 import {
   addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
@@ -113,8 +114,14 @@ export function projectRoutes(r) {
           // Born holding the studio library, so + Controls only ever means
           // an update (spec.md §4).
           await scaffoldLibraries(dir, ctx.publicDir, authorFor(user));
+          // A starter tree, or failing that a page. Either way the game has an
+          // index.html from its first minute: a working tree without one is
+          // nothing the games origin can serve, and the preview and the play
+          // link both answered "not found" until a helper wrote one.
           if (template) {
             await scaffoldTemplate(dir, ctx.publicDir, template, authorFor(user));
+          } else {
+            await scaffoldStart(dir, ctx.publicDir, name, authorFor(user));
           }
         }
       });
@@ -139,11 +146,24 @@ export function projectRoutes(r) {
     // Two conversations from the start: the human-only one it opens on, and
     // one where helpers can be put. A project with nowhere to ask for anything
     // would need a second click before it could be used at all.
-    startChats(ctx.db, row.id, now);
+    const work = startChats(ctx.db, row.id, now);
+    // And somebody in it. A game whose Building chat is empty is a room with
+    // nobody to ask, which is a second trip to the Crew tab before anything
+    // can happen — so the studio's starter helper joins, and the answer says
+    // where to open. Games only: a chat project has no working tree to build.
+    const joined = kind === 'game' ? joinStarter(ctx.db, work, user.id, now) : null;
     // The person who made it is its first author: everything else about
     // authorship starts from somebody being able to say who else is in.
     addAuthor(ctx.db, row.id, user.id, user.id, now);
-    const payload = projectPublic(ctx.db, row, user);
+    // `chats` and `chat` mean here what they mean on the GET: every
+    // conversation, and the one to open. Building when somebody is waiting in
+    // it, the human-only one otherwise.
+    const chats = listChats(ctx.db, row.id);
+    const payload = {
+      ...projectPublic(ctx.db, row, user),
+      chats: chats.map(chatPublic),
+      chat: chatPublic(joined ? work : chats[0]),
+    };
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
     json(ctx.res, 201, payload);
   });

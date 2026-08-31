@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, signIn, putInChat, workChat } from './helpers.js';
+import {
+  setup, signIn, putInChat, workChat, startGames,
+} from './helpers.js';
 import { isRepo, logCommits } from '../server/files/git.js';
 import { parseConfigFile } from '../public/config-file.js';
 
@@ -71,14 +73,48 @@ test('a new game is born holding the studio library', async (t) => {
   );
 
   const commits = await logCommits(dir);
-  assert.equal(commits.length, 2);
-  assert.equal(commits[0].subject, 'set up the studio library');
-  assert.equal(commits[1].subject, 'init tank');
+  assert.equal(commits.length, 3);
+  assert.equal(commits[0].subject, 'a page to start from');
+  assert.equal(commits[1].subject, 'set up the studio library');
+  assert.equal(commits[2].subject, 'init tank');
 
   const res = await app.client.json('GET', '/api/projects/tank');
   const byPath = Object.fromEntries(res.body.files.map((f) => [f.path, f]));
   assert.equal(byPath['studio/input.js'].library, true, 'listed as a library file');
   assert.equal(byPath['config/controls.js'].library, undefined, 'the seed is the game\'s own');
+});
+
+// Also against the real public/: a game made without a template gets one page
+// carrying its name, which is the difference between a playable link and
+// `{"error":"not found"}` from the minute it is made.
+test('a game made from a blank page is playable straight away', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+  const games = await startGames(app);
+  t.after(() => games.close());
+
+  // A name that would break the page if it went in unescaped.
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Tank & <Chips>', slug: 'tank' },
+  });
+
+  const played = await games.client.request('GET', '/tank/');
+  assert.equal(played.status, 200);
+  const markup = await played.text();
+  assert.match(markup, /<title>Tank &amp; &lt;Chips&gt;<\/title>/);
+  assert.match(markup, /<h1>Tank &amp; &lt;Chips&gt;<\/h1>/);
+  assert.doesNotMatch(markup, /\{\{name\}\}/);
+
+  // The page loads every library the game was born holding, the same way the
+  // quiz template's does — so a newborn game is not one tag short of Sound.
+  const index = JSON.parse(
+    fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
+  );
+  for (const library of Object.values(index.libraries)) {
+    for (const src of library.scripts) assert.ok(markup.includes(src), src);
+  }
 });
 
 // Also against the real public/: templates are starter trees, and this pins

@@ -15,6 +15,7 @@ import {
 // function over headers. It reads no session and nothing here calls anything
 // else in that module.
 import { clientIp } from './routes/helpers.js';
+import { escapeHtml } from './util/html.js';
 
 const ENTRY_FILE = 'index.html';
 
@@ -31,14 +32,6 @@ const ENTRY_FILE = 'index.html';
 // Nothing here reads a cookie or touches a session. The scoreboard is the
 // one write, and it writes one bounded table — never a working tree
 // (spec.md §6). Names and slugs reach the catalog as text, never as markup.
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) {
   if (!db) throw new Error('createGamesApp requires a db');

@@ -10,6 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { writeFileAt } from './tree.js';
 import { commitPaths } from './git.js';
+import { escapeHtml } from '../util/html.js';
+
+// The one page a game made without a template starts from.
+const BLANK_PAGE = ['game-templates', 'blank', 'index.html'];
 
 export function listTemplates(publicDir) {
   try {
@@ -21,6 +25,36 @@ export function listTemplates(publicDir) {
     // No template directory — the test fixture, or a stripped deployment.
     return {};
   }
+}
+
+// "A blank page" in the New game dialog, which until now meant a blank
+// *directory*: a game with no index.html is nothing the games origin can
+// serve, so the preview and the play link both answered `{"error":"not
+// found"}` until a helper had written one. One page instead, carrying the
+// game's name, so a game loads from the minute it exists.
+//
+// It lives under game-templates/ with the templates and is deliberately not in
+// their index.json — the New game dialog offers it as the empty choice, and a
+// second entry would be the same option listed twice. The one way it differs
+// from a template is `{{name}}`: templates are copied byte for byte, and this
+// page has the game's name in it. Small on purpose, because the preamble tells
+// an agent to write index.html itself — this is a page to replace, not a tree
+// to grow.
+//
+// ⚠️ Read from publicDir like every other scaffold, so a public/ without it
+// writes nothing: that is what keeps the suite's games born empty (spec.md §4)
+// and what leaves "a game with no page" a state still worth testing.
+export async function scaffoldStart(dir, publicDir, name, author) {
+  let page;
+  try {
+    page = await fs.promises.readFile(path.join(publicDir, ...BLANK_PAGE), 'utf8');
+  } catch {
+    return null;
+  }
+  await writeFileAt(
+    path.join(dir, 'index.html'), page.replaceAll('{{name}}', escapeHtml(name)),
+  );
+  return commitPaths(dir, ['index.html'], 'a page to start from', author);
 }
 
 export async function scaffoldTemplate(dir, publicDir, name, author) {

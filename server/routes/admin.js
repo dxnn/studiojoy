@@ -16,6 +16,7 @@ import { requireString, optionalBool } from './helpers.js';
 import {
   DEFAULT_DAILY_TOKEN_BUDGET, studioLimit, userSpentToday, budgetState,
 } from '../budget.js';
+import { starterAgent } from '../starter.js';
 
 const MAX_NAME = 100;
 
@@ -32,6 +33,19 @@ function optionalTokens(value, field) {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0) throw new HttpError(400, `${field} must be a whole number`);
   return n;
+}
+
+// A living agent's id, or null for "nobody joins a new game". Undefined means
+// the field was not sent at all, which leaves the setting alone.
+function optionalAgentId(db, value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const id = Number(value);
+  const agent = Number.isInteger(id)
+    ? db.prepare('SELECT id FROM agents WHERE id = ? AND deleted = 0').get(id)
+    : null;
+  if (!agent) throw new HttpError(400, 'no such helper');
+  return agent.id;
 }
 
 const personPublic = (db, row) => ({
@@ -63,6 +77,10 @@ export function adminRoutes(r) {
       people: people.map((row) => personPublic(ctx.db, row)),
       budget: budgetState(ctx.db, studioLimit(ctx.db)),
       default_budget: DEFAULT_DAILY_TOKEN_BUDGET,
+      // Who joins a new game. Read back through starterAgent rather than
+      // straight off the row, so a helper that has since been deleted shows
+      // as nobody — which is what it is.
+      starter_agent_id: starterAgent(ctx.db)?.id ?? null,
     });
   });
 
@@ -146,7 +164,16 @@ export function adminRoutes(r) {
     const body = await readJson(ctx.req);
     const budget = optionalTokens(body.daily_token_budget, 'daily_token_budget');
     if (budget === undefined) throw new HttpError(400, 'daily_token_budget is required');
+    // Both settings arrive on the one Save, so the starter helper is optional
+    // here where the budget is not: leaving it out changes nothing.
+    const starter = optionalAgentId(ctx.db, body.starter_agent_id);
     ctx.db.prepare('UPDATE studio_state SET daily_token_budget = ? WHERE id = 1').run(budget);
-    json(ctx.res, 200, { budget: budgetState(ctx.db, studioLimit(ctx.db)) });
+    if (starter !== undefined) {
+      ctx.db.prepare('UPDATE studio_state SET default_agent_id = ? WHERE id = 1').run(starter);
+    }
+    json(ctx.res, 200, {
+      budget: budgetState(ctx.db, studioLimit(ctx.db)),
+      starter_agent_id: starterAgent(ctx.db)?.id ?? null,
+    });
   });
 }

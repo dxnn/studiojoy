@@ -260,6 +260,11 @@ export function openDb(dbPath) {
   // The studio-wide budget, editable in the admin panel rather than a
   // constant in the source. Null means the built-in default still applies.
   addColumnIfMissing(db, 'studio_state', 'daily_token_budget', 'INTEGER');
+  // The starter helper: who joins every new game's Building chat. Null is
+  // nobody, which is what a fresh studio has and what the studio did before
+  // this existed. Nullable is also what lets the column carry a REFERENCES
+  // through ALTER TABLE with foreign keys on.
+  addColumnIfMissing(db, 'studio_state', 'default_agent_id', 'INTEGER REFERENCES agents');
   addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
   // After the column, not with the other CREATEs: on a database written before
   // chats there is nothing to index until the line above has run.

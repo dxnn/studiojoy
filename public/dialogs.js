@@ -120,7 +120,11 @@ export function dialogFor(d) {
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
           close();
           await loadProjects();
-          await openProject(res.body.slug);
+          // The answer says which conversation to open on — Building when the
+          // starter helper is waiting there, the human-only one otherwise. A
+          // new game has nothing remembered about it, so without this it would
+          // land on its front door with nobody in the room.
+          await openProject(res.body.slug, { view: { chat: res.body.chat?.id } });
         },
       })));
   }
@@ -358,6 +362,7 @@ export function dialogFor(d) {
   if (d.kind === 'studio') {
     const list = h('div', { class: 'plan' });
     const budget = h('input', { type: 'number', min: '0', class: 'cfg-num' });
+    const starter = h('select', { title: 'Joins the Building chat of every new game' });
     const box = h('div', { class: 'col' });
 
     const number = (value) => (value === null || value === undefined ? '' : String(value));
@@ -366,6 +371,13 @@ export function dialogFor(d) {
       const data = S.admin;
       if (!data) { list.replaceChildren(h('div', { class: 'muted', text: 'Reading…' })); return; }
       budget.value = number(data.budget.limit);
+      // Rebuilt each paint: a helper made or deleted while this is open
+      // should be in the list, and an empty value is a real answer — nobody.
+      starter.replaceChildren(
+        h('option', { value: '', text: 'Nobody' }),
+        ...S.agents.map((a) => h('option', { value: String(a.id), text: a.name })),
+      );
+      starter.value = number(data.starter_agent_id);
       list.replaceChildren(...data.people.map((person) => {
         const name = h('input', { value: person.display_name });
         name.value = person.display_name;
@@ -432,6 +444,17 @@ export function dialogFor(d) {
           paint();
         },
       })),
+      h('div', { class: 'section-label', text: 'Every new game starts with' }),
+      h('div', { class: 'person' },
+        starter,
+        h('span', { class: 'hint muted', text: 'waiting in the game’s Building chat' }),
+        h('button', {
+          class: 'quiet tiny', text: 'Save',
+          onclick: () => studioChange('PATCH', '/studio', {
+            daily_token_budget: budget.value === '' ? null : Number(budget.value),
+            starter_agent_id: starter.value === '' ? null : Number(starter.value),
+          }).then(paint),
+        })),
       h('div', { class: 'section-label', text: 'The whole studio, in a day' }),
       h('div', { class: 'person' },
         budget,

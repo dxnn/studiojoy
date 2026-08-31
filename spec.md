@@ -416,10 +416,23 @@ Single row, `id = 1`.
 | `id` | INTEGER PK CHECK (id = 1) | |
 | `tokens_used_today` | INTEGER NOT NULL DEFAULT 0 | all agents, all projects |
 | `budget_reset_at` | TEXT NOT NULL | advances to next UTC midnight on first use after rollover |
+| `daily_token_budget` | INTEGER NULL | the studio-wide wall; null = the built-in default |
+| `default_agent_id` | INTEGER NULL → agents | the *starter helper*; null = nobody |
 
 One studio-wide daily budget rather than `new-y`'s per-user accounting —
 agents aren't owned by anyone, and the purpose here is narrower: stop a
 runaway tool loop from draining the API key.
+
+The **starter helper** is the one that joins every new game's `Building` chat,
+chatty, at creation — so a new game is somewhere you can ask for something
+rather than a room with nobody in it. A setting rather than a name in the
+source: helpers are rows people make, rename and delete. Null is nobody, and
+that is what a fresh studio has; a soft-deleted agent reads as null too, so a
+helper taken out of the studio quietly stops joining instead of failing every
+creation. Games only — a chat project has no working tree to build. It is read
+and written in Studio settings, beside the budget, and it never reaches
+`Humans only`: `joinStarter` goes through `assertBotsAllowed` like every other
+way a helper is put in a chat.
 
 ## 4. Files on disk
 
@@ -558,7 +571,7 @@ addresses to do its job.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview |
-| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json` |
+| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open, `Building` when the *starter helper* joined it |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
@@ -575,10 +588,10 @@ any account (§11).
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/admin/studio` | — | the people, what each has spent today, and the studio-wide budget |
+| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, and `starter_agent_id` |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
 | PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `password` | change one |
-| PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody |
+| PATCH | `/api/admin/studio` | `{daily_token_budget, starter_agent_id?}` | the wall around everybody, and who joins a new game; the helper is optional here — both settings share one Save, and leaving it out changes nothing |
 
 ⚠️ A password set here ends that person's sessions: a password changed because
 somebody else knew it has to end the somebody else's session too.
@@ -1089,6 +1102,18 @@ pre-written `BRIEF.md` and `SPEC.md` so helpers know the map from the first
 fire, the library script tags already in `index.html` so a newborn shows no
 Update offers, and placeholder assets the studio's own makers can replace.
 Server-side copying is byte-safe, so templates can ship sounds and pictures.
+
+"A blank page" — the dialog's other choice, and its default — used to mean a
+blank *directory*, and a game with no `index.html` is nothing the games origin
+can serve: the preview and the play link both answered `{"error":"not found"}`
+until a helper had written one. It is now one page, committed after the library
+scaffold like a template, from `public/game-templates/blank/index.html`. That
+page is the one thing under `game-templates/` that is not copied byte for byte
+— `{{name}}` becomes the game's name, escaped — and it is deliberately absent
+from `index.json`, because the dialog already offers it as the empty choice.
+Read from `publicDir` like every other scaffold, so a `public/` without it
+writes nothing: that is what keeps the suite's games born empty, and what
+leaves "a game with no page" a state still worth testing.
 
 The **quiz** template is the first, and it comes with its own editor: a quiz
 is a form pretending to be a game. `config/questions.js` holds `QUESTIONS`

@@ -279,6 +279,15 @@ there was something to carry, which left a game nobody had talked in yet with
 nowhere a helper could be put. Tested against a hand-built old database and
 against that shape.
 
+A new game is not born empty of people either: the **starter helper**
+(`studio_state.default_agent_id`, picked in Studio settings beside the budget)
+joins its `Building` chat, chatty, and the create answer carries `chats` and
+`chat` so the studio opens there rather than on the front door. A setting
+rather than a name in the code — helpers are rows people make, rename and
+delete — so nobody is a real answer, and a deleted helper reads as nobody
+instead of failing every creation. Games only, and ⚠️ through
+`assertBotsAllowed` like every other way a helper is put in a chat.
+
 ⚠️ Remembering the chat needs both halves. `openProject` resolves it —
 `view.chat`, else `prefs('chat-<slug>')`, else the front door — and then
 **names it to `applyView`**, which reads a missing chat as "the one the project
@@ -496,6 +505,18 @@ in the quiz shape opens as the **quiz editor**, the whole game as a form, no
 helper needed; outgrown, it falls back to the config form, then the text. The
 move-and-collect and point-and-click templates are queued in TODO.md, each
 owed its own editor mode where one fits (ideas/templates.md).
+
+The other choice, "A blank page", used to mean a blank *directory* — and a game
+with no `index.html` is nothing the games origin can serve, so a new game
+answered `{"error":"not found"}` until a helper had written one. It is now the
+**blank start**: `public/game-templates/blank/index.html`, committed after the
+library scaffold, carrying the game's name and the script tags for what the
+game holds. Not in `index.json` — the dialog already offers it as the empty
+choice — and the one page there that is not copied byte for byte, since
+`{{name}}` becomes the game's name, escaped. Read from `publicDir` like every
+other scaffold, so the suite's fixture writes nothing and "a game with no page"
+stays a state worth testing. Browser-checked: `Bats & Balls` plays on the games
+origin with the ampersand escaped in both the title and the heading.
 
 Couch multiplayer is what the input module buys. Networked multiplayer is not
 built; the games origin holding state and taking a write is no longer the

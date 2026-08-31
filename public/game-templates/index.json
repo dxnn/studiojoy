@@ -1,5 +1,6 @@
 {
   "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows.",
+  "_blank": "blank/index.html is the page a game made without a template starts from, and is deliberately not listed below: the dialog already offers it as the empty choice. It is the one page here that is not copied byte for byte — {{name}} becomes the game's name.",
   "templates": {
     "quiz": {
       "title": "A quiz",
