@@ -2133,8 +2133,8 @@ call a tool. Give it less and it does not think less and write less — it think
 until the ceiling stops it and produces no file, no word and no tool call, four
 runs out of four at 8192. There is no partial credit, so the failure is a cliff
 rather than a slope, and from the outside it is indistinguishable from a hang:
-at ~90 tokens/s a full 65536 of thinking is **twelve silent minutes** ending in
-an empty reply. This is what "the helper thought too long and did nothing" is,
+at the 90–125 tokens/s measured here, a full 65536 of thinking is **nine to
+twelve silent minutes** ending in an empty reply. This is what "the helper thought too long and did nothing" is,
 and no timeout is involved.
 
 **`reasoning_effort` is the lever, and the trivial-prompt measurement above

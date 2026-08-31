@@ -31,7 +31,18 @@ deliberately deferred.
   reactions build; new-y has none to copy, so the map is ours to write)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
-  after it (spec.md §9)
+  after it (spec.md §9). The other half: a tab that reconnects refetches only
+  the file tree, so a live row whose fire ended while it was away never clears
+- ! give a helper three thinking settings instead of two — full, low, off —
+  and start game-building helpers on low. Measured: at the default effort an
+  ambitious request spends ~13.7k tokens thinking before its first tool call,
+  and below that it writes nothing at all (spec.md §14, the cliff)
+- ! bound a helper's thinking: a fire whose trace passes a ceiling with no tool
+  call yet is on course to spend twelve minutes and produce nothing, so stop it
+  there and re-fire with thinking off rather than letting it run out
+- the Thinking panel shows the top of the trace and nothing ever scrolls it, so
+  a long think looks stopped — stick it to the newest thought, and say on the
+  dots line how long it has been going
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate
