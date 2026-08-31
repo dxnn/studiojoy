@@ -2117,25 +2117,29 @@ game. Two players, split screen, destructible walls, power-ups."* — against
 `deepseek-v4-flash` (`tmp/probe-do-more.mjs`, `tmp/probe-tools-effort.mjs`,
 2026-08-31):
 
-| effort | `max_tokens` | reasoning / output | tool calls | first call at | wall |
-| --- | --- | --- | --- | --- | --- |
-| default | 8192 | 8192 / 8192 | **0** | never | 59–91 s |
-| default | 16384 | 13679 / 16321 | 6 | 67 s | 82 s |
-| `'low'` | 8192 | 6886 / 8192 | 3 | 56 s | 62 s |
-| `'low'` | 8192 | 1597 / 3185 | 3 | 16 s | 24 s |
-| `'none'` | 8192 | 0 / 803 | 2 | 1 s | 7 s |
+| effort | `max_tokens` | runs | reasoning / output | tool calls | first call at | wall |
+| --- | --- | --- | --- | --- | --- | --- |
+| default | 8192 | 4 of 4 | 8192 / 8192 | **0** | never | 59–91 s |
+| default | 16384 | 4 of 5 | 16384 / 16384 | **0** | never | 114–131 s |
+| default | 16384 | 1 of 5 | 13679 / 16321 | 6 | 67 s | 82 s |
+| `'low'` | 8192 | 1 of 2 | 6886 / 8192 | 3 | 56 s | 62 s |
+| `'low'` | 8192 | 1 of 2 | 1597 / 3185 | 3 | 16 s | 24 s |
+| `'none'` | 8192 | 1 of 1 | 0 / 803 | 2 | 1 s | 7 s |
 
 Two findings, and the first one is the important one:
 
-**Below the thinking a request provokes, the answer is nothing at all.** At the
-default effort this request wants ~13.7 K tokens of thinking before it will
-call a tool. Give it less and it does not think less and write less — it thinks
-until the ceiling stops it and produces no file, no word and no tool call, four
-runs out of four at 8192. There is no partial credit, so the failure is a cliff
-rather than a slope, and from the outside it is indistinguishable from a hang:
-at the 90–125 tokens/s measured here, a full 65536 of thinking is **nine to
-twelve silent minutes** ending in an empty reply. This is what "the helper thought too long and did nothing" is,
-and no timeout is involved.
+**⚠️ At the default effort the trace expands to fill whatever it is given, and
+produces nothing when it does.** Nine runs at the default: 8192 became 8192 of
+reasoning, 16384 became 16384, and **one run in nine** stopped thinking (at
+13679) and wrote its six files. The appetite is not a fixed size the budget
+either covers or does not — raising `max_tokens` mostly buys a longer silence,
+which is why the studio's 65536 is no protection and is the setting this
+failure happened under. There is no partial credit either: a run that does not
+finish thinking writes no file, says no word and calls no tool, so the failure
+is a cliff rather than a slope. From the outside it cannot be told from a hang
+— at the 90–125 tokens/s measured here, a full 65536 of thinking is **nine to
+twelve silent minutes** ending in an empty reply. That is what "the helper
+thought too long and did nothing" is, and no timeout is involved.
 
 **`reasoning_effort` is the lever, and the trivial-prompt measurement above
 hid it.** At the same 8192 where the default wrote nothing, `'low'` wrote three
@@ -2144,9 +2148,21 @@ tokens. Between default and `'low'` the difference is not a rung on a ladder;
 it is files against nothing. The run-to-run spread inside `'low'` is still
 wide (6886 and 1597), so it bounds the thinking loosely, not tightly.
 
+**The prompt is not the lever.** A rule added to the preamble telling it to
+write its plan into `TODO.md` rather than hold it — that its thinking is
+discarded and re-billed while a file is kept and cached, and that a turn
+producing no file produced nothing — changed nothing at either budget: four
+runs, zero tool calls, same as the preamble without it. The self-note strategy
+it was pointing at already exists (`TODO.md` is in the preamble, and a
+continuation rebuilds context from disk), and it is not what is missing. The
+model does not decline to write its plan down; it never reaches the point of
+writing anything at all.
+
 A caveat kept deliberately: these arms were scored on whether tool calls came
 out, not on whether the game was any good. `'none'` wrote the fewest bytes of
-the three that acted, and how much prose each wrote was not measured.
+the three that acted, and how much prose each wrote was not measured. `'low'`
+has two runs behind it and `'none'` one, against nine at the default — enough
+to show the direction, not enough to size it.
 
 ### Tools
 

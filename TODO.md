@@ -35,11 +35,12 @@ deliberately deferred.
   the file tree, so a live row whose fire ended while it was away never clears
 - ! give a helper three thinking settings instead of two — full, low, off —
   and start game-building helpers on low. Measured: at the default effort an
-  ambitious request spends ~13.7k tokens thinking before its first tool call,
-  and below that it writes nothing at all (spec.md §14, the cliff)
+  ambitious request produced output once in nine runs, the trace filling
+  whatever budget it was given (spec.md §14, the cliff)
 - ! bound a helper's thinking: a fire whose trace passes a ceiling with no tool
-  call yet is on course to spend twelve minutes and produce nothing, so stop it
-  there and re-fire with thinking off rather than letting it run out
+  call yet is on course to spend nine minutes and produce nothing, so stop it
+  there and re-fire with thinking off rather than letting it run out. Raising
+  max_tokens is not the fix — the trace grows to fill it
 - the Thinking panel shows the top of the trace and nothing ever scrolls it, so
   a long think looks stopped — stick it to the newest thought, and say on the
   dots line how long it has been going
