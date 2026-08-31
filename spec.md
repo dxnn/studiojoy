@@ -25,7 +25,7 @@ the LLM is DeepSeek rather than Anthropic.
 - **Typing previews. Dropped permanently, not deferred** — `new-y` streams
   keystrokes between humans; this app does not, and won't. Agent responses do
   stream (§9).
-- Viewer counts, message reactions, web push, unread counts. Deferred (§15).
+- Viewer counts, web push, unread counts. Deferred (§15).
 - Full-text search over messages or files.
 - Public read access to chat, files, or the project list (§7).
 
@@ -290,6 +290,27 @@ has chats. Covered by a test that builds the old shape in a file and opens it.
 
 PK `(message_id, path)`. Records which files a human explicitly pinned on that
 turn. Drives the context chips in the UI and the pin rules in §8.
+
+### `message_reactions`
+
+| column | type | notes |
+|---|---|---|
+| `message_id` | INTEGER NOT NULL → messages | |
+| `user_id` | INTEGER NOT NULL → users | people only; an agent never reacts |
+| `emoji` | TEXT NOT NULL | stored as given, ≤ 32 utf-8 bytes, unvalidated (§10) |
+| `created_at` | TEXT NOT NULL | |
+
+PK `(message_id, user_id, emoji)` — the key is the toggle: adding the same
+emoji twice is a conflict, so taking one back is a DELETE and nothing ever
+counts double (the pattern proved in `new-y`). Index on `message_id`.
+
+`messagePublic` embeds the grouped result on every message as
+`reactions: [{emoji, users: [{id, name}]}]` — ids for the "is this yours"
+test, names for the tooltip, resolved at serve time like `user_name` and
+equally blind to `deleted`. Groups stand in the order the first of each
+landed, so a chip never moves when somebody joins it. Never part of an
+agent's context: nothing an agent is sent reads this table, and a reaction
+is never a message, so the thread's shape does not move when somebody reacts.
 
 ### `mentions`
 
@@ -643,9 +664,12 @@ There is no route that deletes a chat.
 | POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
 | GET | `/api/messages/:id/receipt` | — | `{breakdown, prompt_held}`: what that reply was given and what each request cost (§8); 404 for a message with no receipt |
 | GET | `/api/messages/:id/prompt` | — | the last request of that fire as plain text; 404 unless the message is the one reply in its project whose prompt is still held |
+| POST | `/api/messages/:id/reactions/toggle` | `{emoji}` | toggle that emoji on that message for the signed-in person; answers `{action: 'add'\|'remove'}` and broadcasts `message.reaction` (§9) |
 
 Message ids are global and every account sees every project (§3), so the two
-receipt routes check only that someone is signed in.
+receipt routes and the reaction toggle check only that someone is signed in.
+For the toggle that is deliberate: a reaction is talk about the work, not a
+change to it, so neither authorship nor archiving stands in the way.
 
 #### Files
 
@@ -1783,7 +1807,8 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes}` |
+| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes, reactions}` |
+| `message.reaction` | `{project_slug, chat_id, message_id, user_id, user_name, emoji, action: 'add'\|'remove'}` — a delta, applied by the same idempotent merge as the reacting tab's own optimistic click |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |
@@ -1825,6 +1850,10 @@ helpers answer with a `[studio]` note naming them and the studio carries on for
 everybody else.
 
 - Message body: 32 KB (utf-8 bytes).
+- Reaction emoji: 32 bytes (utf-8), no codepoint validation — a ZWJ sequence
+  and a `:shortcode:` string are both accepted, equality is bytewise. The
+  client offers a fixed set of twenty and renders with `textContent`, so a
+  forged string is inert and no worse than a message body.
 - JSON request body: 64 KB. Raw file `PUT` body: 10 MB.
 - Email: 254 chars. Display name: 100. Project name: 200. Slug: 40.
 - Agent name: 100. Agent description: 8 KB.
@@ -2136,8 +2165,9 @@ the test suite never touches the network.
 
 - Counting tokens rather than bytes. The byte caps bound the request, but a
   request's real cost is only visible after the fact, in `usage`.
-- Viewer counts, message reactions, web push, unread markers (all exist in
-  `new-y`). Typing previews are **not** here — they are permanently out (§2).
+- Viewer counts, web push, unread markers (all exist in `new-y`; message
+  reactions are built now, §3). Typing previews are **not** here — they are
+  permanently out (§2).
 - Public read-only chat. (A public game index is no longer deferred: `/` on
   the games origin is the catalog, listing games whose `published` flag is
   set. Publishing changes findability, not access — every game has always

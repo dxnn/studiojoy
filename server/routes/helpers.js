@@ -102,6 +102,23 @@ export function messagePublic(db, row, slug) {
   const author = row.user_id
     ? db.prepare('SELECT display_name FROM users WHERE id = ?').get(row.user_id)
     : null;
+  // Every emoji on this message, grouped, with who put it there: ids for the
+  // "is this yours" test, names for the tooltip. Names resolved now like the
+  // author's above, and without minding `deleted`, for the same reason.
+  // Groups stand in the order the first of each landed, so a chip never moves
+  // when somebody joins it.
+  const reactions = [];
+  for (const r of db
+    .prepare(
+      `SELECT r.emoji, r.user_id, u.display_name AS name
+         FROM message_reactions r JOIN users u ON u.id = r.user_id
+        WHERE r.message_id = ? ORDER BY r.created_at, r.user_id`,
+    )
+    .all(row.id)) {
+    const entry = reactions.find((e) => e.emoji === r.emoji);
+    if (entry) entry.users.push({ id: r.user_id, name: r.name });
+    else reactions.push({ emoji: r.emoji, users: [{ id: r.user_id, name: r.name }] });
+  }
   return {
     id: row.id,
     project_slug: slug,
@@ -127,6 +144,7 @@ export function messagePublic(db, row, slug) {
     trimmed: row.trimmed ?? null,
     context_paths: contextPaths,
     writes: writes.map((w) => ({ ...w })),
+    reactions,
     // Whether the token note under the bubble has a receipt to open. A flag
     // rather than the receipt itself: the breakdown is fetched on the click,
     // and old replies from before receipts existed stay a plain note.

@@ -201,6 +201,20 @@ const MIGRATIONS = [
     budget_reset_at TEXT NOT NULL,
     daily_token_budget INTEGER
   )`,
+
+  // An emoji a person put on a message. The composite key is the whole
+  // toggle: adding the same one twice is a conflict, so taking one back is a
+  // DELETE and nothing ever counts double — the pattern proved in new-y.
+  // People only; an agent never reacts, so there is no agent column.
+  `CREATE TABLE IF NOT EXISTS message_reactions (
+    message_id INTEGER NOT NULL REFERENCES messages,
+    user_id INTEGER NOT NULL REFERENCES users,
+    emoji TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id, emoji)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_reactions_message
+     ON message_reactions (message_id)`,
 ];
 
 export function openDb(dbPath) {

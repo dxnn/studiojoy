@@ -3,12 +3,13 @@ import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
 import { checkProjectPath } from '../files/paths.js';
-import { requireProject, messagePublic } from './helpers.js';
+import { requireProject, messagePublic, requireString } from './helpers.js';
 import { requireChat, homeChat } from '../chats.js';
 import { canEdit } from '../authors.js';
 import { mentionedUsers, recordMentions } from '../mentions.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
+const MAX_EMOJI_BYTES = 32;
 const MAX_CONTEXT_PATHS = 50;
 const DEFAULT_PAGE = 50;
 const MAX_PAGE = 200;
@@ -142,6 +143,61 @@ export function messageRoutes(r) {
       messages: rows.map((m) => messagePublic(ctx.db, m, project.slug)),
       has_more: rows.length === limit && rows.length > 0,
     });
+  });
+
+  // Toggle an emoji on a message: on if you had not put it there, off if you
+  // had. Anyone signed in may react to anything they can read, which is
+  // everything (spec.md §3) — a reaction is talk about the work, not a change
+  // to it, so neither authorship nor archiving stands in the way. The emoji is
+  // stored as given, ≤ 32 bytes and never validated further: the client offers
+  // a fixed set and renders with textContent, so a forged string is inert and
+  // no worse than a message body.
+  r.post('/api/messages/:id/reactions/toggle', async (ctx) => {
+    const user = requireAuth(ctx);
+    const body = await readJson(ctx.req);
+    const emoji = requireString(body.emoji, 'emoji');
+    if (Buffer.byteLength(emoji, 'utf8') > MAX_EMOJI_BYTES) {
+      throw new HttpError(400, `emoji must be at most ${MAX_EMOJI_BYTES} bytes`);
+    }
+    const row = ctx.db
+      .prepare(
+        `SELECT m.id, m.chat_id, p.slug FROM messages m
+           JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
+      )
+      .get(requireMessageId(ctx));
+    if (!row) throw new HttpError(404, 'no such message');
+
+    const action = tx(ctx.db, () => {
+      const gone = ctx.db
+        .prepare(
+          `DELETE FROM message_reactions
+            WHERE message_id = ? AND user_id = ? AND emoji = ?`,
+        )
+        .run(row.id, user.id, emoji);
+      if (gone.changes > 0) return 'remove';
+      ctx.db
+        .prepare(
+          `INSERT INTO message_reactions (message_id, user_id, emoji, created_at)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(row.id, user.id, emoji, new Date().toISOString());
+      return 'add';
+    });
+
+    // To every tab, the sender's own included: their other tabs need it, and
+    // the one that clicked merges the echo as a no-op. The name rides along
+    // for the same reason it does on a message — the client has no user list
+    // to look one up in.
+    ctx.broker.broadcast('message.reaction', {
+      project_slug: row.slug,
+      chat_id: row.chat_id,
+      message_id: row.id,
+      user_id: user.id,
+      user_name: user.display_name,
+      emoji,
+      action,
+    });
+    json(ctx.res, 200, { action });
   });
 
   // The receipt behind the token note: what the reply was given and what each

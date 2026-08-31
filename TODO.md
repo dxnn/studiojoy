@@ -27,6 +27,8 @@ deliberately deferred.
   DOM-buttons one (ideas/control-schemes.md, "Deferred, and why")
 - offer the Top 10 on `Screens.title()` — every game refetches /_scores by
   hand today (the screens library's one surviving open question)
+- interpret `:wave:`-style emoji shortcodes in messages (deferred from the
+  reactions build; new-y has none to copy, so the map is ours to write)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
   after it (spec.md §9)

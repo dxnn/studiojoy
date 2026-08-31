@@ -28,7 +28,7 @@ import { isQuizPath, quizModel } from './quiz-editor.js';
 import { renderQuizForm } from './quiz-form.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
-import { renderChat } from './chat.js';
+import { renderChat, applyReactionDelta } from './chat.js';
 import { renderSidebar, wordmark } from './sidebar.js';
 import { dialogFor } from './dialogs.js';
 
@@ -130,6 +130,9 @@ export const S = {
   // The one open receipt under a reply's token note: {id, breakdown,
   // promptHeld}. One at a time, like a row's changes in the versions list.
   receipt: null,
+  // Which message's emoji palette is open, or null. One at a time, and in
+  // state rather than only in the DOM so a background render reopens it.
+  reactionPicker: null,
   dialog: null,
   banner: null,
   // A state, not an event: false from the moment something fails to reach the
@@ -754,7 +757,7 @@ window.addEventListener('popstate', followUrl);
 /* Live events ------------------------------------------------------------- */
 
 const STREAM_EVENTS = [
-  'project.new', 'project.updated', 'message.new',
+  'project.new', 'project.updated', 'message.new', 'message.reaction',
   'agent.stream.start', 'agent.stream.reasoning', 'agent.stream.chunk',
   'agent.tool', 'agent.stream.end', 'files.changed', 'game.errors',
 ];
@@ -889,6 +892,19 @@ function onEvent(name, data) {
       // the line under it should say so. Only worth asking when you have an
       // allowance at all.
       if (data.agent_id !== null && S.me?.daily_tokens) loadMe().then(render);
+      return;
+    }
+
+    case 'message.reaction': {
+      // A change to a message on screen, or to nothing: a conversation that is
+      // not showing gets its reactions with its messages when it loads. Your
+      // own click already applied this delta, and the merge shrugs at seeing
+      // it again.
+      if (!here(data)) return;
+      const msg = S.project?.messages.find((m) => m.id === data.message_id);
+      if (!msg) return;
+      applyReactionDelta(msg, data);
+      render();
       return;
     }
 

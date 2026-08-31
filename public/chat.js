@@ -7,7 +7,7 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
-  composerBox, sendComposer, send, say, sizeText,
+  composerBox, sendComposer, send, api, say, sizeText,
   openChat, createChat, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
 
@@ -191,6 +191,92 @@ function renderReceipt(msg, receipt) {
       }));
 }
 
+/* Reactions -----------------------------------------------------------------
+   An emoji a person puts on a message. The chips under a bubble are the
+   reactions it has, each carrying who on its tooltip; + opens a fixed
+   palette. A click is applied here first and the stream's echo lands on the
+   same merge, which is idempotent — that is the whole correctness story for
+   two tabs and a slow network. */
+
+const REACTION_EMOJI = [
+  '👍', '❤️', '😂', '🎉', '🔥', '👀', '✅', '🚀', '🤔', '😮',
+  '😢', '🙏', '👋', '💪', '⭐', '🎮', '🤖', '🥳', '😍', '💡',
+];
+
+// The one merge for the optimistic click and the SSE echo alike. Adding
+// somebody already there and removing somebody already gone are both no-ops,
+// and an emoji whose last person leaves takes its chip with it.
+export function applyReactionDelta(msg, {
+  emoji, user_id: id, user_name: name, action,
+}) {
+  const list = msg.reactions ?? (msg.reactions = []);
+  const entry = list.find((r) => r.emoji === emoji);
+  if (action === 'add') {
+    if (!entry) list.push({ emoji, users: [{ id, name }] });
+    else if (!entry.users.some((u) => u.id === id)) entry.users.push({ id, name });
+  } else if (entry) {
+    entry.users = entry.users.filter((u) => u.id !== id);
+    if (entry.users.length === 0) list.splice(list.indexOf(entry), 1);
+  }
+}
+
+const myReaction = (msg, emoji) => (msg.reactions ?? [])
+  .some((r) => r.emoji === emoji && r.users.some((u) => u.id === S.me.id));
+
+async function toggleReaction(msg, emoji) {
+  const action = myReaction(msg, emoji) ? 'remove' : 'add';
+  const me = { user_id: S.me.id, user_name: S.me.display_name };
+  applyReactionDelta(msg, { emoji, ...me, action });
+  render();
+  const res = await api('POST', `/api/messages/${msg.id}/reactions/toggle`, { emoji });
+  if (!res.ok) {
+    // Put it back the way it was — only your own reaction can have moved.
+    applyReactionDelta(msg, { emoji, ...me, action: action === 'add' ? 'remove' : 'add' });
+    render();
+    say(res.body?.error ?? 'The reaction did not go through.', true);
+  }
+}
+
+// The palette is open on one message at a time, held in state so a background
+// render rebuilds it where it was. A click anywhere else closes it; the row's
+// own buttons stop their clicks from counting as elsewhere.
+document.addEventListener('click', () => {
+  if (S.reactionPicker === null) return;
+  S.reactionPicker = null;
+  render();
+});
+
+function reactionsRow(msg) {
+  const chips = (msg.reactions ?? []).map((r) => h('button', {
+    class: `reaction${r.users.some((u) => u.id === S.me.id) ? ' mine' : ''}`,
+    // Who, on the chip itself: the count says how many, this says which.
+    title: r.users.map((u) => u.name).join(', '),
+    onclick: (e) => { e.stopPropagation(); toggleReaction(msg, r.emoji); },
+  }, `${r.emoji} `, h('span', { class: 'count', text: String(r.users.length) })));
+  const palette = S.reactionPicker === msg.id
+    ? h('div', { class: 'reaction-palette' },
+      REACTION_EMOJI.map((emoji) => h('button', {
+        text: emoji, title: 'React with this',
+        onclick: (e) => {
+          e.stopPropagation();
+          S.reactionPicker = null;
+          toggleReaction(msg, emoji);
+        },
+      })))
+    : null;
+  return h('div', { class: 'reactions' },
+    chips,
+    h('button', {
+      class: 'reaction add', text: '+', title: 'React with an emoji',
+      onclick: (e) => {
+        e.stopPropagation();
+        S.reactionPicker = S.reactionPicker === msg.id ? null : msg.id;
+        render();
+      },
+    }),
+    palette);
+}
+
 function renderMessage(msg) {
   if (msg.kind === 'system') {
     return h('div', { class: 'msg system' }, h('div', { class: 'bubble', text: msg.body }));
@@ -249,6 +335,7 @@ function renderMessage(msg) {
       text: msg.body,
     }),
     chips.length ? h('div', { class: 'chips' }, chips) : null,
+    reactionsRow(msg),
     // What this reply cost, and what it could not see. Both visible rather
     // than hidden: a reply that carried on from itself three times costs three
     // times as much, and a reply written without the start of a long

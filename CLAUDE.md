@@ -323,6 +323,17 @@ working, not an obstacle.
 
 What a reply cost is on `messages.tokens` and under the bubble.
 
+Messages take **reactions** now: emoji pills under any bubble, the fixed
+twenty behind a `+`, the headcount on the pill and who on its tooltip, yours
+outlined in the game's primary. One route
+(`POST /api/messages/:id/reactions/toggle`), one delta event
+(`message.reaction`), and one idempotent merge shared by the optimistic click
+and the SSE echo — new-y's design transplanted, keyed by user instead of
+participant (spec.md §3, §6, §9). Anyone signed in may react to anything,
+archived included: a reaction is talk about the work, not a change to it. A
+reaction is never a message and never reaches an agent. `:wave:`-style
+shortcodes were deferred to TODO.md — new-y has none to copy.
+
 Every part of a request is now bounded, and nothing is dropped in silence: the
 brief is cut at 32 KB with a note, a pin is priority rather than exemption so
 the file block cannot exceed `AMBIENT_BYTES`, the tool loop stops at 512 KB of

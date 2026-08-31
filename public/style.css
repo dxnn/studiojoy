@@ -905,6 +905,56 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
 }
 .chip.pin { cursor: default; }
 
+/* Emoji on a message: one pill per emoji with a headcount, + for your own.
+   Yours wears the game's primary. The count stays muted, never gold — it is
+   a headcount, not a score — and who reacted is on the chip's title. */
+.reactions { display: flex; flex-wrap: wrap; gap: 6px; position: relative; }
+.reaction {
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: oklch(0.24 0.05 320 / 0.55);
+  cursor: pointer;
+}
+.reaction:hover:not(:disabled) { border-color: var(--look-accent); background: oklch(0.28 0.06 320 / 0.7); }
+.reaction .count { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.reaction.mine {
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 18%, transparent);
+}
+.reaction.add { color: var(--muted); font-weight: 700; padding: 4px 11px; }
+.reaction.add:hover:not(:disabled) { color: var(--text); }
+
+/* The fixed palette, above the row it belongs to. */
+.reaction-palette {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
+}
+/* Your own messages sit on the right, so their palette hangs right too rather
+   than running off the pane. */
+.msg:not(.from-agent):not(.system) .reaction-palette { left: auto; right: 0; }
+.reaction-palette button {
+  border: none;
+  background: none;
+  font-size: 17px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.reaction-palette button:hover:not(:disabled) { background: var(--hover); }
+
 /* What a reply cost. Present and checkable, never competing with the reply. */
 .tokens { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
 .tokens button.link { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--muted); font-weight: 400; }
