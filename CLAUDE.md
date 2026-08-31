@@ -390,8 +390,17 @@ The **screens library** is the fourth and the first presentational one:
 `Screens.hint()` is the how-to-play line as a string, derived at call time
 from `config/controls.js` and the device — keys, the scheme's touch shape, or
 controller buttons when one is in — with `WORDS.howToPlay` overriding it
-verbatim. The title screen and HUD chips are the rest of ideas/game-header.md,
-still to come.
+verbatim. `Screens.title({ onStart })` is the phone-fit title screen — the
+name clamped so it cannot overflow a narrow screen, the panel auto-margined
+inside a scrolling box so it centres when it fits and scrolls from the top
+when tall (the two asteriskoids failures), safe-area padding, the hint, one
+focused button so Enter starts — and with a `score` it is the game-over
+screen. Words from `WORDS`/arguments, colours from `LOOK`, stable `screens-`
+classes for a game's own css, `{ close }` returned for games that start from
+`Input.pressed("start")`; it sits under the touch overlay, so the drawn
+controls stay on top. Browser-checked at 390 and 320 px against the long
+asteriskoids name. HUD chips are the rest of ideas/game-header.md, still to
+come.
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

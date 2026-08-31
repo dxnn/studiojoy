@@ -5,22 +5,31 @@
 //   el.textContent = Screens.hint();     // "Arrows / WASD to move · Space to fire"
 //   ctx.fillText(Screens.hint(), x, y);  // canvas games too
 //
-// On a keyboard it names player1's keys. On a touchscreen it says the shape
-// SCHEME draws — "Push the stick to move · GO to fire" — and nothing that is
-// not on the screen. A plugged-in controller is folded into each part:
-// "Space or A to fire". Call it whenever a screen is drawn — the answer
-// changes when a controller arrives. The doing-words are the binding names,
-// so renaming a binding renames the hint; start is left out on purpose —
-// the screen that starts the game says how in its own words.
-//
-// A game that wants its own words sets one line in config/words.js:
+// On a keyboard it names player1's keys; on a touchscreen, the shape SCHEME
+// draws — "Push the stick to move · GO to fire" — and nothing that is not
+// on the screen; a plugged-in controller is folded in: "Space or A to
+// fire". Call it whenever a screen is drawn. The doing-words are the
+// binding names, so renaming a binding renames the hint; start is left out
+// on purpose. A game that wants its own words sets one line in
+// config/words.js:
 //
 //   howToPlay: "Steer with one finger", // shown as written, on every device
 //
-// hint() is the whole of it so far. Missing pieces are quiet: no
-// config/controls.js, or nothing in it for this device, is an empty string,
-// never an error. Load config/controls.js (and config/words.js if used)
-// before the game code that calls this.
+//   Screens.title({ onStart: start });            // a phone-fit title screen
+//   Screens.title({ score: 12, onStart: start }); // game over — Play again
+//
+// title() fills the window over the game: the name (WORDS.title, else the
+// page title), WORDS.tagline, one focused Start button — Enter starts on a
+// keyboard, the drawn touch controls stay on top — and the hint under it. A
+// score shows big and the button says Play again (WORDS.again). Any of it
+// can be passed instead: { name, tagline, hint, start, score, onStart } —
+// arguments beat config. Colours follow LOOK; every part carries a screens-
+// class for the game's own css. Returns { close }, for a game that starts
+// from Input.pressed("start"). DOM only, gone when closed.
+//
+// Those two calls are the whole of it so far. Missing pieces are quiet: no
+// controls.js, or nothing in it for this device, is an empty string, never
+// an error. Load config/controls.js before the game code that calls this.
 
 const Screens = (function () {
   "use strict";
@@ -259,20 +268,128 @@ const Screens = (function () {
     return sentence(clauses);
   }
 
-  return {
-    // The how-to-play line for this device, right now — or WORDS.howToPlay
-    // as written. Cheap to call whenever a screen is drawn.
-    hint() {
-      const own = ownWords();
-      if (own !== "") return own;
-      const m = model();
-      if (!m) return "";
-      const coarse = typeof window === "object" && window.matchMedia
-        && window.matchMedia("(pointer: coarse)").matches;
-      const line = coarse ? touchSentence(m) : keySentence(m);
-      return line === "" ? "" : line.charAt(0).toUpperCase() + line.slice(1);
-    },
-  };
+  // The how-to-play line for this device, right now — or WORDS.howToPlay
+  // as written. Cheap to call whenever a screen is drawn.
+  function hint() {
+    const own = ownWords();
+    if (own !== "") return own;
+    const m = model();
+    if (!m) return "";
+    const coarse = typeof window === "object" && window.matchMedia
+      && window.matchMedia("(pointer: coarse)").matches;
+    const line = coarse ? touchSentence(m) : keySentence(m);
+    return line === "" ? "" : line.charAt(0).toUpperCase() + line.slice(1);
+  }
+
+  // The title screen's stylesheet, injected once. Class names are the
+  // styling hooks: a game's own css can restyle any screens- part without
+  // replacing the call. The shapes are the phone lessons: type clamped to
+  // the viewport so a long name can never overflow a narrow screen, the
+  // panel centred with auto margins inside a scrolling box — centred when
+  // it fits, scrolled from the top when tall, never clipped at both ends
+  // the way flex centering clips — and safe-area padding for notches.
+  const TITLE_CSS = ""
+    + ".screens-title-screen{position:fixed;inset:0;z-index:9998;overflow:auto;display:flex;"
+    + "background:var(--screens-deep,rgba(14,14,22,.93));color:#fff;text-align:center;"
+    + "font-family:system-ui,sans-serif}"
+    + ".screens-panel{margin:auto;box-sizing:border-box;width:min(34rem,100%);"
+    + "padding:calc(24px + env(safe-area-inset-top,0px)) calc(20px + env(safe-area-inset-right,0px)) "
+    + "calc(24px + env(safe-area-inset-bottom,0px)) calc(20px + env(safe-area-inset-left,0px))}"
+    + ".screens-name{margin:0;font-size:clamp(28px,9vw,60px);line-height:1.1;letter-spacing:.03em;"
+    + "overflow-wrap:break-word;color:var(--screens-primary,#fff)}"
+    + ".screens-tagline{margin:12px 0 0;font-size:clamp(15px,4vw,20px);opacity:.8;"
+    + "color:var(--screens-accent,inherit)}"
+    + ".screens-score{margin:18px 0 0;font-size:clamp(32px,10vw,64px);font-weight:700;"
+    + "color:var(--screens-highlight,#ffd76a)}"
+    + ".screens-start{display:inline-block;margin:26px 0 0;min-height:52px;padding:12px 34px;"
+    + "font:600 clamp(17px,4.5vw,22px)/1.2 system-ui,sans-serif;color:#fff;cursor:pointer;"
+    + "background:rgba(18,18,26,.42);border:2px solid var(--screens-primary,rgba(255,255,255,.8));"
+    + "border-radius:999px}"
+    + ".screens-start:active{background:rgba(18,18,26,.78)}"
+    + ".screens-hint{margin:22px 0 0;font-size:clamp(13px,3.5vw,16px);opacity:.75}";
+
+  let styleDone = false;
+
+  function injectStyle() {
+    if (styleDone || typeof document !== "object" || !document.head) return;
+    const style = document.createElement("style");
+    style.textContent = TITLE_CSS;
+    document.head.append(style);
+    styleDone = true;
+  }
+
+  function lookColours(node) {
+    if (typeof LOOK !== "object" || !LOOK) return;
+    for (const part of ["primary", "accent", "highlight", "deep"]) {
+      if (typeof LOOK[part] === "string" && LOOK[part] !== "") {
+        node.style.setProperty("--screens-" + part, LOOK[part]);
+      }
+    }
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function wordsValue(key) {
+    if (typeof WORDS === "object" && WORDS && typeof WORDS[key] === "string") {
+      return WORDS[key];
+    }
+    return "";
+  }
+
+  // One title screen at a time: a new call replaces the one on screen.
+  let openTitle = null;
+
+  function title(opts) {
+    const o = typeof opts === "object" && opts ? opts : {};
+    if (typeof document !== "object" || !document || !document.body) {
+      return { close: function () {} };
+    }
+    injectStyle();
+    if (openTitle) openTitle.close();
+
+    const over = typeof o.score === "number";
+    const name = typeof o.name === "string" ? o.name
+      : wordsValue("title") || (typeof document.title === "string" ? document.title : "");
+    const tagline = typeof o.tagline === "string" ? o.tagline : wordsValue("tagline");
+    const line = typeof o.hint === "string" ? o.hint : hint();
+    const label = typeof o.start === "string" ? o.start
+      : wordsValue(over ? "again" : "start") || (over ? "Play again" : "Start");
+
+    const root = el("div", "screens-title-screen");
+    lookColours(root);
+    const panel = el("div", "screens-panel");
+    if (name !== "") panel.append(el("h1", "screens-name", name));
+    if (tagline !== "") panel.append(el("p", "screens-tagline", tagline));
+    if (over) panel.append(el("div", "screens-score", String(o.score)));
+    const button = el("button", "screens-start", label);
+    panel.append(button);
+    if (line !== "") panel.append(el("p", "screens-hint", line));
+    root.append(panel);
+    document.body.append(root);
+
+    const handle = {
+      close: function () {
+        if (openTitle === handle) openTitle = null;
+        root.remove();
+      },
+    };
+    openTitle = handle;
+    // Closed before onStart runs, so a handler that puts up the next screen
+    // is not wiped by the old one going away.
+    button.addEventListener("click", function () {
+      handle.close();
+      if (typeof o.onStart === "function") o.onStart();
+    });
+    button.focus();
+    return handle;
+  }
+
+  return { hint: hint, title: title };
 }());
 
 window.Screens = Screens;

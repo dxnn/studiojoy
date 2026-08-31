@@ -27,6 +27,54 @@ const CONTROLS = {
 };
 `;
 
+// Enough of a DOM for title(): elements that hold their children, style
+// properties, handlers and focus, under a document with a head, a body and
+// a page title. What the screen looks like needs a real browser.
+function fakeDom() {
+  function element(tag) {
+    const node = {
+      tag,
+      className: '',
+      textContent: '',
+      children: [],
+      parent: null,
+      styleProps: {},
+      style: { setProperty: (k, v) => { node.styleProps[k] = v; } },
+      handlers: new Map(),
+      focused: false,
+      append(...kids) {
+        for (const kid of kids) { kid.parent = node; node.children.push(kid); }
+      },
+      remove() {
+        if (!node.parent) return;
+        const at = node.parent.children.indexOf(node);
+        if (at >= 0) node.parent.children.splice(at, 1);
+        node.parent = null;
+      },
+      addEventListener(name, fn) { node.handlers.set(name, fn); },
+      click() { if (node.handlers.has('click')) node.handlers.get('click')(); },
+      focus() { node.focused = true; },
+    };
+    return node;
+  }
+  return {
+    title: 'Page Title',
+    head: element('head'),
+    body: element('body'),
+    createElement: element,
+  };
+}
+
+// Depth-first, so "the .screens-name" is one line in a test.
+function find(node, className) {
+  for (const kid of node.children) {
+    if (kid.className === className) return kid;
+    const deeper = find(kid, className);
+    if (deeper) return deeper;
+  }
+  return null;
+}
+
 function boot({ controls = '', words = '', coarse = false, pads = [] } = {}) {
   const sandbox = {
     navigator: { getGamepads: () => pads },
@@ -37,6 +85,20 @@ function boot({ controls = '', words = '', coarse = false, pads = [] } = {}) {
   vm.createContext(sandbox);
   vm.runInContext(`${controls}\n${words}\n${SCREENS}`, sandbox);
   return sandbox.window.Screens;
+}
+
+// title() needs the fake DOM; hands back the document beside the library.
+function bootDom(opts = {}) {
+  const sandbox = {
+    navigator: { getGamepads: () => (opts.pads || []) },
+    matchMedia: (q) => ({ matches: !!opts.coarse && q === '(pointer: coarse)' }),
+    console,
+    document: fakeDom(),
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(`${opts.controls || ''}\n${opts.words || ''}\n${opts.look || ''}\n${SCREENS}`, sandbox);
+  return { Screens: sandbox.window.Screens, document: sandbox.document };
 }
 
 test('the seed on a keyboard: arrows, WASD and the named keys', () => {
@@ -111,4 +173,104 @@ test('missing pieces are an empty string, never an error', () => {
     boot({ controls: 'const CONTROLS = { player1: { fire: "key:space" } };', coarse: true }).hint(),
     '', 'nothing for a touchscreen',
   );
+});
+
+test('title() builds the screen from config: name, tagline, button, hint', () => {
+  const { Screens, document } = bootDom({
+    controls: SEED,
+    words: 'const WORDS = { title: "Asteriskoids", tagline: "pew pew", start: "Go" };',
+  });
+  Screens.title({});
+  assert.equal(document.body.children.length, 1);
+  const root = document.body.children[0];
+  assert.equal(root.className, 'screens-title-screen');
+  assert.equal(find(root, 'screens-name').textContent, 'Asteriskoids');
+  assert.equal(find(root, 'screens-name').tag, 'h1');
+  assert.equal(find(root, 'screens-tagline').textContent, 'pew pew');
+  assert.equal(find(root, 'screens-start').textContent, 'Go');
+  assert.equal(
+    find(root, 'screens-hint').textContent,
+    'Arrows / WASD to move · Space to fire · Shift to boost',
+  );
+  assert.equal(find(root, 'screens-score'), null, 'no score row without a score');
+  assert.equal(find(root, 'screens-start').focused, true, 'Enter starts on a keyboard');
+  assert.equal(document.head.children.length, 1, 'the stylesheet is injected');
+  assert.equal(document.head.children[0].tag, 'style');
+});
+
+test('title() falls back to the page title and a plain Start', () => {
+  const { Screens, document } = bootDom({});
+  Screens.title({});
+  const root = document.body.children[0];
+  assert.equal(find(root, 'screens-name').textContent, 'Page Title');
+  assert.equal(find(root, 'screens-start').textContent, 'Start');
+  assert.equal(find(root, 'screens-tagline'), null);
+  assert.equal(find(root, 'screens-hint'), null, 'no controls.js, no hint row');
+});
+
+test('a score makes it game over: the number big, the button Play again', () => {
+  const { Screens, document } = bootDom({});
+  Screens.title({ score: 420 });
+  const root = document.body.children[0];
+  assert.equal(find(root, 'screens-score').textContent, '420');
+  assert.equal(find(root, 'screens-start').textContent, 'Play again');
+  const again = bootDom({ words: 'const WORDS = { again: "Once more" };' });
+  again.Screens.title({ score: 0 });
+  assert.equal(find(again.document.body.children[0], 'screens-start').textContent, 'Once more');
+});
+
+test('arguments beat config, and an empty hint hides the row', () => {
+  const { Screens, document } = bootDom({
+    controls: SEED,
+    words: 'const WORDS = { title: "Config", tagline: "config", start: "Config" };',
+  });
+  Screens.title({ name: 'Passed', tagline: 'passed', start: 'Passed', hint: '' });
+  const root = document.body.children[0];
+  assert.equal(find(root, 'screens-name').textContent, 'Passed');
+  assert.equal(find(root, 'screens-tagline').textContent, 'passed');
+  assert.equal(find(root, 'screens-start').textContent, 'Passed');
+  assert.equal(find(root, 'screens-hint'), null);
+});
+
+test('the button closes the screen first, then calls onStart', () => {
+  const { Screens, document } = bootDom({});
+  let bodyWhenStarted = null;
+  Screens.title({ onStart: () => { bodyWhenStarted = document.body.children.length; } });
+  find(document.body.children[0], 'screens-start').click();
+  assert.equal(bodyWhenStarted, 0, 'gone before onStart runs');
+  assert.equal(document.body.children.length, 0);
+});
+
+test('one title screen at a time, and close() is safe to call twice', () => {
+  const { Screens, document } = bootDom({});
+  const first = Screens.title({ name: 'One' });
+  Screens.title({ name: 'Two' });
+  assert.equal(document.body.children.length, 1, 'the new call replaced the old screen');
+  assert.equal(find(document.body.children[0], 'screens-name').textContent, 'Two');
+  first.close();
+  assert.equal(document.body.children.length, 1, 'a stale handle cannot close the new screen');
+  assert.equal(document.head.children.length, 1, 'the stylesheet is injected once');
+  const second = Screens.title({ name: 'Three' });
+  second.close();
+  second.close();
+  assert.equal(document.body.children.length, 0);
+});
+
+test('LOOK colours the screen through custom properties', () => {
+  const { Screens, document } = bootDom({
+    look: 'const LOOK = { primary: "#0ff", highlight: "#fd6", deep: "#101", accent: 7 };',
+  });
+  Screens.title({});
+  const root = document.body.children[0];
+  assert.equal(root.styleProps['--screens-primary'], '#0ff');
+  assert.equal(root.styleProps['--screens-highlight'], '#fd6');
+  assert.equal(root.styleProps['--screens-deep'], '#101');
+  assert.equal('--screens-accent' in root.styleProps, false, 'a non-string is left alone');
+});
+
+test('title() without a document is quiet', () => {
+  const Screens = boot({ controls: SEED });
+  const handle = Screens.title({ onStart: () => {} });
+  handle.close();
+  assert.equal(typeof handle.close, 'function');
 });
