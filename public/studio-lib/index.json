@@ -24,6 +24,14 @@
       "files": ["sprites.js"],
       "seeds": [],
       "scripts": ["studio/sprites.js"]
+    },
+    "screens": {
+      "version": 1,
+      "title": "Screens",
+      "what": "Says how to play in one line, worked out from config/controls.js and the device — keys on a keyboard, the touch scheme's own shape on a phone, controller buttons when one is plugged in.",
+      "files": ["screens.js"],
+      "seeds": [],
+      "scripts": ["studio/screens.js"]
     }
   }
 }

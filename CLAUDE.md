@@ -381,6 +381,12 @@ editor one frame at a time: frame buttons, a live looping preview, Copy/Paste
 frame, a toggleable ghost of the frame before, tools clipped to the open frame
 (the clip lives in pixel-editor.js's one bounds check), and "Whole strip" to
 draw across everything. `+ Draw a picture` offers a frame count.
+The **screens library** is the fourth and the first presentational one:
+`Screens.hint()` is the how-to-play line as a string, derived at call time
+from `config/controls.js` and the device — keys, the scheme's touch shape, or
+controller buttons when one is in — with `WORDS.howToPlay` overriding it
+verbatim. The title screen and HUD chips are the rest of ideas/game-header.md,
+still to come.
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

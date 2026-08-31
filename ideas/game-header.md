@@ -91,7 +91,9 @@ sound player, a game that draws its own screens simply does not call it.
 
 ## Open questions
 
-- The name.
+- ~~The name~~ — settled 2026-08-30: **Screens** (`studio/screens.js`,
+  `Screens.hint()` built first; returns a string, `WORDS.howToPlay` is the
+  override). GLOSSARY.md carries the entry now.
 - Config-driven vs argument-driven where the two disagree; the chips model
   (an object reassigned, or named setters?).
 - Does the title screen own the Top 10 (every game refetches /_scores by
