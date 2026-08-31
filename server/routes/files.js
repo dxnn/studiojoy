@@ -5,7 +5,7 @@ import { requireAuth } from '../auth.js';
 import { resolveProjectPath, requireSlug } from '../files/paths.js';
 import {
   listTree, readFileAt, writeFileAt, removeFileAt, assertCapacity, etagFor,
-  MAX_FILE_BYTES,
+  etagMatches, MAX_FILE_BYTES,
 } from '../files/tree.js';
 import { commitPaths, movePath } from '../files/git.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
@@ -171,7 +171,7 @@ export function fileRoutes(r) {
         // `*` is the standard way to say "only if it already exists".
         const satisfied = ifMatch === '*'
           ? existing !== null
-          : existing !== null && ifMatch === etagFor(existing);
+          : existing !== null && etagMatches(ifMatch, existing);
         if (!satisfied) {
           json(ctx.res, 409, conflictBody(rel, existing));
           return;

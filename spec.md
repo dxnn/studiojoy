@@ -699,6 +699,15 @@ returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
+The tag is matched by the sha inside it, not byte for byte. A compressing
+proxy renames a strong ETag per encoding — Caddy's `encode` turns `"<sha>"`
+into `"<sha>-zstd"` and strips its suffix from `If-None-Match` only, never
+from `If-Match`; nginx's gzip weakens it to `W/"<sha>"` instead — so deployed
+behind the recommended Caddyfile, every save of a compressed `GET`'s file
+409'd as a phantom conflict until the comparison allowed for the rename. The
+sha is a hash of the content, so comparing it *is* the conflict check the
+header was for.
+
 `+ Upload` — one of the four choices behind **Add a file**, the single button
 above the file list — puts **any** file into the game the same way: the studio reads the
 dropped or picked `File` and `PUT`s its bytes, one request and one commit per

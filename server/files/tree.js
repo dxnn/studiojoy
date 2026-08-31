@@ -63,6 +63,16 @@ export function etagFor(buffer) {
   return `"${crypto.createHash('sha256').update(buffer).digest('hex')}"`;
 }
 
+// The If-Match a save carries may not be the tag the GET sent: a compressing
+// proxy in front renames a strong ETag per encoding — Caddy's `encode` turns
+// "<sha>" into "<sha>-zstd" and un-renames only If-None-Match on the way back
+// — and nginx's gzip weakens it to W/"<sha>" instead. The sha inside is still
+// the content the editor read, so the sha is what gets compared.
+export function etagMatches(header, buffer) {
+  const sha = /^(?:W\/)?"([0-9a-f]{64})(?:-[^"]*)?"$/.exec(header)?.[1];
+  return sha !== undefined && `"${sha}"` === etagFor(buffer);
+}
+
 export async function readFileAt(absPath) {
   try {
     const st = await fs.promises.lstat(absPath);

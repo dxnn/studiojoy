@@ -29,6 +29,12 @@ studio.example.com {
 }
 ```
 
+`encode` renames a strong ETag per encoding (`"<sha>"` becomes `"<sha>-zstd"`)
+and strips its suffix from `If-None-Match` only — never from `If-Match`, which
+is what the editor's save sends. The studio's `If-Match` check compares the
+sha inside the tag rather than the exact string, so compression can stay on
+for the whole site; nothing here needs excluding from `encode`.
+
 ## Layout
 
 Code is disposable and force-checked-out on every push. Data is not, and lives

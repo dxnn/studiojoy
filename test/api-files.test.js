@@ -99,6 +99,31 @@ test('If-Match stops the editor clobbering a change it never saw', async (t) => 
   assert.equal(retried.status, 200);
 });
 
+test('If-Match survives a proxy that renamed or weakened the ETag', async (t) => {
+  const { app } = await project(t);
+  const created = await put(app, 'game.js', 'version one');
+
+  // Caddy's `encode` appends the encoding name to a strong ETag on a
+  // compressed GET and never strips it from If-Match on the way back —
+  // deploy/README.md fronts the studio with exactly that.
+  const suffixed = await put(app, 'game.js', 'version two', {
+    'if-match': created.body.etag.replace(/"$/, '-zstd"'),
+  });
+  assert.equal(suffixed.status, 200);
+
+  // nginx's gzip filter weakens the tag instead: W/"<sha>".
+  const weakened = await put(app, 'game.js', 'version three', {
+    'if-match': `W/${suffixed.body.etag}`,
+  });
+  assert.equal(weakened.status, 200);
+
+  // A renamed tag is still the tag it was: a stale one keeps refusing.
+  const stale = await put(app, 'game.js', 'version four', {
+    'if-match': created.body.etag.replace(/"$/, '-zstd"'),
+  });
+  assert.equal(stale.status, 409);
+});
+
 test('If-Match: * requires the file to already exist', async (t) => {
   const { app } = await project(t);
   const missing = await put(app, 'new.js', 'x', { 'if-match': '*' });
