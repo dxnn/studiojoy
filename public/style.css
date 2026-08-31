@@ -795,6 +795,19 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
 }
 .hchip .hchip-x { color: var(--muted); font-size: 13px; padding: 5px 10px 5px 5px; }
 .hchip .hchip-x:hover:not(:disabled) { color: var(--danger); }
+/* Calls another helper in. Beside the chips and outside their scroller, so it
+   is in the same place whether the row holds nobody or nine. */
+.hchip-add {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 10px;
+}
+.hchip-add:hover { background: var(--hover); }
 
 .messages { padding: 24px; display: flex; flex-direction: column; gap: 22px; }
 
@@ -1722,8 +1735,9 @@ label.knob {
    dot rather than the open chat's colour: it is the room where nobody is
    listening, which is worth seeing before you type in it.
 
-   This row is everything about the room rather than the game: +chat pinned at
-   the left, the pills, and the helpers listening at the right. ⚠️ The pills
+   This row is everything about the room rather than the game: Add chat pinned
+   at the left, the pills, and the helpers listening at the right with the +
+   that calls another one in. ⚠️ The pills
    and the chips each scroll sideways inside their own box, so a studio's worth
    of chats and a crowd of helpers give way to each other instead of one
    pushing the other off the end. Both need min-width: 0 to be allowed to
@@ -1767,9 +1781,9 @@ label.knob {
   background: color-mix(in oklab, var(--look-primary) 28%, transparent);
 }
 .chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
-/* Never squeezed and never scrolled away: it is the one thing in this row
-   that is in the same place in every game. */
-.chat-tab.add { flex: 0 0 auto; padding: 5px 10px; color: var(--accent); }
+/* Never squeezed and never scrolled away: when it is there at all it is in
+   the same place in every game. */
+.chat-tab.add { flex: 0 0 auto; padding: 5px 11px; color: var(--accent); }
 
 /* One person in the studio settings: their name, what they have spent, what
    they may spend, and the things an admin can do to the account. */

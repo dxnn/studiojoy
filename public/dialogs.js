@@ -108,7 +108,7 @@ export function dialogFor(d) {
       chat ? null : h('label', { text: 'Start from' }),
       chat ? null : from,
       chat ? null : fromHint,
-      chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game.' }) : null,
+      chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game. One room, and you can call helpers into it by name.' }) : null,
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Make it',
@@ -121,9 +121,10 @@ export function dialogFor(d) {
           close();
           await loadProjects();
           // The answer says which conversation to open on — Building when the
-          // starter helper is waiting there, the human-only one otherwise. A
-          // new game has nothing remembered about it, so without this it would
-          // land on its front door with nobody in the room.
+          // starter helper is waiting there, the human-only one otherwise, and
+          // for a chat project the one room it has. A new project has nothing
+          // remembered about it, so without this a game would land on its
+          // front door with nobody in the room.
           await openProject(res.body.slug, { view: { chat: res.body.chat?.id } });
         },
       })));
@@ -580,6 +581,44 @@ export function dialogFor(d) {
           await createChat(called);
         },
       })));
+  }
+
+  // The + at the right of the chat bar. Everyone in the studio who is not
+  // already in this room, one click each — the other way in is to type their
+  // name, which the note says, because a button is how you find out that the
+  // typing works at all.
+  if (d.kind === 'add-helper') {
+    const list = h('div', { class: 'plan' });
+    const paint = () => {
+      const here = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
+      const rest = S.agents.filter((a) => !here.has(a.id));
+      if (rest.length === 0) {
+        list.replaceChildren(h('p', {
+          class: 'hint muted',
+          text: S.agents.length
+            ? 'Every helper in the studio is already in this chat.'
+            : 'There are no helpers yet. Make one with + New helper on the Crew tab.',
+        }));
+        return;
+      }
+      list.replaceChildren(...rest.map((agent) => h('div', { class: 'plan-row' },
+        h('span', { text: agent.name }),
+        h('div', { class: 'spacer' }),
+        h('button', {
+          class: 'filled tiny',
+          text: 'Add',
+          onclick: async () => {
+            await attachAgent(agent);
+            paint();
+          },
+        }))));
+    };
+    paint();
+    return wrap('Put a helper in this chat',
+      h('p', { class: 'hint muted', text: 'They will answer every message here. You can also call one in while you type — an @ and their name, the same way you call a person.' }),
+      list,
+      h('div', { class: 'actions' },
+        h('button', { class: 'filled', text: 'Done', onclick: close })));
   }
 
   // A file into another game. The list is the games you may change: copying

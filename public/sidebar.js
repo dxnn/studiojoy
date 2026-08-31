@@ -37,10 +37,26 @@ const NEW = {
   crew: { label: '+ New helper', dialog: { kind: 'new-agent' } },
 };
 
+// Choosing a list is also going back to where you were in it: Games returns to
+// the game you last had open and Chats to the chat, which is what a tab called
+// "Chats" looks like it does. Only when that project is still there and is
+// still of that kind, and never when it is already on screen — clicking the
+// tab you are on should not refetch what you are reading.
+//
+// ⚠️ The promise goes all the way up to the onclick: openProject's render is
+// what writes the address, and a render that lands after the navigation is
+// over writes the wrong one (see syncUrl).
 const pickTab = (id) => {
   S.sideTab = id;
   prefs.set('side-tab', id);
+  const back = prefs.get(`last-${id}`, null);
+  const wanted = back && back !== S.slug
+    ? S.projects.find((p) => p.slug === back)
+    : null;
+  const kind = id === 'chats' ? 'chat' : 'game';
+  if (wanted && wanted.kind === kind) return openProject(back);
   render();
+  return undefined;
 };
 
 export function renderSidebar() {

@@ -13,6 +13,10 @@ import {
 
 /* Render: chat ------------------------------------------------------------ */
 
+// The server's MAX_CHATS_PER_PROJECT, mirrored: past it the button that makes
+// another one is left out rather than left to be refused.
+const MAX_CHATS = 20;
+
 // FNV-1a. Any stable scramble would do; this one is four lines and needs no
 // seeding.
 function hashOf(text) {
@@ -405,13 +409,14 @@ function helperGap() {
   // The chat, not the game: a helper is in one conversation, so this one
   // having nobody in it says nothing about the others.
   const where = S.chat ? `“${S.chat.name}”` : 'this chat';
-  // With helpers in the studio the fix is one click in the sidebar, so say
-  // that rather than offering a link whose only job would be to open a
-  // sidebar that is usually already open.
+  // With helpers in the studio the fix is in this room, so say where it is
+  // rather than offering a link whose only job would be to open a sidebar
+  // that is usually already open. Both ways in, because the second one — an @
+  // and a name — is the one nothing on screen would ever tell you about.
   if (S.agents.length > 0) {
     return h('div', { class: 'notice' },
       `Nobody is in ${where} yet, so nobody will answer. `,
-      'Add a helper by clicking them in the sidebar.');
+      'Press the + above to put one in, or type @ and their name.');
   }
   return h('div', { class: 'notice' },
     'Nobody can answer yet — the studio has no helpers. ',
@@ -468,14 +473,19 @@ function renderActs(p) {
   ];
 }
 
-// One pill per conversation, and either side of them the two things that are
-// about this conversation rather than about the game: making another one, and
-// the helpers listening in this one. They were in the bar above with the
-// game's name, which is the game's row, not the room's.
+// One pill per conversation, and either side of them the things that are about
+// this conversation rather than about the game: making another one, the
+// helpers listening in this one, and the + that calls another in. They were in
+// the bar above with the game's name, which is the game's row, not the room's.
 //
 // ⚠️ The pills and the chips are each their own scroller. Two rows of helpers
 // and a studio's worth of chats will not fit on a phone, and something has to
 // give sideways rather than push the other off the end.
+//
+// Nothing here is ever greyed out: a button you cannot press is a question,
+// and the answer — somebody else's game, an archived one, twenty chats
+// already, a room that takes no helpers — is not one a bar can give. What
+// cannot be done is not offered.
 function renderChatTabs(p) {
   if (!S.chat) return null;
   // The name toggles between answering everything and waiting to be called;
@@ -496,13 +506,18 @@ function renderChatTabs(p) {
       title: `Remove ${a.name} from this game`,
       onclick: () => detachAgent(a),
     })));
+  // A chat project is one room: there are no pills to switch between and no
+  // second one to make. Who is listening in it is the whole of this bar there.
+  const rooms = !isChat();
+  const addChat = rooms && !frozen() && S.chats.length < MAX_CHATS;
+  const addHelper = !frozen() && S.chat.bots;
+  if (!rooms && !addHelper && chips.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
-    h('button', {
-      class: 'chat-tab add', text: '+chat', title: 'Start another chat in this game',
-      disabled: frozen(),
+    addChat ? h('button', {
+      class: 'chat-tab add', text: 'Add chat', title: 'Start another chat in this game',
       onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
-    }),
-    h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
+    }) : null,
+    rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
       class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
       title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
@@ -511,9 +526,16 @@ function renderChatTabs(p) {
     c.name,
     // The mark on the game says somebody called you; this says in which
     // conversation.
-    calledMark(c.mentions)))),
+    calledMark(c.mentions)))) : null,
     h('div', { class: 'spacer' }),
-    chips.length ? h('div', { class: 'hchips' }, chips) : null);
+    chips.length ? h('div', { class: 'hchips' }, chips) : null,
+    // Outside the chips and never scrolled away with them: the way to add
+    // somebody has to stay put whether the row holds nobody or nine.
+    addHelper ? h('button', {
+      class: 'hchip-add', text: '+',
+      title: 'Put a helper in this chat', 'aria-label': 'Put a helper in this chat',
+      onclick: () => { S.dialog = { kind: 'add-helper' }; render(); },
+    }) : null);
 }
 
 export function renderChat() {

@@ -203,6 +203,16 @@ own route (`…/chats/:id/seen`), not a side effect of the GET that opens a chat
 because the client also needs it when a mention lands in the chat on screen.
 Nothing an agent writes ever leaves one.
 
+An `@` also **calls a helper in**. Naming one that is not in the chat puts it
+there — `callAgentsIn`, in the same transaction as the message, waiting to be
+called rather than chatty, and the orchestrator wakes it on that very message
+because the `@` that let it in is the `@` that makes it eligible. ⚠️ Only where
+helpers are allowed: `Humans only` lets nobody in this way either, and the
+ten-per-chat cap holds, the named-past-it staying out rather than the message
+being refused. Who came rides out on `message.new` as `joined`, so every tab
+grows the chip; the other way in is the `+` at the right of the bar, whose
+dialog is every helper not already there.
+
 The studio has one role, **admin** (`users.admin`), and it is about running the
 studio rather than about games: accounts, names, passwords, per-person
 **allowances** and the studio-wide budget, all in Studio settings on the Crew
@@ -263,8 +273,8 @@ and Everyone else's; `frozen()` in the client is `archived || !can_edit`, which
 is why everything that was disabled for an archived game is disabled for
 somebody else's. Every existing project got its creator as its author.
 
-A project holds several **chats** — conversations, `chats` in the database.
-Every one is born with two: `Humans only`, which it opens on, and `Building`. ⚠️
+A game holds several **chats** — conversations, `chats` in the database.
+Every game is born with two: `Humans only`, which it opens on, and `Building`. ⚠️
 `Humans only` is human only, and that is enforced where a helper would be *put in*
 (`assertBotsAllowed`), not where one would answer: a room that promises nobody
 is listening keeps that promise at the door. A helper belongs to a chat rather
@@ -278,6 +288,23 @@ project both chats and moves its thread and helpers into `Building`, then drops
 there was something to carry, which left a game nobody had talked in yet with
 nowhere a helper could be put. Tested against a hand-built old database and
 against that shape.
+
+A **chat project** is one room and not that shape: one chat, taking helpers,
+wearing the project's name and renamed with it — no front door in front of it,
+no second one to switch to, so the bar over it holds nothing but who is
+listening. `startRoom` makes it, `POST /chats` refuses a second, and
+`intoOneRoom` brings the ones made before this forward: the oldest chat
+survives, everything said in the others moves into it in id order — global and
+climbing with time, so the thread reads back chronologically — and only the
+emptied rooms are deleted. Run against a copy of the live database: both chat
+projects collapsed with all their messages and their helper, and no game's two
+chats moved.
+
+Nothing in the bar over a conversation is ever greyed out: `Add chat` and the
+`+` that puts a helper in are left out when they cannot be pressed. A button
+you cannot press is a question, and the answer — somebody else's game, an
+archived one, twenty chats already, a room that takes no helpers — is not one
+a bar can give.
 
 A new game is not born empty of people either: the **starter helper**
 (`studio_state.default_agent_id`, picked in Studio settings beside the budget)
@@ -688,7 +715,11 @@ The interface is the 6a direction (the handoff and its stylesheet were in
 `extra/`, which is gitignored — `public/style.css` is the copy that counts).
 What it moved, beyond colour: the sidebar is one list at a time behind
 **Games / Chats / Crew** tabs with a filter box — Crew being the humans over
-the helpers, from `GET /api/users` (names, no addresses); the whole-game actions
+the helpers, from `GET /api/users` (names, no addresses); Games and Chats each
+go back to the one you last had open (`last-games`/`last-chats` in prefs,
+written by `openProject`), because a tab called Chats looks like it opens a
+chat, and ⚠️ `pickTab` returns that promise all the way to the `onclick` so the
+address is written inside the navigation; the whole-game actions
 left the foot of the Play tab for the game's own bar; the **Play tab is gone** — the preview lives at the top of the rail and
 folds to a row that still plays and still opens the game in its own tab; and a game's `config/look.js` can name four
 colours the studio wears while that game is open. The design's own `support.js`
