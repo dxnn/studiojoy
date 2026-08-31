@@ -10,6 +10,7 @@
     "adduser": "node --disable-warning=ExperimentalWarning bin/adduser.js",
     "backup": "node --disable-warning=ExperimentalWarning bin/backup.js",
     "deluser": "node --disable-warning=ExperimentalWarning bin/deluser.js",
+    "restoreuser": "node --disable-warning=ExperimentalWarning bin/restoreuser.js",
     "smoke": "node --disable-warning=ExperimentalWarning --use-env-proxy bin/smoke.js"
   },
   "engines": {

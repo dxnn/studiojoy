@@ -119,7 +119,9 @@ function gameRows(matches) {
   const games = S.projects.filter((p) => p.kind !== 'chat' && matches(p.name));
   const row = (p) => h('button', {
     class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
-    title: p.mine ? p.name : `${p.name} — ${p.authors.map((a) => a.display_name).join(', ')}`,
+    title: p.mine
+      ? p.name
+      : `${p.name} — ${p.authors.map((a) => a.display_name).join(', ') || 'Nobody'}`,
     onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
   },
   h('div', { class: 'item-name' },

@@ -11,6 +11,7 @@ import { readJson } from '../http/body.js';
 import {
   requireAuth, createUser, setPassword, normalizeEmail, MIN_PASSWORD_CHARS,
 } from '../auth.js';
+import { tx } from '../db.js';
 import { requireString, optionalBool } from './helpers.js';
 import {
   DEFAULT_DAILY_TOKEN_BUDGET, studioLimit, userSpentToday, budgetState,
@@ -48,7 +49,8 @@ const personPublic = (db, row) => ({
 function assertNotLastAdmin(db, userId) {
   const row = db.prepare('SELECT admin FROM users WHERE id = ?').get(userId);
   if (!row || row.admin !== 1) return;
-  const admins = db.prepare('SELECT COUNT(*) AS c FROM users WHERE admin = 1').get().c;
+  const admins = db
+    .prepare('SELECT COUNT(*) AS c FROM users WHERE admin = 1 AND deleted = 0').get().c;
   if (admins <= 1) {
     throw new HttpError(409, 'the studio keeps at least one admin — make somebody else one first');
   }
@@ -59,7 +61,10 @@ export function adminRoutes(r) {
   // the studio's own wall.
   r.get('/api/admin/studio', (ctx) => {
     requireAdmin(ctx);
-    const people = ctx.db.prepare('SELECT * FROM users ORDER BY id').all();
+    // The people in the studio, which is not the same as the rows in `users`:
+    // a removed account is not listed, and comes back through
+    // `npm run restoreuser` rather than a button in here.
+    const people = ctx.db.prepare('SELECT * FROM users WHERE deleted = 0 ORDER BY id').all();
     json(ctx.res, 200, {
       people: people.map((row) => personPublic(ctx.db, row)),
       budget: budgetState(ctx.db, studioLimit(ctx.db)),
@@ -76,8 +81,15 @@ export function adminRoutes(r) {
     if (password.length < MIN_PASSWORD_CHARS) {
       throw new HttpError(400, `password must be at least ${MIN_PASSWORD_CHARS} characters`);
     }
-    if (ctx.db.prepare('SELECT 1 FROM users WHERE email = ?').get(normalizeEmail(email))) {
-      throw new HttpError(409, 'somebody already has that email');
+    // An address stays with the account that had it, removed or not — so this
+    // says which of the two it is. A second row for somebody who was taken out
+    // would split their messages and their games across two people.
+    const clash = ctx.db
+      .prepare('SELECT deleted FROM users WHERE email = ?').get(normalizeEmail(email));
+    if (clash) {
+      throw new HttpError(409, clash.deleted === 1
+        ? 'that account was removed — bring it back with `npm run restoreuser`'
+        : 'somebody already has that email');
     }
     let user;
     try {
@@ -98,7 +110,7 @@ export function adminRoutes(r) {
   r.patch('/api/admin/users/:id', async (ctx) => {
     requireAdmin(ctx);
     const id = Number(ctx.params.id);
-    const row = ctx.db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const row = ctx.db.prepare('SELECT * FROM users WHERE id = ? AND deleted = 0').get(id);
     if (!row) throw new HttpError(404, 'no such person');
     const body = await readJson(ctx.req);
 
@@ -128,34 +140,25 @@ export function adminRoutes(r) {
     json(ctx.res, 200, personPublic(ctx.db, ctx.db.prepare('SELECT * FROM users WHERE id = ?').get(id)));
   });
 
-  // Taking somebody out of the studio. Their messages stay — a thread with
-  // holes in it is worse than a name nobody can sign in as — and are shown
-  // without an author, which the message shape already handles.
+  // ⚠️ Taking somebody out of the studio is a soft delete — `users.deleted`
+  // and their sessions, and not one row more. Their messages stay, which they
+  // always did; so now do their games, their editor rows and what they spent,
+  // so that `npm run restoreuser` puts back exactly the person who left. The
+  // old hard delete had to strip `project_authors` first and then refuse
+  // outright if they were a game's only author; neither is needed once the
+  // row survives, and neither could have been undone.
   r.delete('/api/admin/users/:id', (ctx) => {
     const me = requireAdmin(ctx);
     const id = Number(ctx.params.id);
     if (id === me.id) throw new HttpError(409, 'somebody else has to take you out');
-    const row = ctx.db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const row = ctx.db.prepare('SELECT * FROM users WHERE id = ? AND deleted = 0').get(id);
     if (!row) throw new HttpError(404, 'no such person');
     assertNotLastAdmin(ctx.db, id);
 
-    ctx.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
-    // A game they authored keeps its other authors; one they authored alone
-    // would be left with none, so they stay named on it rather than the game
-    // becoming unmaintainable.
-    ctx.db.prepare(
-      `DELETE FROM project_authors
-        WHERE user_id = ?
-          AND (SELECT COUNT(*) FROM project_authors o
-                WHERE o.project_id = project_authors.project_id) > 1`,
-    ).run(id);
-    const stillNamed = ctx.db
-      .prepare('SELECT COUNT(*) AS c FROM project_authors WHERE user_id = ?')
-      .get(id).c;
-    if (stillNamed > 0) {
-      throw new HttpError(409, 'they are the only author of a game — add somebody to it first');
-    }
-    ctx.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    tx(ctx.db, () => {
+      ctx.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      ctx.db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(id);
+    });
     noContent(ctx.res);
   });
 

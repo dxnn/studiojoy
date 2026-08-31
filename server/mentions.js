@@ -60,7 +60,10 @@ export function mentionedUsers(db, body, writerId) {
   const mentions = parseMentions(body);
   if (mentions.size === 0) return [];
   return db
-    .prepare('SELECT id, display_name FROM users')
+    // Only people who are still here: a mark nobody will ever open is not a
+    // mark. Their old ones stay in `mentions`, seen or not, and come back with
+    // them.
+    .prepare('SELECT id, display_name FROM users WHERE deleted = 0')
     .all()
     .filter((u) => u.id !== writerId && nameMatches(u.display_name, mentions))
     .map((u) => u.id);

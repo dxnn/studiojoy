@@ -369,7 +369,8 @@ export function projectRoutes(r) {
     const body = await readJson(ctx.req);
     const id = Number(body.user_id);
     if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a user id');
-    const person = ctx.db.prepare('SELECT id, display_name FROM users WHERE id = ?').get(id);
+    const person = ctx.db
+      .prepare('SELECT id, display_name FROM users WHERE id = ? AND deleted = 0').get(id);
     if (!person) throw new HttpError(404, 'no such person');
 
     addAuthor(ctx.db, project.id, person.id, user.id);

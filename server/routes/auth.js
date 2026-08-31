@@ -26,8 +26,11 @@ export function authRoutes(r) {
       throw new HttpError(400, 'email and password are required');
     }
 
+    // ⚠️ A removed account is not found here, so it takes the unknown-email
+    // path below — same refusal, same wall-clock cost. Whether somebody was
+    // taken out of the studio is not something the login form says.
     const user = ctx.db
-      .prepare('SELECT id, email, display_name, password_hash FROM users WHERE email = ?')
+      .prepare('SELECT id, email, display_name, password_hash FROM users WHERE email = ? AND deleted = 0')
       .get(email);
 
     // An unknown email still pays for a scrypt derivation, so response
@@ -64,7 +67,10 @@ export function authRoutes(r) {
   r.get('/api/users', (ctx) => {
     requireAuth(ctx);
     const rows = ctx.db
-      .prepare('SELECT id, display_name FROM users ORDER BY display_name COLLATE NOCASE')
+      .prepare(
+        `SELECT id, display_name FROM users
+          WHERE deleted = 0 ORDER BY display_name COLLATE NOCASE`,
+      )
       .all();
     json(ctx.res, 200, rows);
   });

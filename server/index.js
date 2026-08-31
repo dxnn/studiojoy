@@ -91,7 +91,7 @@ studio.listen(port, () => {
 games.listen(gamesPort);
 
 // There is no signup route, so an empty user table means nobody can get in.
-if (db.prepare('SELECT COUNT(*) AS c FROM users').get().c === 0) {
+if (db.prepare('SELECT COUNT(*) AS c FROM users WHERE deleted = 0').get().c === 0) {
   console.log('\nno accounts yet — create one with:');
   console.log('  npm run adduser -- you@example.com "Your Name"');
 }

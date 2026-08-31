@@ -411,8 +411,10 @@ export function dialogFor(d) {
             disabled: person.id === S.me.id,
             title: person.id === S.me.id ? 'Somebody else has to remove you' : `Remove ${person.display_name} from the studio`,
             onclick: () => {
-              // Everything else in here is reversible in a click; this is not.
-              if (!window.confirm(`Remove ${person.display_name} from the studio? What they said stays.`)) return;
+              // Still asks first — it signs somebody out and takes their name
+              // off the crew list — but it is a soft delete, and saying so is
+              // the difference between a scary button and a careful one.
+              if (!window.confirm(`Remove ${person.display_name} from the studio? They will not be able to sign in. What they said stays, and this can be undone.`)) return;
               studioChange('DELETE', `/users/${person.id}`).then(paint);
             },
           }));

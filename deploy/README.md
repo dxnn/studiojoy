@@ -89,6 +89,19 @@ DB_PATH=$HOME/apps/studio-data/db node bin/adduser.js you@example.com "Your Name
 Skip this entirely if you are moving an existing studio: accounts travel in
 the database, password hashes included.
 
+Taking somebody out is a soft delete — one bit and their sessions, nothing
+thrown away — so it has an undo:
+
+```sh
+DB_PATH=$HOME/apps/studio-data/db node bin/deluser.js them@example.com
+DB_PATH=$HOME/apps/studio-data/db node bin/restoreuser.js            # who is out
+DB_PATH=$HOME/apps/studio-data/db node bin/restoreuser.js them@example.com
+```
+
+⚠️ Their address stays theirs while they are out, so `adduser` will refuse it
+and tell you to restore instead — which is what you want, since a second row
+would split their messages and their games across two people.
+
 ## Moving an existing studio onto the server
 
 Two things move, and they have to agree: the database, and the game trees.

@@ -1,7 +1,9 @@
-// Revoking studio access is deleting the row and its sessions — there is no
-// disabled flag to set (spec.md §3). Projects, messages, and agents the user
-// touched are left alone: history keeps rendering, since messages reference
-// users by id and the UI falls back to a placeholder name.
+// ⚠️ Taking somebody out of the studio is a soft delete: `users.deleted = 1`
+// and their sessions dropped (spec.md §3). Nothing else moves — their
+// messages, the games they authored, their editor rows and what they spent
+// are all still there, and `npm run restoreuser -- <email>` puts the person
+// back exactly as they were. Their address stays theirs, so `adduser` will
+// refuse it rather than quietly starting a second account for the same person.
 import { openDb, tx } from '../server/db.js';
 import { normalizeEmail } from '../server/auth.js';
 
@@ -16,35 +18,41 @@ const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
 const db = openDb(dbPath);
 const normalized = normalizeEmail(email);
 
-const user = db.prepare('SELECT id, display_name FROM users WHERE email = ?').get(normalized);
+const user = db
+  .prepare('SELECT id, display_name, admin, deleted FROM users WHERE email = ?')
+  .get(normalized);
 if (!user) {
   console.error(`no account for ${normalized}`);
   process.exit(1);
 }
-
-const authored = db
-  .prepare('SELECT COUNT(*) AS c FROM messages WHERE user_id = ?')
-  .get(user.id).c;
-
-if (authored > 0) {
-  // A user_id on messages, projects, and agents is a live foreign key, so a
-  // hard delete would fail anyway. Say so plainly rather than leaving the
-  // operator to read a constraint error.
-  console.error(
-    `${normalized} has authored ${authored} message(s); deleting the row would ` +
-    'break those references. Delete their sessions instead to revoke access:\n' +
-    `  DELETE FROM sessions WHERE user_id = ${user.id};`,
-  );
+if (user.deleted === 1) {
+  console.error(`${normalized} is already removed — bring them back with:`);
+  console.error(`  npm run restoreuser -- ${normalized}`);
   process.exit(1);
 }
 
+// The same wall the admin panel keeps: a studio nobody can run is one nobody
+// can add an account to either, and there is no way back in.
+if (user.admin === 1) {
+  const admins = db
+    .prepare('SELECT COUNT(*) AS c FROM users WHERE admin = 1 AND deleted = 0')
+    .get().c;
+  if (admins <= 1) {
+    console.error(
+      `${normalized} is the studio's last admin — make somebody else one first.`,
+    );
+    process.exit(1);
+  }
+}
+
 try {
-  const removed = tx(db, () => {
-    const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id).changes;
-    db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
-    return sessions;
+  const sessions = tx(db, () => {
+    const dropped = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id).changes;
+    db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(user.id);
+    return dropped;
   });
-  console.log(`deleted ${user.display_name} <${normalized}> and ${removed} session(s)`);
+  console.log(`removed ${user.display_name} <${normalized}> and ${sessions} session(s)`);
+  console.log(`  undo: npm run restoreuser -- ${normalized}`);
 } catch (err) {
   console.error(err.message);
   process.exit(1);

@@ -44,8 +44,34 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `display_name` | TEXT NOT NULL | shown in UI and used as the git author name |
 | `created_at` | TEXT NOT NULL | |
 
-Presence in this table **is** studio access. There is no role, flag, or
-enabled column — to revoke access, delete the row and its sessions.
+A row here **is** studio access, and `deleted = 0` is what makes it one.
+
+⚠️ **Taking somebody out of the studio never deletes the row.** It sets
+`deleted = 1` and drops their sessions, and touches nothing else. Their
+messages, the games they author, their `project_authors` rows, their allowance
+and what they spent are all still there, so `npm run restoreuser -- <email>`
+clears the bit and gives back the same person. It is the one destructive thing
+an admin can click that has an undo.
+
+The bit is read on one side of a single line. **Access** minds it: the login
+lookup, `userForToken`, `GET /api/users`, the admin panel's list, resolving an
+`@` to a person, and being added to a game as an author. **History** does not:
+a message still carries the name of whoever wrote it, exactly as a deleted
+agent's replies still carry its name (§3, `agents`).
+
+Two consequences taken on purpose:
+
+- `email` stays UNIQUE across removed rows — SQLite cannot narrow a table
+  constraint to a partial index after the fact, and the address should stay
+  with the person anyway. `adduser` and `POST /api/admin/users` both answer a
+  removed address by pointing at `restoreuser` rather than starting a second
+  account for the same person.
+- A game whose **only** author is removed is left with no editors and can be
+  changed by nobody until they are restored. The old hard delete refused that
+  case outright, because it could not be undone; this one can, and the remedy
+  is the restore. `removeAuthor`'s "a game keeps at least one editor" counts
+  only authors still in the studio, so the live one can never be the one that
+  goes.
 
 ### `sessions`
 
@@ -115,17 +141,19 @@ version history, edits in the same editor as everything else, and can be
 updated by an agent as the design evolves. When present it is injected into
 every agent's context (§8).
 
-### `users` — the two columns that are not identity
+### `users` — the columns that are not identity
 
 | column | type | notes |
 |---|---|---|
 | `admin` | INTEGER NOT NULL DEFAULT 0 | may run the studio: add an account, rename one, set an allowance, hand out this bit |
 | `daily_tokens` | INTEGER NULL | what this person's helpers may spend in a day. Null is no allowance of their own |
+| `deleted` | INTEGER NOT NULL DEFAULT 0 | taken out of the studio. Set, every door is shut and every row is kept; `restoreuser` clears it |
 
 The first account made is an admin — somebody has to be able to make the
 second — and an upgrade gives the bit to the lowest id. ⚠️ The studio keeps at
 least one admin: demoting or removing the last is a 409, because a studio
-nobody can run is one nobody can add an account to either.
+nobody can run is one nobody can add an account to either. The count is of
+admins **still in the studio**, so a removed one is not one of them.
 
 ### `user_tokens`
 
@@ -541,7 +569,7 @@ any account (§11).
 | GET | `/api/admin/studio` | — | the people, what each has spent today, and the studio-wide budget |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
 | PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `password` | change one |
-| DELETE | `/api/admin/users/:id` | — | take somebody out of the studio |
+| DELETE | `/api/admin/users/:id` | — | take somebody out of the studio — a soft delete, undone by `npm run restoreuser` (§3) |
 | PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody |
 
 ⚠️ A password set here ends that person's sessions: a password changed because
@@ -1779,8 +1807,13 @@ everybody else.
 - Constant-time login: an unknown email is still verified against a cached
   dummy hash so timing doesn't disclose existence.
 - Account creation: `npm run adduser -- <email> "<Display Name>"` prompts for
-  a password on stdin with echo off. `npm run deluser -- <email>` removes the
-  user and their sessions.
+  a password on stdin with echo off. `npm run deluser -- <email>` removes them
+  — `users.deleted = 1` plus their sessions, never a DELETE (§3) — and
+  `npm run restoreuser -- <email>` puts them back; with no email it lists who
+  is out. ⚠️ Both refuse to take out the last admin, the same wall the panel
+  keeps.
+- A removed account takes the unknown-email path at login: the same 401, the
+  same dummy-hash derivation, so the form does not say who was taken out.
 
 ### Who may change what
 
@@ -1828,7 +1861,8 @@ archived game is disabled for somebody else's. The server is what refuses.
   (§7), which bounds a cross-site forgery to `POST /api/logout`.
 - **Lockout state is in-memory.** A restart clears all lockouts.
 - **Sessions never expire.** No `Max-Age`, no rotation: a session lasts until
-  `deluser` removes its row or the browser loses the cookie. Expiry and
+  a removal or a password change deletes its row, or the browser loses the
+  cookie. Expiry and
   rotation are deferred to v1 (§15) and belong to the same gate as the rest
   of this list.
 - **No rate limiting outside login and the scoreboard.** An authenticated
@@ -1861,6 +1895,9 @@ Tests enforce each of these.
 - No HTTP response reports a successful file mutation before its git commit
   has landed.
 - At most one write+commit runs at a time per project.
+- Taking somebody out of the studio deletes no row. Their sessions go and
+  `users.deleted` is set; every path that grants access minds that bit, and
+  every rendered name does not, so the removal is undone by clearing it. ⚠️
 - A `messages` row never has both `user_id` and `agent_id` set.
 - No reasoning trace is ever written to `messages.body` or replayed into a
   later request.
@@ -2111,7 +2148,7 @@ public/
                   pure logic, shared with npm test
   style.css
 bin/
-  adduser.js  deluser.js  backup.js
+  adduser.js  deluser.js  restoreuser.js  backup.js
 test/
 ```
 

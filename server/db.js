@@ -241,6 +241,16 @@ export function openDb(dbPath) {
   // their own — only the studio-wide budget, which is the outer wall either
   // way.
   addColumnIfMissing(db, 'users', 'daily_tokens', 'INTEGER');
+  // ⚠️ Taking somebody out of the studio is this bit, never a DELETE. Their
+  // messages, their games, their editor rows and their spending are all live
+  // foreign keys, and a studio that loses a person should not lose the record
+  // of what they made. Set, it closes every door — login, the crew list,
+  // mentions, being added to a game — and nothing else moves, which is what
+  // makes `npm run restoreuser` a one-word undo. `email` stays UNIQUE across
+  // removed rows too (SQLite cannot narrow a table constraint to a partial
+  // index afterwards), so the address stays theirs and adding it again is
+  // refused with a pointer at the restore.
+  addColumnIfMissing(db, 'users', 'deleted', 'INTEGER NOT NULL DEFAULT 0');
   // On, any account in the studio may change this project; off, only its
   // authors. The column's default is the safe one, and every game a person
   // makes overrides it to open at the INSERT — a database written before this

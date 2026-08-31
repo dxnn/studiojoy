@@ -110,7 +110,9 @@ export function messagePublic(db, row, slug) {
     // reply appearing in the wrong chat is worse than one arriving late.
     chat_id: row.chat_id ?? null,
     user_id: row.user_id ?? null,
-    // Null for an agent, and for a person whose account has gone.
+    // Null for an agent. Never for a person: the lookup above asks `users`
+    // without minding `deleted`, so somebody taken out of the studio still
+    // signs the things they said, the way a deleted helper does.
     user_name: author?.display_name ?? null,
     agent_id: row.agent_id ?? null,
     kind: row.kind ?? null,

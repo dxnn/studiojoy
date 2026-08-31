@@ -15,9 +15,16 @@ const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
 const db = openDb(dbPath);
 
 const normalized = normalizeEmail(email);
-const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalized);
+// An address stays with the account that had it even after a removal, so a
+// second row for the same person is never what was wanted here.
+const existing = db.prepare('SELECT id, deleted FROM users WHERE email = ?').get(normalized);
 if (existing) {
-  console.error(`${normalized} already has an account (id ${existing.id})`);
+  if (existing.deleted === 1) {
+    console.error(`${normalized} was removed from the studio — bring them back with:`);
+    console.error(`  npm run restoreuser -- ${normalized}`);
+  } else {
+    console.error(`${normalized} already has an account (id ${existing.id})`);
+  }
   process.exit(1);
 }
 

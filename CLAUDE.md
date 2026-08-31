@@ -25,6 +25,10 @@ DeepSeek's API behaviour as *measured*, not assumed — don't re-guess it.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
 - `npm run adduser -- <email> "<Name>"` — the only way accounts exist.
+- `npm run deluser -- <email>` — take somebody out of the studio. A soft
+  delete: `users.deleted = 1` and their sessions, never a DELETE.
+  `npm run restoreuser -- <email>` is the undo; with no email it lists who
+  is out.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
@@ -206,6 +210,18 @@ the newest reply says how much is left, in gold — drawn from `/api/me`, which
 is re-read after a reply, so it is your own day and no message ever carries
 somebody's allowance. `bin/adduser.js` still works and makes the first account
 an admin.
+
+⚠️ Taking somebody out of the studio is a **soft delete** — `users.deleted`,
+plus their sessions, and not one row more (spec.md §3). Access minds the bit
+(login, `userForToken`, `GET /api/users`, the panel, resolving an `@`, being
+added as an author); history does not, so their messages still carry their
+name. Everything else stays put, including their `project_authors` rows, which
+is what makes `npm run restoreuser` give back the same person — the old hard
+delete had to strip those first and then refuse outright if they were a game's
+only author, and neither step could be undone. Two consequences on purpose: the
+address stays theirs, so `adduser` and the panel answer it by pointing at the
+restore rather than starting a second account; and a game whose only author was
+removed shows no editors and can be changed by nobody until they are back.
 
 A file can be copied **between games**: `Copy to…` on the open file's bar, or
 `POST /files/import` — the bytes as they are now, one commit in the game it

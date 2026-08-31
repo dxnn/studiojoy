@@ -96,12 +96,15 @@ export function deleteSession(db, token) {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
+// ⚠️ `u.deleted = 0` is belt to the braces: removing somebody deletes their
+// sessions, so there should be no token left to resolve. This is what makes
+// that a tidy-up rather than the whole of the revocation.
 export function userForToken(db, token) {
   if (!token) return null;
   return db.prepare(
     `SELECT u.id, u.email, u.display_name, u.admin, u.daily_tokens, u.created_at
        FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?`,
+      WHERE s.token = ? AND u.deleted = 0`,
   ).get(token) ?? null;
 }
 
@@ -235,7 +238,9 @@ export function createUser(db, { email, password, displayName }, now = new Date(
   if (name.length > MAX_DISPLAY_NAME_CHARS) {
     throw new Error(`display name is longer than ${MAX_DISPLAY_NAME_CHARS} characters`);
   }
-  const first = db.prepare('SELECT COUNT(*) AS c FROM users').get().c === 0;
+  // Removed accounts do not count: a studio whose people have all been taken
+  // out still has to be able to make somebody who can let the rest back in.
+  const first = db.prepare('SELECT COUNT(*) AS c FROM users WHERE deleted = 0').get().c === 0;
   const info = db.prepare(
     `INSERT INTO users (email, password_hash, display_name, admin, created_at)
      VALUES (?, ?, ?, ?, ?)`,

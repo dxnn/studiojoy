@@ -24,11 +24,16 @@ export const isAuthor = (db, projectId, userId) => Boolean(db
 export const canEdit = (db, project, user) => project.open_edit === 1
   || isAuthor(db, project.id, user.id);
 
+// Somebody removed from the studio keeps their `project_authors` row — that
+// is what `npm run restoreuser` gives back — but is not listed as an editor,
+// because they are not in the studio to be one. A game whose only author was
+// removed therefore shows no editors and can be changed by nobody until they
+// are restored; that is the price of the removal being undoable at all.
 export const listAuthors = (db, projectId) => db
   .prepare(
     `SELECT u.id, u.display_name
        FROM project_authors pa JOIN users u ON u.id = pa.user_id
-      WHERE pa.project_id = ?
+      WHERE pa.project_id = ? AND u.deleted = 0
       ORDER BY pa.added_at, u.display_name COLLATE NOCASE`,
   )
   .all(projectId);
@@ -43,8 +48,13 @@ export function addAuthor(db, projectId, userId, addedBy, now = new Date().toISO
 // ⚠️ Never the last one. A game with no authors could be changed by nobody
 // except by opening it, and nobody could open it either.
 export function removeAuthor(db, projectId, userId) {
+  // Counting the ones who are still in the studio: a removed author cannot
+  // change anything, so leaving a game to them alone is leaving it to nobody.
   const count = db
-    .prepare('SELECT COUNT(*) AS c FROM project_authors WHERE project_id = ?')
+    .prepare(
+      `SELECT COUNT(*) AS c FROM project_authors pa JOIN users u ON u.id = pa.user_id
+        WHERE pa.project_id = ? AND u.deleted = 0`,
+    )
     .get(projectId).c;
   if (count <= 1) {
     throw new HttpError(409, 'a game keeps at least one editor — add somebody else first');
