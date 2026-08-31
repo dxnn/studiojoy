@@ -77,6 +77,17 @@ export function createFakeLlm(script = []) {
   };
 }
 
+// A turn that spent its whole output allowance on the reasoning trace and
+// never reached a word or a tool call. Not an exotic case: whenever the
+// allowance is below the thinking a request provokes, this is what comes back
+// — all of it or none of it, no partial credit (spec.md §14).
+export function thinksOnly({ tokens = 8192 } = {}) {
+  return [
+    { type: 'reasoning', text: 'let me consider the architecture. '.repeat(8) },
+    { type: 'end', text: '', finish_reason: 'length', usage: usage(tokens, 100, tokens) },
+  ];
+}
+
 // An llm whose stream throws, for the failure path. `partial` is what it
 // manages to say first; '' dies before saying anything.
 export function createFailingLlm(message = 'upstream exploded', { partial = 'partial' } = {}) {

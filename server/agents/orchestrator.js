@@ -823,6 +823,13 @@ export function createOrchestrator({
       let hitLength = false;
       let hitLimit = null;
       let streamFailed = false;
+      // The last turn's split between thinking and everything else. Measured
+      // as this model's ordinary answer to an ambitious open request: the
+      // whole allowance goes to the trace and no tool call is ever reached
+      // (spec.md §14), which is a different failure from a file cut in half
+      // and reads nothing like it.
+      let lastReasoning = 0;
+      let lastOut = 0;
 
       for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
         let text = '';
@@ -860,7 +867,9 @@ export function createOrchestrator({
                     ?? event.usage.prompt_tokens ?? 0,
                   out: event.usage.completion_tokens ?? 0,
                 });
-                pile += event.usage.completion_tokens_details?.reasoning_tokens ?? 0;
+                lastReasoning = event.usage.completion_tokens_details?.reasoning_tokens ?? 0;
+                lastOut = event.usage.completion_tokens ?? 0;
+                pile += lastReasoning;
               }
             }
           }
@@ -1023,6 +1032,19 @@ export function createOrchestrator({
           chat,
           agentId: agent.id,
           body: `${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`,
+        });
+      } else if (hitLength && !replyText && changed.length === 0
+          && lastReasoning > 0 && lastReasoning >= lastOut * 0.9) {
+        // It never got past thinking. Nothing was cut in half, because
+        // nothing was started: the trace filled the whole output allowance.
+        // Naming that is the difference between "the studio is broken" and
+        // "ask for less at once", and the second one is both true and
+        // something a person can act on.
+        postSystemMessage(db, broker, {
+          project,
+          chat,
+          agentId: agent.id,
+          body: `${row.agent_name} spent the whole reply thinking and never got as far as writing anything. Ask for one piece at a time — one screen, one rule, one file.`,
         });
       } else if (pendingCut || (hitLength && changed.length === 0)) {
         postSystemMessage(db, broker, {

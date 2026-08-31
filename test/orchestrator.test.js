@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setup, signIn, openStream, putInChat, workChat } from './helpers.js';
 import {
-  createFakeLlm, createFailingLlm, says, calls, truncated,
+  createFakeLlm, createFailingLlm, says, calls, truncated, thinksOnly,
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
@@ -1122,6 +1122,21 @@ test('a fault after the stream starts still ends the stream and says so', async 
     (e) => e.event === 'message.new' && e.data.kind === 'system'
       && /ran into a problem/.test(e.data.body),
   );
+});
+
+test('a reply that was all thinking says that, not that a file was cut', async (t) => {
+  const { app } = await studio(t, { llm: createFakeLlm([thinksOnly()]) });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build me a tank game');
+  const banner = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system',
+  );
+  // Nothing was started, so nothing was cut in half: the old wording sent
+  // somebody looking for a half-written file that was never begun.
+  assert.match(banner.data.body, /never got as far as writing/);
+  assert.doesNotMatch(banner.data.body, /missing or incomplete/);
 });
 
 test('a reply that produces nothing at all says so', async (t) => {

@@ -2097,15 +2097,56 @@ to describe noise rather than the case that matters:
   faulted: it reached the output ceiling while still thinking. The
   `hitLength && changed.length === 0` banner (§8) is the only thing that says
   so.
-- **Still no effort ladder.** On the heavy prompt: baseline 1316 reasoning
-  tokens, `'minimal'` 692, `'low'` 482, `'medium'` 3643, `'high'` 675 — one
-  sample each, and the spread between neighbours is larger than the trend, so
-  the per-agent boolean stands. `'none'` is a real zero.
+- **Still no ladder in the middle.** With no tools in play: baseline 1316
+  reasoning tokens, `'minimal'` 692, `'low'` 482, `'medium'` 3643, `'high'`
+  675 — one sample each, and the spread between neighbours is larger than any
+  trend. But that is not the same question as whether the *ends* matter; see
+  the tool measurements below, where they matter more than anything else on
+  this page. `'none'` is a real zero.
 - **A reasoning budget parameter remains unmeasured**, not disproven.
   `thinking: {budget_tokens}`, `max_reasoning_tokens` and
   `reasoning_max_tokens` each produced a trace within run-to-run variance of
   the baseline at n=1, and unknown parameters are ignored silently, so nothing
   can be concluded either way from that.
+
+### ⚠️ Thinking against tools: the cliff
+
+The measurement this studio most needed and did not have. The studio's own
+preamble, its file tools, and one ambitious open request — *"Build me a tank
+game. Two players, split screen, destructible walls, power-ups."* — against
+`deepseek-v4-flash` (`tmp/probe-do-more.mjs`, `tmp/probe-tools-effort.mjs`,
+2026-08-31):
+
+| effort | `max_tokens` | reasoning / output | tool calls | first call at | wall |
+| --- | --- | --- | --- | --- | --- |
+| default | 8192 | 8192 / 8192 | **0** | never | 59–91 s |
+| default | 16384 | 13679 / 16321 | 6 | 67 s | 82 s |
+| `'low'` | 8192 | 6886 / 8192 | 3 | 56 s | 62 s |
+| `'low'` | 8192 | 1597 / 3185 | 3 | 16 s | 24 s |
+| `'none'` | 8192 | 0 / 803 | 2 | 1 s | 7 s |
+
+Two findings, and the first one is the important one:
+
+**Below the thinking a request provokes, the answer is nothing at all.** At the
+default effort this request wants ~13.7 K tokens of thinking before it will
+call a tool. Give it less and it does not think less and write less — it thinks
+until the ceiling stops it and produces no file, no word and no tool call, four
+runs out of four at 8192. There is no partial credit, so the failure is a cliff
+rather than a slope, and from the outside it is indistinguishable from a hang:
+at ~90 tokens/s a full 65536 of thinking is **twelve silent minutes** ending in
+an empty reply. This is what "the helper thought too long and did nothing" is,
+and no timeout is involved.
+
+**`reasoning_effort` is the lever, and the trivial-prompt measurement above
+hid it.** At the same 8192 where the default wrote nothing, `'low'` wrote three
+files on both runs, and `'none'` wrote two in seven seconds for 803 output
+tokens. Between default and `'low'` the difference is not a rung on a ladder;
+it is files against nothing. The run-to-run spread inside `'low'` is still
+wide (6886 and 1597), so it bounds the thinking loosely, not tightly.
+
+A caveat kept deliberately: these arms were scored on whether tool calls came
+out, not on whether the game was any good. `'none'` wrote the fewest bytes of
+the three that acted, and how much prose each wrote was not measured.
 
 ### Tools
 
