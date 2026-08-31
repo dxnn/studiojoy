@@ -152,7 +152,3 @@ export function slugify(name) {
     .slice(0, MAX_SLUG_CHARS)
     .replace(/-+$/, '');
 }
-
-export function projectDir(gamesDir, slug) {
-  return path.join(path.resolve(gamesDir), requireSlug(slug));
-}

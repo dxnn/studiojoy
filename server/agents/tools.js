@@ -74,8 +74,6 @@ export const TOOL_DEFINITIONS = [
   },
 ];
 
-export const TOOL_NAMES = new Set(TOOL_DEFINITIONS.map((t) => t.function.name));
-
 // Every tool returns a string for the model. Failures are returned, never
 // thrown: a confused agent should get a correction it can act on, not a dead
 // turn. That is also why path validation hands back its reason verbatim.

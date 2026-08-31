@@ -2007,17 +2007,6 @@ export async function createChat(name) {
   say(`${res.body.name} is ready. Helpers can be put in this one.`);
 }
 
-export async function renameChat(id, name) {
-  const res = await api('PATCH', `/api/projects/${S.slug}/chats/${id}`, { name });
-  if (!res.ok) {
-    say(res.body?.error ?? 'Could not rename that chat.', true);
-    return;
-  }
-  S.chats = S.chats.map((c) => (c.id === id ? res.body : c));
-  if (S.chat?.id === id) S.chat = res.body;
-  render();
-}
-
 // The project payload carries its own copy of each attached helper's details,
 // so a studio-wide edit or delete has to be mirrored into it.
 export function syncAttached() {

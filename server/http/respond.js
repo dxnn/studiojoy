@@ -10,8 +10,6 @@ export class HttpError extends Error {
   }
 }
 
-export const badRequest = (msg, extra) => new HttpError(400, msg, extra);
-export const notFound = (msg = 'not found') => new HttpError(404, msg);
 export const conflict = (msg, extra) => new HttpError(409, msg, extra);
 
 // A HEAD request must carry the headers of the equivalent GET and no body.

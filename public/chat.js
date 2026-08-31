@@ -8,7 +8,7 @@ import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, api, say, sizeText,
-  openChat, createChat, frozen, canTalk, nearQuota, calledMark,
+  openChat, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
 
 /* Render: chat ------------------------------------------------------------ */

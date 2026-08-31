@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn, openStream, putInChat, workChat } from './helpers.js';
+import { setup, signIn, openStream, workChat } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 import { userSpentToday } from '../server/budget.js';
 
