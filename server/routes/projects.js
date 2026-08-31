@@ -111,8 +111,8 @@ export function projectRoutes(r) {
       await ctx.mutex.run(slug, async () => {
         if (!(await isRepo(dir))) {
           await initRepo(dir, { author: authorFor(user), slug });
-          // Born holding the studio library, so + Controls only ever means
-          // an update (spec.md §4).
+          // Born holding the studio library (spec.md §4); npm run sweep
+          // keeps it current from then on.
           await scaffoldLibraries(dir, ctx.publicDir, authorFor(user));
           // A starter tree, or failing that a page. Either way the game has an
           // index.html from its first minute: a working tree without one is

@@ -3,7 +3,6 @@
   "libraries": {
     "input": {
       "version": 4,
-      "title": "Controls",
       "what": "One way in for the keyboard, a game controller and a touchscreen, for one player or two.",
       "files": ["input.js"],
       "seeds": [{ "from": "/templates/controls.js", "to": "config/controls.js" }],
@@ -11,7 +10,6 @@
     },
     "sound": {
       "version": 3,
-      "title": "Sounds",
       "what": "Plays the sounds in assets/sounds/ with one call — overlapping shots, loops, mute — and never breaks the game over a missing file.",
       "files": ["sound.js"],
       "seeds": [],
@@ -19,7 +17,6 @@
     },
     "sprites": {
       "version": 2,
-      "title": "Sprites",
       "what": "Draws the pictures in assets/sprites/ by name, animated when the picture is a film strip of square frames, and never breaks the game over a missing one.",
       "files": ["sprites.js"],
       "seeds": [],
@@ -27,7 +24,6 @@
     },
     "screens": {
       "version": 3,
-      "title": "Screens",
       "what": "A phone-fit title and game-over screen, a HUD strip of score chips, and a one-line how-to-play hint worked out from config/controls.js and the device — keys on a keyboard, the touch scheme's own shape on a phone, controller buttons when one is plugged in.",
       "files": ["screens.js"],
       "seeds": [],

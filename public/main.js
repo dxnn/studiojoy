@@ -1274,12 +1274,11 @@ export async function createFile(path) {
 // it, hand it to somebody, and it still runs, which neither a symlink nor a
 // submodule survives.
 //
-// A game gets the library once, when it is created (server/files/library.js),
-// and keeps what it was born with; studio/studio.json records which version
-// that was. There is no update from in here. Bringing an older game forward is
-// a sweep across the game repositories from a machine that has them all —
-// deploy/sync-games.sh — where the change can be read and undone, rather than
-// a button that rewrites somebody's game in one click and asks nothing.
+// A game gets the library at creation (server/files/library.js) and is kept
+// current by `npm run sweep` on the machine holding the games;
+// studio/studio.json records which version it holds. There is no update from
+// in here — a sweep's commits can be read and undone, where a button that
+// rewrites somebody's game in one click asks nothing.
 //
 // The rule that makes it a library and not just a folder is in
 // server/files/paths.js: a helper reads it and cannot write it.
