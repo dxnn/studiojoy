@@ -8,8 +8,7 @@
 
    Two things carry the direction and cost the JS nothing: the rainbow hairline
    across the top of the shell (.app::before) and the halftone washes on the
-   panes. Two more need small markup moves, listed in handoff.md: the wordmark
-   spans and the middle-pane action bar (.acts).
+   panes.
 
    Per-game theming: look.js can set --g1/--g2/--g3 on .app as an inline style
    and the chat pane, its Play/Send buttons and the rail follow. Unset, they
@@ -35,7 +34,6 @@
   /* primary */
   --accent: oklch(0.82 0.13 195);
   --accent-hi: oklch(0.88 0.12 195);
-  --accent-soft: oklch(0.36 0.09 240 / 0.55);
   --accent-ink: #0e1424;
 
   /* accent — the helpers */
@@ -48,7 +46,6 @@
   --danger: oklch(0.72 0.19 20);
   --ok: oklch(0.78 0.14 155);
 
-  --human-soft: oklch(0.3 0.07 290 / 0.5);
   --system-soft: oklch(0.32 0.07 300 / 0.45);
   --code-bg: oklch(0.22 0.05 295 / 0.75);
   --hover: oklch(0.32 0.08 290 / 0.45);
@@ -689,28 +686,6 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
 .item.active .item-name { color: #fff; }
 .item.active .item-sub { color: color-mix(in oklab, var(--accent) 45%, white); }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
-
-/* Chats and helpers live under the game list in bounded, foldable sections, so
-   the games always keep most of the pane. */
-.small-list {
-  flex: 0 1 auto;
-  overflow-y: auto;
-  max-height: 26vh;
-  border-top: 1px solid var(--border);
-  padding: 4px 10px 6px;
-}
-.sec-toggle {
-  border: none;
-  background: none;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-.sec-toggle:hover:not(:disabled) { background: none; color: var(--accent); }
 
 .srow {
   display: flex;
@@ -1531,19 +1506,6 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 }
 .preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
 
-/* The four named colours, read out of look.js under the preview, so the words
-   in the file and the colours on the screen are visibly the same thing. */
-.roles { display: flex; align-items: center; gap: 8px; padding: 2px 2px 0; flex-wrap: wrap; }
-.roles .rlabel {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-}
-.roles .role { display: flex; align-items: center; gap: 5px; }
-.roles .role .sw { width: 10px; height: 10px; border-radius: 3px; }
-.roles .role .rname { font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
-
 /* Versions ---------------------------------------------------------------- */
 
 .commit { padding: 10px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent); }
@@ -1747,11 +1709,8 @@ label.knob {
   .app > .pane.show { display: flex; }
   .pane + .pane { border-left: none; }
   .rail-grip { display: none; }
-  .small-list { max-height: 34vh; }
   .messages { padding: 16px; }
   .composer { padding: 12px 16px 16px; }
-  .acts { padding-left: 16px; padding-right: 16px; }
-  .acts.open { padding: 10px 16px; }
   .pane.chat > .bar { padding: 10px 16px; }
 }
 .only-narrow { display: none; }
