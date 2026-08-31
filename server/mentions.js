@@ -1,12 +1,15 @@
 // Who a message calls by name. One parser and one matching rule for both
 // kinds of name in the studio: an @ that reaches a *helper* makes it eligible
-// to answer this turn, and an @ that reaches a *person* leaves a mark on the
-// game in their sidebar until they open the chat it was said in.
+// to answer this turn — and puts it in the room if it was not already there —
+// and an @ that reaches a *person* leaves a mark on the game in their sidebar
+// until they open the chat it was said in.
 //
 // Names are free-form ("Level Designer", "Robin Fox") but a mention is one
 // token, so both sides are normalised to lowercase alphanumerics before
 // comparison: "@leveldesigner", "@Level-Designer" and "@level" all reach Level
 // Designer, and "@Robin" reaches Robin Fox.
+import { MAX_AGENTS_PER_CHAT } from './chats.js';
+
 function normalize(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -46,6 +49,46 @@ function nameMatches(name, mentions) {
 export function agentEligible({ name, chatty = false }, mentions) {
   if (chatty) return true;
   return nameMatches(name, mentions);
+}
+
+/* Calling a helper in ------------------------------------------------------
+   Naming a helper who is not in the room puts them in it, the way naming a
+   person leaves them a mark: an @ is how you reach somebody, and having to
+   go and fetch them from a list first is the studio asking you to do its
+   filing. They arrive waiting to be called rather than chatty — you asked
+   this one thing of them, not for a running commentary — and the orchestrator
+   wakes them on this very message, because the @ that let them in is the same
+   @ that makes them eligible. */
+
+// ⚠️ Never into a chat that refuses helpers: the caller checks `bots` before
+// this is reached, and assertBotsAllowed guards the route that does it by
+// hand. A room that promises nobody is listening cannot be talked into
+// breaking that promise.
+export function callAgentsIn(db, { chatId, body, userId, now }) {
+  const mentions = parseMentions(body);
+  if (mentions.size === 0) return [];
+  const already = db
+    .prepare('SELECT agent_id FROM chat_agents WHERE chat_id = ?')
+    .all(chatId);
+  const room = new Set(already.map((r) => r.agent_id));
+  const called = db
+    .prepare('SELECT id, name FROM agents WHERE deleted = 0 ORDER BY name')
+    .all()
+    .filter((a) => !room.has(a.id) && nameMatches(a.name, mentions));
+
+  const joined = [];
+  for (const agent of called) {
+    // The same wall the Crew tab hits. Whoever is named past it stays out and
+    // the message still stands: refusing a message somebody has already
+    // written because a room is full would lose the words.
+    if (room.size + joined.length >= MAX_AGENTS_PER_CHAT) break;
+    db.prepare(
+      `INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
+       VALUES (?, ?, 0, ?, ?)`,
+    ).run(chatId, agent.id, userId, now);
+    joined.push(agent);
+  }
+  return joined;
 }
 
 /* People -------------------------------------------------------------------

@@ -6,7 +6,7 @@ import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic, requireString } from './helpers.js';
 import { requireChat, homeChat } from '../chats.js';
 import { canEdit } from '../authors.js';
-import { mentionedUsers, recordMentions } from '../mentions.js';
+import { mentionedUsers, recordMentions, callAgentsIn } from '../mentions.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
 const MAX_EMOJI_BYTES = 32;
@@ -69,6 +69,11 @@ export function messageRoutes(r) {
     // woken by the orchestrator further down. Resolved before the write so the
     // rows land in the same transaction as the message they belong to.
     const named = mentionedUsers(ctx.db, text, user.id);
+    // And which helpers it calls into the room. Only where helpers are
+    // allowed at all — the human-only chat of a game stays human-only, and an
+    // @ is not a way round that. In the same transaction as the message, so a
+    // helper is never in a room because of a message that is not there.
+    let joined = [];
     const messageId = tx(ctx.db, () => {
       const info = ctx.db
         .prepare(
@@ -85,6 +90,11 @@ export function messageRoutes(r) {
       recordMentions(ctx.db, {
         messageId: id, chatId: chat.id, projectId: project.id, users: named, now,
       });
+      if (chat.bots === 1) {
+        joined = callAgentsIn(ctx.db, {
+          chatId: chat.id, body: text, userId: user.id, now,
+        });
+      }
       return id;
     });
 
@@ -93,7 +103,10 @@ export function messageRoutes(r) {
     // On the broadcast and not on the answer to this request: it is the other
     // tabs that need to know, and each one keeps only the mark that is its
     // own. A person's ids are no secret here — the Crew tab lists everybody.
-    ctx.broker.broadcast('message.new', { ...payload, mentions: named });
+    // `joined` rides along for the same reason: every tab looking at this
+    // chat has to grow a chip for a helper the message called in, and the
+    // message is the only thing that says it happened.
+    ctx.broker.broadcast('message.new', { ...payload, mentions: named, joined });
 
     // Fired after the message is durable and broadcast, so the human's own
     // message always appears before any agent reply. Agents are woken only by

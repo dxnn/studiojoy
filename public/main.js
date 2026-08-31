@@ -702,6 +702,11 @@ export async function openProject(slug, { view = null } = {}) {
   }
   S.slug = slug;
   S.project = res.body;
+  // Where the Games and Chats tabs come back to. One per list, because they
+  // are two lists and each remembers its own place — clicking Chats after an
+  // afternoon in a game should land in the conversation you left, not in the
+  // game you are already looking at. Keyed by the tab's own id.
+  prefs.set(res.body.kind === 'chat' ? 'last-chats' : 'last-games', slug);
   S.chats = res.body.chats ?? [];
   S.chat = res.body.chat ?? null;
   if (S.chat) prefs.set(`chat-${slug}`, S.chat.id);
@@ -889,6 +894,24 @@ function onEvent(name, data) {
         }
       }
       if (!here(data)) return;
+      // Helpers the message called in by name. Merged rather than refetched,
+      // for the same reason attaching one from the Crew tab is: a refetch
+      // would throw away the open file, the pins and anything mid-stream.
+      for (const called of data.joined ?? []) {
+        if (S.project.agents.some((a) => a.agent_id === called.id)) continue;
+        const known = S.agents.find((a) => a.id === called.id);
+        S.project.agents.push({
+          agent_id: called.id,
+          name: called.name,
+          model: known?.model,
+          reasoning: known?.reasoning,
+          file_tools: known?.file_tools,
+          // Called for one thing, not signed up to answer everything.
+          chatty: false,
+          responding: false,
+        });
+      }
+      if (data.joined?.length) S.project.agents.sort((a, b) => a.name.localeCompare(b.name));
       S.project.messages.push(data);
       render();
       // A reply costs somebody their allowance, and if that somebody is you,
