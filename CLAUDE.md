@@ -522,23 +522,35 @@ exactly one frame, and the touch overlay appearing on a coarse pointer and
 driving the game. Not checked with a real controller — no hardware here; the
 pad paths are covered by fake pads in `test/input-template.test.js`.
 
-Touch has **control schemes** now: `SCHEME` in `config/controls.js` names the
-physical shape — `one-button`, `swipe-tap`, `stick-buttons`, `dual-stick` —
-and the input library (v4) draws that shape instead of always the arrow pad
-(GLOSSARY: *control scheme*; ideas/control-schemes.md is the design). The
-virtual stick is analog into the same `axis()` the pad sticks feed, floating
-to wherever the thumb lands; a flick is surfaced for exactly one update, so
-`pressed()` sees it once and `held()` never does; one-button makes the whole
-screen the button; and every preset binds start into its primary touch
-control, which closed the old no-Start-on-a-tablet gap. A `controls.js` with
-no `SCHEME` behaves exactly as before, so the version bump and the
-`npm run sweep` are safe. The default seed is the stick-buttons
-preset; the other three are `controls-<scheme>.js` beside it, for templates
-to carry — nothing in the studio picks a scheme yet. ⚠️ The input header is
-the API note and sits at ~1.97 KB against the orchestrator's 2 KB cap:
-condense before adding to it, or the tail is cut. Node-tested in
-`test/input-schemes.test.js` and browser-checked on a coarse pointer, all
-four schemes; not yet played on a real phone.
+Touch has **control schemes**: `SCHEME` in `config/controls.js` names the
+physical shape — `buttons`, `one-button`, `swipe-tap`, `stick-buttons`,
+`dual-stick` — and the input library (v5) draws that shape (GLOSSARY:
+*control scheme*; ideas/control-schemes.md is the design, "The fifth" its
+latest section). The virtual stick is analog into the same `axis()` the pad
+sticks feed; a flick is surfaced for exactly one update; one-button makes the
+whole screen the button; every preset binds start into its primary touch
+control. `buttons` is the phone-test answer for thrust-and-turn ships and
+also what no `SCHEME` means — the legacy unnamed shape is retired, and a
+legacy `controls.js` renders the same under it. `toggle:NAME` is a drawn
+button that latches (tap on, tap off, `held()` between; drops on blur and
+under a Screens screen), so turn + thrust + fire fit on two thumbs;
+`BUTTON_SIDE = "left"` mirrors any layout. ⚠️ Buttons are geometry in
+input.js — centres and radii hit-tested by arithmetic with a halo, nearest
+centre winning — so thumbs rock across neighbours without lifting and the
+same maths runs headless in `npm test`; the DOM is only paint, and there is
+no per-button pointer capture to reintroduce. Screens v4 marks the body
+`screens-open` while a title/game-over screen is up: the drawn controls hide,
+latches drop, and its Start button relays one frame of `start` through the
+window for poll-style games. The default seed is the stick-buttons preset;
+`controls-<scheme>.js` beside it for templates — nothing in the studio picks
+a scheme yet. ⚠️ The input header is the API note, ~2.6 KB against the
+orchestrator's cap, raised to 3 KB for it: condense before adding, or the
+tail is cut. Node-tested in `test/input-schemes.test.js`, browser-checked on
+a forced coarse pointer (tmp/touch-check/, real PointerEvents: rocking,
+halos, latching, hide-and-relay, and asteriskoids playing on its swept
+copy); not yet felt on a real phone — that re-test is queued in TODO.md.
+Asteriskoids is migrated (buttons scheme, FIRE latches); space-racer and the
+hand-rolled-screens follow-ups are TODO lines.
 
 **Game templates** are live: New game offers "Start from", a starter tree
 copied in as a third commit and the game's own code from then on (spec.md §4).

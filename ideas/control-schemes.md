@@ -138,3 +138,53 @@ other migration (TODO.md holds the list).
   Leaning: templates carry it, blank games get the default, a picker later
   if wanted.
 - GLOSSARY: **control scheme**, when built.
+
+## The fifth: buttons, toggles, and the end of the unnamed shape
+
+(2026-08-31, built as input v5 / screens v4.) A phone test of the four
+surfaced what they could not say: a thrust-and-turn ship needs three *held*
+channels at once — turn, thrust, fire — and a phone has two thumbs. The
+d-pad was clumsy for it and the stick worse: one thumb cannot work two
+channels independently. No layout fixes that alone; the missing lever was
+what a press *means*.
+
+**`toggle:NAME`** — a binding kind, not a scheme option, because stickiness
+belongs to one verb's button and the bindings line is where kids already
+edit. A drawn button that latches: tap on, tap off, `held()` in between,
+a bright ring while latched. Flips on pointer-down only — sliding onto a
+toggle never flips it. Latches drop on blur and when a Screens screen
+opens (respawning with the engine secretly on is worse than tapping).
+`key:`/`pad:` on the same verb stay momentary, so the desktop feel never
+changes. Asteriskoids latches FIRE (autofire) and keeps THRUST momentary
+and featherable: latch fire, hold thrust, rock turn — all three at once.
+
+**The `buttons` scheme** — the user's four-button layout, generalised: the
+`touch:` directions form one cluster (two of one axis draw as a big pair,
+both axes as the arrow pad), every other `touch:`/`toggle:` name climbs a
+diagonal from the opposite corner, first-declared biggest and nearest it.
+It is also what no `SCHEME` means: a legacy `controls.js` binding four
+arrows and GO renders the same as before, so the unnamed shape is retired
+rather than kept beside a twin. `BUTTON_SIDE = "left"` mirrors any layout,
+sticks included — game-level, one plain const, until a per-player setting
+is ever worth building.
+
+**Rocking, not tapping** — the feel fix that mattered as much as the
+layout. Buttons are geometry in input.js (centres and radii, anchored to
+corners), hit-tested by arithmetic with an invisible halo around every
+button and nearest-centre resolution where halos meet; the DOM is only
+paint. So a thumb slides between neighbours without lifting, the same
+maths runs headless in `npm test`, and per-button pointer capture — which
+made slide-onto impossible — is gone.
+
+**Screens steps aside** — the overlay used to sit on top of the title
+screen on purpose, because the drawn GO was the only touch path to
+`start`. Now `Screens.title()` marks the body `screens-open`: the drawn
+controls hide, thumbs release, latches drop; the Start button relays one
+frame of `start` through the window so poll-style games still begin by
+touch. Either library missing the other degrades to the old behaviour.
+Games with hand-rolled screens (asteriskoids, space-racer) still wear the
+controls there until they move onto `Screens.title` — queued in TODO.md.
+
+The input header grew to ~2.6 KB; the orchestrator's API-note cap went to
+3 KB rather than compressing the note into illegibility. Not yet felt on a
+real phone — that re-test is queued in TODO.md with the deploy.

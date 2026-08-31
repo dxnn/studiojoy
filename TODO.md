@@ -25,6 +25,13 @@ deliberately deferred.
   than a move (fun-slide went this way live: `2a6821d` in its repo)
 - revisit the deferred control schemes — point-and-click, and normal, the
   DOM-buttons one (ideas/control-schemes.md, "Deferred, and why")
+- ask a helper to move space-racer to the buttons scheme, and its hand-rolled
+  menus onto Screens.title — its screens still sit under the drawn controls
+- ask a helper to move asteriskoids' own title and game-over screens onto
+  Screens.title, so the drawn controls step aside there too
+- ! deploy input v5 / screens v4: npm run sweep on the studio machine, then
+  re-try the five touch complaints on the real phone (text selection and feel
+  were never checkable headless)
 - offer the Top 10 on `Screens.title()` — every game refetches /_scores by
   hand today (the screens library's one surviving open question)
 - interpret `:wave:`-style emoji shortcodes in messages (deferred from the
