@@ -11,7 +11,8 @@ import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
   syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createChat, createSound, setAuthors, frozen, loadStudio, studioChange,
+  createChat, createSound, setAuthors, setOpenEdit, setPublished,
+  frozen, loadStudio, studioChange,
   copyFileTo, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
 
@@ -457,6 +458,32 @@ export function dialogFor(d) {
         h('button', { class: 'filled', text: 'Done', onclick: close })));
   }
 
+  // Publishing is one click away in the bar, so the button there is a status
+  // and this is where it is actually done. Both ways round: the games list is
+  // the only thing either changes — a link to the game has always worked and
+  // still will.
+  if (d.kind === 'publish') {
+    const listed = Boolean(S.project.published);
+    return wrap(listed ? 'Take it out of the games list?' : 'Put it in the games list?',
+      h('p', {
+        text: listed
+          ? 'Everybody sees this game on the games page. Take it out and only people with the link will find it — the link still works, and the game still plays.'
+          : 'The games page is what everybody sees at the games address. Put it in and this game is on it.',
+      }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: listed ? 'danger' : 'filled',
+        text: listed ? 'Take it out' : 'Put it in',
+        onclick: async () => {
+          close();
+          await setPublished(!listed);
+        },
+      })));
+  }
+
+  // Whether the game is open, and then who its editors are — one dialog,
+  // because the lock in the bar is the first half of the answer and the names
+  // are the second. `editors` in the interface, *authors* in the code and on
+  // the wire (GLOSSARY).
   if (d.kind === 'authors') {
     // Painted in place, not through render(): a dialog is built once and
     // re-appended by every later render, so a rebuilt list would never appear.
@@ -465,7 +492,32 @@ export function dialogFor(d) {
     const paint = () => {
       const authors = S.project.authors ?? [];
       const has = new Set(authors.map((a) => a.id));
-      list.replaceChildren(...S.people.map((person) => {
+      const open = Boolean(S.project.open_edit);
+      // Only an editor decides who works on this game — being able to work on
+      // it is not the same thing (see server/authors.js). Somebody who is only
+      // here because the game is open reads the list and presses nothing.
+      const yours = Boolean(S.project.mine);
+      // Open or closed first, because it decides whether the names below are
+      // the whole answer or only who decides.
+      const switchRow = h('div', { class: 'plan-row switch' },
+        h('button', {
+          class: `act open${open ? ' on' : ''}`,
+          disabled: !yours,
+          title: open
+            ? 'Anybody in the studio can change this game'
+            : 'Only the people below can change this game',
+          onclick: async () => {
+            await setOpenEdit(!open);
+            paint();
+          },
+        }, h('span', { class: 'dot' }), open ? 'Open to everyone' : 'Closed'),
+        h('span', {
+          class: 'hint muted',
+          text: open
+            ? 'Anybody in the studio can change it.'
+            : 'It wears a lock, and only these people can change it.',
+        }));
+      const rows = S.people.map((person) => {
         const author = has.has(person.id);
         return h('div', { class: 'plan-row' },
           h('span', { text: person.display_name }),
@@ -477,16 +529,17 @@ export function dialogFor(d) {
             // The last author cannot go: the server refuses it too, and a
             // button that always answers with a red banner is worse than no
             // button at all.
-            disabled: author && authors.length <= 1,
+            disabled: !yours || (author && authors.length <= 1),
             onclick: async () => {
               await setAuthors(author ? 'DELETE' : 'POST', person.id);
               paint();
             },
           }));
-      }));
+      });
+      list.replaceChildren(switchRow, ...rows);
     };
     paint();
-    return wrap('Who can edit this game',
+    return wrap('Editors',
       h('p', { class: 'hint muted', text: 'Anyone in the studio can read this game, play it and talk in \u201cHumans only\u201d. These are the people who can change it.' }),
       list,
       h('div', { class: 'actions' },
@@ -521,7 +574,7 @@ export function dialogFor(d) {
     const err = h('p', { class: 'error' });
     if (games.length === 0) {
       return wrap('Copy this file into another game',
-        h('p', { text: 'There is no other game you can change. A game you are an author of, or one that is open to everyone, can take a copy.' }),
+        h('p', { text: 'There is no other game you can change. A game you are an editor of, or one that is open to everyone, can take a copy.' }),
         h('div', { class: 'actions' }, h('button', { class: 'filled', text: 'Close', onclick: close })));
     }
     return wrap('Copy this file into another game',

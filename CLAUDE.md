@@ -169,7 +169,7 @@ active row) and stays cyan whatever game is open; **pink is a helper**; **gold
 is a number worth looking at** — a score, a version — and nothing else;
 **crimson is danger** and nothing else. A game's own four (`primary`, `accent`,
 `highlight`, `deep` in its `config/look.js`) colour that game's surfaces only:
-the chat pane, the composer, the actions drawer, the rail. ⚠️ Gold is the one
+the chat pane, the composer, the game's actions, the rail. ⚠️ Gold is the one
 to police — the moment it appears on something that is not a number, the
 direction stops working.
 
@@ -216,9 +216,14 @@ The preview reloads itself. There is no Reload button and has not been since
 the reskin: every commit bumps `previewNonce`, which is in the iframe's `src`,
 so a helper's write, a save or an upload all restart the game on their own.
 
-Games have **authors** now, and the studio is no longer flat: an account reads
-everything and changes only games it authors — or games marked **open**, which
-an author sets to let the whole studio in. `canEdit` is the rule and
+Games have **authors** now — ⚠️ **editors** everywhere a person can read, and
+`author` in the code, the database and the wire — and the studio is no longer
+flat: an account reads everything and changes only games it authors, or games
+marked **open**. Open is what a game a person makes starts as, forks included;
+an editor turns it off in the `Editors` dialog and the game wears a 🔒 in front
+of its name from then on. The column's default is still 0 — an existing
+database has the column already and SQLite will not change a default
+afterwards — so creation states the value instead. `canEdit` is the rule and
 `requireProject({ write: true })` is the single place it is applied; a route
 that means to be an exception says `anyone: true`. ⚠️ Two exceptions, both
 deliberate: anyone may talk in any game's human-only chat, and the author list
@@ -555,9 +560,8 @@ The interface is the 6a direction (the handoff and its stylesheet were in
 `extra/`, which is gitignored — `public/style.css` is the copy that counts).
 What it moved, beyond colour: the sidebar is one list at a time behind
 **Games / Chats / Crew** tabs with a filter box — Crew being the humans over
-the helpers, from `GET /api/users` (names, no addresses); the whole-game actions are
-an **actions drawer** under the game's name instead of the foot of the Play
-tab; the **Play tab is gone** — the preview lives at the top of the rail and
+the helpers, from `GET /api/users` (names, no addresses); the whole-game actions
+left the foot of the Play tab for the game's own bar; the **Play tab is gone** — the preview lives at the top of the rail and
 folds to a row that still plays and still opens the game in its own tab; and a game's `config/look.js` can name four
 colours the studio wears while that game is open. The design's own `support.js`
 is a React runtime from the tool that produced it and has no place here.

@@ -47,16 +47,16 @@ export function removeAuthor(db, projectId, userId) {
     .prepare('SELECT COUNT(*) AS c FROM project_authors WHERE project_id = ?')
     .get(projectId).c;
   if (count <= 1) {
-    throw new HttpError(409, 'a game keeps at least one author — add somebody else first');
+    throw new HttpError(409, 'a game keeps at least one editor — add somebody else first');
   }
   const gone = db
     .prepare('DELETE FROM project_authors WHERE project_id = ? AND user_id = ?')
     .run(projectId, userId).changes;
-  if (gone === 0) throw new HttpError(404, 'not an author of this game');
+  if (gone === 0) throw new HttpError(404, 'not an editor of this game');
 }
 
 export function requireAuthor(db, project, user) {
   if (!isAuthor(db, project.id, user.id)) {
-    throw new HttpError(403, `only ${project.name}'s authors can do that`);
+    throw new HttpError(403, `only ${project.name}'s editors can do that`);
   }
 }

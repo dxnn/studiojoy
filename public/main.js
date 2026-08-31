@@ -153,9 +153,6 @@ export const S = {
   // screen, not a query. Deliberately not remembered — a filter still in force
   // tomorrow is a list with things missing from it.
   sideFind: '',
-  // Whether the drawer under a game's name is open. Not remembered: it is a
-  // thing you opened to do something with, not a view.
-  actsOpen: false,
   // Whether the game is showing at the top of the rail or folded to one row.
   // Remembered next to the rail width: on a small screen the file list is
   // worth the whole pane, and that is a preference, not a step.
@@ -727,8 +724,6 @@ export async function openProject(slug, { view = null } = {}) {
   S.palette = null;
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
-  // So does an open actions drawer.
-  S.actsOpen = false;
   render();
   // The best score is on the preview now, so it is fetched with the game
   // rather than when the Scoreboard tab is opened. One small request, and the
@@ -1753,7 +1748,7 @@ export async function setOpenEdit(open) {
   await loadProjects();
   say(open
     ? 'Anybody in the studio can change this game now.'
-    : 'Only this game’s authors can change it now.');
+    : 'Only this game’s editors can change it now — it wears a lock.');
   render();
 }
 

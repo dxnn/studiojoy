@@ -28,7 +28,7 @@ export function requireProject(ctx, { write = false, files = false, anyone = fal
   if (write && !anyone) {
     const user = requireAuth(ctx);
     if (!canEdit(ctx.db, project, user)) {
-      throw new HttpError(403, `${project.name} is not yours to change — ask one of its authors`);
+      throw new HttpError(403, `${project.name} is not yours to change — ask one of its editors`);
     }
   }
   if (files && project.kind === 'chat') {

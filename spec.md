@@ -854,13 +854,32 @@ to the rail width; the filter is not, because a filter still in force tomorrow
 is a list with things missing from it. The button above the tabs makes whatever
 the open tab holds, so `+ New chat` is never a click away from the chats.
 
-**The whole-game actions are a drawer under the game's name** — the *actions
-drawer*: make a copy, put it in or take it out of the games list, say who can
-change it. Renaming is not among them — the pencil beside the name is. They
-were at the foot of the Play tab, which put them under a preview of a game
-somebody was playing and out of reach from every other tab. Closed, the drawer
-is zero-height rather than absent, so it can animate; it closes when the game
-changes, because it is a decision about the game you were looking at.
+**The whole-game actions are three buttons at the end of the game's own bar** —
+`Fork`, the publish status, `Editors`. Fork is everybody's; the other two are
+an editor's, and are absent rather than disabled for anybody else, because a
+button you may not press is a question you cannot answer. Renaming is not among
+them — the pencil beside the name is. They were at the foot of the Play tab
+first, then a drawer under the name; a drawer is somewhere to hide things, and
+three buttons and their own state do not need hiding. The words that went with
+them are gone with it: the padlock says whether the game is closed and the
+publish button says whether it is listed, so "in the games list", "by Dann" and
+"authors only" were three labels restating two buttons.
+
+**The row under it is the conversation's**: `+chat` pinned at the left, the
+chat pills, and the helpers listening in this chat at the right. ⚠️ The pills
+and the helper chips are each their own horizontal scroller, so a studio's
+worth of chats and a crowd of helpers give way to each other rather than one
+pushing the other off the end.
+
+**A game a person makes is open** — the whole studio may change it — and an
+editor closes it in the `Editors` dialog, which puts a padlock in front of its
+name. This is a studio of a few people who trust each other: a game nobody else
+may touch should be a decision somebody made rather than the state everything
+starts in. A fork is a new game and starts open too, whatever the original was.
+⚠️ Stated at the INSERT rather than as the column's default, which stays 0: a
+database written before this already has the column, and SQLite cannot change a
+default after the fact. Chat projects stay closed — they have no working tree,
+and `open_edit` there is about who may start chats in somebody's conversation.
 
 **The rail is the preview and three tabs.** The preview is not a tab any more —
 a game is what the rail is about, so it sits at the top of it whatever is open
@@ -874,7 +893,7 @@ before falls back to Files, where its preview now is.
 **A game lends the studio its four colours** — its *look* — while it is open.
 `config/look.js` is read once for both the *palette* and these; the four are
 set on the shell as `--look-*`, and the chat pane, its buttons, the composer,
-the drawer and the rail are the only things that read them. The sidebar stays
+the game's actions and the rail are the only things that read them. The sidebar stays
 the studio's own cyan on purpose: that is what stops the studio from looking
 like whichever game is open. ⚠️ Each value is checked before it reaches a style
 attribute — no colon or semicolon, so it cannot close the declaration and open

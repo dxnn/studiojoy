@@ -394,6 +394,9 @@ test('any account can read any project', async (t) => {
   t.after(() => app.close());
   await signIn(app);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
+  // Closed, so that reading it is the only thing being tested: a new game is
+  // open to the whole studio (test/authors.test.js).
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
 
   const other = app.newClient();
   await signIn(app, {

@@ -403,6 +403,9 @@ test('a file is copied in from another game', async (t) => {
 test('copying in takes the rights of the game it lands in', async (t) => {
   const { app } = await project(t);
   await put(app, 'js%2Fengine.js', 'const engine = 1;');
+  // Closed, or there is no "somebody else's" to fail against: a new game is
+  // open to the whole studio (test/authors.test.js).
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
 
   const other = app.newClient();
   await signIn(app, {

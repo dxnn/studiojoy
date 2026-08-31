@@ -7,7 +7,7 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
-  composerBox, sendComposer, send, say, sizeText, setPublished, setOpenEdit,
+  composerBox, sendComposer, send, say, sizeText,
   openChat, createChat, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
 
@@ -332,23 +332,19 @@ function helperGap() {
     }), '.');
 }
 
-// What you can do to the whole game, folded away under its name. These used to
-// sit at the foot of the Play tab, which put them under the preview of a game
-// you were in the middle of playing, and out of reach from every other tab.
+// What you can do to the whole game, at the right-hand end of its own bar.
+// There used to be a drawer under the name holding these and a row of words
+// about the game's state; the words are gone — the lock says whether it is
+// closed and the publish button says its own state — and three buttons need
+// no drawer to hide in.
 //
-// Closed, the drawer is zero-height rather than absent: it animates open, and
-// a node that is not there cannot transition. It closes when the game changes,
-// because it is a decision about the game you were looking at.
+// Fork is everybody's: copying a game takes nothing from anybody. The other
+// two are an editor's, and absent rather than disabled for anybody else,
+// because a button you may not press is a question you cannot answer.
 function renderActs(p) {
   const listed = Boolean(p.published);
-  const open = Boolean(p.open_edit);
-  // Only an author decides who works on this game — being able to work on it
-  // is not the same thing (see server/authors.js). Somebody else's drawer is
-  // the author list and nothing they can press.
   const yours = Boolean(p.mine);
-  return h('div', { class: `acts${S.actsOpen ? ' open' : ''}` },
-    // Forking takes nothing from anybody, so it is the one thing here that is
-    // not an author's alone.
+  return [
     h('button', {
       class: 'act fork',
       text: 'Fork',
@@ -356,48 +352,57 @@ function renderActs(p) {
       disabled: p.archived,
       onclick: () => { S.dialog = { kind: 'fork' }; render(); },
     }),
-    h('button', {
+    yours && h('button', {
       class: `act publish${listed ? ' on' : ''}`,
-      title: 'The games list is the page everyone sees at the games address',
-      disabled: !yours,
-      onclick: () => setPublished(!listed),
-    }, h('span', { class: 'dot' }), listed ? 'Unpublish' : 'Publish'),
-    h('span', {
-      class: `state${listed ? ' live' : ''}`,
-      text: listed ? 'In the games list' : 'Only people with the link',
-    }),
-    h('div', { class: 'spacer' }),
-    // Who may change it. The names are not a control — an author is added and
-    // removed in the dialog, where the studio's people are listed.
-    h('span', {
-      class: 'state',
-      title: 'Everyone who can change this game',
-      text: `By ${p.authors.map((a) => a.display_name).join(', ') || 'nobody'}`,
-    }),
-    h('button', {
-      class: `act open${open ? ' on' : ''}`,
-      title: open
-        ? 'Anybody in the studio can change this game'
-        : 'Only its authors can change this game',
-      disabled: !yours,
-      onclick: () => setOpenEdit(!open),
-    }, h('span', { class: 'dot' }), open ? 'Open to everyone' : 'Authors only'),
-    h('button', {
+      title: listed
+        ? 'Everybody sees this game on the games page'
+        : 'Only people with the link can find this game',
+      onclick: () => { S.dialog = { kind: 'publish' }; render(); },
+    }, h('span', { class: 'dot' }), listed ? 'Published!' : 'Unpublished'),
+    yours && h('button', {
       class: 'act',
-      text: 'Who can edit',
-      disabled: !yours,
+      text: 'Editors',
+      title: 'Who can change this game, and whether the whole studio can',
       onclick: () => { S.dialog = { kind: 'authors' }; render(); },
-    }));
+    }),
+  ];
 }
 
-// One pill per conversation, over the thread. The human-only one is first
-// because it is the one the game opens on, and it wears no helper dots — it
-// can hold none. A single chat needs no row of one, so the pills appear when
-// there is a choice to make.
-function renderChatTabs() {
-  if (!S.chat || S.chats.length < 2) return null;
-  return h('div', { class: 'chat-tabs row wrap' },
-    S.chats.map((c) => h('button', {
+// One pill per conversation, and either side of them the two things that are
+// about this conversation rather than about the game: making another one, and
+// the helpers listening in this one. They were in the bar above with the
+// game's name, which is the game's row, not the room's.
+//
+// ⚠️ The pills and the chips are each their own scroller. Two rows of helpers
+// and a studio's worth of chats will not fit on a phone, and something has to
+// give sideways rather than push the other off the end.
+function renderChatTabs(p) {
+  if (!S.chat) return null;
+  // The name toggles between answering everything and waiting to be called;
+  // the ✕ takes them out. Both are a change to the game, so neither is
+  // offered on a game that is archived or somebody else's — the server refuses
+  // them there, and a chip that answers with a red banner is worse than a
+  // chip that stays still.
+  const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
+    h('button', {
+      class: 'hchip-name', text: a.name, disabled: frozen(),
+      title: a.chatty
+        ? `${a.name} answers everything — click to make them wait for @${a.name.split(' ')[0]}`
+        : `${a.name} waits to be called — click to make them answer everything`,
+      onclick: () => toggleChatty(a),
+    }),
+    h('button', {
+      class: 'hchip-x', text: '✕', disabled: frozen(),
+      title: `Remove ${a.name} from this game`,
+      onclick: () => detachAgent(a),
+    })));
+  return h('div', { class: 'chat-tabs' },
+    h('button', {
+      class: 'chat-tab add', text: '+chat', title: 'Start another chat in this game',
+      disabled: frozen(),
+      onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
+    }),
+    h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
       class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
       title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
@@ -406,13 +411,9 @@ function renderChatTabs() {
     c.name,
     // The mark on the game says somebody called you; this says in which
     // conversation.
-    calledMark(c.mentions))),
+    calledMark(c.mentions)))),
     h('div', { class: 'spacer' }),
-    h('button', {
-      class: 'chat-tab add', text: '+', title: 'Start another chat in this game',
-      disabled: frozen(),
-      onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
-    }));
+    chips.length ? h('div', { class: 'hchips' }, chips) : null);
 }
 
 export function renderChat() {
@@ -448,7 +449,7 @@ export function renderChat() {
   const box = composerBox;
   box.placeholder = p.archived
     ? 'This game is finished (archived).'
-    : (talkable ? 'Ask for something…' : `Only ${p.name}’s authors can write here.`);
+    : (talkable ? 'Ask for something…' : `Only ${p.name}’s editors can write here.`);
   box.disabled = !talkable;
 
   // Said only when there is something to say. The standing tip that used to
@@ -463,21 +464,10 @@ export function renderChat() {
   // be interpreted.
   const gap = helperGap();
 
-  // One chip per helper in this game: the name toggles between answering
-  // everything and waiting to be called, the ✕ takes them out.
-  const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
-    h('button', {
-      class: 'hchip-name', text: a.name, disabled: p.archived,
-      title: a.chatty
-        ? `${a.name} answers everything — click to make them wait for @${a.name.split(' ')[0]}`
-        : `${a.name} waits to be called — click to make them answer everything`,
-      onclick: () => toggleChatty(a),
-    }),
-    h('button', {
-      class: 'hchip-x', text: '✕', disabled: p.archived,
-      title: `Remove ${a.name} from this game`,
-      onclick: () => detachAgent(a),
-    })));
+  // A game starts open to the studio, so the lock is the news: this one is
+  // its editors' alone. Set in the same dialog the padlock's own button
+  // opens, which is where its meaning is explained.
+  const locked = !isChat() && !p.open_edit;
 
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
     h('div', { class: 'bar' },
@@ -486,34 +476,27 @@ export function renderChat() {
         class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
         onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
       }),
-      // The name is the way into the game's own actions — the ones that are
-      // about the whole game rather than the conversation. A chat has none of
-      // them, so its name is just a name.
-      isChat()
-        ? h('div', { class: 'title', text: p.name })
-        : h('button', {
-          class: 'title',
-          'aria-expanded': S.actsOpen ? 'true' : 'false',
-          title: S.actsOpen ? 'Hide what you can do with this game' : 'What you can do with this game',
-          onclick: () => { S.actsOpen = !S.actsOpen; render(); },
-        }, h('span', { class: 'label', text: p.name })),
+      // A status, not a control: it does not light up and it does not click.
+      locked && h('span', {
+        class: 'lock', text: '🔒', 'aria-label': 'Closed',
+        title: `Only ${p.name}’s editors can change it`,
+      }),
+      h('div', { class: 'title', text: p.name }),
       h('button', {
         class: 'icon tiny', text: '✎', title: 'Rename this game',
+        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'rename' }; render(); },
       }),
       p.archived && h('span', { class: 'tag', text: 'archived' }),
       h('div', { class: 'spacer' }),
-      // The helpers sit at the far end of the bar, away from the game's name
-      // and the actions that belong to it.
-      chips.length ? h('div', { class: 'hchips' }, chips) : null,
+      isChat() ? null : renderActs(p),
       !isChat() && h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
       p.archived && h('button', {
         class: 'quiet tiny', text: 'Reopen',
         title: 'Start working on this again',
         onclick: () => { S.dialog = { kind: 'archive' }; render(); },
       })),
-    isChat() ? null : renderActs(p),
-    renderChatTabs(),
+    renderChatTabs(p),
     scroller,
     // Send sits beside the box rather than under it: the strip it used to have
     // to itself was a whole row of studio for one button, and the box is wide

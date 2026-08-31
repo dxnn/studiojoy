@@ -426,53 +426,31 @@ a:hover { color: var(--accent-hi); }
   font-weight: 700;
   font-size: 21px;
   letter-spacing: -0.01em;
+  min-width: 5ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The game's title is also what opens the game's actions, so as a button it
-   carries a chevron and nothing else — no outline, no fill, same size as the
-   plain title it replaces. */
-.bar button.title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  padding: 2px 4px 2px 0;
-  color: inherit;
-  cursor: pointer;
-}
-/* A flex container clips its own children, so the name needs its own box to
-   ellipsise inside — otherwise a long game name pushes the chevron out of the
-   button, and the chevron is the only thing saying the title opens anything. */
-.bar button.title .label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Three times the size it was. It is the only thing saying the game's name
-   opens anything, and at 0.55em nobody found it. It leads the name rather than
-   trailing it: at the left edge of the bar it is in one place whatever the
-   game is called, instead of moving with the length of the name. */
-.bar button.title::before {
-  content: '▾';
+/* A closed game wears a padlock in front of its name — a status and not a
+   control, so it does not light up and it does not click. Open is what a game
+   starts as, which is what makes the lock worth drawing. */
+.bar .lock {
   flex-shrink: 0;
-  font-size: 1.65em;
-  line-height: 0.5;
-  color: var(--muted);
-  transition: transform 180ms ease, color 140ms ease;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.75;
 }
-.bar button.title:hover:not(:disabled) { background: none; color: #fff; }
-.bar button.title:hover::before { color: var(--accent); }
-.bar button.title[aria-expanded='true']::before { transform: rotate(180deg); color: var(--accent); }
 /* The chat pane's own top bar takes the game's colour, so the title sits in
-   the game rather than in the studio. */
+   the game rather than in the studio.
+
+   ⚠️ It wraps, and the name keeps a floor. Everything else in this bar is a
+   button at its natural width, so on a phone the only thing that could give
+   way was the name — which vanished to nothing and left a row of buttons
+   belonging to a game you could no longer read the name of. Wrapped, the
+   actions drop to a second line and everything stays reachable. */
 .pane.chat > .bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
   min-height: 64px;
   border-bottom-color: color-mix(in oklab, var(--look-primary) 45%, transparent);
   background: linear-gradient(180deg, color-mix(in oklab, var(--look-primary) 30%, transparent), transparent);
@@ -495,35 +473,15 @@ a:hover { color: var(--accent-hi); }
 
 /* The middle pane's actions ------------------------------------------------ */
 
-/* Fork, publish and the rest of what you do to a whole game. They used to be
-   scattered down the play tab; here they are a drawer under the game's title,
-   opened from the title itself, so they are reachable from every tab without
-   standing over the conversation the rest of the time.
+/* Fork, publish and Editors: what you do to a whole game rather than to this
+   conversation. They sit at the right-hand end of the game's own bar. They
+   were a drawer under the title before that and the foot of the Play tab
+   before that; three buttons never needed a place to hide, and the words that
+   went with them ("in the games list", "by Dann", "authors only") are gone —
+   the padlock and the publish button say their own state now.
 
-   The drawer: <div class="acts"> gains .open. A button.act each, .act.on for
-   the state that is currently true, and an optional .act .dot for publish's
-   light. Closed, it is zero-height and takes no space in the column. */
-.acts {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  flex: 0 0 auto;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  padding: 0 24px;
-  border-bottom: 1px solid transparent;
-  background: oklch(0.12 0.03 300 / 0.28);
-  transition: max-height 200ms ease, opacity 150ms ease, padding 200ms ease;
-}
-.acts.open {
-  max-height: 140px;
-  opacity: 1;
-  padding: 11px 24px;
-  border-bottom-color: color-mix(in oklab, var(--look-primary) 35%, transparent);
-}
-.acts .spacer { flex: 1; }
+   A button.act each, .act.on for the state that is currently true, and an
+   optional .act .dot for publish's light. */
 button.act {
   display: inline-flex;
   align-items: center;
@@ -543,15 +501,18 @@ button.act:hover:not(:disabled) {
   color: #fff;
 }
 /* Published: the state is on, so the button is on. The dot is the light. */
+/* On: published, or open to the whole studio. Green rather than the gold it
+   wore before — ⚠️ gold is a number worth looking at and nothing else, and a
+   published game is not a number. */
 button.act.on {
-  color: var(--num);
-  border-color: color-mix(in oklab, var(--num) 55%, transparent);
-  background: color-mix(in oklab, var(--num) 14%, transparent);
+  color: oklch(0.88 0.1 155);
+  border-color: color-mix(in oklab, var(--ok) 55%, transparent);
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
 }
 button.act.on:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--num) 22%, transparent);
-  border-color: var(--num);
-  color: var(--num);
+  background: color-mix(in oklab, var(--ok) 22%, transparent);
+  border-color: var(--ok);
+  color: oklch(0.92 0.11 155);
 }
 button.act .dot {
   width: 7px;
@@ -560,7 +521,7 @@ button.act .dot {
   background: var(--muted);
   flex-shrink: 0;
 }
-button.act.on .dot { background: var(--num); box-shadow: 0 0 9px var(--num); }
+button.act.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
 /* Fork gets the mark, because copying a game is the one action here that
    makes a new thing rather than changing this one. */
 button.act.fork { border-color: color-mix(in oklab, var(--accent) 50%, transparent); color: var(--accent-hi); }
@@ -571,16 +532,12 @@ button.act.fork:hover:not(:disabled) {
 }
 button.act.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 55%, transparent); background: none; }
 button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c0810; border-color: var(--danger); }
-/* What the state is, in words, beside the buttons that change it. */
-.acts .state {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.acts .state.live { color: var(--num); }
+/* The open switch, in the Editors dialog rather than the bar: same shape as
+   the rest, with the lock's meaning spelled out beside it. */
+.plan-row.switch { align-items: center; gap: 10px; margin-bottom: 8px; }
+/* The switch keeps its words on one line — .act is a fixed height, and two
+   lines of label push straight out of it. The sentence beside it wraps. */
+.plan-row.switch .act { flex: 0 0 auto; white-space: nowrap; }
 
 /* Sidebar ----------------------------------------------------------------- */
 
@@ -1749,13 +1706,38 @@ label.knob {
 
 /* The conversations in one game, over the thread. The human-only one wears a
    dot rather than the open chat's colour: it is the room where nobody is
-   listening, which is worth seeing before you type in it. */
+   listening, which is worth seeing before you type in it.
+
+   This row is everything about the room rather than the game: +chat pinned at
+   the left, the pills, and the helpers listening at the right. ⚠️ The pills
+   and the chips each scroll sideways inside their own box, so a studio's worth
+   of chats and a crowd of helpers give way to each other instead of one
+   pushing the other off the end. Both need min-width: 0 to be allowed to
+   shrink at all. */
 .chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 16px;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   flex: 0 0 auto;
 }
+.chat-tabs .pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 1px;
+}
+/* flex-shrink: 0 and nowrap together: inside a scroller a pill keeps its own
+   width and its words on one line, and the row scrolls instead of squeezing
+   "Sound effects" into three lines of two letters. */
 .chat-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 12.5px;
   font-weight: 600;
   padding: 5px 11px;
@@ -1771,15 +1753,9 @@ label.knob {
   background: color-mix(in oklab, var(--look-primary) 28%, transparent);
 }
 .chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
-.chat-tab.add { padding: 5px 10px; font-size: 14px; }
-
-/* The open switch in the actions drawer, beside publish: same shape, and the
-   dot lit when the whole studio is in. */
-button.act.open.on {
-  border-color: color-mix(in oklab, var(--ok) 60%, transparent);
-  color: oklch(0.88 0.1 155);
-}
-button.act.open.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+/* Never squeezed and never scrolled away: it is the one thing in this row
+   that is in the same place in every game. */
+.chat-tab.add { flex: 0 0 auto; padding: 5px 10px; color: var(--accent); }
 
 /* One person in the studio settings: their name, what they have spent, what
    they may spend, and the things an admin can do to the account. */

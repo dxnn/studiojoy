@@ -241,9 +241,11 @@ export function openDb(dbPath) {
   // their own — only the studio-wide budget, which is the outer wall either
   // way.
   addColumnIfMissing(db, 'users', 'daily_tokens', 'INTEGER');
-  // Off by default: a game is its authors' until they say otherwise. On, any
-  // account in the studio may change it — which is a thing you choose, not a
-  // thing that happens because nobody got round to adding you.
+  // On, any account in the studio may change this project; off, only its
+  // authors. The column's default is the safe one, and every game a person
+  // makes overrides it to open at the INSERT — a database written before this
+  // already has the column, and SQLite cannot change a default afterwards, so
+  // the value has to be stated where the row is made (see projects.js).
   addColumnIfMissing(db, 'projects', 'open_edit', 'INTEGER NOT NULL DEFAULT 0');
   // The studio-wide budget, editable in the admin panel rather than a
   // constant in the source. Null means the built-in default still applies.

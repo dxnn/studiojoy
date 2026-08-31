@@ -20,8 +20,33 @@ async function two(t) {
     email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: other,
   });
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  // A new game is open to the whole studio (see the test below). Everything
+  // here is about the other state — who may change a game that is closed — so
+  // the game is closed first, once, rather than in every test.
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
   return { app, dann, robin, theirs: other };
 }
+
+test('a new game is open to the studio, and closing it is a decision', async (t) => {
+  const app = await setup();
+  t.after(() => app.close());
+  await signIn(app);
+  const other = app.newClient();
+  await signIn(app, {
+    email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: other,
+  });
+  const made = await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  assert.equal(made.body.open_edit, true);
+
+  // Which is not the same as it being Robin's: open is about the work.
+  const detail = await other.json('GET', '/api/projects/tank');
+  assert.equal(detail.body.can_edit, true);
+  assert.equal(detail.body.mine, false);
+  assert.equal((await write(other, 'index.html')).status, 201);
+
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
+  assert.equal((await write(other, 'index.html')).status, 403);
+});
 
 const write = (client, path, body = 'hello') => client.put(`/api/projects/tank/files/${path}`, {
   headers: { 'content-type': 'text/plain' }, rawBody: body,
@@ -34,7 +59,6 @@ test('the person who made a game is its author, and nobody else is', async (t) =
   assert.equal(detail.body.authors[0].id, dann.id);
   assert.equal(detail.body.mine, true);
   assert.equal(detail.body.can_edit, true);
-  assert.equal(detail.body.open_edit, false);
 });
 
 test('somebody who is not an author can read everything and change nothing', async (t) => {
@@ -134,7 +158,7 @@ test('a game keeps at least one author', async (t) => {
   const { app, dann, robin } = await two(t);
   const alone = await app.client.request('DELETE', `/api/projects/tank/authors/${dann.id}`);
   assert.equal(alone.status, 409);
-  assert.match((await alone.json()).error, /at least one author/);
+  assert.match((await alone.json()).error, /at least one editor/);
 
   await app.client.json('POST', '/api/projects/tank/authors', { body: { user_id: robin.id } });
   const gone = await app.client.json('DELETE', `/api/projects/tank/authors/${dann.id}`);
@@ -147,17 +171,26 @@ test('a game keeps at least one author', async (t) => {
 
 test('a copy belongs to whoever copied it', async (t) => {
   const { app, robin, theirs } = await two(t);
-  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: true } });
 
+  // Tank is closed, and anybody who can read a game may still copy it.
   const forked = await theirs.json('POST', '/api/projects/tank/fork', {
     body: { name: 'Robin Tank', slug: 'robin-tank' },
   });
   assert.equal(forked.status, 201);
   assert.deepEqual(forked.body.authors.map((a) => a.display_name), ['Robin']);
   assert.equal(forked.body.mine, true);
-  assert.equal(forked.body.open_edit, false, 'a copy of an open game is its own game');
+  assert.equal(forked.body.open_edit, true, 'a copy is its own game, open like any new one');
 
+  // Dann may work on it, as the whole studio may while it is open — but it is
+  // Robin's game, and Robin decides who it belongs to and whether it stays
+  // open.
   const back = await app.client.json('GET', '/api/projects/robin-tank');
-  assert.equal(back.body.can_edit, false, 'and not the original author’s');
+  assert.equal(back.body.mine, false, 'and not the original author’s');
   assert.equal(back.body.authors[0].id, robin.id);
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/robin-tank/open', {
+      body: { open_edit: false },
+    })).status,
+    403,
+  );
 });

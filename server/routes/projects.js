@@ -121,12 +121,20 @@ export function projectRoutes(r) {
     }
 
     const now = new Date().toISOString();
+    // A new game is open: this is a studio of people who trust each other, and
+    // a game nobody else may touch should be a decision somebody made rather
+    // than what happens to everything by default. A chat project is not — it
+    // has no working tree, and open_edit there decides who may start chats in
+    // somebody else's conversation. Set here rather than as the column's
+    // default: an existing database already has the column, and SQLite cannot
+    // change a default after the fact.
+    const openEdit = kind === 'game' ? 1 : 0;
     const info = ctx.db
       .prepare(
-        `INSERT INTO projects (slug, name, kind, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (slug, name, kind, created_by, created_at, open_edit)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(slug, name, kind, user.id, now);
+      .run(slug, name, kind, user.id, now, openEdit);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
     // Two conversations from the start: the human-only one it opens on, and
     // one where helpers can be put. A project with nowhere to ask for anything
@@ -303,10 +311,13 @@ export function projectRoutes(r) {
 
     const now = new Date().toISOString();
     const row = tx(ctx.db, () => {
+      // Open, like any other new game — and open whatever the original was,
+      // because a copy is its own game and inherits nothing about who may
+      // touch it.
       const info = ctx.db
         .prepare(
-          `INSERT INTO projects (slug, name, kind, created_by, created_at)
-           VALUES (?, ?, 'game', ?, ?)`,
+          `INSERT INTO projects (slug, name, kind, created_by, created_at, open_edit)
+           VALUES (?, ?, 'game', ?, ?, 1)`,
         )
         .run(slug, name, user.id, now);
       const id = Number(info.lastInsertRowid);
@@ -432,7 +443,7 @@ export function projectRoutes(r) {
     // archived game, and that check refuses an archived one on principle. The
     // authorship half of it still applies.
     if (!canEdit(ctx.db, project, user)) {
-      throw new HttpError(403, `${project.name} is not yours to change — ask one of its authors`);
+      throw new HttpError(403, `${project.name} is not yours to change — ask one of its editors`);
     }
 
     const body = await readJson(ctx.req);
