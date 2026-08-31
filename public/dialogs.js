@@ -406,12 +406,12 @@ export function dialogFor(d) {
             },
           }),
           h('button', {
-            class: 'danger tiny', text: 'Take out',
+            class: 'danger tiny', text: 'Remove',
             disabled: person.id === S.me.id,
-            title: person.id === S.me.id ? 'Somebody else has to take you out' : `Take ${person.display_name} out of the studio`,
+            title: person.id === S.me.id ? 'Somebody else has to remove you' : `Remove ${person.display_name} from the studio`,
             onclick: () => {
               // Everything else in here is reversible in a click; this is not.
-              if (!window.confirm(`Take ${person.display_name} out of the studio? What they said stays.`)) return;
+              if (!window.confirm(`Remove ${person.display_name} from the studio? What they said stays.`)) return;
               studioChange('DELETE', `/users/${person.id}`).then(paint);
             },
           }));
@@ -473,7 +473,7 @@ export function dialogFor(d) {
           h('div', { class: 'spacer' }),
           h('button', {
             class: author ? 'quiet tiny' : 'filled tiny',
-            text: author ? 'Take out' : 'Add',
+            text: author ? 'Remove' : 'Add',
             // The last author cannot go: the server refuses it too, and a
             // button that always answers with a red banner is worse than no
             // button at all.

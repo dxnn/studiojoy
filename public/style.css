@@ -456,8 +456,10 @@ a:hover { color: var(--accent-hi); }
   white-space: nowrap;
 }
 /* Three times the size it was. It is the only thing saying the game's name
-   opens anything, and at 0.55em nobody found it. */
-.bar button.title::after {
+   opens anything, and at 0.55em nobody found it. It leads the name rather than
+   trailing it: at the left edge of the bar it is in one place whatever the
+   game is called, instead of moving with the length of the name. */
+.bar button.title::before {
   content: '▾';
   flex-shrink: 0;
   font-size: 1.65em;
@@ -466,8 +468,8 @@ a:hover { color: var(--accent-hi); }
   transition: transform 180ms ease, color 140ms ease;
 }
 .bar button.title:hover:not(:disabled) { background: none; color: #fff; }
-.bar button.title:hover::after { color: var(--accent); }
-.bar button.title[aria-expanded='true']::after { transform: rotate(180deg); color: var(--accent); }
+.bar button.title:hover::before { color: var(--accent); }
+.bar button.title[aria-expanded='true']::before { transform: rotate(180deg); color: var(--accent); }
 /* The chat pane's own top bar takes the game's colour, so the title sits in
    the game rather than in the studio. */
 .pane.chat > .bar {
@@ -1100,9 +1102,11 @@ details.thinking .trace {
   gap: 0;
   background: none;
 }
-/* The box and Send on one line. Send is bottom-aligned so dragging the box
-   taller leaves it where the hand already is. */
-.composer .say { display: flex; gap: 10px; align-items: flex-end; }
+/* The box and Send on one line, Send as tall as the box and flush with it top
+   and bottom — a short button beside a tall box read as a stray control rather
+   than the other half of the composer. It follows the box when that is dragged
+   taller, which is the point of matching it. */
+.composer .say { display: flex; gap: 10px; align-items: stretch; }
 .composer textarea {
   flex: 1;
   min-width: 0;

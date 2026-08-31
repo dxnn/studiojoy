@@ -367,14 +367,8 @@ function renderActs(p) {
       text: listed ? 'In the games list' : 'Only people with the link',
     }),
     h('div', { class: 'spacer' }),
-    h('button', {
-      class: 'act',
-      text: 'Rename',
-      disabled: frozen(),
-      onclick: () => { S.dialog = { kind: 'rename' }; render(); },
-    }),
     // Who may change it. The names are not a control — an author is added and
-    // taken out in the dialog, where the studio's people are listed.
+    // removed in the dialog, where the studio's people are listed.
     h('span', {
       class: 'state',
       title: 'Everyone who can change this game',
@@ -481,7 +475,7 @@ export function renderChat() {
     }),
     h('button', {
       class: 'hchip-x', text: '✕', disabled: p.archived,
-      title: `Take ${a.name} out of this game`,
+      title: `Remove ${a.name} from this game`,
       onclick: () => detachAgent(a),
     })));
 
@@ -508,8 +502,10 @@ export function renderChat() {
         onclick: () => { S.dialog = { kind: 'rename' }; render(); },
       }),
       p.archived && h('span', { class: 'tag', text: 'archived' }),
-      chips.length ? h('div', { class: 'hchips' }, chips) : null,
       h('div', { class: 'spacer' }),
+      // The helpers sit at the far end of the bar, away from the game's name
+      // and the actions that belong to it.
+      chips.length ? h('div', { class: 'hchips' }, chips) : null,
       !isChat() && h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
       p.archived && h('button', {
         class: 'quiet tiny', text: 'Reopen',

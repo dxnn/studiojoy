@@ -855,7 +855,8 @@ is a list with things missing from it. The button above the tabs makes whatever
 the open tab holds, so `+ New chat` is never a click away from the chats.
 
 **The whole-game actions are a drawer under the game's name** — the *actions
-drawer*: make a copy, put it in or take it out of the games list, rename. They
+drawer*: make a copy, put it in or take it out of the games list, say who can
+change it. Renaming is not among them — the pencil beside the name is. They
 were at the foot of the Play tab, which put them under a preview of a game
 somebody was playing and out of reach from every other tab. Closed, the drawer
 is zero-height rather than absent, so it can animate; it closes when the game
