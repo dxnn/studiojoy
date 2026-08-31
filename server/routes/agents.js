@@ -2,7 +2,7 @@ import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
-import { MODEL_IDS } from '../llm/deepseek.js';
+import { MODEL_IDS, THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
 import { requireProject, requireString, optionalBool } from './helpers.js';
 import { requireChat, assertBotsAllowed } from '../chats.js';
 
@@ -23,7 +23,7 @@ function agentPublic(row) {
     name: row.name,
     description: row.description,
     model: row.model,
-    reasoning: row.reasoning === 1,
+    thinking: row.thinking,
     file_tools: row.file_tools === 1,
     created_by: row.created_by,
     created_at: row.created_at,
@@ -34,6 +34,14 @@ function requireModel(value) {
   if (value === undefined) return undefined;
   if (typeof value !== 'string' || !MODELS.has(value)) {
     throw new HttpError(400, `model must be one of ${[...MODELS].join(', ')}`);
+  }
+  return value;
+}
+
+function requireThinking(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !THINKING_LEVELS.includes(value)) {
+    throw new HttpError(400, `thinking must be one of ${THINKING_LEVELS.join(', ')}`);
   }
   return value;
 }
@@ -67,7 +75,7 @@ export function agentRoutes(r) {
       max: MAX_DESCRIPTION, allowEmpty: true,
     });
     const model = requireModel(body.model) ?? 'deepseek-v4-flash';
-    const reasoning = optionalBool(body.reasoning, 'reasoning') ?? true;
+    const thinking = requireThinking(body.thinking) ?? DEFAULT_THINKING;
     const fileTools = optionalBool(body.file_tools, 'file_tools') ?? true;
 
     const clash = ctx.db
@@ -75,14 +83,17 @@ export function agentRoutes(r) {
       .get(name);
     if (clash) throw new HttpError(409, `an agent named '${name}' already exists`);
 
+    // `reasoning` is written and never read: it is the column a build from
+    // before three thinking levels would look at, and keeping it in step is
+    // what makes a rollback land on its feet (see db.js).
     const info = ctx.db
       .prepare(
         `INSERT INTO agents
-           (name, description, model, reasoning, file_tools, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (name, description, model, thinking, reasoning, file_tools, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        name, description, model, reasoning ? 1 : 0, fileTools ? 1 : 0,
+        name, description, model, thinking, thinking === 'none' ? 0 : 1, fileTools ? 1 : 0,
         user.id, new Date().toISOString(),
       );
     json(ctx.res, 201, agentPublic(liveAgent(ctx.db, info.lastInsertRowid)));
@@ -103,7 +114,7 @@ export function agentRoutes(r) {
           max: MAX_DESCRIPTION, allowEmpty: true,
         }),
       model: requireModel(body.model) ?? agent.model,
-      reasoning: optionalBool(body.reasoning, 'reasoning') ?? agent.reasoning === 1,
+      thinking: requireThinking(body.thinking) ?? agent.thinking,
       file_tools: optionalBool(body.file_tools, 'file_tools') ?? agent.file_tools === 1,
     };
 
@@ -117,12 +128,14 @@ export function agentRoutes(r) {
     ctx.db
       .prepare(
         `UPDATE agents
-            SET name = ?, description = ?, model = ?, reasoning = ?, file_tools = ?
+            SET name = ?, description = ?, model = ?, thinking = ?, reasoning = ?,
+                file_tools = ?
           WHERE id = ?`,
       )
       .run(
         next.name, next.description, next.model,
-        next.reasoning ? 1 : 0, next.file_tools ? 1 : 0, agent.id,
+        next.thinking, next.thinking === 'none' ? 0 : 1,
+        next.file_tools ? 1 : 0, agent.id,
       );
     json(ctx.res, 200, agentPublic(liveAgent(ctx.db, agent.id)));
   });

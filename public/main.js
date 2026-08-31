@@ -838,7 +838,10 @@ function liveFor(slug, chatId, agentId) {
   const map = liveMapFor(slug, chatId);
   let entry = map.get(agentId);
   if (!entry) {
-    entry = { reply: '', trace: '', tool: null, error: false, nodes: null, open: false };
+    entry = {
+      reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
+      startedAt: Date.now(),
+    };
     map.set(agentId, entry);
   }
   return entry;
@@ -911,6 +914,7 @@ function onEvent(name, data) {
     case 'agent.stream.start': {
       liveMapFor(data.project_slug, data.chat_id).set(data.agent_id, {
         reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
+        startedAt: Date.now(),
       });
       if (here(data)) render();
       return;
@@ -921,8 +925,19 @@ function onEvent(name, data) {
       entry.trace += data.delta;
       if (!here(data)) return;
       if (entry.nodes) {
-        entry.nodes.trace.textContent = entry.trace;
+        const box = entry.nodes.trace;
+        // ⚠️ The box is a few lines tall and a trace runs to hundreds. Left
+        // alone it shows the first ten lines for as long as the helper thinks,
+        // which is what made a working nine-minute reply look like a stopped
+        // one. Stick it to the newest thought — unless somebody has scrolled
+        // up to read, in which case leave them where they are.
+        box.textContent = entry.trace;
+        if (entry.traceFollow !== false) box.scrollTop = box.scrollHeight;
         entry.nodes.thinking.hidden = false;
+        // The dots line says how long, from the deltas themselves rather than
+        // a timer: they arrive ~90 a second while it thinks, so this ticks on
+        // its own and stops when the thinking does.
+        entry.nodes.tool.textContent = toolLabel(entry.tool) || thinkingFor(entry);
       } else render();
       return;
     }
@@ -1011,6 +1026,17 @@ function onEvent(name, data) {
 
     default:
   }
+}
+
+// How long this helper has been thinking, for the line under its name. A
+// count rather than a spinner: at the ceiling a trace can run for minutes, and
+// "thinking" alone says nothing about whether anything is still happening.
+export function thinkingFor(entry) {
+  if (!entry?.startedAt) return '';
+  const seconds = Math.floor((Date.now() - entry.startedAt) / 1000);
+  if (seconds < 5) return 'thinking';
+  if (seconds < 60) return `thinking, ${seconds}s`;
+  return `thinking, ${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 export function toolLabel(tool) {
@@ -1890,7 +1916,7 @@ export async function attachAgent(agent) {
     agent_id: agent.id,
     name: agent.name,
     model: agent.model,
-    reasoning: agent.reasoning,
+    thinking: agent.thinking,
     file_tools: agent.file_tools,
     chatty: true,
     responding: false,

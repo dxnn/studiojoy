@@ -252,14 +252,61 @@ test('the request body matches what the API expects', async () => {
   assert.equal(body.messages[0].role, 'system');
   assert.equal(body.messages[1].content, 'hi');
   assert.equal(body.tools.length, 1);
-  // Reasoning is on by default, so the parameter is absent.
-  assert.equal('reasoning_effort' in body, false);
+  // The default thinking level is 'low', which names itself.
+  assert.equal(body.reasoning_effort, 'low');
 });
 
-test('reasoning is disabled with reasoning_effort none', async () => {
-  const fetchImpl = fakeFetch([finalChunk()]);
-  await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { reasoning: false });
-  assert.equal(fetchImpl.calls[0].body.reasoning_effort, 'none');
+test('each thinking level sends the effort the API expects', async () => {
+  // 'full' means the API's own default, which is reasoning on — so the
+  // parameter has to be absent rather than set to anything.
+  const full = fakeFetch([finalChunk()]);
+  await collect(createDeepSeek({ apiKey: 'k', fetchImpl: full }), { thinking: 'full' });
+  assert.equal('reasoning_effort' in full.calls[0].body, false);
+
+  for (const level of ['low', 'none']) {
+    const fetchImpl = fakeFetch([finalChunk()]);
+    await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { thinking: level });
+    assert.equal(fetchImpl.calls[0].body.reasoning_effort, level);
+  }
+});
+
+// ⚠️ The backstop against the nine-minute silence: a trace that runs on with
+// nothing else coming is stopped rather than waited out (spec.md §14).
+test('a trace past the cap with nothing produced stops the stream', async () => {
+  const fetchImpl = fakeFetch([
+    reasoningChunk('a'.repeat(30)), reasoningChunk('b'.repeat(30)),
+    textChunk('never reached'), finalChunk(),
+  ]);
+  const events = [];
+  await assert.rejects(
+    async () => {
+      for await (const event of createDeepSeek({ apiKey: 'k', fetchImpl })
+        .stream({ messages: [{ role: 'user', content: 'hi' }], thinkingCap: 50 })) {
+        events.push(event);
+      }
+    },
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.equal(err.code, 'thinking_cap');
+      return true;
+    },
+  );
+  // The trace up to the cap was delivered, and nothing after it.
+  assert.deepEqual(events.map((e) => e.type), ['reasoning', 'reasoning']);
+});
+
+test('the cap is off once the turn has produced something', async () => {
+  // Same volume of trace, but a tool call arrives first: a turn that is
+  // working is not a turn that is stuck, however long it goes on thinking.
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'c1', function: { name: 'write_file', arguments: '{"path":"a.js"' } }),
+    reasoningChunk('a'.repeat(200)),
+    toolChunk(0, { function: { arguments: ',"content":"x"}' } }),
+    finalChunk('tool_calls'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }), { thinkingCap: 50 });
+  assert.deepEqual(events.filter((e) => e.type === 'tool_use').map((e) => e.input),
+    [{ path: 'a.js', content: 'x' }]);
 });
 
 test('tools and system are omitted when absent', async () => {

@@ -30,6 +30,7 @@ const MIGRATIONS = [
     description TEXT NOT NULL,
     model TEXT NOT NULL DEFAULT 'deepseek-v4-flash',
     reasoning INTEGER NOT NULL DEFAULT 1,
+    thinking TEXT NOT NULL DEFAULT 'low',
     file_tools INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER NOT NULL REFERENCES users,
     deleted INTEGER NOT NULL DEFAULT 0,
@@ -250,6 +251,19 @@ export function openDb(dbPath) {
     d.prepare(
       'UPDATE users SET admin = 1 WHERE id = (SELECT MIN(id) FROM users)',
     ).run();
+  });
+  // How hard a helper thinks: 'full', 'low' or 'none', where the old boolean
+  // had only the two ends. A helper that already exists keeps what it had —
+  // on became 'full', off became 'none' — because that is the behaviour
+  // somebody chose. New ones start on 'low', which is the column default and
+  // the measurement's answer (spec.md §14).
+  //
+  // ⚠️ `reasoning` stays and is kept in step with this (see routes/agents.js).
+  // It is written and never read, so a build from before this one still finds
+  // a column that says the right thing. Droppable once this has stuck.
+  addColumnIfMissing(db, 'agents', 'thinking', "TEXT NOT NULL DEFAULT 'low'", (d) => {
+    d.prepare("UPDATE agents SET thinking = CASE reasoning WHEN 1 THEN 'full' ELSE 'none' END")
+      .run();
   });
   // What one person's helpers may spend in a day. Null is no allowance of
   // their own — only the studio-wide budget, which is the outer wall either

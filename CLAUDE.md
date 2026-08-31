@@ -351,6 +351,32 @@ note, counted on the reply's receipt. Still bytes,
 not tokens — spec.md §8 has the table that shows the sum cannot reach the
 window.
 
+Thinking is bounded too, and that one was not a guess: measured with the
+studio's own preamble and tools in front of it, an ambitious request at full
+effort produced **no file, no word and no tool call in eight of nine runs** —
+the trace expands to fill whatever `max_tokens` allows, so raising the ceiling
+buys a longer silence rather than a finished game (spec.md §14). So a helper
+has a **thinking level** — `full`, `low` or `none` on `agents.thinking`, "How
+much to think first" in the dialog — and new helpers start on `low`, which
+wrote files on every run at half the budget where full effort wrote none.
+Behind it, the **thinking cap** stops any turn whose trace runs past
+`THINKING_CAP_CHARS` with nothing else produced, and asks that same turn again
+with thinking off; a `'system'` banner says so, and the abandoned attempt is
+billed to nobody because usage only arrives with the end of a stream.
+⚠️ `agents.reasoning`, the boolean this replaced, is still written and never
+read, so a rollback lands on its feet — droppable once this has stuck.
+
+Two things a nine-minute think taught about the interface. The trace panel is a
+few lines tall and a trace runs to hundreds, so it now sticks to the newest
+thought unless somebody has scrolled up to read, and the line under the name
+counts — `thinking, 2m 14s` — off the deltas themselves rather than a timer.
+Browser-checked against a fake helper thinking for twenty seconds
+(`tmp/trace-studio.mjs`): the box followed 16,171 pixels of trace and stayed
+followed, a reader parked at 400 was left there, and returning to the bottom
+started it following again. Before that the box showed the first ten lines for
+as long as the helper thought, which is the whole of what a working reply
+looked like when it looked broken.
+
 Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`),
 a `config/` directory, and many small source files rather than one enormous
 `index.html`. Prompt only: nothing scaffolds those files. Validated live:

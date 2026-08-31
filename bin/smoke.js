@@ -35,28 +35,44 @@ async function drain(opts) {
 
 console.log(`models: ${MODEL_IDS.join(', ')}\n`);
 
-// 1. Plain streaming, reasoning left on (the default for both models).
+// 1. Plain streaming with thinking left at 'full', which sends no
+//    reasoning_effort at all and gets the API's own default.
 {
   const seen = await drain({
     messages: [{ role: 'user', content: 'Reply with exactly: ok' }],
+    thinking: 'full',
     maxTokens: 64,
   });
   check('text streams', seen.text.trim().toLowerCase().includes('ok'), JSON.stringify(seen.text));
-  check('reasoning is on by default', seen.reasoning.length > 0, `${seen.reasoning.length} chars`);
+  check('thinking full leaves the trace on', seen.reasoning.length > 0,
+    `${seen.reasoning.length} chars`);
   check('end carries a finish reason', seen.end?.finish_reason === 'stop', seen.end?.finish_reason);
   check('end carries usage', tokensCharged(seen.end?.usage) > 0,
     `charged ${tokensCharged(seen.end?.usage)} tokens`);
 }
 
-// 2. reasoning: false must actually suppress the trace.
+// 2. thinking: 'none' must actually suppress the trace.
 {
   const seen = await drain({
     messages: [{ role: 'user', content: 'Reply with exactly: ok' }],
-    reasoning: false,
+    thinking: 'none',
     maxTokens: 64,
   });
-  check('reasoning: false suppresses the trace', seen.reasoning.length === 0,
+  check("thinking 'none' suppresses the trace", seen.reasoning.length === 0,
     `${seen.reasoning.length} chars`);
+  check('the reply still arrives', seen.text.trim().length > 0, JSON.stringify(seen.text));
+}
+
+// 3. The middle setting: a trace, but a shorter one, and the reply still
+//    arrives. The size claim is §14's, measured against tools; this only
+//    checks the parameter is accepted and behaves like reasoning-on.
+{
+  const seen = await drain({
+    messages: [{ role: 'user', content: 'Reply with exactly: ok' }],
+    thinking: 'low',
+    maxTokens: 64,
+  });
+  check("thinking 'low' still traces", seen.reasoning.length > 0, `${seen.reasoning.length} chars`);
   check('the reply still arrives', seen.text.trim().length > 0, JSON.stringify(seen.text));
 }
 

@@ -739,13 +739,19 @@ export function dialogFor(d) {
     const model = h('select', {},
       h('option', { value: 'deepseek-v4-flash', text: 'Flash — quick' }),
       h('option', { value: 'deepseek-v4-pro', text: 'Pro — slower, better at hard things' }));
-    const reasoning = h('input', { type: 'checkbox', checked: true });
+    // Three, not a checkbox: "a lot" is the setting that spends the whole
+    // reply thinking and hands back nothing, so it is offered last and named
+    // for what it costs rather than for what it sounds like (spec.md §14).
+    const thinking = h('select', {},
+      h('option', { value: 'low', text: 'A little — usually the best answer' }),
+      h('option', { value: 'none', text: 'None — quickest, and gets straight to work' }),
+      h('option', { value: 'full', text: 'A lot — can spend minutes thinking and write nothing' }));
     const fileTools = h('input', { type: 'checkbox', checked: true });
     if (editing) {
       name.value = d.agent.name;
       description.value = d.agent.description;
       model.value = d.agent.model;
-      reasoning.checked = d.agent.reasoning;
+      thinking.value = d.agent.thinking;
       fileTools.checked = d.agent.file_tools;
     }
     const err = h('p', { class: 'error' });
@@ -753,7 +759,7 @@ export function dialogFor(d) {
       h('label', { text: 'Name (this is what you @ to call them)' }), name,
       h('label', { text: 'What should they be like?' }), description,
       h('label', { text: 'Brain' }), model,
-      h('label', { class: 'row' }, reasoning, ' Think before answering'),
+      h('label', { text: 'How much to think first' }), thinking,
       h('label', { class: 'row' }, fileTools, ' Allowed to change files'),
       err,
       h('div', { class: 'actions' },
@@ -772,7 +778,7 @@ export function dialogFor(d) {
               name: name.value.trim(),
               description: description.value.trim(),
               model: model.value,
-              reasoning: reasoning.checked,
+              thinking: thinking.value,
               file_tools: fileTools.checked,
             };
             const res = editing

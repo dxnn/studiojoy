@@ -10,6 +10,27 @@
 
 export const MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 
+// How hard a helper thinks before it answers, worst to best for getting work
+// done. Three rather than the old on/off because the middle one is where the
+// measurement landed: with tools in front of it and an ambitious request, the
+// default effort produced no file at all in eight of nine runs, while 'low'
+// wrote files on both of its (spec.md §14).
+//   full — no reasoning_effort sent, which is the API's own default
+//   low  — reasoning_effort: 'low'
+//   none — reasoning_effort: 'none', no trace at all
+export const THINKING_LEVELS = ['full', 'low', 'none'];
+export const DEFAULT_THINKING = 'low';
+
+// ⚠️ A ceiling on one turn's trace, counted in characters of
+// reasoning_content, because reasoning_tokens is only reported when the
+// stream ends — by which time the whole allowance is already spent. ~3.5
+// characters per token puts this near 20 K tokens, three minutes at the
+// 90–125 tokens/s measured in §14, and comfortably above what an ordinary
+// request provokes: it is a backstop against the nine-minute silence, not a
+// working limit. It applies only until the turn produces something else,
+// since a trace interleaved with real output is a turn that is working.
+export const THINKING_CAP_CHARS = 70_000;
+
 // The model's ceiling is 65536, and omitting max_tokens uses all of it.
 //
 // This is the whole ceiling, not a cost guard set below it, because
@@ -86,7 +107,8 @@ export function createDeepSeek({
       system = null,
       messages,
       tools = null,
-      reasoning = true,
+      thinking = DEFAULT_THINKING,
+      thinkingCap = THINKING_CAP_CHARS,
       maxTokens = DEFAULT_MAX_TOKENS,
     }) {
       const body = {
@@ -99,10 +121,11 @@ export function createDeepSeek({
         max_tokens: Math.min(maxTokens, MAX_OUTPUT_TOKENS),
       };
       if (tools && tools.length > 0) body.tools = tools;
-      // Reasoning is on by default on both canonical models; this is the
-      // switch that turns it off. Unknown parameters are silently ignored by
-      // the API, so a typo here would fail open rather than error.
-      if (!reasoning) body.reasoning_effort = 'none';
+      // Reasoning is on by default on both canonical models, so 'full' sends
+      // nothing at all and the other two name themselves. Unknown parameters
+      // are silently ignored by the API, so a typo here would fail open
+      // rather than error.
+      if (thinking !== 'full') body.reasoning_effort = thinking;
 
       const controller = new AbortController();
       let timer = null;
@@ -145,6 +168,10 @@ export function createDeepSeek({
       let text = '';
       let finishReason = null;
       let usage = null;
+      // The two halves of the thinking cap: how much trace has arrived, and
+      // whether this turn has produced anything but trace.
+      let reasoningChars = 0;
+      let produced = false;
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -186,12 +213,27 @@ export function createDeepSeek({
 
             const delta = choice.delta ?? {};
             if (delta.reasoning_content) {
+              reasoningChars += delta.reasoning_content.length;
               yield { type: 'reasoning', text: delta.reasoning_content };
+              // ⚠️ Thrown rather than aborted through the controller, so the
+              // catch below can tell this from the idle guard firing. The
+              // finally cancels the reader, which is what closes the request
+              // and stops the model. Nothing is billed for what was read: the
+              // usage frame only comes at the end and never arrives, so this
+              // undercounts rather than over.
+              if (thinkingCap && !produced && reasoningChars > thinkingCap) {
+                throw new LlmError(
+                  `deepseek thought past ${thinkingCap} characters without producing anything`,
+                  { code: 'thinking_cap' },
+                );
+              }
             }
             if (delta.content) {
               text += delta.content;
+              produced = true;
               yield { type: 'delta', text: delta.content };
             }
+            if (delta.tool_calls?.length) produced = true;
             for (const call of delta.tool_calls ?? []) {
               const index = call.index ?? 0;
               const current = partialTools.get(index)

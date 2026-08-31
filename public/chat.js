@@ -5,7 +5,7 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, isChat, agentName, toolLabel, urlAs,
+  S, render, prefs, isChat, agentName, toolLabel, thinkingFor, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, api, say, sizeText,
   openChat, frozen, canTalk, nearQuota, calledMark,
@@ -345,7 +345,18 @@ function renderMessage(msg) {
 }
 
 function renderLive(agentId, entry) {
-  const trace = h('div', { class: 'trace', text: entry.trace });
+  // ⚠️ Whether to follow the newest thought is kept on the entry, not read
+  // off the box: a full render mid-stream builds a fresh box at scrollTop 0,
+  // and a box measured there looks scrolled-up when it is simply new — which
+  // would pin the trace to its first ten lines for the rest of the reply.
+  const trace = h('div', {
+    class: 'trace',
+    text: entry.trace,
+    onscroll: (event) => {
+      const box = event.currentTarget;
+      entry.traceFollow = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+    },
+  });
   const thinking = h('details', {
     class: 'thinking',
     open: entry.open,
@@ -358,7 +369,9 @@ function renderLive(agentId, entry) {
   });
   reply.hidden = entry.reply === '';
 
-  const tool = h('div', { class: 'working dots', text: toolLabel(entry.tool) });
+  const tool = h('div', {
+    class: 'working dots', text: toolLabel(entry.tool) || thinkingFor(entry),
+  });
 
   entry.nodes = { trace, thinking, reply, tool };
 

@@ -100,7 +100,8 @@ Sessions do not expire in v0.
 | `name` | TEXT NOT NULL | `@mention` handle; unique among non-deleted |
 | `description` | TEXT NOT NULL | system prompt, appended to the studio preamble; ≤ 8 KB |
 | `model` | TEXT NOT NULL DEFAULT `'deepseek-v4-flash'` | `deepseek-v4-flash` or `deepseek-v4-pro` (§14) |
-| `reasoning` | INTEGER NOT NULL DEFAULT 1 | 0 sends `reasoning_effort: 'none'` |
+| `thinking` | TEXT NOT NULL DEFAULT `'low'` | **thinking level**: `full`, `low`, `none` (§14) |
+| `reasoning` | INTEGER NOT NULL DEFAULT 1 | ⚠️ what `thinking` replaced. Written to keep a rollback honest, never read |
 | `file_tools` | INTEGER NOT NULL DEFAULT 1 | may the agent write files |
 | `created_by` | INTEGER NOT NULL → users | display only; confers no ownership |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | soft delete |
@@ -648,7 +649,7 @@ There is no route that deletes a chat.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/agents` | — | all agents |
-| POST | `/api/agents` | `{name, description, model?, reasoning?, file_tools?}` | create |
+| POST | `/api/agents` | `{name, description, model?, thinking?, file_tools?}` | create |
 | PATCH | `/api/agents/:id` | any of the above | update |
 | DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects |
 | POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat |
@@ -1602,8 +1603,24 @@ a `BRIEF.md`: no.
 ### Reasoning traces
 
 Both models emit `reasoning_content` — a **reasoning trace** — alongside the
-reply when `reasoning = 1`. It streams as its own `agent.stream.reasoning`
-event and renders in a dimmed collapsible block.
+reply unless the agent's **thinking level** is `none`. It streams as its own
+`agent.stream.reasoning` event and renders in a dimmed collapsible block, stuck
+to the newest thought: the block is a few lines tall and a trace runs to
+hundreds, so left alone it shows the first ten lines for as long as the helper
+thinks, which is what made a working nine-minute reply look like a stopped one.
+The line under the name counts the thinking — `thinking, 2m 14s` — off the
+deltas themselves rather than a timer, so it stops when they do.
+
+Thinking is bounded twice. The level (§14) decides how hard it thinks at all,
+and the **thinking cap** stops a turn whose trace runs past
+`THINKING_CAP_CHARS` with nothing else produced: the stream is closed, the same
+turn is asked again with thinking off, and a `'system'` banner says so. The cap
+is characters rather than tokens because `reasoning_tokens` is only reported
+when the stream ends, by which time the whole allowance is spent. It is off
+once the turn produces content or a tool call, since a trace interleaved with
+real output is a turn that is working. The retried attempt costs nothing —
+usage arrives only with the end of a stream, and that one has none — so the
+studio undercounts here rather than over.
 
 It is **never persisted** to `messages.body` and **never sent back** in a
 later request's history. Both rules matter: it would bloat the database and
@@ -2073,8 +2090,9 @@ probed by looking for an error.
 
 The intermediate effort levels did not behave monotonically on a trivial
 prompt — `'minimal'` and `'low'` both produced *more* trace than the default.
-So this app exposes reasoning as a per-agent boolean, not an effort ladder:
-omit the parameter for on, send `'none'` for off.
+That reading is what kept this app on a per-agent boolean for as long as it
+was; the tool measurements below overturned it, and the setting is now a
+three-way **thinking level** (`full`, `low`, `none`).
 
 In streaming, `delta.reasoning_content` arrives interleaved and ahead of
 `delta.content`. `completion_tokens_details.reasoning_tokens` reports the cost.

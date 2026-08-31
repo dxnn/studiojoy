@@ -185,7 +185,7 @@ export function projectRoutes(r) {
     const agents = ctx.db
       .prepare(
         `SELECT ca.agent_id, ca.chatty, ca.cooldown_until, ca.response_pending,
-                a.name, a.model, a.reasoning, a.file_tools
+                a.name, a.model, a.thinking, a.file_tools
            FROM chat_agents ca
            JOIN agents a ON a.id = ca.agent_id
           WHERE ca.chat_id = ? AND a.deleted = 0
@@ -218,7 +218,7 @@ export function projectRoutes(r) {
         agent_id: a.agent_id,
         name: a.name,
         model: a.model,
-        reasoning: a.reasoning === 1,
+        thinking: a.thinking,
         file_tools: a.file_tools === 1,
         chatty: a.chatty === 1,
         responding: a.response_pending === 1,

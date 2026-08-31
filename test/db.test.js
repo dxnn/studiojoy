@@ -140,9 +140,42 @@ test('agent defaults match the verified DeepSeek model set', () => {
   ).run(new Date().toISOString());
   const row = db.prepare('SELECT * FROM agents WHERE id = 1').get();
   assert.equal(row.model, 'deepseek-v4-flash');
-  assert.equal(row.reasoning, 1);
+  // 'low' rather than the old boolean's "on": at full effort an ambitious
+  // request writes nothing at all (spec.md §14).
+  assert.equal(row.thinking, 'low');
   assert.equal(row.file_tools, 1);
   assert.equal(row.deleted, 0);
+  db.close();
+});
+
+// A helper somebody already made keeps the behaviour they chose, rather than
+// being quietly moved onto the new default.
+test('an agent from before three thinking levels keeps what it had', () => {
+  const db = openDb(':memory:');
+  db.prepare(
+    `INSERT INTO users (email, password_hash, display_name, created_at)
+     VALUES ('a@b.c', 'x', 'Dann', ?)`,
+  ).run(new Date().toISOString());
+  const now = new Date().toISOString();
+  const add = (name, reasoning) => db
+    .prepare(
+      `INSERT INTO agents (name, description, reasoning, created_by, created_at)
+       VALUES (?, 'd', ?, 1, ?)`,
+    )
+    .run(name, reasoning, now);
+  add('Thinker', 1);
+  add('Quiet', 0);
+  // Put the table back the way a database from before this looked, then let
+  // the migration run over it again.
+  db.exec('ALTER TABLE agents DROP COLUMN thinking');
+  addColumnIfMissing(db, 'agents', 'thinking', "TEXT NOT NULL DEFAULT 'low'", (d) => {
+    d.prepare("UPDATE agents SET thinking = CASE reasoning WHEN 1 THEN 'full' ELSE 'none' END")
+      .run();
+  });
+  const thinking = (name) => db
+    .prepare('SELECT thinking FROM agents WHERE name = ?').get(name).thinking;
+  assert.equal(thinking('Thinker'), 'full');
+  assert.equal(thinking('Quiet'), 'none');
   db.close();
 });
 

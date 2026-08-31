@@ -17,8 +17,38 @@ test('an agent is created with the verified model defaults', async (t) => {
   assert.equal(res.status, 201);
   assert.equal(res.body.name, 'Level Designer');
   assert.equal(res.body.model, 'deepseek-v4-flash');
-  assert.equal(res.body.reasoning, true);
+  // 'low', not 'full': at full effort an ambitious request spends the whole
+  // allowance thinking and writes nothing (spec.md §14).
+  assert.equal(res.body.thinking, 'low');
   assert.equal(res.body.file_tools, true);
+});
+
+test('thinking takes the three levels and nothing else', async (t) => {
+  const app = await studio(t);
+  for (const thinking of ['full', 'low', 'none']) {
+    const res = await makeAgent(app, { name: `T ${thinking}`, description: 'd', thinking });
+    assert.equal(res.status, 201, thinking);
+    assert.equal(res.body.thinking, thinking);
+  }
+  for (const thinking of ['lots', 'high', '', true, 1]) {
+    const res = await makeAgent(app, { name: `U ${thinking}`, description: 'd', thinking });
+    assert.equal(res.status, 400, String(thinking));
+    assert.match(res.body.error, /thinking must be one of/);
+  }
+});
+
+// The old boolean column is still written so a build from before three levels
+// finds something true in it (db.js).
+test('the old reasoning column is kept in step', async (t) => {
+  const app = await studio(t);
+  const off = await makeAgent(app, { name: 'Quiet', description: 'd', thinking: 'none' });
+  const on = await makeAgent(app, { name: 'Thinker', description: 'd', thinking: 'full' });
+  const read = (id) => app.db.prepare('SELECT reasoning FROM agents WHERE id = ?').get(id).reasoning;
+  assert.equal(read(off.body.id), 0);
+  assert.equal(read(on.body.id), 1);
+
+  await app.client.json('PATCH', `/api/agents/${on.body.id}`, { body: { thinking: 'none' } });
+  assert.equal(read(on.body.id), 0);
 });
 
 test('both canonical models are accepted and nothing else is', async (t) => {
@@ -40,10 +70,10 @@ test('a critic can be created with file_tools off', async (t) => {
   const app = await studio(t);
   const res = await makeAgent(app, {
     name: 'Critic', description: 'You critique, you do not edit.', file_tools: false,
-    reasoning: false, model: 'deepseek-v4-pro',
+    thinking: 'full', model: 'deepseek-v4-pro',
   });
   assert.equal(res.body.file_tools, false);
-  assert.equal(res.body.reasoning, false);
+  assert.equal(res.body.thinking, 'full');
   assert.equal(res.body.model, 'deepseek-v4-pro');
 });
 

@@ -1124,6 +1124,57 @@ test('a fault after the stream starts still ends the stream and says so', async 
   );
 });
 
+// ⚠️ The whole point of the cap: a turn that runs away thinking is asked
+// again with thinking off, so the reply is files rather than nine minutes of
+// nothing (spec.md §14).
+test('a runaway trace is retried with thinking off, and says so', async (t) => {
+  const llm = {
+    calls: [],
+    stream(opts) {
+      llm.calls.push(opts);
+      const nth = llm.calls.length;
+      return (async function* generate() {
+        if (nth === 1) {
+          yield { type: 'reasoning', text: 'and another thing. ' };
+          const err = new Error('thought too long');
+          err.code = 'thinking_cap';
+          throw err;
+        }
+        // The retry writes its file; the turn after it has nothing left to
+        // add, which is what ends the loop.
+        const turn = nth === 2
+          ? calls([{ name: 'write_file', input: { path: 'js/tank.js', content: 'drive()' } }],
+            { text: 'Started on movement.' })
+          : says('');
+        for (const event of turn) yield event;
+      })();
+    },
+  };
+  const { app, dir } = await studio(t, { llm, agent: { thinking: 'full' } });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build me a tank game');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null && e.data.kind !== 'system',
+  );
+  assert.equal(reply.data.body, 'Started on movement.');
+
+  // The runaway turn, then the same turn again with thinking off — and it
+  // stays off for the rest of the fire, so the cap cannot trip twice.
+  assert.equal(llm.calls[0].thinking, 'full');
+  assert.equal(llm.calls[1].thinking, 'none');
+  assert.equal(llm.calls[2].thinking, 'none');
+
+  // The file landed, so the retry is the reply rather than a salvage.
+  const [head] = await logCommits(dir, { limit: 1 });
+  assert.match(head.subject, /^Designer: Started on movement\./);
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /stop planning and start working/.test(e.data.body),
+  );
+});
+
 test('a reply that was all thinking says that, not that a file was cut', async (t) => {
   const { app } = await studio(t, { llm: createFakeLlm([thinksOnly()]) });
   const stream = await openStream(app.client);

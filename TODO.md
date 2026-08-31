@@ -33,17 +33,11 @@ deliberately deferred.
   holds the streamed text already; a reload today shows only what arrives
   after it (spec.md §9). The other half: a tab that reconnects refetches only
   the file tree, so a live row whose fire ended while it was away never clears
-- ! give a helper three thinking settings instead of two — full, low, off —
-  and start game-building helpers on low. Measured: at the default effort an
-  ambitious request produced output once in nine runs, the trace filling
-  whatever budget it was given (spec.md §14, the cliff)
-- ! bound a helper's thinking: a fire whose trace passes a ceiling with no tool
-  call yet is on course to spend nine minutes and produce nothing, so stop it
-  there and re-fire with thinking off rather than letting it run out. Raising
-  max_tokens is not the fix — the trace grows to fill it
-- the Thinking panel shows the top of the trace and nothing ever scrolls it, so
-  a long think looks stopped — stick it to the newest thought, and say on the
-  dots line how long it has been going
+- ! watch the first real fires on the new `low` default and see whether the
+  games come out as good — the measurement scored whether files got written,
+  not whether they were any good (spec.md §14, the caveat)
+- drop `agents.reasoning` once the thinking level has stuck in production; it
+  is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate

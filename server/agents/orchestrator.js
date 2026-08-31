@@ -691,7 +691,7 @@ export function createOrchestrator({
       .prepare(
         `SELECT ca.id, ca.chat_id, ca.agent_id, ca.response_pending,
                 c.project_id, c.name AS chat_name,
-                a.name AS agent_name, a.description, a.model, a.reasoning,
+                a.name AS agent_name, a.description, a.model, a.thinking,
                 a.file_tools, a.deleted,
                 p.slug, p.name AS project_name, p.kind, p.archived, p.scores_on
            FROM chat_agents ca
@@ -774,7 +774,7 @@ export function createOrchestrator({
         name: row.agent_name,
         description: row.description,
         model: row.model,
-        reasoning: row.reasoning === 1,
+        thinking: row.thinking,
         file_tools: row.file_tools === 1,
       };
       // Snapshot before streaming: anything with a higher id arrived while
@@ -831,6 +831,11 @@ export function createOrchestrator({
       // and reads nothing like it.
       let lastReasoning = 0;
       let lastOut = 0;
+      // Set once a turn's trace ran past the cap with nothing else produced.
+      // Sticky for the rest of the fire: thinking goes off and stays off, so
+      // the cap cannot trip twice and the retry cannot loop.
+      let thinkingOff = false;
+      let cappedThinking = false;
 
       for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
         let text = '';
@@ -844,7 +849,7 @@ export function createOrchestrator({
             system: context.system,
             messages,
             tools: toolset ? toolset.definitions : null,
-            reasoning: agent.reasoning,
+            thinking: thinkingOff ? 'none' : agent.thinking,
             maxTokens: DEFAULT_MAX_TOKENS,
           });
           for await (const event of stream) {
@@ -875,6 +880,19 @@ export function createOrchestrator({
             }
           }
         } catch (err) {
+          // Thinking ran away with the turn: nothing was produced and the
+          // trace passed its ceiling, which left to itself ends in an empty
+          // reply nine minutes later (spec.md §14). Not a failure to salvage
+          // — the same turn is asked again with thinking off, which is the
+          // one setting measured to get files out of it. This attempt does
+          // not count as a turn, and nothing was billed for it: the usage
+          // frame only arrives at the end of a stream and this one had none.
+          if (err.code === 'thinking_cap' && !thinkingOff) {
+            thinkingOff = true;
+            cappedThinking = true;
+            turn -= 1;
+            continue;
+          }
           // Salvage rather than discard. Earlier turns' prose and any files
           // already on disk are finished work; returning here threw them all
           // away, which is how a ten-minute reply used to vanish without a
@@ -1019,6 +1037,18 @@ export function createOrchestrator({
         if (commitSha) {
           broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
         }
+      }
+
+      // Said on its own rather than as another branch of the chain below:
+      // this is about how the reply was produced, not about how the loop
+      // stopped, and it reads correctly next to whichever of those follows.
+      if (cappedThinking) {
+        postSystemMessage(db, broker, {
+          project,
+          chat,
+          agentId: agent.id,
+          body: `${row.agent_name} was thinking for a very long time, so the studio asked them to stop planning and start working. Ask for one piece at a time if you want them to think it through properly.`,
+        });
       }
 
       // Explain a missing file rather than leaving it looking like a backend
