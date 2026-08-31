@@ -9,9 +9,9 @@ import { tx } from './db.js';
 // witness. Signing them would need a secret inside LLM-written game code,
 // which is no secret. For this studio a forged score is an accepted cost;
 // an unbounded table is not (ideas/next-five.md).
-export const MAX_NAME_CHARS = 24;
+const MAX_NAME_CHARS = 24;
 export const MAX_SCORE_ROWS = 100; // rows kept per game, best first
-export const DEFAULT_TOP = 10;
+const DEFAULT_TOP = 10;
 export const SCORE_POSTS_PER_MINUTE = 10;
 export const MAX_SCORE_BODY_BYTES = 1024;
 

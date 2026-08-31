@@ -9,7 +9,7 @@ import {
 const MAX_READ_BYTES = 128 * 1024;
 
 // Tool definitions in the OpenAI function-calling shape DeepSeek accepts.
-export const TOOL_DEFINITIONS = [
+const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
@@ -228,5 +228,3 @@ export function createToolset({ dir, mutex, slug }) {
     },
   };
 }
-
-export { MAX_READ_BYTES };

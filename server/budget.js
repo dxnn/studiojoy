@@ -10,7 +10,7 @@ import { nextUtcMidnight } from './util/time.js';
 export const DEFAULT_DAILY_TOKEN_BUDGET = 5_000_000;
 
 // UTC, like the studio-wide reset, so both walls fall on the same midnight.
-export const dayKey = (now = new Date()) => now.toISOString().slice(0, 10);
+const dayKey = (now = new Date()) => now.toISOString().slice(0, 10);
 
 // What the studio's budget actually is: the number in the row if somebody has
 // set one, else the built-in.

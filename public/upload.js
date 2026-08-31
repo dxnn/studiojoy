@@ -16,7 +16,7 @@ import {
 // sprite; any other picture is one to look at. That is the same rule the
 // sprites library uses to decide whether a file animates, so the folder a
 // picture lands in and the way it is drawn agree.
-export const ASSET_DIR = 'assets';
+const ASSET_DIR = 'assets';
 export const SOUND_DIR = `${ASSET_DIR}/sounds`;
 export const IMAGE_DIR = `${ASSET_DIR}/images`;
 export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
@@ -25,7 +25,7 @@ export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
 // two folders it belongs in, so this is async and the dialog waits for it.
 // Anything that will not decode is a picture the studio cannot measure, and
 // goes where the ones it cannot animate go.
-export async function uploadItems(files) {
+async function uploadItems(files) {
   return Promise.all(files.map(async (file) => {
     if (file.type?.startsWith('audio/')) return { file, folder: SOUND_DIR };
     if (!file.type?.startsWith('image/')) return { file, folder: ASSET_DIR };

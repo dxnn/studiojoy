@@ -88,7 +88,7 @@ export function checkProjectPath(input) {
 }
 
 // Throwing wrapper for route handlers.
-export function requireProjectPath(input) {
+function requireProjectPath(input) {
   const res = checkProjectPath(input);
   if (!res.ok) throw new HttpError(400, res.reason);
   return res.path;

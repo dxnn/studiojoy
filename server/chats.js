@@ -21,7 +21,7 @@ export const MAX_CHAT_NAME = 60;
 // The chat every project is born with, plus the one where the helpers are.
 // Both, from the start: a new game that could only be talked about by humans
 // would need a second click before anybody could ask for anything.
-export const WORK_CHAT = 'Building';
+const WORK_CHAT = 'Building';
 
 export function createChat(db, projectId, { name, bots = 1, now = new Date().toISOString() }) {
   const info = db

@@ -102,7 +102,7 @@ function safeVersion(version) {
   return String(version ?? '').replace(/[^0-9a-f]/g, '').slice(0, 40);
 }
 
-export function reporterScript(version) {
+function reporterScript(version) {
   return `<script>${REPORTER_JS.replace(VERSION_MARK, safeVersion(version))}</script>`;
 }
 

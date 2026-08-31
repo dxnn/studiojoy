@@ -584,7 +584,7 @@ export async function loadAgents() {
 // carries what you may spend in a day and what you have spent of it, so the
 // warning under a reply is drawn from your own row and never from anybody
 // else's — an allowance is not a thing to show the room.
-export async function loadMe() {
+async function loadMe() {
   const res = await api('GET', '/api/me');
   if (res.ok) S.me = res.body;
 }
@@ -601,7 +601,7 @@ export function nearQuota() {
   return { spent, limit, left };
 }
 
-export async function loadPeople() {
+async function loadPeople() {
   const res = await api('GET', '/api/users');
   if (res.ok) S.people = res.body;
 }

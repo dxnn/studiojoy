@@ -20,7 +20,7 @@ const WAVE_WORDS = {
   square: 'Buzzy (square)', saw: 'Sharp (saw)', sine: 'Smooth (sine)', noise: 'Noisy (noise)',
 };
 
-export const SOUND_WORDS = {
+const SOUND_WORDS = {
   pickup: 'Pick up', laser: 'Laser', explosion: 'Explosion', powerup: 'Power up',
   hit: 'Hit', jump: 'Jump', blip: 'Blip',
 };

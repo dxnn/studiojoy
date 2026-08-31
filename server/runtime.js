@@ -10,8 +10,8 @@
 // nothing has to remember to clear them.
 
 export const MAX_ERRORS_PER_PROJECT = 20;
-export const MAX_ERROR_MESSAGE = 500;
-export const MAX_ERROR_LOCATION = 200;
+const MAX_ERROR_MESSAGE = 500;
+const MAX_ERROR_LOCATION = 200;
 
 // Built from a string so the pattern stays readable: written as a literal it
 // is a range of invisible characters nobody can check by eye.

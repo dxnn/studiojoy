@@ -33,7 +33,7 @@ const MIN_PREFIX = 2;
 // The rule both kinds share. A prefix rather than the whole name because what
 // people type is the first word of it — the studio itself inserts "@Robin" for
 // Robin Fox — and "@robin" is a prefix of "robinfox".
-export function nameMatches(name, mentions) {
+function nameMatches(name, mentions) {
   const normalized = normalize(name);
   if (!normalized) return false;
   for (const handle of mentions) {

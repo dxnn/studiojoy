@@ -1,9 +1,9 @@
 import { HttpError } from './respond.js';
 
-export const MAX_JSON_BYTES = 64 * 1024;
+const MAX_JSON_BYTES = 64 * 1024;
 // Transport ceiling only. The per-file limit that actually matters lives with
 // the other project caps in files/tree.js, and callers pass it explicitly.
-export const MAX_RAW_BYTES = 16 * 1024 * 1024;
+const MAX_RAW_BYTES = 16 * 1024 * 1024;
 
 // Buffer a request body, refusing as soon as the cap is passed rather than
 // after the whole thing has arrived — an oversized upload costs us the first
