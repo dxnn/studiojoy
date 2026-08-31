@@ -398,9 +398,13 @@ focused button so Enter starts — and with a `score` it is the game-over
 screen. Words from `WORDS`/arguments, colours from `LOOK`, stable `screens-`
 classes for a game's own css, `{ close }` returned for games that start from
 `Input.pressed("start")`; it sits under the touch overlay, so the drawn
-controls stay on top. Browser-checked at 390 and 320 px against the long
-asteriskoids name. HUD chips are the rest of ideas/game-header.md, still to
-come.
+controls stay on top. `Screens.chips({ Score: 12 })` is the HUD strip pinned
+to the top of the screen: built once, only changed text touched, so calling
+it every frame is fine; each call says the whole strip and `chips({})`
+clears it; values wear the look's highlight and taps fall through to the
+game. All three surfaces browser-checked at phone size against the long
+asteriskoids name — the library that was ideas/game-header.md is complete,
+with one question moved to TODO.md (the Top 10 on the title screen).
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

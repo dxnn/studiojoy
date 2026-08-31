@@ -1,17 +1,15 @@
-// The words around the game — for now, hint(): the how-to-play line, worked
-// out from config/controls.js and the device it is read on, so it is never
-// wrong. It is just a string:
+// The words around the game: a how-to-play hint, the title and game-over
+// screen, and the HUD strip.
 //
-//   el.textContent = Screens.hint();     // "Arrows / WASD to move · Space to fire"
-//   ctx.fillText(Screens.hint(), x, y);  // canvas games too
+//   ctx.fillText(Screens.hint(), x, y);  // "Arrows / WASD to move · Space to fire"
 //
-// On a keyboard it names player1's keys; on a touchscreen, the shape SCHEME
-// draws — "Push the stick to move · GO to fire" — and nothing that is not
-// on the screen; a plugged-in controller is folded in: "Space or A to
-// fire". Call it whenever a screen is drawn. The doing-words are the
-// binding names, so renaming a binding renames the hint; start is left out
-// on purpose. A game that wants its own words sets one line in
-// config/words.js:
+// The hint is a string, worked out from config/controls.js and the device
+// it is read on, so it is never wrong: a keyboard gets player1's keys; a
+// touchscreen the shape SCHEME draws — "Push the stick to move · GO to
+// fire" — and nothing that is not on the screen; a plugged-in controller is
+// folded in ("Space or A to fire"). The doing-words are the binding names;
+// start is left out on purpose. A game that wants its own words sets one
+// line in config/words.js:
 //
 //   howToPlay: "Steer with one finger", // shown as written, on every device
 //
@@ -23,13 +21,19 @@
 // keyboard, the drawn touch controls stay on top — and the hint under it. A
 // score shows big and the button says Play again (WORDS.again). Any of it
 // can be passed instead: { name, tagline, hint, start, score, onStart } —
-// arguments beat config. Colours follow LOOK; every part carries a screens-
-// class for the game's own css. Returns { close }, for a game that starts
-// from Input.pressed("start"). DOM only, gone when closed.
+// arguments beat config. Colours follow LOOK; screens- classes are the css
+// hooks. Returns { close }, for a game that starts from
+// Input.pressed("start"). DOM only, gone when closed.
 //
-// Those two calls are the whole of it so far. Missing pieces are quiet: no
-// controls.js, or nothing in it for this device, is an empty string, never
-// an error. Load config/controls.js before the game code that calls this.
+//   Screens.chips({ Score: 12, Lives: 3 }); // the HUD strip, top of screen
+//
+// chips() is cheap to call every frame: built once, only changed text is
+// touched. Each call says the whole strip — a key not named is removed, and
+// chips({}) clears it. Labels are your words; values wear the look's
+// highlight; taps fall through to the game.
+//
+// Missing pieces are quiet — an empty string or a no-op, never an error.
+// Load config/controls.js before the game code that calls this.
 
 const Screens = (function () {
   "use strict";
@@ -281,14 +285,15 @@ const Screens = (function () {
     return line === "" ? "" : line.charAt(0).toUpperCase() + line.slice(1);
   }
 
-  // The title screen's stylesheet, injected once. Class names are the
-  // styling hooks: a game's own css can restyle any screens- part without
-  // replacing the call. The shapes are the phone lessons: type clamped to
-  // the viewport so a long name can never overflow a narrow screen, the
-  // panel centred with auto margins inside a scrolling box — centred when
-  // it fits, scrolled from the top when tall, never clipped at both ends
-  // the way flex centering clips — and safe-area padding for notches.
-  const TITLE_CSS = ""
+  // The stylesheet, injected once. Class names are the styling hooks: a
+  // game's own css can restyle any screens- part without replacing the
+  // call. The shapes are the phone lessons: type clamped to the viewport so
+  // a long name can never overflow a narrow screen, the panel centred with
+  // auto margins inside a scrolling box — centred when it fits, scrolled
+  // from the top when tall, never clipped at both ends the way flex
+  // centering clips — and safe-area padding for notches. The chips row
+  // takes no pointer events: a tap on the HUD is a tap on the game.
+  const SCREENS_CSS = ""
     + ".screens-title-screen{position:fixed;inset:0;z-index:9998;overflow:auto;display:flex;"
     + "background:var(--screens-deep,rgba(14,14,22,.93));color:#fff;text-align:center;"
     + "font-family:system-ui,sans-serif}"
@@ -306,14 +311,24 @@ const Screens = (function () {
     + "background:rgba(18,18,26,.42);border:2px solid var(--screens-primary,rgba(255,255,255,.8));"
     + "border-radius:999px}"
     + ".screens-start:active{background:rgba(18,18,26,.78)}"
-    + ".screens-hint{margin:22px 0 0;font-size:clamp(13px,3.5vw,16px);opacity:.75}";
+    + ".screens-hint{margin:22px 0 0;font-size:clamp(13px,3.5vw,16px);opacity:.75}"
+    + ".screens-chips{position:fixed;top:0;left:0;right:0;z-index:9997;display:flex;"
+    + "flex-wrap:wrap;justify-content:center;gap:8px;pointer-events:none;"
+    + "padding:calc(10px + env(safe-area-inset-top,0px)) 12px 0;"
+    + "font-family:system-ui,sans-serif}"
+    + ".screens-chip{display:flex;align-items:baseline;gap:6px;padding:4px 12px;"
+    + "border-radius:999px;background:rgba(18,18,26,.42);"
+    + "border:1px solid rgba(255,255,255,.25);color:#fff;font-size:clamp(12px,3vw,14px)}"
+    + ".screens-chip-label{opacity:.7}"
+    + ".screens-chip-value{font-weight:700;font-size:clamp(14px,3.6vw,17px);"
+    + "color:var(--screens-highlight,#ffd76a)}";
 
   let styleDone = false;
 
   function injectStyle() {
     if (styleDone || typeof document !== "object" || !document.head) return;
     const style = document.createElement("style");
-    style.textContent = TITLE_CSS;
+    style.textContent = SCREENS_CSS;
     document.head.append(style);
     styleDone = true;
   }
@@ -389,7 +404,56 @@ const Screens = (function () {
     return handle;
   }
 
-  return { hint: hint, title: title };
+  // The HUD strip: one row of chips pinned to the top of the screen, built
+  // on the first call and touched only where the text changed, so calling
+  // it every frame costs nothing when nothing moved.
+  let chipsRoot = null;
+  let chipNodes = new Map(); // label -> { chip, value, text }
+
+  function chips(values) {
+    if (typeof document !== "object" || !document || !document.body) return;
+    const o = typeof values === "object" && values ? values : {};
+    const labels = Object.keys(o);
+    if (labels.length === 0) {
+      if (chipsRoot) {
+        chipsRoot.remove();
+        chipsRoot = null;
+        chipNodes = new Map();
+      }
+      return;
+    }
+    injectStyle();
+    if (!chipsRoot) {
+      chipsRoot = el("div", "screens-chips");
+      lookColours(chipsRoot);
+      document.body.append(chipsRoot);
+    }
+    for (const [label, node] of chipNodes) {
+      if (!(label in o)) {
+        node.chip.remove();
+        chipNodes.delete(label);
+      }
+    }
+    for (const label of labels) {
+      let node = chipNodes.get(label);
+      if (!node) {
+        const chip = el("span", "screens-chip");
+        chip.append(el("span", "screens-chip-label", label));
+        const value = el("span", "screens-chip-value", "");
+        chip.append(value);
+        chipsRoot.append(chip);
+        node = { chip: chip, value: value, text: null };
+        chipNodes.set(label, node);
+      }
+      const text = String(o[label]);
+      if (node.text !== text) {
+        node.text = text;
+        node.value.textContent = text;
+      }
+    }
+  }
+
+  return { hint: hint, title: title, chips: chips };
 }());
 
 window.Screens = Screens;

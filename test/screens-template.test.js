@@ -274,3 +274,46 @@ test('title() without a document is quiet', () => {
   handle.close();
   assert.equal(typeof handle.close, 'function');
 });
+
+test('chips() builds the strip once and touches only changed text', () => {
+  const { Screens, document } = bootDom({});
+  Screens.chips({ Score: 0, Lives: 3 });
+  assert.equal(document.body.children.length, 1);
+  const root = document.body.children[0];
+  assert.equal(root.className, 'screens-chips');
+  assert.equal(root.children.length, 2);
+  const score = root.children[0];
+  assert.equal(find(score, 'screens-chip-label').textContent, 'Score');
+  assert.equal(find(score, 'screens-chip-value').textContent, '0');
+  Screens.chips({ Score: 150, Lives: 3 });
+  assert.equal(document.body.children.length, 1, 'the strip is not rebuilt');
+  assert.equal(root.children[0], score, 'the same chip node is kept');
+  assert.equal(find(score, 'screens-chip-value').textContent, '150');
+  assert.equal(document.head.children.length, 1, 'one stylesheet, shared with title()');
+});
+
+test('each chips() call says the whole strip', () => {
+  const { Screens, document } = bootDom({});
+  Screens.chips({ Score: 1 });
+  Screens.chips({ Score: 2, Combo: 'x3' });
+  const root = document.body.children[0];
+  assert.equal(root.children.length, 2, 'a new key grows a chip');
+  assert.equal(find(root, 'screens-chip-value').textContent, '2');
+  Screens.chips({ Score: 2 });
+  assert.equal(root.children.length, 1, 'a key not named again is removed');
+  Screens.chips({});
+  assert.equal(document.body.children.length, 0, 'chips({}) clears the strip');
+  Screens.chips({ Score: 9 });
+  assert.equal(document.body.children.length, 1, 'and it comes back on the next call');
+});
+
+test('chips wear the look, and without a document stay quiet', () => {
+  const withLook = bootDom({ look: 'const LOOK = { highlight: "#fd6" };' });
+  withLook.Screens.chips({ Score: 1 });
+  assert.equal(
+    withLook.document.body.children[0].styleProps['--screens-highlight'], '#fd6',
+  );
+  const bare = boot({ controls: SEED });
+  bare.chips({ Score: 1 });
+  bare.chips({});
+});
