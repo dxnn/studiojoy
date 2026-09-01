@@ -481,7 +481,9 @@ game and served back by the games origin (§6). The name is the account's —
 whatever a body still carries is ignored, which keeps every game written
 before the sign-in working the moment its player signs in. Rows from before
 keep the names they were posted under, `user_id` NULL. Pruned to the best 100
-per project on every insert, so the table is bounded by construction. It
+per project on every insert, so the table is bounded by construction — and a
+post a full board already outranks is answered `rank: null` without being
+written, the personal best still raised. It
 lives here rather than in the working tree because a tree write is a commit:
 scores as files would spam Versions, restart the preview on every
 `files.changed`, and thrash the ambient block's prompt cache (§8).
@@ -1418,7 +1420,7 @@ for a dialog's controls the same way as for the composer.
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
-| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
 
 A game whose `scores_on` switch is off answers the same plain 404 on both
 `/_scores` routes: a moderated board is not public in either direction. The
@@ -1450,23 +1452,27 @@ bounded table, never a working tree — so a score commits nothing, restarts
 no preview, and never enters an agent's context, and a sign-up is a row an
 admin has to turn into anything. Both hold the rules a public write needs:
 every field capped (§10), a 1 KB `application/json`-only body, and their own
-per-IP rate limits, in-memory like the lockouts (§11); `/_login` carries the
-login lockouts themselves.
+rate limits — per player for a score, per address for a sign-up — in-memory
+like the lockouts (§11); `/_login` carries the login lockouts themselves. A
+score is keyed by the player because every post has an account behind it
+and a household shares one address: siblings on one wifi were sharing one
+ration of ten.
 
-"Per-IP" is only true if the address is. Deployed, every player arrives from
+"Per address" is only true if the address is. Deployed, everyone arrives from
 the reverse proxy, so this listener reads `X-Forwarded-For` under the same
 `TRUST_PROXY` flag as the login limiter (§13) and shares its rule: unproxied
 the header is ignored, because a client that can name its own address can
 name a fresh one per request and never be limited. Unset behind a proxy, the
-limit still holds — as one bucket for every player of every game, which is
-ten posts a minute for the whole studio.
+limits still hold — as one bucket for everybody, so the whole world shares
+five sign-up asks in ten minutes and one `/_login` lockout. Scores, keyed by
+player, never notice.
 
 ⚠️ And an IPv6 address is not a client. Every residential connection holds a
 /64 at least, so a limiter keyed on the whole address is stepped around with
 a fresh one per request, each a new map entry. `clientIp` folds an IPv6
 address to its /64 before anything keys on it — the login lockouts on both
-origins, the sign-up limiter, the scoreboard — so the household is the
-bucket. IPv4 stays whole, the `::ffff:` mapped form included.
+origins and the sign-up limiter — so the household is the bucket. IPv4 stays
+whole, the `::ffff:` mapped form included.
 
 ⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
 cheap and read-only, but it is a bigger amplification than a file read, and it
@@ -2109,7 +2115,8 @@ everybody else.
 - Wherever an address is a key, an IPv6 address counts as its /64 (§6).
 - Scoreboard: score a JS-safe integer, the name the account's squeezed to
   24 chars, best 100 rows kept per game, `?limit=` ≤ 100, body 1 KB; posts
-  10 / min / IP, in-memory like the lockouts.
+  10 / min / player, in-memory like the lockouts; a post a full board
+  already outranks is never written.
 - Sign-up: 5 / 10 min / IP; name ≤ 100 chars and control-free, password
   6–200 chars, email ≤ 254; body 1 KB, as is `/_login`'s.
 - Player sessions: 90 days, cookie `Max-Age` and row age both.
@@ -2272,7 +2279,7 @@ Tests enforce each of these.
 | `DB_PATH` | `gamestudio.db` | |
 | `GAMES_DIR` | `games` | |
 | `DAILY_TOKEN_BUDGET` | `5000000` | |
-| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy so the per-IP login and scoreboard limiters see real client addresses instead of the proxy's |
+| `TRUST_PROXY` | unset | set to `1` behind a reverse proxy so the login lockouts and the sign-up limiter see real client addresses instead of the proxy's |
 
 `node:sqlite` is experimental in Node 25, so the start script passes
 `--disable-warning=ExperimentalWarning`.

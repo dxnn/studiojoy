@@ -243,14 +243,12 @@ export function createGamesApp({
     const player = currentPlayer(ctx);
     if (!player) throw new HttpError(401, 'sign in to get on the board');
     // The limit is checked before the body is read, so a flood costs headers.
-    // Still per IP rather than per player — a signed-in flood is still a
-    // flood. ⚠️ Behind a reverse proxy every player arrives from the proxy's
-    // own address, so without `TRUST_PROXY=1` this is one bucket for the
-    // whole studio: ten posts a minute shared by every player of every game.
-    // The flag is what makes the forwarded address readable, and it stays a
-    // flag because unproxied anyone could send a fresh one per post and
-    // never be limited at all.
-    limitScores(clientIp(ctx));
+    // Per player rather than per address: every post has an account behind
+    // it now, and a household shares one address — siblings on one wifi were
+    // sharing one ration. A signed-in flood is still a flood, and it is still
+    // ten a minute; they are just that player's ten. The sign-up route below
+    // stays per address, because nobody asking to join has an account yet.
+    limitScores(player.id);
     const body = await readJson(ctx.req, MAX_SCORE_BODY_BYTES);
     const rank = submitScore(db, game.id, player, body);
     ctx.res.setHeader('Cache-Control', 'no-store');

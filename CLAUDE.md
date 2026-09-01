@@ -673,7 +673,7 @@ Every game has a **scoreboard**: `GET`/`POST /_scores/<slug>` on the games
 origin. Rows live in SQLite, never the working tree, so a score commits
 nothing, restarts no preview, and never enters an agent's context or thrashes
 its prompt cache. Best 100 kept per game, every field capped, posts
-rate-limited per IP (spec.md §3, §6, §10). ⚠️ Posting takes a signed-in
+rate-limited per player (spec.md §3, §6, §10). ⚠️ Posting takes a signed-in
 player now, and the name on the row is the account's — a body's `name` is
 ignored, so old games work again the moment their player signs in; the
 *score* stays forgeable, the client being the run's only witness. Each post

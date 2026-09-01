@@ -186,6 +186,21 @@ test('sign-ups are rate limited per address, harder than scores', async (t) => {
   assert.match(blocked.body.error, /signups/);
 });
 
+// A fresh address per ask would sidestep the limit entirely if the header
+// were read here, which is why reading it takes a flag.
+test('the forwarded address is ignored when the proxy is not trusted', async (t) => {
+  const { games } = await origins(t, {
+    signupRate: { max: 2, windowMs: 60_000, what: 'signups' },
+  });
+  const ask = (ip, i) => games.client.json('POST', '/_signup', {
+    body: { name: `Kid ${i}`, email: `kid${i}@example.com`, password: 'secret7' },
+    headers: { 'x-forwarded-for': ip },
+  });
+  assert.equal((await ask('203.0.113.1', 1)).status, 202);
+  assert.equal((await ask('203.0.113.2', 2)).status, 202);
+  assert.equal((await ask('203.0.113.3', 3)).status, 429, 'the header changed nothing');
+});
+
 // Every residential IPv6 connection is a /64 at least, so the bucket is the
 // prefix: a fresh address inside it is the same asker (spec.md §6).
 test('an IPv6 asker is limited by their /64, not by each address they can mint', async (t) => {

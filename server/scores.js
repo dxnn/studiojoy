@@ -4,8 +4,8 @@ import { stripForbidden } from './util/text.js';
 
 // The scoreboard: the games origin's one write (spec.md §6). Posting takes
 // being signed in now, and the name on the row is the account's — but every
-// dimension stays capped and the route keeps its own rate limit, because a
-// player session is not the account list.
+// dimension stays capped and the route keeps its own rate limit, per player,
+// because a signed-in flood is still a flood.
 //
 // ⚠️ The *score* is still forgeable by whoever opens devtools: the client is
 // the only witness to the run, and signing it would need a secret inside
@@ -64,14 +64,25 @@ export function submitScore(db, projectId, player, body, now = new Date()) {
          SET score = excluded.score, created_at = excluded.created_at
        WHERE excluded.score > personal_bests.score`,
     ).run(projectId, player.id, score, now.toISOString());
+    // A full board the post does not beat is a miss before it is a row: the
+    // hundredth score is the floor, and a tie misses too because the earlier
+    // post wins it. Same answer the prune below used to give, without the
+    // insert and the prune a flood of losing scores would otherwise cost.
+    const floor = db
+      .prepare(
+        `SELECT score FROM scores WHERE project_id = ?
+          ORDER BY score DESC, id LIMIT 1 OFFSET ?`,
+      )
+      .get(projectId, MAX_SCORE_ROWS - 1);
+    if (floor && score <= floor.score) return null;
     const { lastInsertRowid: id } = db
       .prepare(
         `INSERT INTO scores (project_id, user_id, name, score, created_at)
          VALUES (?, ?, ?, ?, ?)`,
       )
       .run(projectId, player.id, name, score, now.toISOString());
-    // Rank is counted before pruning, so a miss is null rather than a number
-    // pointing at a deleted row. Ties go to the earlier post.
+    // Ties go to the earlier post. The floor check above is what keeps this
+    // on the board; the prune only ever drops the row it pushed off.
     const { ahead } = db
       .prepare(
         `SELECT COUNT(*) AS ahead FROM scores
@@ -83,16 +94,16 @@ export function submitScore(db, projectId, player, body, now = new Date()) {
          SELECT id FROM scores WHERE project_id = ?
           ORDER BY score DESC, id LIMIT ?)`,
     ).run(projectId, projectId, MAX_SCORE_ROWS);
-    const rank = Number(ahead) + 1;
-    return rank <= MAX_SCORE_ROWS ? rank : null;
+    return Number(ahead) + 1;
   });
 }
 
-// Sliding window per IP, counting every post rather than failures — which is
-// why it is not createLockout from auth.js. In-memory like the login
-// lockouts (spec.md §11): a restart clears it. The sweep keeps a stranger
-// with many addresses from growing the map without bound. `what` names the
-// posts in the 429, because the sign-up form borrows this for its own limit.
+// Sliding window per key — a player's id for scores, an address for
+// sign-ups — counting every post rather than failures, which is why it is
+// not createLockout from auth.js. In-memory like the login lockouts
+// (spec.md §11): a restart clears it. The sweep keeps a stranger with many
+// addresses from growing the map without bound. `what` names the posts in
+// the 429, because the sign-up form borrows this for its own limit.
 export function createScoreLimiter({
   max = SCORE_POSTS_PER_MINUTE,
   windowMs = 60 * 1000,

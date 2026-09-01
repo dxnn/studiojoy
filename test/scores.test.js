@@ -110,7 +110,7 @@ test('the board answers ten by default and ?limit= is clamped, never an error', 
 });
 
 test(`the board keeps the best ${MAX_SCORE_ROWS} and a miss is a null rank`, async (t) => {
-  const { games } = await board(t);
+  const { app, games } = await board(t);
   for (let i = 1; i <= MAX_SCORE_ROWS + 5; i++) {
     await post(games, { score: i });
   }
@@ -120,12 +120,26 @@ test(`the board keeps the best ${MAX_SCORE_ROWS} and a miss is a null rank`, asy
   assert.equal(body.scores[0].score, MAX_SCORE_ROWS + 5);
   assert.equal(body.scores.at(-1).score, 6, 'the lowest five were pruned');
 
-  // Below the floor: refused politely, and not stored.
-  const miss = await post(games, { score: 3 });
-  assert.equal(miss.status, 201);
-  assert.deepEqual(miss.body, { rank: null });
+  // Below the floor: refused politely, and not stored — a tie with the
+  // hundredth row misses too, because the earlier post wins it.
+  for (const score of [3, 6]) {
+    const miss = await post(games, { score });
+    assert.equal(miss.status, 201);
+    assert.deepEqual(miss.body, { rank: null }, `a post of ${score}`);
+  }
   const after = await top(games, `?limit=${MAX_SCORE_ROWS}`);
   assert.equal(after.body.scores.at(-1).score, 6);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS c FROM scores').get().c, MAX_SCORE_ROWS, 'never written');
+
+  // A miss still counts for the player: their best is theirs whether or not
+  // the board has room for it.
+  const { sam } = await morePlayers(app, games);
+  assert.deepEqual((await post(games, { score: 4 }, sam)).body, { rank: null });
+  const best = app.db.prepare(
+    `SELECT pb.score FROM personal_bests pb JOIN users u ON u.id = pb.user_id
+      WHERE u.display_name = 'Sam'`,
+  ).get();
+  assert.equal(best.score, 4, 'the personal best is set before the floor is checked');
 });
 
 test('a personal best is kept per player, above the board\'s pruning', async (t) => {
@@ -213,8 +227,11 @@ test('an archived game still keeps score, because it is still playable', async (
   assert.deepEqual((await top(games)).body.scores, [{ name: 'Pat', score: 7 }]);
 });
 
-test('posting is rate limited per address; reading is not', async (t) => {
-  const { games } = await board(t, {});
+// Per player, not per address: two siblings on one wifi each get their own
+// ten a minute, and reading the board is never limited.
+test('posting is rate limited per player; reading is not', async (t) => {
+  const { app, games } = await board(t, {});
+  const { sam } = await morePlayers(app, games);
 
   for (let i = 0; i < SCORE_POSTS_PER_MINUTE; i++) {
     const res = await post(games, { score: i });
@@ -223,43 +240,12 @@ test('posting is rate limited per address; reading is not', async (t) => {
   const blocked = await post(games, { score: 999 });
   assert.equal(blocked.status, 429);
   assert.ok(blocked.body.retry_after > 0, 'says when to try again');
+  // Sam is on the same address and is not Pat.
+  assert.equal((await post(games, { score: 1 }, sam)).status, 201, 'another player, same address, posts');
 
   const read = await top(games);
   assert.equal(read.status, 200, 'the board still reads while posting is blocked');
   assert.equal(read.body.scores[0].score, SCORE_POSTS_PER_MINUTE - 1, 'the blocked post was not stored');
-});
-
-// Behind a proxy every player shares the proxy's address, so without this the
-// whole studio gets ten posts a minute between them.
-test('the forwarded address is the bucket, but only when trusted', async (t) => {
-  const { games } = await board(t, { trustProxy: true });
-  const from = (ip, score) =>
-    games.client.json('POST', '/_scores/tank', {
-      body: { score },
-      headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` },
-    });
-
-  for (let i = 0; i < SCORE_POSTS_PER_MINUTE; i++) {
-    assert.equal((await from('203.0.113.7', i)).status, 201, `post ${i}`);
-  }
-  assert.equal((await from('203.0.113.7', 999)).status, 429, 'that player is done');
-  assert.equal((await from('203.0.113.8', 1)).status, 201, 'the next one is not');
-});
-
-test('the forwarded address is ignored when the proxy is not trusted', async (t) => {
-  const { games } = await board(t, {});
-  const from = (ip, score) =>
-    games.client.json('POST', '/_scores/tank', {
-      body: { score },
-      headers: { 'x-forwarded-for': ip },
-    });
-
-  // A fresh address per post would sidestep the limit entirely if the header
-  // were read here, which is why reading it takes a flag.
-  for (let i = 0; i < SCORE_POSTS_PER_MINUTE; i++) {
-    assert.equal((await from(`203.0.113.${i}`, i)).status, 201, `post ${i}`);
-  }
-  assert.equal((await from('203.0.113.99', 999)).status, 429);
 });
 
 // ⚠️ The boundary, both ways round: the studio's session opens nothing here,
