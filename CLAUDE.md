@@ -402,7 +402,12 @@ Browser-checked against a fake helper thinking for twenty seconds
 followed, a reader parked at 400 was left there, and returning to the bottom
 started it following again. Before that the box showed the first ten lines for
 as long as the helper thought, which is the whole of what a working reply
-looked like when it looked broken.
+looked like when it looked broken. A third thing a 129-second one taught:
+streamed text is painted at most once per animation frame (`paintSoon` in
+`main.js`), never per delta — repainting the whole box ~90 times a second and
+forcing a reflow each time grew with the trace and froze the page right at the
+thinking cap. Re-checked against the same harness at 87,000 characters: still
+following, parked still parked, resume mid-stream works, page responsive.
 
 Agents are asked for **project documents** (`BRIEF.md`, `SPEC.md`, `TODO.md`),
 a `config/` directory, and many small source files rather than one enormous

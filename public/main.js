@@ -857,6 +857,48 @@ function liveFor(slug, chatId, agentId) {
   return entry;
 }
 
+// ⚠️ Streamed text is painted at most once a frame, never per delta. Reasoning
+// deltas arrive ~90 a second and a full-effort trace runs to tens of thousands
+// of characters; repainting the whole box on each one — then reading
+// scrollHeight, which reflows the text just replaced — costs more the longer
+// the trace gets, and froze the page right as a long think reached the
+// thinking cap. Deltas accumulate on the entry the moment they land; only the
+// painting waits for the next frame, so nothing is lost, and a hidden tab
+// simply paints everything at once when it is next shown.
+function paintSoon(entry, key, paint) {
+  entry.queued ??= {};
+  if (entry.queued[key]) return;
+  entry.queued[key] = true;
+  requestAnimationFrame(() => {
+    entry.queued[key] = false;
+    // Reread at fire time: a render mid-stream builds fresh nodes, and the
+    // stream ending detaches them — either way this paints what is current.
+    if (entry.nodes) paint(entry);
+  });
+}
+
+function paintTrace(entry) {
+  const box = entry.nodes.trace;
+  // ⚠️ The box is a few lines tall and a trace runs to hundreds. Left
+  // alone it shows the first ten lines for as long as the helper thinks,
+  // which is what made a working nine-minute reply look like a stopped
+  // one. Stick it to the newest thought — unless somebody has scrolled
+  // up to read, in which case leave them where they are.
+  box.textContent = entry.trace;
+  if (entry.traceFollow !== false) box.scrollTop = box.scrollHeight;
+  entry.nodes.thinking.hidden = false;
+  // The dots line says how long, from the deltas themselves rather than
+  // a timer: they arrive ~90 a second while it thinks, so this ticks on
+  // its own and stops when the thinking does.
+  entry.nodes.tool.textContent = toolLabel(entry.tool) || thinkingFor(entry);
+}
+
+function paintReply(entry) {
+  entry.nodes.reply.textContent = entry.reply;
+  entry.nodes.reply.hidden = false;
+  stickToBottom();
+}
+
 function onEvent(name, data) {
   switch (name) {
     case 'project.new':
@@ -952,21 +994,8 @@ function onEvent(name, data) {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.trace += data.delta;
       if (!here(data)) return;
-      if (entry.nodes) {
-        const box = entry.nodes.trace;
-        // ⚠️ The box is a few lines tall and a trace runs to hundreds. Left
-        // alone it shows the first ten lines for as long as the helper thinks,
-        // which is what made a working nine-minute reply look like a stopped
-        // one. Stick it to the newest thought — unless somebody has scrolled
-        // up to read, in which case leave them where they are.
-        box.textContent = entry.trace;
-        if (entry.traceFollow !== false) box.scrollTop = box.scrollHeight;
-        entry.nodes.thinking.hidden = false;
-        // The dots line says how long, from the deltas themselves rather than
-        // a timer: they arrive ~90 a second while it thinks, so this ticks on
-        // its own and stops when the thinking does.
-        entry.nodes.tool.textContent = toolLabel(entry.tool) || thinkingFor(entry);
-      } else render();
+      if (entry.nodes) paintSoon(entry, 'trace', paintTrace);
+      else render();
       return;
     }
 
@@ -974,11 +1003,8 @@ function onEvent(name, data) {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.reply += data.delta;
       if (!here(data)) return;
-      if (entry.nodes) {
-        entry.nodes.reply.textContent = entry.reply;
-        entry.nodes.reply.hidden = false;
-        stickToBottom();
-      } else render();
+      if (entry.nodes) paintSoon(entry, 'reply', paintReply);
+      else render();
       return;
     }
 
