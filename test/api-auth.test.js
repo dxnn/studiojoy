@@ -215,3 +215,26 @@ test('static assets are served and traversal is refused', async (t) => {
     assert.ok(!text.includes('scrypt'), `${p} leaked server source`);
   }
 });
+
+// A game-access account belongs to the games origin; at the studio door it
+// takes the unknown-email path, so the form does not say which kind of
+// account an address carries.
+test('a game-access account cannot sign in to the studio', async (t) => {
+  const app = await setup();
+  t.after(() => app.close());
+  await signIn(app);
+  const player = createUser(app.db, {
+    email: 'player@example.com', password: 'hunter2', displayName: 'Player',
+  });
+  app.db.prepare('UPDATE users SET studio_access = 0 WHERE id = ?').run(player.id);
+
+  const denied = await app.client.json('POST', '/api/login', {
+    body: { email: 'player@example.com', password: 'hunter2' },
+  });
+  assert.equal(denied.status, 401);
+  assert.match(denied.body.error, /incorrect email or password/);
+
+  // And the crew never lists them.
+  const crew = await app.client.json('GET', '/api/users');
+  assert.deepEqual(crew.body.map((u) => u.display_name), ['Dann']);
+});

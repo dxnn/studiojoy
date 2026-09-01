@@ -99,13 +99,16 @@ export function deleteSession(db, token) {
 
 // ⚠️ `u.deleted = 0` is belt to the braces: removing somebody deletes their
 // sessions, so there should be no token left to resolve. This is what makes
-// that a tidy-up rather than the whole of the revocation.
+// that a tidy-up rather than the whole of the revocation. `studio_access`
+// wears the same belt: turning the bit off ends the person's studio sessions
+// where it is done, and this keeps a token that somehow survived from
+// resolving anyway.
 export function userForToken(db, token) {
   if (!token) return null;
   return db.prepare(
     `SELECT u.id, u.email, u.display_name, u.admin, u.daily_tokens, u.created_at
        FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token = ? AND u.deleted = 0`,
+      WHERE s.token = ? AND u.deleted = 0 AND u.studio_access = 1`,
   ).get(token) ?? null;
 }
 
@@ -244,6 +247,8 @@ export function isLastAdmin(db, userId) {
 export function removeAccount(db, userId) {
   return tx(db, () => {
     const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes;
+    // Both kinds: out of the studio is out of the games origin too.
+    db.prepare('DELETE FROM player_sessions WHERE user_id = ?').run(userId);
     db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(userId);
     return sessions;
   });

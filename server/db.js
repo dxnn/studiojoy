@@ -216,6 +216,50 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_reactions_message
      ON message_reactions (message_id)`,
+
+  // The waiting list: what the games origin's public sign-up form writes.
+  // Never an account by itself — an admin approves a row into `users` (with
+  // game access only) or refuses it. Decided rows are kept for the audit
+  // trail, which is also what UNIQUE buys: one story per address, however it
+  // ended. The password arrives hashed and rides along so approval does not
+  // need the person present.
+  `CREATE TABLE IF NOT EXISTS signups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    approved_by INTEGER REFERENCES users,
+    approved_at TEXT,
+    approved_user_id INTEGER REFERENCES users,
+    refused_by INTEGER REFERENCES users,
+    refused_at TEXT
+  )`,
+
+  // A signed-in player on the games origin: same accounts, separate sessions.
+  // ⚠️ Never the `sessions` table — a games-origin token must not open the
+  // studio, and in development the two listeners share a hostname, so the
+  // separation has to live in the token itself (spec.md §7). These expire
+  // (PLAYER_SESSION_DAYS in players.js) where studio sessions do not: the
+  // public is not the account list.
+  `CREATE TABLE IF NOT EXISTS player_sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_player_sessions_user
+     ON player_sessions (user_id)`,
+
+  // One row per person per game: their best score ever, kept even after the
+  // top-100 board has pruned the run that set it. Written beside `scores` on
+  // every signed-in post; nothing displays it yet (TODO.md).
+  `CREATE TABLE IF NOT EXISTS personal_bests (
+    project_id INTEGER NOT NULL REFERENCES projects,
+    user_id INTEGER NOT NULL REFERENCES users,
+    score INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, user_id)
+  )`,
 ];
 
 export function openDb(dbPath) {
@@ -279,6 +323,16 @@ export function openDb(dbPath) {
   // index afterwards), so the address stays theirs and adding it again is
   // refused with a pointer at the restore.
   addColumnIfMissing(db, 'users', 'deleted', 'INTEGER NOT NULL DEFAULT 0');
+  // Off, an account is a player only: the games origin signs them in and the
+  // scoreboard knows their name, and every studio door — login, the crew
+  // list, mentions, authorship — is shut. The default is 1 because every
+  // account that existed before the bit was a studio account; what the
+  // waiting list approves states 0 at the INSERT (players.js), the same
+  // pattern as projects.open_edit.
+  addColumnIfMissing(db, 'users', 'studio_access', 'INTEGER NOT NULL DEFAULT 1');
+  // Who posted a score, now that posting takes being signed in. Null on every
+  // row from before — those names were typed and are kept as typed.
+  addColumnIfMissing(db, 'scores', 'user_id', 'INTEGER REFERENCES users');
   // On, any account in the studio may change this project; off, only its
   // authors. The column's default is the safe one, and every game a person
   // makes overrides it to open at the INSERT — a database written before this

@@ -102,6 +102,20 @@ test('removing somebody closes every door and keeps every row', async (t) => {
   assert.deepEqual(messages.body.messages.map((m) => m.user_name), ['Robin']);
 });
 
+test('removal ends the player session too — out is out on both origins', async (t) => {
+  const { app, robin } = await two(t);
+  const { createPlayerSession, playerForToken } = await import('../server/players.js');
+  const token = createPlayerSession(app.db, robin.id);
+  assert.ok(playerForToken(app.db, token));
+
+  removeAccount(app.db, robin.id);
+  assert.equal(playerForToken(app.db, token), null);
+  assert.equal(
+    app.db.prepare('SELECT COUNT(*) AS c FROM player_sessions WHERE user_id = ?').get(robin.id).c,
+    0,
+  );
+});
+
 test('restoring gives back the same person, game and all', async (t) => {
   const { app, robin, theirs } = await two(t);
   await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });

@@ -44,13 +44,15 @@ export async function withServer(handler, fn) {
 }
 
 // Cookie-aware client. Returns the raw Response so a test can assert on
-// status and headers as well as the body.
+// status and headers as well as the body. The jar holds both cookies the
+// studio mints — `session` on its own origin, `player` on the games one —
+// because one browser would hold both too.
 function makeClient(base) {
-  let jar = null;
+  const jar = new Map();
 
   async function request(method, pathname, { body, headers = {}, rawBody } = {}) {
     const h = { ...headers };
-    if (jar) h.cookie = jar;
+    if (jar.size) h.cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
     let payload;
     if (rawBody !== undefined) {
       payload = rawBody;
@@ -63,8 +65,13 @@ function makeClient(base) {
     });
     for (const setCookie of res.headers.getSetCookie?.() ?? []) {
       const pair = setCookie.split(';')[0];
-      if (!pair.startsWith('session=')) continue;
-      jar = pair === 'session=' ? null : pair;
+      const eq = pair.indexOf('=');
+      if (eq < 1) continue;
+      const name = pair.slice(0, eq);
+      if (name !== 'session' && name !== 'player') continue;
+      const value = pair.slice(eq + 1);
+      if (value) jar.set(name, value);
+      else jar.delete(name);
     }
     return res;
   }
@@ -87,9 +94,18 @@ function makeClient(base) {
         body: text ? JSON.parse(text) : null,
       };
     },
-    forget() { jar = null; },
-    use(cookie) { jar = cookie; },
-    peek() { return jar; },
+    forget() { jar.clear(); },
+    use(cookie) {
+      jar.clear();
+      if (!cookie) return;
+      for (const pair of cookie.split(';')) {
+        const eq = pair.indexOf('=');
+        if (eq > 0) jar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+      }
+    },
+    peek() {
+      return jar.size ? [...jar].map(([k, v]) => `${k}=${v}`).join('; ') : null;
+    },
   };
 }
 
@@ -172,6 +188,8 @@ export async function startGames(fixture, opts = {}) {
   return {
     base,
     client: makeClient(base),
+    // A second player is a second browser: their own cookie jar.
+    newClient: () => makeClient(base),
     async close() {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
@@ -207,6 +225,22 @@ export async function signIn(fixture, {
   if (res.status !== 200) throw new Error(`login failed: ${res.status}`);
   await res.text();
   return user;
+}
+
+// A player signed in on the games origin. Makes the account when the address
+// is new; pass `client: games.newClient()` for a second player on their own
+// cookie jar. The account is a studio one — the games origin takes any kind.
+export async function playerSignIn(fixture, games, {
+  email = 'pat@example.com', password = 'hunter2', displayName = 'Pat',
+  client = games.client,
+} = {}) {
+  if (!fixture.db.prepare('SELECT id FROM users WHERE email = ?').get(email)) {
+    createUser(fixture.db, { email, password, displayName });
+  }
+  const res = await client.post('/_login', { email, password });
+  if (res.status !== 200) throw new Error(`player login failed: ${res.status}`);
+  await res.text();
+  return client;
 }
 
 function parseFrame(chunk) {

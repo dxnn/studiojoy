@@ -9,8 +9,10 @@ import {
 import { clientIp } from './helpers.js';
 
 export function authRoutes(r) {
-  // There is no signup route: accounts come from `npm run adduser`
-  // (spec.md §2). Presence in `users` is the entire permission model.
+  // Still no signup route on this origin: studio accounts come from
+  // `npm run adduser` and the admin panel. The games origin has a public
+  // sign-up now, but it only feeds the waiting list, and what an admin
+  // approves has game access only (spec.md §11).
   r.post('/api/login', async (ctx) => {
     const body = await readJson(ctx.req);
     const email = normalizeEmail(body.email);
@@ -28,9 +30,12 @@ export function authRoutes(r) {
 
     // ⚠️ A removed account is not found here, so it takes the unknown-email
     // path below — same refusal, same wall-clock cost. Whether somebody was
-    // taken out of the studio is not something the login form says.
+    // taken out of the studio is not something the login form says. A
+    // game-access account takes the same path: which kind of account an
+    // address carries is not said here either.
     const user = ctx.db
-      .prepare('SELECT id, email, display_name, password_hash FROM users WHERE email = ? AND deleted = 0')
+      .prepare(`SELECT id, email, display_name, password_hash FROM users
+                 WHERE email = ? AND deleted = 0 AND studio_access = 1`)
       .get(email);
 
     // An unknown email still pays for a scrypt derivation, so response
@@ -62,14 +67,15 @@ export function authRoutes(r) {
 
   // Who else is in the studio. Names only: the sidebar's Crew tab shows the
   // people beside the helpers, and an email address is more than a list of who
-  // is here needs. There is no route that makes one — accounts come from
-  // `npm run adduser` and nowhere else (§11).
+  // is here needs. Studio access only — a player is somebody on a scoreboard,
+  // not somebody in the crew.
   r.get('/api/users', (ctx) => {
     requireAuth(ctx);
     const rows = ctx.db
       .prepare(
         `SELECT id, display_name FROM users
-          WHERE deleted = 0 ORDER BY display_name COLLATE NOCASE`,
+          WHERE deleted = 0 AND studio_access = 1
+          ORDER BY display_name COLLATE NOCASE`,
       )
       .all();
     json(ctx.res, 200, rows);

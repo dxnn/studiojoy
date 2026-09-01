@@ -209,3 +209,88 @@ test('you can see your own day, and nobody else’s', async (t) => {
     assert.ok(!('daily_tokens' in m) && !('spent_today' in m));
   }
 });
+
+test('the studio access toggle shuts every studio door, and opens them again', async (t) => {
+  const { app, robin, theirs } = await two(t);
+  await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+
+  const off = await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { studio_access: false },
+  });
+  assert.equal(off.status, 200);
+  assert.equal(off.body.studio_access, false);
+
+  // Their session ended with the bit, and the studio door gives the refusal
+  // a stranger gets.
+  assert.equal((await theirs.json('GET', '/api/me')).status, 401);
+  const denied = await app.newClient().json('POST', '/api/login', {
+    body: { email: 'kid@example.com', password: 'hunter2' },
+  });
+  assert.equal(denied.status, 401);
+  assert.match(denied.body.error, /incorrect email or password/);
+
+  // Out of the crew and out of their own game's editors; still in the panel,
+  // wearing the toggle, because the panel is where the way back lives.
+  assert.deepEqual(
+    (await app.client.json('GET', '/api/users')).body.map((u) => u.display_name),
+    ['Dann'],
+  );
+  assert.deepEqual((await app.client.json('GET', '/api/projects/tank')).body.authors, []);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Mine', slug: 'mine' } });
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/mine/authors', { body: { user_id: robin.id } }))
+      .status,
+    404, 'and not addable as an editor while out',
+  );
+  const panel = await app.client.json('GET', '/api/admin/studio');
+  assert.deepEqual(
+    panel.body.people.map((p) => [p.display_name, p.studio_access]),
+    [['Dann', true], ['Robin', false]],
+  );
+
+  // Back on: they sign in afresh and their game is theirs again.
+  await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { studio_access: true },
+  });
+  const back = app.newClient();
+  assert.equal((await back.json('POST', '/api/login', {
+    body: { email: 'kid@example.com', password: 'hunter2' },
+  })).status, 200);
+  assert.deepEqual(
+    (await app.client.json('GET', '/api/projects/tank')).body.authors.map((a) => a.display_name),
+    ['Robin'],
+  );
+});
+
+test('an admin cannot lose studio access; handing the bit out restores it', async (t) => {
+  const { app, admin, robin } = await two(t);
+
+  const refused = await app.client.json('PATCH', `/api/admin/users/${admin.id}`, {
+    body: { studio_access: false },
+  });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /admin/);
+
+  // A player promoted to admin is let into the studio by the same stroke.
+  await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { studio_access: false },
+  });
+  const promoted = await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { admin: true },
+  });
+  assert.equal(promoted.status, 200);
+  assert.equal(promoted.body.admin, true);
+  assert.equal(promoted.body.studio_access, true);
+});
+
+test('a password change ends the player sessions along with the studio ones', async (t) => {
+  const { app, robin } = await two(t);
+  const { createPlayerSession, playerForToken } = await import('../server/players.js');
+  const token = createPlayerSession(app.db, robin.id);
+  assert.ok(playerForToken(app.db, token));
+
+  await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { password: 'newpass7' },
+  });
+  assert.equal(playerForToken(app.db, token), null);
+});

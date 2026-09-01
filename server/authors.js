@@ -29,11 +29,13 @@ export const canEdit = (db, project, user) => project.open_edit === 1
 // because they are not in the studio to be one. A game whose only author was
 // removed therefore shows no editors and can be changed by nobody until they
 // are restored; that is the price of the removal being undoable at all.
+// Somebody whose studio access was switched off is out the same way and back
+// the same way: the row is kept, the listing minds the bit.
 export const listAuthors = (db, projectId) => db
   .prepare(
     `SELECT u.id, u.display_name
        FROM project_authors pa JOIN users u ON u.id = pa.user_id
-      WHERE pa.project_id = ? AND u.deleted = 0
+      WHERE pa.project_id = ? AND u.deleted = 0 AND u.studio_access = 1
       ORDER BY pa.added_at, u.display_name COLLATE NOCASE`,
   )
   .all(projectId);
@@ -53,7 +55,7 @@ export function removeAuthor(db, projectId, userId) {
   const count = db
     .prepare(
       `SELECT COUNT(*) AS c FROM project_authors pa JOIN users u ON u.id = pa.user_id
-        WHERE pa.project_id = ? AND u.deleted = 0`,
+        WHERE pa.project_id = ? AND u.deleted = 0 AND u.studio_access = 1`,
     )
     .get(projectId).c;
   if (count <= 1) {
