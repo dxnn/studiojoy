@@ -4,6 +4,7 @@
 
 import {
   S, send, say, render, refreshFiles, openFile, sizeText, encodePath, NO_CONNECTION,
+  RESERVED_IMAGES,
 } from './main.js';
 
 /* Uploads ----------------------------------------------------------------- */
@@ -27,6 +28,10 @@ export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
 // goes where the ones it cannot animate go.
 async function uploadItems(files) {
   return Promise.all(files.map(async (file) => {
+    // The three reserved images live at the root, whatever their shape says:
+    // hero.png is usually wide, and wide-and-divisible is also what a strip
+    // looks like. The folder box in the dialog still overrules this.
+    if (RESERVED_IMAGES.includes(assetPath('', file.name))) return { file, folder: '' };
     if (file.type?.startsWith('audio/')) return { file, folder: SOUND_DIR };
     if (!file.type?.startsWith('image/')) return { file, folder: ASSET_DIR };
     const bitmap = await createImageBitmap(file).catch(() => null);

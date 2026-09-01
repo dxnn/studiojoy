@@ -557,8 +557,11 @@ export function renderChat() {
   const items = p.messages.map(renderMessage);
   for (const [agentId, entry] of S.live) items.push(renderLive(agentId, entry));
 
+  // chat.png, when the game has one, tiles behind the thread — on the
+  // scroller rather than the messages, so it stays put while they move.
   const scroller = h('div', {
-    class: 'scroll',
+    class: `scroll${S.images.chat ? ' has-chat-image' : ''}`,
+    style: S.images.chat ? `--chat-image:url(${S.images.chat})` : null,
     'data-scroll': 'chat',
     onscroll: (e) => {
       const el = e.currentTarget;
@@ -592,7 +595,12 @@ export function renderChat() {
   const locked = !isChat() && !p.open_edit;
 
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
-    h('div', { class: 'bar' },
+    // hero.png, when the game has one, backs the bar under a dark wash so the
+    // name stays readable. An object URL, so nothing user-typed is in the style.
+    h('div', {
+      class: `bar${S.images.hero ? ' has-hero-image' : ''}`,
+      style: S.images.hero ? `--hero-image:url(${S.images.hero})` : null,
+    },
       h('button', { class: 'quiet only-narrow', text: '☰', onclick: () => { S.narrowPane = 'games'; render(); } }),
       !S.sidebar && h('button', {
         class: 'icon only-wide', text: '☰', title: 'Show games and helpers',

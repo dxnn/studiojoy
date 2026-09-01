@@ -141,6 +141,10 @@ function gameRows(matches) {
     onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
   },
   h('div', { class: 'item-name' },
+    // The game's own icon.png when it has one; no icon is simply no icon.
+    S.icons.get(p.slug)
+      ? h('img', { class: 'item-icon', src: S.icons.get(p.slug), alt: '' })
+      : null,
     h('span', { class: 'iname', text: p.name }),
     calledMark(p.mentions)),
   // Somebody else's game says whose: that is the thing you want to know

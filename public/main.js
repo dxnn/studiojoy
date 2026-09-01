@@ -110,6 +110,11 @@ export const S = {
   // Empty for a game that names none of them, which is a game wearing the
   // studio's own.
   look: {},
+  // The open game's chat.png and hero.png, and every game's icon.png for the
+  // sidebar, keyed by slug — reserved images, as object URLs. See the
+  // "reserved images" section for why they are held rather than pointed at.
+  images: { chat: null, hero: null },
+  icons: new Map(),
   // Why a picture is not open for drawing on, or a sound not open for
   // changing, when they are not.
   drawRefused: null,
@@ -575,7 +580,10 @@ async function start() {
 
 export async function loadProjects() {
   const res = await api('GET', '/api/projects');
-  if (res.ok) S.projects = res.body;
+  if (res.ok) {
+    S.projects = res.body;
+    syncIcons();
+  }
 }
 
 export async function loadAgents() {
@@ -689,6 +697,7 @@ export async function openProject(slug, { view = null } = {}) {
     S.errors = [];
     S.open = null;
     S.palette = null;
+    setReservedImages({ chat: null, hero: null });
     S.live = new Map();
     S.receipt = null;
     render();
@@ -735,6 +744,9 @@ export async function openProject(slug, { view = null } = {}) {
   S.autoscroll = true;
   readMentions();
   S.palette = null;
+  // Off with the last game's dressing before the first paint, like the
+  // palette: this game's own arrives with its colours below.
+  setReservedImages({ chat: null, hero: null });
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
   render();
@@ -747,6 +759,7 @@ export async function openProject(slug, { view = null } = {}) {
   if (!isChat()) {
     await loadScores();
     await loadPalette();
+    await loadReservedImages();
     render();
   }
   // The rail keeps whichever tab you were on unless a URL says otherwise, so
@@ -1045,8 +1058,15 @@ function onEvent(name, data) {
     }
 
     case 'files.changed': {
+      // Any game's icon: the sidebar wears them all, so this one is looked at
+      // before the guard that keeps the rest to the open game.
+      if (data.paths.includes(ICON_IMAGE)) refreshIcon(data.project_slug);
       if (!mine(data)) return;
-      refreshFiles();
+      // A new wallpaper or hero redresses the studio, and the loader reads
+      // S.files for what exists — so the tree has to land first.
+      if (data.paths.includes(CHAT_IMAGE) || data.paths.includes(HERO_IMAGE)) {
+        refreshFiles().then(loadReservedImages).then(render);
+      } else refreshFiles();
       // A helper changing the game's colours retints the studio. Not while
       // there are unsaved ones in the editor: re-reading would throw those
       // away, and they are on their way into this same file.
@@ -1173,6 +1193,73 @@ export async function refreshFiles() {
   if (res.ok) {
     S.files = res.body.files;
     render();
+  }
+}
+
+/* The reserved images -------------------------------------------------------
+
+   Three picture names at the root of a game's tree are the studio's own
+   dressing rather than the game's (GLOSSARY: *reserved image*): chat.png
+   tiles behind the conversation, hero.png backs the bar over it and the
+   game's card in the catalog, icon.png sits before the game's name in the
+   sidebar. Root rather than assets/ on purpose — a sprite that happens to be
+   called icon.png must not become the studio's dressing. All optional: a
+   game without one wears the studio's own look. */
+
+export const CHAT_IMAGE = 'chat.png';
+export const HERO_IMAGE = 'hero.png';
+export const ICON_IMAGE = 'icon.png';
+export const RESERVED_IMAGES = [CHAT_IMAGE, HERO_IMAGE, ICON_IMAGE];
+
+// Held as object URLs rather than pointing a src at the file route: that
+// route sends no-store, and a background rebuilt by every render would
+// refetch on every keystroke. Fetched once, replaced on files.changed,
+// revoked on replace so a session does not hold every wallpaper it ever saw.
+async function imageUrl(slug, path) {
+  const res = await send(`/api/projects/${slug}/files/${encodePath(path)}`);
+  return res.ok ? URL.createObjectURL(await res.blob()) : null;
+}
+
+export function setReservedImages(next) {
+  for (const url of Object.values(S.images)) if (url) URL.revokeObjectURL(url);
+  S.images = next;
+}
+
+// The open game's two, by what S.files says is there — so the tree has to be
+// fresh when this is called.
+async function loadReservedImages() {
+  const slug = S.slug;
+  const want = (path) => (S.files.some((f) => f.path === path) ? imageUrl(slug, path) : null);
+  const [chat, hero] = await Promise.all([want(CHAT_IMAGE), want(HERO_IMAGE)]);
+  // A slow fetch must not dress the game opened after it.
+  if (S.slug !== slug) {
+    for (const url of [chat, hero]) if (url) URL.revokeObjectURL(url);
+    return;
+  }
+  setReservedImages({ chat, hero });
+}
+
+// One game's sidebar icon, straight from its tree: files.changed says the
+// file moved, not which way, so the fetch is the check — a 404 is a deleted
+// icon.
+async function refreshIcon(slug) {
+  const url = await imageUrl(slug, ICON_IMAGE);
+  const old = S.icons.get(slug);
+  if (old) URL.revokeObjectURL(old);
+  if (url) S.icons.set(slug, url);
+  else S.icons.delete(slug);
+  render();
+}
+
+// Fetch the icons the project list says exist and drop the ones it says are
+// gone, never refetching one already held.
+function syncIcons() {
+  for (const p of S.projects) {
+    if (p.has_icon && !S.icons.has(p.slug)) refreshIcon(p.slug);
+    else if (!p.has_icon && S.icons.has(p.slug)) {
+      URL.revokeObjectURL(S.icons.get(p.slug));
+      S.icons.delete(p.slug);
+    }
   }
 }
 

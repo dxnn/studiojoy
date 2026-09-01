@@ -452,7 +452,30 @@ a:hover { color: var(--accent-hi); }
   border-bottom-color: color-mix(in oklab, var(--look-primary) 45%, transparent);
   background: linear-gradient(180deg, color-mix(in oklab, var(--look-primary) 30%, transparent), transparent);
 }
+/* hero.png, when the game has one (a *reserved image*): the bar wears it
+   under a wash of the game's own deep colour, dark enough that the name
+   stays readable. It replaces the look tint above rather than stacking on
+   it — two gradients over a photograph made mud. */
+.pane.chat > .bar.has-hero-image {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--look-deep) 55%, transparent),
+      color-mix(in oklab, var(--look-deep) 75%, transparent)),
+    var(--hero-image) center / cover no-repeat;
+}
 .scroll { flex: 1; min-height: 0; overflow-y: auto; }
+/* chat.png, when the game has one: tiled behind the thread under the same
+   deep wash, heavier — this sits behind reading. On the scroller, whose own
+   background does not travel with its content, so the tiles stay put while
+   the messages move. A two-stop gradient tiles invisibly, which is what lets
+   one background-image line carry both layers. */
+.pane.chat > .scroll.has-chat-image {
+  background-image:
+    linear-gradient(
+      color-mix(in oklab, var(--look-deep) 82%, transparent),
+      color-mix(in oklab, var(--look-deep) 82%, transparent)),
+    var(--chat-image);
+}
 .section-label {
   padding: 12px 16px 4px;
   font-family: var(--mono);
@@ -674,6 +697,15 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* icon.png, when the game has one: a small square in front of the name. It
+   never shrinks — the name is the part that already knows how to give way. */
+.item .item-name .item-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  object-fit: cover;
 }
 .item.active .item-name { font-weight: 700; }
 .item .item-sub {
