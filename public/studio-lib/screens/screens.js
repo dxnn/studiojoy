@@ -17,8 +17,8 @@
 //   Screens.title({ score: 12, onStart: start }); // game over — Play again
 //
 // title() fills the window over the game: the name (WORDS.title, else the
-// page title), WORDS.tagline, one focused Start button — Enter starts on a
-// keyboard, the drawn touch controls step aside while the screen is up, and
+// page title), WORDS.tagline, one focused Start button — Enter or Space
+// presses it, the drawn touch controls step aside while the screen is up, and
 // a tap on the button also reaches Input as one frame of "start" — and the
 // hint under it. A
 // score shows big and the button says Play again (WORDS.again). Any of it
@@ -364,6 +364,9 @@ const Screens = (function () {
 
   // One title screen at a time: a new call replaces the one on screen.
   let openTitle = null;
+  // The capture-phase key handler belonging to the screen that is up, so
+  // closing takes it away with the screen.
+  let keyStart = null;
 
   // While a screen is up the body wears "screens-open": the input library
   // hides its drawn controls under it and drops what thumbs were holding.
@@ -418,6 +421,12 @@ const Screens = (function () {
     const handle = {
       close: function () {
         if (openTitle === handle) openTitle = null;
+        if (keyStart) {
+          if (typeof window.removeEventListener === "function") {
+            window.removeEventListener("keydown", keyStart, true);
+          }
+          keyStart = null;
+        }
         root.remove();
         if (openTitle === null) markBody(false);
       },
@@ -431,6 +440,26 @@ const Screens = (function () {
       if (typeof o.onStart === "function") o.onStart();
     });
     button.focus();
+
+    // ⚠️ Enter and Space press the button, and this is why it takes a listener
+    // rather than leaving it to the focused button: the input library binds
+    // key:enter to start and key:space to fire, and calls preventDefault on
+    // every bound key. Its listener is on window in the bubble phase, so a
+    // focused button never saw the keypress that was supposed to activate it —
+    // the title screen was mouse-only on every game that loads input.js.
+    // Capture runs first, so this gets there before the default is taken away,
+    // and it preventDefaults on its own account so a game without the input
+    // library does not also activate the button and start twice.
+    if (typeof window.addEventListener === "function") {
+      keyStart = function (e) {
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        if (e.repeat) return;
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        button.click();
+      };
+      window.addEventListener("keydown", keyStart, true);
+    }
     return handle;
   }
 

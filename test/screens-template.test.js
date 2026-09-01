@@ -98,6 +98,9 @@ function boot({ controls = '', words = '', coarse = false, pads = [] } = {}) {
 // and what the library dispatched on the window (the start relay).
 function bootDom(opts = {}) {
   const dispatched = [];
+  // The window's own listeners, so the capture-phase key handler the title
+  // screen puts up can be fired and checked for being taken away again.
+  const listeners = new Set();
   const sandbox = {
     navigator: { getGamepads: () => (opts.pads || []) },
     matchMedia: (q) => ({ matches: !!opts.coarse && q === '(pointer: coarse)' }),
@@ -105,11 +108,32 @@ function bootDom(opts = {}) {
     document: fakeDom(),
     Event: function Event(type) { this.type = type; },
     dispatchEvent: (e) => dispatched.push(e.type),
+    addEventListener: (name, fn) => { if (name === 'keydown') listeners.add(fn); },
+    removeEventListener: (name, fn) => { listeners.delete(fn); },
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(`${opts.controls || ''}\n${opts.words || ''}\n${opts.look || ''}\n${SCREENS}`, sandbox);
-  return { Screens: sandbox.window.Screens, document: sandbox.document, dispatched };
+  // One keydown as the browser would deliver it, with the two things the
+  // handler is allowed to call on it recorded.
+  const press = (key) => {
+    const event = {
+      key,
+      prevented: false,
+      stopped: false,
+      preventDefault() { event.prevented = true; },
+      stopPropagation() { event.stopped = true; },
+    };
+    for (const fn of [...listeners]) fn(event);
+    return event;
+  };
+  return {
+    Screens: sandbox.window.Screens,
+    document: sandbox.document,
+    dispatched,
+    press,
+    keyHandlers: listeners,
+  };
 }
 
 test('the seed on a keyboard: arrows, WASD and the named keys', () => {
@@ -368,4 +392,42 @@ test('the buttons preset on a touchscreen', () => {
     boot({ controls: read('templates/controls-buttons.js'), coarse: true }).hint(),
     'Arrows to move · THRUST · FIRE',
   );
+});
+
+// ⚠️ The reason this is a listener at all rather than the focused button doing
+// its own job: the input library binds key:enter to start and key:space to
+// fire, and calls preventDefault on every bound key from a bubble-phase
+// listener on the window — so a focused button never saw the key that was
+// meant to press it, and the title screen was mouse-only in every game that
+// loads input.js.
+test('Enter and Space press the Start button, and let go with the screen', () => {
+  const { Screens, press, keyHandlers } = bootDom();
+  let started = 0;
+  const handle = Screens.title({ onStart: () => { started += 1; } });
+  assert.equal(keyHandlers.size, 1, 'one handler while a screen is up');
+
+  const enter = press('Enter');
+  assert.equal(started, 1);
+  assert.ok(enter.prevented, 'and takes the default, so a button is not pressed twice');
+  assert.ok(enter.stopped);
+  assert.equal(keyHandlers.size, 0, 'the screen closed and took its handler away');
+
+  // Nothing else reaches it.
+  const again = bootDom();
+  let count = 0;
+  again.Screens.title({ onStart: () => { count += 1; } });
+  const other = again.press('a');
+  assert.equal(count, 0);
+  assert.ok(!other.prevented, 'a key the screen does not want is left alone');
+  again.press(' ');
+  assert.equal(count, 1, 'Space presses it too');
+
+  // Closing by hand takes the handler with it.
+  const third = bootDom();
+  let never = 0;
+  third.Screens.title({ onStart: () => { never += 1; } }).close();
+  third.press('Enter');
+  assert.equal(never, 0);
+  assert.equal(third.keyHandlers.size, 0);
+  assert.equal(handle.close(), undefined, 'closing twice is quiet');
 });

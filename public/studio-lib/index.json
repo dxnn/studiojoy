@@ -23,7 +23,7 @@
       "scripts": ["studio/sprites.js"]
     },
     "screens": {
-      "version": 4,
+      "version": 5,
       "what": "A phone-fit title and game-over screen, a HUD strip of score chips, and a one-line how-to-play hint worked out from config/controls.js and the device — keys on a keyboard, the touch scheme's own shape on a phone, controller buttons when one is plugged in.",
       "files": ["screens.js"],
       "seeds": [],
