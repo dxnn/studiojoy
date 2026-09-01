@@ -21,7 +21,8 @@
 // again (WORDS.again). Any part can be passed instead — { name, tagline, hint,
 // start, score, onStart } beat config. Returns { close }; DOM only.
 // `post: true` puts the score on the scoreboard and the board shows where it
-// landed; `board: true` adds the top ten, or pass { limit, around, title }.
+// landed; `board: true` adds the top ten, or pass { limit, around, title };
+// `extra` is your own node, or a list of them, put in the panel.
 //
 //   Screens.chips({ Score: 12, Lives: 3 });   // the HUD strip, top of screen
 //
@@ -44,10 +45,9 @@
 // the library's rules sit in an @layer, so nothing needs !important. The
 // screen also wears screens-over on game over. Colours come from LOOK in
 // config/look.js: primary (name, button), accent (tagline), highlight (⚠️ a
-// score and nothing else), deep (the ground). --screens-font, and -mono,
-// -text, -muted, -ink, -panel, -border and -radius under the same prefix, are
-// yours to set on :root. The typefaces sit beside this file, so a game asks
-// nothing of another host.
+// score and nothing else), deep (the ground). --screens-font and -mono, -text,
+// -muted, -ink, -panel, -border, -radius are yours on :root. The typefaces sit
+// beside this file.
 //
 // Missing pieces are quiet — an empty string or a no-op, never an error.
 // Load config/controls.js first.
@@ -726,6 +726,13 @@ const Screens = (function () {
     const button = el("button", "screens-start", label);
     panel.append(button);
     if (line !== "") panel.append(el("p", "screens-hint", line));
+
+    // The game's own part of the screen — a run breakdown, a note, whatever
+    // this game has that no library could guess. It goes above the board, so
+    // the panel reads as your run and then everybody's.
+    const own = o.extra === undefined || o.extra === null ? []
+      : (Array.isArray(o.extra) ? o.extra : [o.extra]);
+    for (const node of own) if (node) panel.append(node);
 
     // The scoreboard dance, in the one place every game was doing it by hand:
     // post the run, show the board around where it landed, and offer the sign

@@ -763,6 +763,28 @@ test('a title screen can carry the top ten and the sign-in offer', async () => {
   assert.deepEqual(calls.map((c) => c.url).sort(), ['/_me', '/_scores/asteriskoids?limit=10']);
 });
 
+test("extra puts the game's own nodes in the panel, above the board", async () => {
+  const { Screens, document } = bootDom({});
+  const mine = Screens.rows({ Rocks: 42 });
+  const note = { tag: 'p', className: 'my-note', textContent: 'hi', children: [] };
+  Screens.title({ score: 3, extra: [mine, note], board: { scores: [] } });
+  await settle();
+  const panel = find(document.body.children[0], 'screens-panel');
+  const order = panel.children.map((c) => c.className);
+  assert.deepEqual(order, [
+    'screens-name', 'screens-score', 'screens-start',
+    'screens-rows', 'my-note', 'screens-board', 'screens-signin',
+  ]);
+
+  // One node rather than a list, and nothing at all, both work.
+  const single = bootDom({});
+  single.Screens.title({ extra: single.Screens.rows({ A: 1 }) });
+  assert.ok(find(single.document.body.children[0], 'screens-rows'));
+  const none = bootDom({});
+  none.Screens.title({ extra: null });
+  assert.equal(find(none.document.body.children[0], 'screens-rows'), null);
+});
+
 test('a screen that was not asked for a board asks the studio for nothing', async () => {
   const { Screens, calls } = bootDom({ routes: { '/_me': { body: { user: null } } } });
   Screens.title({ score: 12 });
