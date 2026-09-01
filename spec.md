@@ -15,8 +15,9 @@ the LLM is DeepSeek rather than Anthropic.
 
 ## 2. Non-goals (v0)
 
-- Signup, email verification, password reset, invites. Accounts are created
-  with a CLI script by the operator.
+- Email verification, password reset, invites. Studio accounts are created
+  with a CLI script or the admin panel; the games origin's public sign-up
+  (§6) makes nothing by itself — it joins a waiting list an admin decides.
 - Per-user permissions of any kind. Presence in `users` is the only bit: any
   account can read and edit every project, agent, and file.
 - Scale. One process, SQLite, synchronous `git` subprocesses.
@@ -44,7 +45,12 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `display_name` | TEXT NOT NULL | shown in UI and used as the git author name |
 | `created_at` | TEXT NOT NULL | |
 
-A row here **is** studio access, and `deleted = 0` is what makes it one.
+A row here is an account, and it comes in two kinds: with `studio_access = 1`
+(and `deleted = 0`) it is **studio access** — the studio's door opens to it —
+and with the bit off it is a **player account**: the games origin signs it in,
+its scores wear its name (§6), and every studio door is shut. Every account
+from before the bit existed is a studio one; what the waiting list makes is a
+player.
 
 ⚠️ **Taking somebody out of the studio never deletes the row.** It sets
 `deleted = 1` and drops their sessions, and touches nothing else. Their
@@ -91,6 +97,47 @@ Two consequences taken on purpose:
 | `created_at` | TEXT NOT NULL | |
 
 Sessions do not expire in v0.
+
+### `player_sessions`
+
+| column | type | notes |
+|---|---|---|
+| `token` | TEXT PK | 32 random bytes, base64url |
+| `user_id` | INTEGER NOT NULL → users | |
+| `created_at` | TEXT NOT NULL | rows older than 90 days resolve to nobody and are swept on the way past |
+
+Who is signed in on the games origin (§6): any account still in — either
+kind — over a `player` cookie. ⚠️ Deliberately not `sessions` and not the
+`session` cookie: in development the two listeners share a hostname, so both
+cookies travel to both origins, and the separation has to live in the token
+itself. A player token opens exactly three doors — post a score as yourself,
+say who you are, sign out — and resolves to nothing on the studio origin.
+Unlike studio sessions these expire, matching the cookie's `Max-Age`,
+because the public is not the account list. Removal, a password change, and
+the studio-access toggle each end the sessions they should: the first two
+take both kinds, the toggle only the studio's.
+
+### `signups`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `email` | TEXT UNIQUE NOT NULL | |
+| `display_name` | TEXT NOT NULL | ≤ 100 chars, no control characters — it will be a scoreboard name |
+| `password_hash` | TEXT NOT NULL | scrypt, hashed at sign-up so approval needs nobody present |
+| `created_at` | TEXT NOT NULL | |
+| `approved_by` / `approved_at` / `approved_user_id` | | who let them in, when, and the account it made |
+| `refused_by` / `refused_at` | | who turned them away, and when |
+
+The waiting list: what `POST /_signup` on the games origin writes (§6), and
+the only thing it can write. A row is not an account — an admin **approves**
+it into a player account (`studio_access = 0`, never an admin) or **refuses**
+it, from Studio settings. ⚠️ Both decisions are columns, never a DELETE: the
+decided rows are the audit trail of who asked and who answered, shown
+nowhere. `email` UNIQUE means one story per address, however it ended — a
+second ask against a decided address answers the same 202 and writes
+nothing, and an admin who changes their mind about a refusal makes the
+account by hand in the panel.
 
 ### `agents`
 
@@ -155,7 +202,8 @@ every agent's context (§8).
 
 | column | type | notes |
 |---|---|---|
-| `admin` | INTEGER NOT NULL DEFAULT 0 | may run the studio: add an account, rename one, set an allowance, hand out this bit |
+| `admin` | INTEGER NOT NULL DEFAULT 0 | may run the studio: add an account, rename one, set an allowance, decide the waiting list, hand out this bit |
+| `studio_access` | INTEGER NOT NULL DEFAULT 1 | off, the account is a player only: games-origin login and the scoreboard, nothing in the studio. The panel's toggle; an admin never has it off |
 | `daily_tokens` | INTEGER NULL | what this person's helpers may spend in a day. Null is no allowance of their own |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | taken out of the studio. Set, every door is shut and every row is kept; `restoreuser` clears it |
 
@@ -164,6 +212,16 @@ second — and an upgrade gives the bit to the lowest id. ⚠️ The studio keep
 least one admin: demoting or removing the last is a 409, because a studio
 nobody can run is one nobody can add an account to either. The count is of
 admins **still in the studio**, so a removed one is not one of them.
+
+`studio_access` is read on the same line as `deleted`, access minding it and
+history not: studio login, `userForToken`, the crew list, resolving an `@` to
+a person, and being added or counted as an author all take the bit; every
+rendered name ignores it. Toggling it off ends the person's studio sessions
+the way removal does — their player sessions stay, because the games origin
+is still theirs — and the rows all stay, so toggling it back gives back the
+same person, editor rows included. Making somebody an admin turns the bit on
+with the promotion; taking the bit from an admin is refused (409) until the
+admin bit goes first.
 
 ### `user_tokens`
 
@@ -413,21 +471,43 @@ anything is reported for that project.
 |---|---|---|
 | `id` | INTEGER PK | ties rank by it: earlier post wins |
 | `project_id` | INTEGER NOT NULL → projects | |
-| `name` | TEXT NOT NULL | ≤ 24 chars, trimmed, no control characters |
+| `user_id` | INTEGER → users | who posted it; NULL on every row from before sign-in existed |
+| `name` | TEXT NOT NULL | the poster's account name, squeezed to 24 chars, control characters stripped |
 | `score` | INTEGER NOT NULL | a JS-safe integer; bigger is better |
 | `created_at` | TEXT NOT NULL | |
 
-A game's scoreboard, posted by the public from inside the running game and
-served back by the games origin (§6) — the one thing that listener writes.
-Pruned to the best 100 per project on every insert, so the table is bounded
-by construction. It lives here rather than in the working tree because a tree
-write is a commit: scores as files would spam Versions, restart the preview
-on every `files.changed`, and thrash the ambient block's prompt cache (§8).
+A game's scoreboard, posted **by a signed-in player** from inside the running
+game and served back by the games origin (§6). The name is the account's —
+whatever a body still carries is ignored, which keeps every game written
+before the sign-in working the moment its player signs in. Rows from before
+keep the names they were posted under, `user_id` NULL. Pruned to the best 100
+per project on every insert, so the table is bounded by construction. It
+lives here rather than in the working tree because a tree write is a commit:
+scores as files would spam Versions, restart the preview on every
+`files.changed`, and thrash the ambient block's prompt cache (§8).
 `VACUUM INTO` backs it up with the chats and accounts; git cannot recover it.
 
-⚠️ Scores are forgeable — the client is the only witness, and signing them
-would need a secret inside LLM-written game code, which is no secret. An
-accepted cost for this studio (ideas/next-five.md).
+⚠️ The **score** is still forgeable — the client is the only witness to the
+run, and signing it would need a secret inside LLM-written game code, which
+is no secret. What the sign-in ends is the *name* being anybody's: a game
+can no longer post as somebody who was never there, though the game a player
+is signed into can still post whatever number it likes as them. An accepted
+cost for this studio (ideas/next-five.md).
+
+### `personal_bests`
+
+| column | type | notes |
+|---|---|---|
+| `project_id` | INTEGER NOT NULL → projects | PK with `user_id` |
+| `user_id` | INTEGER NOT NULL → users | |
+| `score` | INTEGER NOT NULL | this person's best ever on this game |
+| `created_at` | TEXT NOT NULL | when that best was set |
+
+One row per person per game, raised (never lowered) beside every `scores`
+insert in the same transaction. It exists because the board keeps the best
+100 *runs*: a personal best that was pruned off the board would otherwise be
+gone. Nothing displays it yet — the board and this are meant to be shown
+side by side later (TODO.md).
 
 ### `studio_state`
 
@@ -583,10 +663,15 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 | GET | `/api/me` | — | current user |
 | GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
 
-There is no signup route. Accounts come from `npm run adduser`. `/api/users`
-is a list of who is here, for the sidebar's Crew tab, and carries no address:
-the studio is private, but a list of names does not need to be a list of email
-addresses to do its job.
+There is no signup route **on this origin**, and no route here ever makes
+studio access from the outside: studio accounts come from `npm run adduser`
+and the admin panel, and what the games origin's public sign-up feeds is a
+waiting list whose approval makes a player account (§3, `signups`). Login
+requires `studio_access = 1`; a player account takes the unknown-email path,
+the same as a removed one. `/api/users` is a list of who is *in the studio*,
+for the sidebar's Crew tab — players are not on it — and carries no address:
+the studio is private, but a list of names does not need to be a list of
+email addresses to do its job.
 
 #### Projects
 
@@ -610,9 +695,11 @@ any account (§11).
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, and `starter_agent_id` |
+| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, `starter_agent_id`, and `waiting` — the undecided sign-ups |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
-| PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `password` | change one |
+| PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
+| POST | `/api/admin/signups/:id/approve` | — | the waiting list's yes: makes the player account, marks the row; 404 once decided |
+| POST | `/api/admin/signups/:id/refuse` | — | the waiting list's no: marks the row and keeps it (§3) |
 | PATCH | `/api/admin/studio` | `{daily_token_budget, starter_agent_id?}` | the wall around everybody, and who joins a new game; the helper is optional here — both settings share one Save, and leaving it out changes nothing |
 
 ⚠️ A password set here ends that person's sessions: a password changed because
@@ -1000,8 +1087,9 @@ the root the same way it routes a strip to `assets/sprites/`. All optional —
 a game without one wears the studio's own look — and person-made like any
 other picture; the preamble names them so a helper asks rather than filing a
 wallpaper where nothing looks. In the studio they sit under a wash of the
-game's `deep` colour, dark always; the catalog is the one surface with a
-light mode, so its wash is `light-dark()`. The client holds the open game's
+game's `deep` colour, and on the catalog card under a plain dark one — the
+front door wears the studio's own dark now, and no light surface is left
+anywhere. The client holds the open game's
 two, and every game's icon, as object URLs replaced on `files.changed` and
 revoked on replace — the file routes send `no-store`, and a background
 rebuilt by every render would refetch on every keystroke; `has_icon` on the
@@ -1321,39 +1409,49 @@ for a dialog's controls the same way as for the composer.
 
 | method | path | effect |
 |---|---|---|
-| GET, HEAD | `/` | the catalog: published games, names escaped; a card wears the game's `hero.png` when its tree holds one (§6), under a `light-dark()` wash — this page, unlike the studio, has a light mode |
+| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `hero.png` when its tree holds one (§6) under a dark wash and its board's best score in gold; sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
+| GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error |
+| POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
+| POST | `/_logout` | delete the player session, clear the cookie |
+| POST | `/_signup` | `{name, email, password}` → a `signups` row (§3), rate-limited per IP; answers 202 `{waiting: true}` whether or not it wrote, so the form never says what an address is to this studio |
 | GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
-| POST | `/_scores/:slug` | add one entry `{name, score}`; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; answers 201 `{rank}` — null when it missed the board (§3, §10) |
 
 A game whose `scores_on` switch is off answers the same plain 404 on both
 `/_scores` routes: a moderated board is not public in either direction. The
 rows are kept — the switch, the admin's list, and per-row deletion all live
-on the studio origin under `/api`, because moderation needs a person and
-this listener never reads a cookie. The studio shows it as the rail's
-Scoreboard tab.
+on the studio origin under `/api`, because moderation is running the studio.
+The studio shows it as the rail's Scoreboard tab.
 
-No authentication, no cookies read, no `/api` surface, no directory index.
-Any other method gets 405. Archived projects stay playable — and keep taking
-scores, for the same reason. `Cache-Control: no-store` throughout, so
-iterating on a game shows fresh bytes on reload without cache-busting.
+The underscore routes cannot collide with a game: an underscore is not legal
+in a slug. No `/api` surface, no directory index, any other method 405.
+Archived projects stay playable — and keep taking scores. `Cache-Control:
+no-store` throughout, so iterating on a game shows fresh bytes on reload
+without cache-busting.
+
+⚠️ The one cookie this listener reads is its own `player` cookie, backed by
+`player_sessions` (§3) — never `session`, which still opens nothing here.
+Everything a player token can do, LLM-written game code running in that
+player's browser can do silently with it; that is why the authenticated
+surface is exactly three routes, and why the biggest of them is "post a
+score as yourself" — which is what the game was going to do anyway. The
+game files themselves are served to anybody, signed in or not, exactly as
+before.
 
 The catalog, the wrapper, and the scoreboard are not the project's own bytes.
-None of them reads a cookie: the catalog is built from slugs and published
-flags, the wrapper is one file plus one `git rev-parse`, and the scoreboard is
-rows in the `scores` table (§3). `_studio.html` is reserved in every project —
-a working tree containing a file of that name has it shadowed and never
-served. `_scores` cannot collide with a game at all: an underscore is not
-legal in a slug.
+`_studio.html` is reserved in every project — a working tree containing a
+file of that name has it shadowed and never served.
 
-⚠️ `POST /_scores` is this origin's first and only write route, and it holds
-the rules a public write needs: no cookie read, every field capped (§10), a
-1 KB `application/json`-only body, and its own per-IP rate limit — the first
-outside login, in-memory like the lockouts (§11). What it writes is one
-bounded table, never a working tree — so a score commits nothing, restarts no
-preview, and never enters an agent's context.
+⚠️ The origin's writes are the scoreboard and the waiting list, each one
+bounded table, never a working tree — so a score commits nothing, restarts
+no preview, and never enters an agent's context, and a sign-up is a row an
+admin has to turn into anything. Both hold the rules a public write needs:
+every field capped (§10), a 1 KB `application/json`-only body, and their own
+per-IP rate limits, in-memory like the lockouts (§11); `/_login` carries the
+login lockouts themselves.
 
 "Per-IP" is only true if the address is. Deployed, every player arrives from
 the reverse proxy, so this listener reads `X-Forwarded-For` under the same
@@ -1388,8 +1486,10 @@ is sent to `localhost:8101` as well; and `SameSite` keys on scheme plus
 registrable domain while ignoring port, so `:8101` → `:8100` counts as
 same-site and `Lax` does not restrain it. Game code therefore cannot read the
 studio API, but it can reach it with the operator's session attached. Three
-things bound that today: the games listener has no route that reads a cookie,
-so a replayed session drives nothing there (tested); `readJson` answers 415 to
+things bound that today: the games listener has no route that reads the
+`session` cookie — the one cookie it reads is its own `player` cookie, which
+resolves only `player_sessions` — so a replayed studio session drives nothing
+there (tested); `readJson` answers 415 to
 any body not declared `application/json` (tested), so a forged `POST` either
 carries a CORS-safelisted type like `text/plain` — sent without preflight,
 bounced before its handler runs — or declares JSON and needs a preflight the
@@ -1398,6 +1498,22 @@ preflights regardless of its declared type. What a page on another origin can
 still drive is `POST /api/logout`, the one `POST` that reads no body — a
 forged one costs the operator a sign-in and nothing else. Separate hostnames
 in production remove the shared cookie domain that makes even that reachable.
+
+⚠️ Player sign-in put a password form on the origin that serves LLM-written
+code, and that is the new edge of this boundary. A game is same-origin with
+the catalog, so left alone it could iframe `/` — or script a window it
+opened onto it — and read the form as it is typed, and for a studio person
+the password typed there is the studio password. Two headers on the catalog
+close both hands: `Content-Security-Policy: frame-ancestors 'none'` (the
+studio frames games, never the catalog, so nothing legitimate breaks) and
+`Cross-Origin-Opener-Policy: same-origin`, which severs the opener handle so
+`window.open('/')` from a game hands back a window it cannot touch. What a
+game *can* still do is drive the three authenticated routes with its
+player's cookie — post a score as them, read their first name at `/_me`,
+log them out — which is the accepted floor: a game already speaks for its
+player, and the token opens nothing anywhere else. The player cookie is
+`HttpOnly`, `SameSite=Lax`, `Secure` in production, `Max-Age` 90 days, like
+the studio's but expiring (§11).
 
 In production the two listeners sit behind separate hostnames
 (`studio.example.com`, `games.example.com`), and `GAMES_URL` names the games
@@ -1416,7 +1532,8 @@ Header posture:
   `Referrer-Policy: no-referrer`, no `X-Powered-By`.
 - Games origin: `nosniff` and `Referrer-Policy: no-referrer` only —
   deliberately **not** `X-Frame-Options`, because the studio embeds the game
-  in a preview iframe.
+  in a preview iframe. The catalog page alone adds `frame-ancestors 'none'`
+  and `COOP: same-origin`, for the password form above.
 
 No CSRF token in v0: the session cookie is `HttpOnly`, `SameSite=Lax`,
 `Secure` when `NODE_ENV=production`. The content-type guard above stands in
@@ -1980,10 +2097,14 @@ everybody else.
   lower cap rations the reasoning trace, not the files (§8, §14).
 - Studio token budget: `DAILY_TOKEN_BUDGET`, default 5,000,000 per UTC day.
 - Login lockout: per email 10 failures / 5 min → 5 min lock; per IP 20
-  failures / 5 min → 10 min lock. In-memory, resets on restart.
-- Scoreboard: name ≤ 24 chars, score a JS-safe integer, best 100 rows kept
-  per game, `?limit=` ≤ 100, body 1 KB; posts 10 / min / IP, in-memory like
-  the lockouts.
+  failures / 5 min → 10 min lock. In-memory, resets on restart. The games
+  origin's `/_login` carries its own pair with the same numbers.
+- Scoreboard: score a JS-safe integer, the name the account's squeezed to
+  24 chars, best 100 rows kept per game, `?limit=` ≤ 100, body 1 KB; posts
+  10 / min / IP, in-memory like the lockouts.
+- Sign-up: 5 / 10 min / IP; name ≤ 100 chars and control-free, password
+  6–200 chars, email ≤ 254; body 1 KB, as is `/_login`'s.
+- Player sessions: 90 days, cookie `Max-Age` and row age both.
 
 ## 11. Auth details
 
@@ -1991,6 +2112,15 @@ everybody else.
   64-byte key, stored as `scrypt$<N>$<r>$<p>$<salt_b64>$<key_b64>`.
 - Sessions: 32 random bytes base64url in a `session` cookie — `HttpOnly`,
   `SameSite=Lax`, `Path=/`, `Secure` iff `NODE_ENV=production`, no `Max-Age`.
+- Player sessions: the same shape in a `player` cookie on the games origin,
+  with a 90-day `Max-Age` and a matching row-age check (§3). The two never
+  cross: each origin resolves only its own table, so neither token is worth
+  anything to the other side.
+- The waiting list: `POST /_signup` validates and hashes up front, writes a
+  `signups` row, and answers the same 202 whether or not it wrote — a public
+  form does not disclose what an address is to this studio. Approval and
+  refusal are admin routes on the studio origin (§6); approval makes a
+  player account with the password chosen at sign-up.
 - Constant-time login: an unknown email is still verified against a cached
   dummy hash so timing doesn't disclose existence.
 - Account creation: `npm run adduser -- <email> "<Display Name>"` prompts for
@@ -2005,7 +2135,10 @@ everybody else.
   and a red button beside Save invites a press that a `cd` and a command
   do not.
 - A removed account takes the unknown-email path at login: the same 401, the
-  same dummy-hash derivation, so the form does not say who was taken out.
+  same dummy-hash derivation, so the form does not say who was taken out. A
+  player account takes it at the *studio* door for the same reason — which
+  kind of account an address carries is not the form's to say. On the games
+  origin both kinds sign in, and a removed account neither.
 
 ### Who may change what
 
@@ -2014,10 +2147,14 @@ studio — accounts, names, passwords, allowances, the studio-wide budget — an
 nothing about games. An admin has no more right to somebody's game than
 anybody else; authorship is a separate question with a separate answer.
 
-Being in `users` gets you into the studio and lets you **read** all of it:
-every game, every version, every conversation, every file. That is deliberate
-— the account list is a handful of people who know each other, and a studio
-where you cannot see how somebody's game works is not a studio.
+**Studio access** — `users.studio_access`, which every account had implicitly
+before the bit existed — gets you into the studio and lets you **read** all
+of it: every game, every version, every conversation, every file. That is
+deliberate — the studio's people are a handful who know each other, and a
+studio where you cannot see how somebody's game works is not a studio. A
+player account has none of that: it is a name on scoreboards and a games-
+origin login, and inside the studio it exists only as a row in the admin
+panel, where the toggle can make it either kind.
 
 **Changing** a game takes being one of its **authors** — the person who made
 it, plus anyone an author has added — or the game being **open**, which its
@@ -2052,16 +2189,18 @@ archived game is disabled for somebody else's. The server is what refuses.
 - **No CSRF token.** `SameSite=Lax` plus the `readJson` content-type guard
   (§7), which bounds a cross-site forgery to `POST /api/logout`.
 - **Lockout state is in-memory.** A restart clears all lockouts.
-- **Sessions never expire.** No `Max-Age`, no rotation: a session lasts until
-  a removal or a password change deletes its row, or the browser loses the
-  cookie. Expiry and
-  rotation are deferred to v1 (§15) and belong to the same gate as the rest
-  of this list.
-- **No rate limiting outside login and the scoreboard.** An authenticated
-  user can flood message posts and file writes on a game they may change;
-  bounded only by the token budget and size caps. The trust boundary here is
-  the account list, which the operator controls by hand. The scoreboard is rate limited because its
-  writers are the public, not the account list (§6, §10).
+- **Studio sessions never expire.** No `Max-Age`, no rotation: a session
+  lasts until a removal, a password change, or the studio-access toggle
+  deletes its row, or the browser loses the cookie. Expiry and rotation are
+  deferred to v1 (§15) and belong to the same gate as the rest of this list.
+  Player sessions are the exception, 90 days, because their door is public.
+- **No rate limiting outside login, the scoreboard and the sign-up.** An
+  authenticated user can flood message posts and file writes on a game they
+  may change; bounded only by the token budget and size caps. The trust
+  boundary here is the account list, which the operator and the admins
+  control by hand — the waiting list widens who can *ask*, never who gets
+  in. The public writes are rate limited because their writers are the
+  public, not the account list (§6, §10).
 - **`.svg` is served to the public.** On the games origin that's harmless —
   scripts inside it can't reach the studio origin or its cookie.
 - **Binary files are trusted by extension.** No magic-number validation;
@@ -2080,16 +2219,23 @@ Tests enforce each of these.
 
 - Every path accepted by the API resolves inside its project directory, and no
   path with a `.git`-prefixed segment is ever read, written, or served. ⚠️
-- The games listener never reads a cookie and serves nothing but a project's
-  own files, the catalog, the wrapper — that project's own `index.html` with a
-  script in front of it — and the scoreboard. Its one write is a scoreboard
-  row: a bounded table, never a working tree. ⚠️
+- The games listener never reads the `session` cookie — the `player` cookie
+  is the only one, it resolves only `player_sessions`, and neither origin's
+  token means anything to the other. It serves nothing but a project's own
+  files, the catalog, the wrapper — that project's own `index.html` with a
+  script in front of it — and the scoreboard; its writes are scoreboard,
+  personal-best and waiting-list rows: bounded tables, never a working
+  tree. ⚠️
+- A `signups` row is never an account and never deleted: only an admin's
+  approval makes the account, with game access only, and a decision is
+  columns on the row. ⚠️
 - No HTTP response reports a successful file mutation before its git commit
   has landed.
 - At most one write+commit runs at a time per project.
-- Taking somebody out of the studio deletes no row. Their sessions go and
-  `users.deleted` is set; every path that grants access minds that bit, and
-  every rendered name does not, so the removal is undone by clearing it. ⚠️
+- Taking somebody out of the studio deletes no row. Their sessions go — both
+  kinds — and `users.deleted` is set; every path that grants access minds
+  that bit, and every rendered name does not, so the removal is undone by
+  clearing it. `studio_access` is read on the same access-only line. ⚠️
 - A `messages` row never has both `user_id` and `agent_id` set.
 - No reasoning trace is ever written to `messages.body` or replayed into a
   later request.

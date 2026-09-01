@@ -39,7 +39,14 @@ deliberately deferred.
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
 - offer the Top 10 on `Screens.title()` — every game refetches /_scores by
-  hand today (the screens library's one surviving open question)
+  hand today (the screens library's one surviving open question); since the
+  sign-in build a title screen also wants the `/_me` dance — signed out, show
+  the sign-in link instead of posting
+- show personal bests beside the Top 100 — tracked per (game, person) in
+  `personal_bests` since the sign-in build, displayed nowhere yet
+- ask a helper to move one real game onto the signed-in scoreboard flow
+  (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
+  holds up in practice
 - interpret `:wave:`-style emoji shortcodes in messages (deferred from the
   reactions build; new-y has none to copy, so the map is ours to write)
 - replay the in-flight reply to a tab that connects mid-fire — the server

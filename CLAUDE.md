@@ -670,14 +670,36 @@ blocker — the scoreboard settled that. See `ideas/next-five.md`, which also
 tiers persistent worlds.
 
 Every game has a **scoreboard**: `GET`/`POST /_scores/<slug>` on the games
-origin — that origin's first and only write route. Rows live in SQLite, never
-the working tree, so a score commits nothing, restarts no preview, and never
-enters an agent's context or thrashes its prompt cache. Best 100 kept per
-game, every field capped, posts rate-limited per IP (the first limit outside
-login), no cookie read, and forgeable by design — the client is the only
-witness (spec.md §3, §6, §10). The preamble tells helpers the routes and to
-render names with `textContent`; `orchestrator.test.js` asserts both. Tested
-in `test/scores.test.js`, not yet exercised by a real game in a browser.
+origin. Rows live in SQLite, never the working tree, so a score commits
+nothing, restarts no preview, and never enters an agent's context or thrashes
+its prompt cache. Best 100 kept per game, every field capped, posts
+rate-limited per IP (spec.md §3, §6, §10). ⚠️ Posting takes a signed-in
+player now, and the name on the row is the account's — a body's `name` is
+ignored, so old games work again the moment their player signs in; the
+*score* stays forgeable, the client being the run's only witness. Each post
+also raises that person's `personal_bests` row in the same transaction, which
+survives the top-100 pruning and is displayed nowhere yet (TODO.md). The
+preamble teaches `/_me`, the `{score}` post, and the sign-in link to offer
+when `user` is null; `orchestrator.test.js` asserts each. Tested in
+`test/scores.test.js`, not yet exercised by a real game in a browser.
+
+The games origin has a **front door** now. The catalog at `/` is the studio's
+own dress — wordmark, halftone, hairline, dark always, hero cards kept, each
+board's best score in gold — rendered whole by `server/catalog.js`, with
+sign-in, `Ask to join` and sign-out on it (browser-checked end to end). The
+accounts behind it split in two: **studio access** (`users.studio_access`,
+the panel's `In the studio`/`Games only` toggle; every pre-existing account
+has it) and **player accounts** without it, which the **waiting list** makes —
+`POST /_signup` writes a `signups` row, the panel's `Waiting to join` section
+approves it into a games-only account or turns it away, both decisions kept
+as audit columns, never a DELETE. Players sign in over their own `player`
+cookie and `player_sessions` (90 days; the games listener still never reads
+`session`), and the bit is minded everywhere `deleted` is: studio login, the
+crew, mentions, authorship. ⚠️ Two headers on the catalog are load-bearing —
+`frame-ancestors 'none'` and `COOP: same-origin` — because a password form
+now shares an origin with LLM-written game code, and a game could otherwise
+read the form out of a frame or an opened window (spec.md §7). ⚠️ An admin
+never loses the bit; taking it needs the admin bit taken first.
 
 The preamble names every one of these by the words on the button, because a
 capability an agent is not told about may as well not exist. `orchestrator.js`
