@@ -300,6 +300,24 @@ test('the list is newest first and carries a preview', async (t) => {
   assert.equal(res.body[0].preview, '');
 });
 
+test('the list says which games hold an icon.png', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
+  await app.client.json('POST', '/api/projects', { body: { name: 'Plain' } });
+  await app.client.json('POST', '/api/projects', { body: { name: 'Room', kind: 'chat' } });
+
+  const before = await app.client.json('GET', '/api/projects');
+  assert.ok(before.body.every((p) => p.has_icon === false), 'no icons yet');
+
+  // A reserved image at the root, where an upload puts it.
+  fs.writeFileSync(path.join(app.gamesDir, 'tank', 'icon.png'), 'png bytes');
+  const after = await app.client.json('GET', '/api/projects');
+  const bySlug = Object.fromEntries(after.body.map((p) => [p.slug, p.has_icon]));
+  assert.equal(bySlug.tank, true);
+  assert.equal(bySlug.plain, false);
+  assert.equal(bySlug.room, false, 'a chat has no tree and never an icon');
+});
+
 test('project detail carries the play url, agents, files, and messages', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });

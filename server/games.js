@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRouter } from './http/router.js';
 import { serveFile } from './http/static.js';
@@ -76,8 +77,19 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
       )
       .all();
 
+    // hero.png at a game's root dresses its card — a reserved image, served
+    // like any other file of the game's. Only the flag rides the markup: the
+    // slug is validated at creation and escaped here regardless, and the
+    // overlay lives in the stylesheet, where light-dark() picks the wash —
+    // this page, unlike the studio, has a light mode.
     const cards = games
-      .map((g) => `<li><a href="/${escapeHtml(g.slug)}/">${escapeHtml(g.name)}</a></li>`)
+      .map((g) => {
+        const slug = escapeHtml(g.slug);
+        const hero = fs.existsSync(path.join(root, g.slug, 'hero.png'))
+          ? ` class="hero" style="--hero:url('/${slug}/hero.png')"`
+          : '';
+        return `<li><a href="/${slug}/"${hero}>${escapeHtml(g.name)}</a></li>`;
+      })
       .join('\n      ');
 
     const page = `<!doctype html>
@@ -97,6 +109,12 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
   a { display: block; padding: 16px 18px; border: 1px solid currentColor;
       border-radius: 12px; text-decoration: none; font-weight: 600; }
   a:hover { outline: 2px solid currentColor; }
+  a.hero { min-height: 96px; display: flex; align-items: flex-end;
+           background-image:
+             linear-gradient(light-dark(rgba(255,255,255,0.78), rgba(10,8,18,0.55)),
+                             light-dark(rgba(255,255,255,0.78), rgba(10,8,18,0.55))),
+             var(--hero);
+           background-size: cover; background-position: center; }
   p { opacity: 0.7; }
 </style>
 </head>

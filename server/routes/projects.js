@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
@@ -26,7 +28,8 @@ import { unseenInProject, unseenInChat } from '../mentions.js';
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
 
-function projectPublic(db, row, user = null) {
+function projectPublic(ctx, row, user = null) {
+  const db = ctx.db;
   const last = db
     .prepare(
       `SELECT body, created_at FROM messages
@@ -40,6 +43,12 @@ function projectPublic(db, row, user = null) {
     archived: row.archived === 1,
     published: row.published === 1,
     scores_on: row.scores_on === 1,
+    // Whether icon.png is at the root of the game's tree — a reserved image,
+    // the one of the three the client needs for games it has not opened: the
+    // sidebar wears every game's icon. The other two are the open game's and
+    // come out of its own file list.
+    has_icon: row.kind === 'game'
+      && fs.existsSync(path.join(projectDirFor(ctx, row), 'icon.png')),
     // Who may change it, and whether you are one of them. `authors` is on
     // every project in the list, not only the open one: the sidebar sorts
     // games into yours, open and everyone else's, and needs to know which is
@@ -63,7 +72,7 @@ export function projectRoutes(r) {
   r.get('/api/projects', (ctx) => {
     const user = requireAuth(ctx);
     const rows = ctx.db.prepare('SELECT * FROM projects ORDER BY id DESC').all();
-    json(ctx.res, 200, rows.map((row) => projectPublic(ctx.db, row, user)));
+    json(ctx.res, 200, rows.map((row) => projectPublic(ctx, row, user)));
   });
 
   r.post('/api/projects', async (ctx) => {
@@ -165,7 +174,7 @@ export function projectRoutes(r) {
     // it, the human-only one otherwise.
     const chats = listChats(ctx.db, row.id);
     const payload = {
-      ...projectPublic(ctx.db, row, user),
+      ...projectPublic(ctx, row, user),
       chats: chats.map(chatPublic),
       chat: chatPublic(joined ? work : chats[0]),
     };
@@ -208,7 +217,7 @@ export function projectRoutes(r) {
       : listErrors(ctx.db, project.id, await currentSha(dir)).map(errorPublic);
 
     json(ctx.res, 200, {
-      ...projectPublic(ctx.db, project, user),
+      ...projectPublic(ctx, project, user),
       // Per chat as well as per project: the mark on the game says somebody
       // called you, and the mark on the pill says where.
       chats: listChats(ctx.db, project.id).map((c) => ({
@@ -388,7 +397,7 @@ export function projectRoutes(r) {
     });
 
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
-    json(ctx.res, 201, projectPublic(ctx.db, row, user));
+    json(ctx.res, 201, projectPublic(ctx, row, user));
   });
 
   // Who may change this game. ⚠️ Authors-only even when the game is open:

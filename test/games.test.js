@@ -168,6 +168,22 @@ test('the catalog lists published games and nothing else', async (t) => {
   await play.text();
 });
 
+test('a published game wears hero.png on its catalog card', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+
+  // No hero.png, no dressing — the card is the plain one.
+  const plain = await games.client.request('GET', '/');
+  assert.doesNotMatch(await plain.text(), /hero\.png/);
+
+  await put(app, 'hero.png', 'not really a png');
+  const dressed = await games.client.request('GET', '/');
+  const html = await dressed.text();
+  assert.match(html, /class="hero"/);
+  assert.match(html, /--hero:url\('\/tank\/hero\.png'\)/);
+});
+
 test('a game name cannot inject markup into the catalog', async (t) => {
   const { app, games } = await bothOrigins(t);
   await app.client.json('PATCH', '/api/projects/tank', {
