@@ -13,7 +13,13 @@ deliberately deferred.
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, then the point-and-click adventure — each
-  with its own editor mode where one fits (ideas/templates.md)
+  with its own editor mode where one fits (ideas/templates.md). The visual
+  novel went first and settled the vocabulary they inherit: a *scene*, and
+  `set`/`need` on a *switch* rather than the `flip` the adventure sketch had
+- the story editor's open scene is not in the address: `?file=` says which
+  file, nothing says which scene. Worth `?scene=` once it has been lived in
+- try the story editor on a phone-width rail — the choice rows wrap there and
+  it has only been looked at at 660px and 360px
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see
@@ -29,7 +35,7 @@ deliberately deferred.
   menus onto Screens.title — its screens still sit under the drawn controls
 - ask a helper to move asteriskoids' own title and game-over screens onto
   Screens.title, so the drawn controls step aside there too
-- ! deploy input v5 / screens v4: npm run sweep on the studio machine, then
+- ! deploy input v5 / screens v5: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
 - offer the Top 10 on `Screens.title()` — every game refetches /_scores by

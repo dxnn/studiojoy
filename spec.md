@@ -1149,6 +1149,13 @@ Read from `publicDir` like every other scaffold, so a `public/` without it
 writes nothing: that is what keeps the suite's games born empty, and what
 leaves "a game with no page" a state still worth testing.
 
+`index.json` also names each template's **heart**: the file the studio opens
+the new game on, because a template with an editor of its own is made in that
+editor rather than asked for. For the same reason the *starter helper* joins a
+template game **not chatty** — present and callable by name, silent until
+somebody wants it. A game with no template still gets a chatty one: there, the
+first thing typed is the whole point.
+
 The **quiz** template is the first, and it comes with its own editor: a quiz
 is a form pretending to be a game. `config/questions.js` holds `QUESTIONS`
 (each answer counting toward an ending) and `RESULTS`; when the file still
@@ -1162,6 +1169,41 @@ saving the shipped template is byte-identical (tested). A file that outgrows
 the shape — extra declarations, weights, code — falls back to the generic
 form with a reason, then to the text, and a helper can grow it freely from
 there.
+
+The **visual novel** is the second, and the one that says what a template is
+for. Its heart is `config/story.js`: `CAST` — who speaks, and their moods —
+and `SCENES`, each a picture, an optional sound, and lines said one at a time,
+followed by exactly one of three exits: `choices` branch, `go` carries
+straight on, neither ends the story. A choice may `set` a switch, and one that
+`need`s a switch is only offered once something has set it. It is DOM rather
+than a canvas, because a story is mostly text and text wants to wrap on a
+phone; it uses the sound and screens libraries and neither input nor sprites.
+
+⚠️ It came before the point-and-click adventure on purpose. The two share
+scenes and switches, but an adventure's spots are rectangles on a picture and
+agents cannot see pictures (§14) — a visual novel has no coordinates anywhere,
+so nothing about it is blocked on eyes. Building it first also settles the
+vocabulary the adventure inherits, `set`/`need` on a switch rather than the
+`flip` the sketch had.
+
+`config/story.js` opens as the **story editor**: the story as a list of
+scenes, one open in its own row at a time — the studio's rule that what a
+control reveals opens where it belongs — with the cast as a peer section. Like
+the quiz editor it regenerates the whole file and is byte-identical on an
+untouched save, and it falls back through the config form to the text. Two
+things are its own. Renaming a scene brings every way in with it, which a text
+editor cannot do without a find-and-replace that also hits the words of the
+story. And it holds the whole graph and the game's file list at once, so it
+says five things no single field can: a scene nothing leads to, a way out
+pointing at a scene that is gone, a switch nothing sets, a picture or portrait
+the game does not have, and a mood the cast does not have. `Try this scene`
+reloads the preview at the game's own `?scene=` — the studio only puts the
+parameter on the iframe's `src`; honouring it is the template's four lines, and
+a game that does not ignores it.
+
+The quiz editor grew the same read, because the authoring bug in a quiz is
+never a typo: four endings of which three are unreachable, or one a single
+answer feeds.
 
 The module reads its bindings through `try`/`catch` rather than assuming
 `CONTROLS` is there, so a game whose `index.html` loads only one of the two

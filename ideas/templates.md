@@ -4,11 +4,26 @@ New game → "Start from": a blank page, or a template — a starter tree copied
 in at creation. First three (Dann, 2026-08-28): a quiz, a point-and-click
 adventure, a top-down move-and-collect. Racing, incrementals, etc. later.
 
-**Shipped so far:** the plumbing and the quiz, quiz editor included. The
-principle that emerged (Dann): each template deserves its own editor mode
-over its config heart where one fits — the quiz needs no helper at all. For
-move-and-collect that is likely a map editor over `config/world.js` (paint
-tiles on a grid); for the adventure it is the spot picker already in TODO.
+**Shipped so far:** the plumbing, the quiz with its editor, and the visual
+novel with the story editor. The principle that emerged (Dann): each template
+deserves its own editor mode over its config heart where one fits — the quiz
+needs no helper at all. For move-and-collect that is likely a map editor over
+`config/world.js` (paint tiles on a grid); for the adventure it is the spot
+picker already in TODO.
+
+**What the visual novel added to the principle.** An editor over a config
+file is worth building for a second reason beyond "no code in sight": it
+holds the whole graph and the file list at once, so it can say things no
+form and no text editor can — a scene nothing leads to, a switch nothing
+sets, a portrait nobody has drawn. That structural read is the part that is
+hard to get any other way, and the quiz editor was given one too. Design a
+template's editor around what only it can see, not only around its fields.
+
+**And to the ordering.** The visual novel jumped the queue ahead of both
+because it has no coordinates: an adventure's spots are rectangles on a
+picture, and helpers cannot see pictures. Building it first also settled the
+shared vocabulary — a *scene*, and `set`/`need` on a *switch*, replacing the
+`flip` sketched below.
 
 ## What a template is
 
@@ -50,7 +65,9 @@ Sound for the pickup. The template that shows the studio at full strength.
 **Point-and-click adventure** — scenes, spots, state.
 `config/scenes.js`: per scene a picture and spots — `{x, y, w, h}` plus one
 effect each (`go` to a scene, `take` an item, `need` an item, `say` a line,
-`flip` a switch). `js/adventure.js` draws, hit-tests, keeps inventory.
+`set` a switch — `flip` as first sketched is out; the visual novel settled on
+one-way switches and the two should say the same thing). `js/adventure.js`
+draws, hit-tests, keeps inventory.
 ⚠️ The constraint that shapes it: helpers cannot see images (spec.md §14), so
 spot rectangles are human-authored numbers. Ship it with worked example
 scenes; the real ergonomics fix is a follow-up studio affordance — drag a box

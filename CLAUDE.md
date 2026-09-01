@@ -512,8 +512,16 @@ verbatim. `Screens.title({ onStart })` is the phone-fit title screen — the
 name clamped so it cannot overflow a narrow screen, the panel auto-margined
 inside a scrolling box so it centres when it fits and scrolls from the top
 when tall (the two asteriskoids failures), safe-area padding, the hint, one
-focused button so Enter starts — and with a `score` it is the game-over
-screen. Words from `WORDS`/arguments, colours from `LOOK`, stable `screens-`
+focused button that Enter or Space presses — and with a `score` it is the
+game-over screen. ⚠️ That button takes a capture-phase key listener of its
+own (v5), and the reason is worth keeping: the input library binds `key:enter`
+to start and `key:space` to fire and calls `preventDefault` on every bound key
+from a *bubble*-phase window listener, so the focused button never saw the key
+meant to press it — the title screen was mouse-only in every game loading
+`input.js`, which is all of them. Capture runs first; it takes the default
+itself so a game without input.js does not also activate the button and start
+twice, and the listener goes away with the screen. Found while building the
+visual novel, fixed in the library rather than around it. Words from `WORDS`/arguments, colours from `LOOK`, stable `screens-`
 classes for a game's own css, `{ close }` returned for games that start from
 `Input.pressed("start")`; it sits under the touch overlay, so the drawn
 controls stay on top. `Screens.chips({ Score: 12 })` is the HUD strip pinned
@@ -583,8 +591,42 @@ hand-rolled-screens follow-ups are TODO lines.
 copied in as a third commit and the game's own code from then on (spec.md §4).
 The quiz is the first, and it carries its own editor — `config/questions.js`
 in the quiz shape opens as the **quiz editor**, the whole game as a form, no
-helper needed; outgrown, it falls back to the config form, then the text. The
-move-and-collect and point-and-click templates are queued in TODO.md, each
+helper needed; outgrown, it falls back to the config form, then the text.
+
+The **visual novel** is the second, and it is where the point of a template
+stops being "a head start" and becomes "no helper at all". `config/story.js`
+holds `CAST` and `SCENES` — a picture, an optional sound, lines said one at a
+time, then exactly one of three exits: `choices` branch, `go` carries straight
+on, neither is an ending; a choice may `set` a **switch** and one that `need`s
+one is only offered once something has. DOM rather than a canvas, because a
+story is mostly text; sound and screens, not input or sprites. ⚠️ It went
+before the point-and-click adventure on purpose: the two share scenes and
+switches, but an adventure's spots are rectangles on a picture and helpers
+cannot see pictures — a visual novel has no coordinates at all. It also
+settled the shared word: `set`/`need`, not the `flip` the adventure sketch had.
+
+It opens as the **story editor**: the scenes as a list, one open in its own
+row, the cast a peer section. Two things are its own. Renaming a scene brings
+every way in with it. And it holds the whole graph and the file list at once,
+so it says five things no field can — a scene nothing leads to, a way out
+pointing at a scene that is gone, a switch nothing sets, a picture or portrait
+the game does not have, a mood the cast does not have. `Try this scene`
+reloads the preview at the game's own `?scene=`: the studio only puts the
+parameter on the iframe `src`, and honouring it is four lines in the template.
+The quiz editor grew the same structural read, because the bug in a quiz is
+never a typo — it is three endings nobody can reach.
+
+Two things follow from "no helper at all". A template's `index.json` entry
+names its **heart**, and creating the game opens that file rather than a chat.
+And the **starter helper** joins a template game *not chatty* — there by name,
+silent until called — because a helper answering the first thing said in a
+game that is already made is noise with a token bill on it.
+
+⚠️ The two editors are shape-locked, and the preamble says so: a stray extra
+key on an answer or a scene costs somebody their editor. `orchestrator.test.js`
+asserts both names are in the prompt.
+
+The move-and-collect and point-and-click templates are queued in TODO.md, each
 owed its own editor mode where one fits (ideas/templates.md).
 
 The other choice, "A blank page", used to mean a blank *directory* — and a game
