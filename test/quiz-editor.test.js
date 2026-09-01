@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  quizModel, quizText, freshKey, isQuizPath,
+  quizModel, quizText, quizChecks, freshKey, isQuizPath,
 } from '../public/quiz-editor.js';
 
 const TEMPLATE = fs.readFileSync(
@@ -59,4 +59,26 @@ test('anything past the shape declines with the grown reason', () => {
   const code = quizModel('const QUESTIONS = window.q;\nconst RESULTS = {};\n');
   assert.equal(code.ok, false);
   assert.doesNotMatch(code.reason, grown);
+});
+
+test('the checks read the whole quiz, not one row', () => {
+  const model = quizModel(TEMPLATE);
+  assert.deepEqual(quizChecks(model), [], 'the shipped template is balanced');
+
+  // An ending nothing points at, which is the quiz bug no row can show.
+  model.results.push({ key: freshKey(model.results), name: 'A Bear', tell: '' });
+  assert.ok(quizChecks(model).some((s) => /Nobody can be A Bear/.test(s)));
+
+  // One answer feeding it is nearly as bad.
+  model.questions[0].answers.push({ say: 'Hibernate', result: model.results[3].key });
+  assert.ok(quizChecks(model).some((s) => /Only one answer counts toward A Bear/.test(s)));
+
+  // An answer left pointing at an ending that has been removed.
+  model.results.splice(3, 1);
+  assert.ok(quizChecks(model).some((s) => /counts toward an ending that is gone/.test(s)));
+
+  // A question with one answer is not a question.
+  const thin = quizModel(TEMPLATE);
+  thin.questions[0].answers.length = 1;
+  assert.ok(quizChecks(thin).some((s) => /has one answer/.test(s)));
 });

@@ -5,7 +5,7 @@
 // the config form: a render would replace the field under the fingers);
 // adding and removing rows renders, because the shape changed.
 
-import { quizText, freshKey } from './quiz-editor.js';
+import { quizText, quizChecks, freshKey } from './quiz-editor.js';
 import { h } from './dom.js';
 import { S, render, saveOpenFile, frozen } from './main.js';
 
@@ -27,6 +27,7 @@ const field = (value, placeholder, onchange) => {
 export function renderQuizForm(model) {
   const { questions, results } = model;
   const named = (r) => r.name || '(unnamed ending)';
+  const checks = quizChecks(model);
 
   const questionCard = (q, qi) => {
     const rows = q.answers.map((a, ai) => h('div', { class: 'quiz-answer row' },
@@ -85,7 +86,12 @@ export function renderQuizForm(model) {
     h('div', { class: 'scroll cfg', 'data-scroll': 'cfg' },
       h('div', { class: 'cfg-group-head' },
         h('span', { class: 'cfg-name mono', text: 'The questions' }),
-        h('span', { class: 'hint muted', text: 'asked in order, one screen each' })),
+        h('span', {
+          class: 'hint muted',
+          text: `asked in order, one screen each · ${questions.length} question`
+            + `${questions.length === 1 ? '' : 's'}, ${results.length} ending`
+            + `${results.length === 1 ? '' : 's'}`,
+        })),
       ...questions.map(questionCard),
       results.length === 0
         ? h('p', { class: 'hint muted', text: 'Add an ending first — answers need something to count toward.' })
@@ -108,7 +114,11 @@ export function renderQuizForm(model) {
           commit(model);
           render();
         },
-      })),
+      }),
+      // What the quiz as a whole says. It goes under the endings because that
+      // is where the balance is decided, and every one of these is a thing no
+      // single row can show.
+      ...checks.map((say) => h('p', { class: 'hint warn', text: `⚠ ${say}` }))),
     h('div', { class: 'editor-bar row' },
       h('span', {
         class: 'hint muted', id: 'cfg-status', text: S.open.dirty ? 'Not saved yet' : 'Saved',

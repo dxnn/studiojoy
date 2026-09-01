@@ -93,6 +93,33 @@ export function quizText({ questions, results }) {
   return lines.join('\n');
 }
 
+// What the whole quiz says that one field cannot. The authoring bug in a quiz
+// is never a typo — it is four endings of which three are unreachable, or one
+// that a single answer feeds, which no amount of looking at one row shows.
+export function quizChecks({ questions, results }) {
+  const keys = new Set(results.map((r) => r.key));
+  const feeding = new Map(results.map((r) => [r.key, 0]));
+  const out = [];
+  for (const q of questions) {
+    for (const a of q.answers) {
+      if (!keys.has(a.result)) out.push(`“${a.say || 'an answer'}” counts toward an ending that is gone.`);
+      else feeding.set(a.result, feeding.get(a.result) + 1);
+    }
+    if (q.answers.length < 2) {
+      out.push(`“${q.ask || 'a question'}” has ${q.answers.length === 1 ? 'one answer' : 'no answers'}, so it is not really a question.`);
+    }
+  }
+  for (const r of results) {
+    const n = feeding.get(r.key);
+    const name = r.name || 'an unnamed ending';
+    if (n === 0) out.push(`Nobody can be ${name}: no answer counts toward it.`);
+    else if (n === 1 && questions.length > 1) {
+      out.push(`Only one answer counts toward ${name}, so it is nearly impossible to get.`);
+    }
+  }
+  return out;
+}
+
 // A fresh internal key for a new ending: never shown, never reused while any
 // current key matches.
 export function freshKey(results) {
