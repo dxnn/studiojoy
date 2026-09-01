@@ -44,6 +44,9 @@ deliberately deferred.
   the sign-in link instead of posting
 - show personal bests beside the Top 100 — tracked per (game, person) in
   `personal_bests` since the sign-in build, displayed nowhere yet
+- add `--scores` to `npm run deluser` so a removed player's rows leave every
+  board too — today they stay, and the panel deletes per row, per game
+  (ideas/scoreboard-trust.md, rung 1)
 - ask a helper to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice

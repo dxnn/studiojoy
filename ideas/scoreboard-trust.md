@@ -1,157 +1,132 @@
 # Scoreboard trust: from forgeable to witnessed
 
-(Dann, 2026-08-31.) v0 accepted "forgeable by design": the client is the only
-witness, and signing scores would need a secret inside LLM-written game code,
-which is no secret (spec.md §3, ideas/next-five.md). Dann does not accept that
-as the last word — weaken the constraints, with player accounts and maybe a
-small payment, and for at least some games the board can be *true* rather than
-merely bounded. This is the ladder from here to there. Rungs stack; each is
-useful without the ones above it.
+(Dann, 2026-08-31; brought up to date 2026-09-01, the day rungs 0 and 1
+landed.) v0 accepted "forgeable by design": the client is the only witness,
+and signing scores would need a secret inside LLM-written game code, which is
+no secret (spec.md §3, ideas/next-five.md). Dann did not accept that as the
+last word — weaken the constraints, with player accounts and maybe a small
+payment, and for at least some games the board could be *true* rather than
+merely bounded. This was the ladder from here to there.
 
-## The fact that survives the weakening
+## Where it landed
 
-**Accounts and payment buy accountability, not truth.** The game runs on the
-client, so the client computes the score; an authenticated, paying player
-still opens devtools and posts `score: 999999`. Identity makes a forged score
-*attributable and revocable*. Payment makes identities *costly*. Neither makes
-a score true. Truth requires the server to witness it — by holding the logic,
-or by re-checking a claim. Rungs 1–2 are accountability; rung 3 is truth.
+Rungs 0 and 1 are built, and this is as far as the ladder goes for now. What
+they buy is accountability: every score on every board is a signed-in
+account's, attributable, deletable per row, and the person behind it can be
+taken out of the studio. Truth — rungs 2 to 4 — is not needed for a studio
+whose players are a hand-approved list of family and friends, and each rung
+above 1 is a real build for a problem nobody has had. They stay below as the
+reasoning, not as a plan.
 
-## Rung 0 — hardening that stands regardless
+## The fact that survived the weakening
 
-Two gaps in the current route, worth closing whatever happens above:
+**Accounts buy accountability, not truth.** The game runs on the client, so
+the client computes the score; an authenticated player still opens devtools
+and posts `score: 999999`. Identity makes a forged score *attributable and
+revocable*. Truth would need the server to witness it — by holding the logic,
+or by re-checking a claim. Rungs 0–1 are accountability; rung 3 was truth.
 
-- ⚠️ `hasControlChars` in `server/scores.js` stops at C0 + DEL. Names should
-  also refuse Unicode format characters — bidi overrides, zero-width
-  spaces/joiners, soft hyphen, BOM — the same class the path validator bans
-  for the same spoofing reason (spec.md §4). A name is rendered UI shown to
-  kids; a bidi override makes it render as something other than what it is.
-- ! "Per IP" is per-client on IPv4 and per-2⁶⁴-addresses on IPv6: every
-  residential IPv6 client holds at least a /64, so the limiter is trivially
-  rotated around, and each fresh address is a fresh map entry. Bucket IPv6 by
-  its /64 prefix — one change fixes the bypass and the map growth together.
+## Rung 0 — hardening ✔
 
-Minor, same spirit: skip the INSERT when a full board already outranks the
-post (a flood of losing scores currently costs a row write and a prune each).
+Built 2026-09-01: `server/util/text.js`, `clientIp`, `submitScore`.
 
-## Rung 1 — player accounts
+- ⚠️ Names refuse the path validator's whole class — C0 and DEL, and the
+  Unicode format characters: bidi overrides, zero-width spaces and joiners,
+  soft hyphen, BOM — at every door that sets one (sign-up, `createUser`, the
+  admin rename), and the board strips them from names stored before the doors
+  did. One check, shared with paths, for the same spoofing reason.
+- ! IPv6 is bucketed by its /64 wherever an address is a key: the login
+  lockouts on both origins and the sign-up limiter. One change in `clientIp`
+  closes the bypass and the map growth together; IPv4 stays whole, the
+  `::ffff:` mapped form included.
+- A post a full board already outranks is answered `rank: null` and never
+  written; the personal best is still raised first.
 
-The biggest single win: anonymous grief becomes named, deletable, bannable
-behaviour. For a family-and-friends audience this is most of the value of
-"not forgeable".
+## Rung 1 — player accounts ✔
 
-- **Players are a new account class, not studio accounts.** Studio accounts
-  can change games; players only post scores (and later, hold achievements).
-  Different blast radius, different table.
-- **The credential is never the studio cookie.** The games-listener invariant
-  — never reads a cookie — exists so the studio session is unusable by game
-  code (spec.md §7, §12). A bearer token in the games origin's `localStorage`
-  (deliberately preserved by the separate-origins decision) keeps both the
-  letter and the spirit. But game code is LLM-written and untrusted, and any
-  game on that origin can read that storage — so tokens are **minted scoped
-  to one slug**: a token exfiltrated by game A only ever posts to game A's
-  board.
-- **Rate limits move to per-account** for player posts — strictly better than
-  per-IP. The IP limiter stays for whatever anonymous tier survives.
-- **Moderation follows the deluser pattern.** Removing or banning a player is
-  rare, is about a person, and is a terminal script paired with its undo —
-  never a button in the panel (the same asymmetry as `npm run deluser` /
-  `restoreuser`: create and edit in the UI, destroy in the terminal). A ban
-  soft-deletes the player and can sweep their rows.
+Built 2026-09-01, the sign-in build (spec.md §3, §6, §7, §11). Three of the
+four bullets landed in a different shape than sketched, and the shape is
+better:
 
-## Rung 2 — plausibility, per session
+- **Players are the same table, not a new one.** A player is a `users` row
+  with `studio_access = 0`, made by an admin approving a `signups` row. The
+  blast-radius argument is carried by the bit: every studio door minds it.
+- **The credential is an HttpOnly `player` cookie**, backed by
+  `player_sessions`, ninety days, worth nothing on the studio origin — not a
+  bearer token in `localStorage`. Stronger than sketched, because game code
+  cannot read it at all. ⚠️ But *not scoped to a slug*, and the sketch's
+  scoped token would not have been either: every game shares the origin, so
+  game A can `POST /_scores/game-b` with the cookie attached, or could just as
+  well have asked for a slug-B token itself. A rogue game can put its player
+  on another game's board; the row then names the player, not the game's
+  author. Accepted (spec.md §7) — the only real scoping is an origin per
+  game, a deployment change, and moderation covers the rest.
+- **Rate limits are per account** for score posts — every post has one
+  behind it, and a household shares an address, so siblings on one wifi were
+  sharing one ration of ten. The address limiter stays on sign-up and login,
+  whose callers have no account yet, with the /64 fix.
+- **Moderation follows the deluser pattern.** Per-row and per-board deletion
+  in the rail's Scoreboard tab; `npm run deluser` takes the person out. Not
+  yet: a removed player's rows stay on every board. `deluser --scores` is a
+  TODO.md line.
 
-Cheap, universal, works with or without accounts. A handshake when the game
-starts hands back a stamped token; the score post carries it; the server
-checks elapsed time against a minimum and the score against per-game declared
-bounds — a `config/` file the server reads at HEAD and caches (it holds the
-tree; the read is free). Raises forgery from a one-line devtools paste to
-deliberate scripting. It never proves a score and must not claim to.
+## Rung 2 — plausibility, per session — not planned
 
-## Rung 3 — server-witnessed scores, opt-in per game
+A start handshake, an elapsed-time minimum and per-game declared bounds. The
+bounds half is cheap — a `config/` value the server reads at HEAD, no
+handshake, games without the file untouched — and would catch the devtools
+paste. The time half needs a mint route, a token in every post, a change to
+every game and a preamble lesson, and a script defeats it. Neither proves a
+score. Hold both until a forged score actually turns up; the bounds half is
+the one to reach for then.
 
-The "for at least some games we can do better". Two shapes:
+## Rung 3 — server-witnessed scores — not planned
 
-### 3a. Template grading
+The "for at least some games we can do better". Feasible, and the reasoning
+is worth keeping:
 
-The quiz already has a server-known shape. Move the answers server-side,
-serve questions one at a time, grade on the server — the score is then
-computed by the server, full stop. Point-and-click can work the same way. The
-server knows the truth because it holds the content. The cheapest true
-verification in the building, and it proves the "verified board" surface
-(badge, per-board setting, moderation view) before the harder shape needs it.
+**3a. Template grading.** The server holds `config/questions.js` and the quiz
+editor already parses that shape without executing it, so the quiz could be
+served one question at a time and graded on the server. But it turns a
+template that needs no helper into a game that talks to the server per
+question, with play sessions and a verified-board surface — a real build for
+a board nobody has doubted.
 
-### 3b. Replay verification
+**3b. Replay verification.** Inputs plus an RNG seed recorded by the input
+module, re-simulated on the server against the exact commit the wrapper
+stamped. Needs a subprocess sandbox — Node's permission model, read-only on
+one game tree, no network, a hard timeout and a memory cap; `node:vm` is not a
+boundary — and games that are deterministic by construction. Achievements
+would fall out of the same machinery. The flagship that was never needed.
 
-The game records inputs plus an RNG seed; the score post includes the trace;
-the server re-simulates and computes the score itself. The studio is
-unusually well placed:
+The badge, if either is ever built: cyan, the studio speaking — never gold,
+which stays a number.
 
-- The **input module** is already the single tap point for every input —
-  recording is one library change, not a per-game ask.
-- The **wrapper** already stamps the running commit, so a replay runs against
-  the exact bytes the player played — the same pattern as the reporter
-  dropping reports whose version is no longer HEAD.
-- **Templates can be deterministic by construction**: fixed timestep, a
-  seeded `Rand` the library provides, logic separated from rendering — the
-  direction the orchestrator already pushes.
+## Rung 4 — payment — not planned
 
-The hard part is running LLM-written JS on the server. It needs a subprocess
-sandbox: Node ≥ 24's permission model for the filesystem (read-only, the one
-game tree), no network, a hard timeout and a memory cap. `node:vm` is not a
-security boundary and does not qualify. Cost is fine: a 3-minute game at
-60 Hz is ~11k ticks replayed flat out — sub-second.
+What payment buys is sybil cost. What it costs is a payment processor, refunds
+and tax, and parents paying with COPPA-shaped weight attached. The cheaper
+path to the same scarcity — **vouched accounts** — is exactly what shipped:
+the waiting list, and an admin's `Let them in`. Payment earns its keep only if
+boards go internet-public, which is not the plan.
 
-Games that adopt the deterministic shape get a **verified board**; everyone
-else stays at rungs 1–2. **Achievements fall out of the same machinery**: an
-achievement is an event the server observes during replay, witnessed the same
-way — below rung 3 an achievement is just another client claim.
+## What the spec settled
 
-## Rung 4 — payment (deferred)
+- §3's tiering question — anonymous / players-only / verified — is answered
+  by the one tier that exists: players only. There is no anonymous post; the
+  route answers 401 without a player.
+- §6/§12's games-listener invariant names the player cookie: still never the
+  `session` cookie; `player` is the one credential that origin knows.
+- Rate limits: per player for scores, per address (bucketed) for sign-up and
+  login.
+- The origin's writes are still two: the scoreboard and the waiting list.
 
-What payment buys is sybil cost: a ban that destroys something paid for is a
-ban that bites. What it costs is everything non-engineering: a payment
-processor (an API dependency even without an SDK, against a zero-dep studio),
-refunds and tax, and — the players being kids — it is really parents paying,
-with COPPA-shaped privacy weight attached.
+## Answered
 
-The cheaper path to the same scarcity, at this studio's scale: **vouched
-accounts** — an admin or a parent creates player accounts, which is exactly
-the hand-controlled account list that is already the studio's trust boundary,
-extended one class down. Payment earns its keep only if boards go
-internet-public. Hold it until that is the actual plan.
+- Players sign in on the catalog, the games origin's front door; a sign-up is
+  vouched — the waiting list, approved by an admin.
+- One identity across all games: a `users` row, so a name is one name.
+- The anonymous tier did not survive.
 
-## What the spec renegotiates
-
-- §3's "forgeable — accepted cost" becomes a tiering: per board (alongside
-  `scores_on`), **anonymous / players-only / verified**. Whether the
-  anonymous tier survives at all once players exist is an open question.
-- §6/§12's games-listener invariant is amended to name the player token
-  explicitly: still no cookie read, ever; a scoped bearer token is the one
-  credential that origin knows.
-- The rate-limit story splits: per-account for players, the per-IP limiter
-  (rung 0 fixes included) for anonymous posts.
-- The games origin grows write routes beyond the one (handshake, replay
-  post) — each with the same posture: every dimension capped, no cookie,
-  bounded tables.
-
-## Open questions
-
-- Where do players sign in? A small page on the games origin, or the studio
-  origin minting tokens — and what a player signup even is (vouched only?).
-- One player identity across all games, or per-game? (Tokens are scoped per
-  slug either way; this is about the table, the name, and achievements.)
-- Replay trace format and size caps; and what the server does when a game
-  claims determinism but replays differently — refuse the score, or file it
-  like a runtime error so a helper can see the game is non-deterministic?
-- The verified badge's colour: it is the studio speaking, so cyan — never
-  gold, which stays a number.
-- Does an anonymous tier survive at all, or do boards become players-only
-  once accounts exist?
-
-## Order
-
-Rung 0 near-term (small, matches existing house rules). Rungs 1+2 together
-as the base for every board. 3a for the quiz soon after — cheapest truth,
-proves the surface. 3b as the flagship for one or two deterministic games.
-Rung 4 deferred until "public" is real.
+Still open, if rung 3 is ever wanted: the replay trace format and its caps,
+and what to do when a game claims determinism and replays differently.

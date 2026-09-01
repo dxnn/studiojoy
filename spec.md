@@ -1528,6 +1528,14 @@ player, and the token opens nothing anywhere else. The player cookie is
 `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Max-Age` 90 days, like
 the studio's but expiring (§11).
 
+⚠️ Nor is the cookie scoped to the game that is open. Every game shares this
+origin, so game A can post to game B's board as its player — and no credential
+kept in the browser could have been scoped either, since game A could as well
+have asked for game B's token. The row names the player, not the game's
+author; per-row deletion in the Scoreboard tab is the answer, and the only
+real scoping would be an origin per game, a deployment change nobody has
+needed (ideas/scoreboard-trust.md).
+
 In production the two listeners sit behind separate hostnames
 (`studio.example.com`, `games.example.com`), and `GAMES_URL` names the games
 one. Left unset — the default — the studio derives the games origin from each
