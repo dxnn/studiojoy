@@ -1,10 +1,16 @@
 {
-  "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows.",
+  "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows. `heart` is the file the studio opens the new game on: the one a person edits to change the game, which for a template with an editor of its own is where the game is actually made.",
   "_blank": "blank/index.html is the page a game made without a template starts from, and is deliberately not listed below: the dialog already offers it as the empty choice. It is the one page here that is not copied byte for byte — {{name}} becomes the game's name.",
   "templates": {
     "quiz": {
       "title": "A quiz",
-      "what": "Ask questions, then tell the player what they are. The whole game is a form: no code needed."
+      "what": "Ask questions, then tell the player what they are. The whole game is a form: no code needed.",
+      "heart": "config/questions.js"
+    },
+    "visual-novel": {
+      "title": "A story with choices",
+      "what": "Scenes, people talking, and choices that lead somewhere else. Write it in the story editor: no code needed.",
+      "heart": "config/story.js"
     }
   }
 }

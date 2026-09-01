@@ -1,0 +1,116 @@
+/* How the story looks. Colours, sizes and roundness — change anything.
+
+   The four colours come from config/look.js, which the studio reads too, so
+   the game and the studio around it wear the same set. The values here are
+   only what to use if that file goes missing. */
+:root {
+  --primary: oklch(0.68 0.16 285);
+  --accent: oklch(0.78 0.13 195);
+  --highlight: oklch(0.85 0.15 95);
+  --deep: #131024;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--deep);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* The stage fills the window. The picture sits behind everything, the
+   portrait stands on it, and the text box lies across the bottom. */
+#story {
+  position: relative;
+  height: 100svh;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+}
+/* contain, not cover: a picture is whatever shape somebody drew or uploaded,
+   and cropping a 16:9 backdrop to a tall phone screen showed one door handle
+   the size of a fist. The picture sits above the text box and the deep colour
+   fills whatever is left over. */
+.picture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70%;
+  width: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.portrait {
+  position: absolute;
+  left: 50%;
+  bottom: 34%;
+  transform: translateX(-50%);
+  width: min(30vh, 40vw);
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.5));
+}
+
+/* The text box. It keeps its height whatever the line is, so the story does
+   not jump about between one line and the next. */
+.box {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 30%;
+  padding: 18px 20px calc(18px + env(safe-area-inset-bottom));
+  background: color-mix(in oklab, var(--deep) 92%, transparent);
+  border-top: 2px solid color-mix(in oklab, var(--primary) 70%, transparent);
+  backdrop-filter: blur(6px);
+}
+.who {
+  margin: 0 0 6px;
+  font-size: 0.95em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.say {
+  margin: 0;
+  max-width: 44rem;
+  font-size: clamp(17px, 4.2vw, 22px);
+  line-height: 1.45;
+}
+.more {
+  position: absolute;
+  right: 18px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  color: var(--primary);
+  animation: nudge 1.2s ease-in-out infinite;
+}
+@keyframes nudge {
+  50% { transform: translateY(4px); opacity: 0.5; }
+}
+
+/* The choices sit under the line inside the text box, which grows to hold
+   them: that is where the eye already is when the last line has been read,
+   and the box growing is what keeps three choices off the words. */
+.choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 16px;
+}
+.choices:empty { display: none; }
+.choice {
+  max-width: 30rem;
+  min-height: 48px;
+  padding: 12px 18px;
+  font: inherit;
+  font-size: clamp(15px, 3.8vw, 18px);
+  color: #fff;
+  text-align: left;
+  background: color-mix(in oklab, var(--deep) 78%, transparent);
+  border: 2px solid color-mix(in oklab, var(--primary) 75%, transparent);
+  border-radius: 14px;
+  cursor: pointer;
+}
+.choice:hover { background: color-mix(in oklab, var(--primary) 40%, var(--deep)); }

@@ -162,6 +162,55 @@ test('a game born from the quiz template holds its starter tree', async (t) => {
   assert.equal(parsed.ok, true, parsed.reason);
 });
 
+// The second template, and the one whose tree is mostly bytes: the point of
+// copying server-side is that pictures and sounds survive it.
+test('a game born from the visual novel template holds its starter tree', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  const res = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Nightfall', template: 'visual-novel' },
+  });
+  assert.equal(res.status, 201);
+
+  const dir = path.join(app.gamesDir, 'nightfall');
+  const templateRoot = path.join(publicDir, 'game-templates', 'visual-novel');
+  for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css',
+    'config/look.js', 'config/story.js', 'config/words.js', 'js/story.js',
+    'assets/images/porch.png', 'assets/sprites/mila-happy.png', 'assets/sounds/page.wav']) {
+    assert.deepEqual(
+      fs.readFileSync(path.join(dir, f)),
+      fs.readFileSync(path.join(templateRoot, f)),
+      `${f} is copied whole`,
+    );
+  }
+
+  const commits = await logCommits(dir);
+  assert.equal(commits.length, 3);
+  assert.equal(commits[0].subject, 'start from the visual-novel template');
+
+  // The heart stays inside the plain-value subset the forms can open, so the
+  // story editor has something to open and the config form is the fallback.
+  const parsed = parseConfigFile(fs.readFileSync(path.join(dir, 'config/story.js'), 'utf8'));
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['CAST', 'SCENES']);
+});
+
+// Every template's index.json entry has to name a file the tree really holds,
+// or a new game opens on nothing.
+test("each template's heart is a file in its own tree", () => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const root = path.join(publicDir, 'game-templates');
+  const { templates } = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  for (const [name, t] of Object.entries(templates)) {
+    assert.ok(t.title && t.what, `${name} has words for the dialog`);
+    if (!t.heart) continue;
+    assert.ok(fs.existsSync(path.join(root, name, t.heart)), `${name}: ${t.heart} exists`);
+  }
+});
+
 test('a template has to exist, and a chat cannot start from one', async (t) => {
   const publicDir = path.resolve(import.meta.dirname, '..', 'public');
   const app = await setup({ publicDir });
