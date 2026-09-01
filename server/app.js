@@ -17,6 +17,7 @@ import { historyRoutes } from './routes/history.js';
 import { messageRoutes } from './routes/messages.js';
 import { errorRoutes } from './routes/errors.js';
 import { streamRoutes } from './routes/stream.js';
+import { achievementRoutes } from './routes/achievements.js';
 
 const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
 
@@ -54,6 +55,7 @@ export function createApp({
   messageRoutes(r);
   errorRoutes(r);
   streamRoutes(r);
+  achievementRoutes(r);
 
   // Unknown /api paths are 404 for every method. Without this the static
   // catch-all below would claim them, and a POST to a nonexistent endpoint

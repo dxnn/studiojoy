@@ -12,6 +12,9 @@ import { json, noContent } from './http/respond.js';
 import {
   topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
 } from './scores.js';
+import {
+  listAchievements, unlockAchievement, UNLOCKS_PER_MINUTE, MAX_UNLOCK_BODY_BYTES,
+} from './achievements.js';
 // What this listener borrows from the studio's modules is pure and narrow: a
 // function over headers, the password verifiers and lockouts, and the player
 // half of accounts. Nothing here can resolve a *studio* session.
@@ -50,7 +53,7 @@ const MAX_AUTH_BODY_BYTES = 1024;
 // catalog as text, never as markup.
 
 export function createGamesApp({
-  db, gamesDir, scoreRate, signupRate, trustProxy = false, secureCookies = false,
+  db, gamesDir, scoreRate, signupRate, unlockRate, trustProxy = false, secureCookies = false,
   emailLockout = createLockout(DEFAULT_EMAIL_LOCKOUT),
   ipLockout = createLockout(DEFAULT_IP_LOCKOUT),
 }) {
@@ -63,6 +66,11 @@ export function createGamesApp({
   // never a person, and every row costs a scrypt derivation on the way in.
   const limitSignups = createScoreLimiter(
     signupRate ?? { max: 5, windowMs: 10 * 60 * 1000, what: 'signups' },
+  );
+  // A game has at most fifty achievements, and a rule is met once a page, so
+  // twenty a minute is the generous ceiling on an honest page.
+  const limitUnlocks = createScoreLimiter(
+    unlockRate ?? { max: UNLOCKS_PER_MINUTE, what: 'unlocks' },
   );
 
   const currentPlayer = (ctx) =>
@@ -253,6 +261,39 @@ export function createGamesApp({
     const rank = submitScore(db, game.id, player, body);
     ctx.res.setHeader('Cache-Control', 'no-store');
     json(ctx.res, 201, { rank });
+  });
+
+  // Achievements (spec.md §6): the origin's third write, in the scoreboard's
+  // posture — a plain 404 for anything that is not a game's, signed in or the
+  // unlock does not count, its own rate limit per player. The definitions are
+  // read from the game's own config/achievements.js on every request rather
+  // than kept in a table, so a helper's edit is live at once and a fork
+  // carries its achievements with it (achievements.js). Reading is
+  // everybody's, and says `got` only for whoever is signed in. Archived games
+  // stay playable, so they keep taking unlocks too.
+  r.get('/_achievements/:slug', async (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    const player = currentPlayer(ctx);
+    const achievements = await listAchievements(
+      db, game, path.join(root, game.slug), player ? player.id : null,
+    );
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 200, { achievements });
+  });
+
+  r.post('/_achievements/:slug', async (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    // Earned is per player, so with nobody signed in there is nobody to give
+    // it to. The 401's message is what the library's toast says too.
+    const player = currentPlayer(ctx);
+    if (!player) throw new HttpError(401, 'sign in on the front page to keep it');
+    limitUnlocks(player.id);
+    const body = await readJson(ctx.req, MAX_UNLOCK_BODY_BYTES);
+    const result = await unlockAchievement(
+      db, game, path.join(root, game.slug), player.id, body,
+    );
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 201, result);
   });
 
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;

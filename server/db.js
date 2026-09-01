@@ -260,6 +260,19 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL,
     PRIMARY KEY (project_id, user_id)
   )`,
+
+  // What a player earned in a game, keyed by the id the game's own
+  // config/achievements.js gives it — the definitions live in that file, never
+  // here. INSERT OR IGNORE, so earning one twice is a no-op. ⚠️ Permanent: no
+  // route deletes a row, and a definition taken out of the file only hides its
+  // rows until the id comes back (spec.md §3).
+  `CREATE TABLE IF NOT EXISTS achievements (
+    project_id INTEGER NOT NULL REFERENCES projects,
+    user_id INTEGER NOT NULL REFERENCES users,
+    achievement TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, user_id, achievement)
+  )`,
 ];
 
 export function openDb(dbPath) {
