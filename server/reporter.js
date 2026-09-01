@@ -93,6 +93,47 @@ const REPORTER_JS = `(function () {
     } catch (err) { /* never break the game */ }
     return passThrough.apply(console, arguments);
   };
+
+  // The game's moments — what Moments.say() dispatches on the window — so the
+  // studio can watch a game say them while it is played, and the achievements
+  // editor can offer the names it has heard. This script is injected before
+  // any library loads, so it hears every one without knowing the library
+  // exists. Throttled to the latest value per name a few times a second: a
+  // moment said every frame is allowed, and sixty messages a second are not.
+  var pending = {};
+  var order = [];
+  var momentTimer = null;
+
+  function flushMoments() {
+    momentTimer = null;
+    var list = [];
+    for (var i = 0; i < order.length && i < 50; i++) list.push(pending[order[i]]);
+    pending = {};
+    order = [];
+    try {
+      window.parent.postMessage({
+        gamestudio: 'moment', slug: slug, version: version, moments: list
+      }, '*');
+    } catch (err) { /* nothing is listening; the game carries on */ }
+  }
+
+  window.addEventListener('moment', function (event) {
+    try {
+      var d = event && event.detail;
+      if (!d || typeof d.name !== 'string') return;
+      var name = d.name.slice(0, 40);
+      var value = d.value;
+      if (typeof value === 'string') value = value.slice(0, 100);
+      else if (typeof value !== 'number') value = true;
+      if (!pending[name]) {
+        pending[name] = { name: name, value: value, times: 0 };
+        order.push(name);
+      }
+      pending[name].value = value;
+      pending[name].times += 1;
+      if (momentTimer === null) momentTimer = setTimeout(flushMoments, 250);
+    } catch (err) { /* never break the game */ }
+  });
 }());`;
 
 // Hex only, and never longer than a sha. The value lands inside a script tag

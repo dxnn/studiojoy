@@ -1168,7 +1168,12 @@ window.addEventListener('message', (event) => {
   const origin = gamesOrigin();
   if (!origin || event.origin !== origin) return;
   const data = event.data;
-  if (!data || data.gamestudio !== 'error' || data.slug !== S.slug) return;
+  if (!data || data.slug !== S.slug) return;
+  if (data.gamestudio === 'moment') {
+    noteMoments(data.moments);
+    return;
+  }
+  if (data.gamestudio !== 'error') return;
   const version = String(data.version ?? '');
   // A different version means the preview reloaded, so anything still queued
   // describes bytes that are gone.
@@ -1231,6 +1236,49 @@ async function loadReservedImages() {
   const slug = S.slug;
   const want = (path) => (S.files.some((f) => f.path === path) ? imageUrl(slug, path) : null);
   const [chat, hero] = await Promise.all([want(CHAT_IMAGE), want(HERO_IMAGE)]);
+/* Moments the game said ---------------------------------------------------- */
+
+// What the running game said happened (GLOSSARY: *moment*), forwarded by the
+// reporter in batches — the latest value per name and how often it was said.
+// Kept per game for the session, so the achievements editor can offer the
+// moments this game has been seen to say. ⚠️ Painted in place like the
+// problems panel: a moment said at startup, drawn through render(), would
+// rebuild the iframe, restart the game and say it again.
+const MOMENT_NAME = /^[a-z0-9-]{1,40}$/;
+const MAX_MOMENT_NAMES = 100;
+const momentsSeen = new Map(); // slug -> Map(name -> {value, times})
+let momentNodes = null;
+
+export const momentsFor = (slug) => momentsSeen.get(slug) ?? new Map();
+
+// The value as the moments library would have heard it, or undefined: this is
+// text from inside the frame, and a game can dispatch the event itself.
+function momentValue(v) {
+  if (v === true || v === null || v === undefined) return true;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (typeof v === 'string' && v.length <= 100) return v;
+  return undefined;
+}
+
+function noteMoments(list) {
+  if (!Array.isArray(list) || !S.slug) return;
+  let seen = momentsSeen.get(S.slug);
+  if (!seen) {
+    seen = new Map();
+    momentsSeen.set(S.slug, seen);
+  }
+  for (const m of list.slice(0, 50)) {
+    if (!m || typeof m.name !== 'string' || !MOMENT_NAME.test(m.name)) continue;
+    const value = momentValue(m.value);
+    if (value === undefined) continue;
+    const had = seen.get(m.name);
+    if (!had && seen.size >= MAX_MOMENT_NAMES) continue;
+    const times = Number.isInteger(m.times) && m.times > 0 ? m.times : 1;
+    seen.set(m.name, { value, times: (had?.times ?? 0) + times });
+  }
+  paintMoments();
+}
+
   // A slow fetch must not dress the game opened after it.
   if (S.slug !== slug) {
     for (const url of [chat, hero]) if (url) URL.revokeObjectURL(url);
@@ -3146,7 +3194,8 @@ function renderPreview() {
     // Rendered either way. Folding the game away stops it running, but the
     // problems it already reported are still the answer to "why is it broken",
     // and a panel that vanished with the frame would take them with it.
-    renderProblems());
+    renderProblems(),
+    renderMoments());
 }
 
 // Drag the rail's left edge. Pointer capture keeps the drag on this element,
@@ -3183,6 +3232,32 @@ function renderRail() {
       // Clicking Versions means all of them, the same as Show all. A list
       // filtered to one file is somewhere you arrive from that file, not a
       // state the tab should hold on to. Held and awaited, or the render below
+// What the game has said so far, under the problems: a chip per moment name
+// with its latest value, so somebody writing an achievement can see the names
+// the game actually says. Built empty and filled in place, like the problems.
+function paintMoments() {
+  if (!momentNodes) return;
+  const { box, list } = momentNodes;
+  const seen = momentsFor(S.slug);
+  box.hidden = seen.size === 0;
+  list.replaceChildren(...[...seen].map(([name, m]) => h('span', {
+    class: 'moment', title: `said ${m.times} ${m.times === 1 ? 'time' : 'times'}`,
+  },
+  h('span', { class: 'mname', text: name }),
+  m.value === true ? null : h('span', { class: 'mvalue', text: String(m.value) }),
+  m.times > 1 ? h('span', { class: 'muted', text: `×${m.times}` }) : null)));
+}
+
+function renderMoments() {
+  const list = h('div', { class: 'moment-list' });
+  const box = h('div', { class: 'moments' },
+    h('div', { class: 'moments-head', text: 'The game said' }),
+    list);
+  momentNodes = { box, list };
+  paintMoments();
+  return box;
+}
+
       // would write the filter's address on the way to dropping it.
       await urlAs('hold', async () => {
         S.tab = id;
@@ -3307,3 +3382,4 @@ for (const type of ['dragover', 'drop']) {
 }
 
 start();
+  momentNodes = null;

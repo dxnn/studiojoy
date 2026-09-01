@@ -1081,6 +1081,39 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
   margin-right: 6px;
 }
 
+/* What the running game said happened — its moments — as a chip per name with
+   the latest value. The studio's own voice, so the head is cyan; a value is a
+   number the game said, not a score, so it is not gold. */
+.moments {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.moments[hidden] { display: none; }
+.moments-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.moment-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.moment {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.moment .mvalue { color: var(--text); }
+
 /* The reasoning trace: present, clearly secondary, and collapsed. */
 details.thinking { font-size: 13px; }
 details.thinking summary {
