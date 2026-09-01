@@ -52,14 +52,38 @@ export function agentAuthorFor(agent, slug) {
   return { name: agent.name, email: `${slug}@agent.gamestudio.local` };
 }
 
+// The address a lockout or a limiter keys on: the socket's, or behind a
+// reverse proxy the first hop of X-Forwarded-For — under the flag only,
+// because unproxied a client that can name its own address can name a fresh
+// one per request and never be limited (spec.md §6, §13).
+//
+// ⚠️ An IPv6 address is not a client. Every residential connection holds a
+// /64 at least, so keyed on the whole address a limiter is stepped around
+// with a fresh one per request and grows a map entry each time; the first
+// four hextets are the household. IPv4 is one address per client and stays
+// whole — including the ::ffff: form a dual-stack socket reports it in.
 export function clientIp(ctx) {
+  let ip = ctx.req.socket?.remoteAddress ?? 'unknown';
   if (ctx.trustProxy) {
     const forwarded = ctx.req.headers['x-forwarded-for'];
     if (typeof forwarded === 'string' && forwarded.length > 0) {
-      return forwarded.split(',')[0].trim();
+      ip = forwarded.split(',')[0].trim();
     }
   }
-  return ctx.req.socket?.remoteAddress ?? 'unknown';
+  return ipBucket(ip);
+}
+
+// `2001:db8:1:2:3:4:5:6` and `2001:0db8:1:2::` both bucket as
+// `2001:db8:1:2::/64`. Anything without a colon, or with a dot in it, is
+// IPv4 and comes back as it was.
+export function ipBucket(ip) {
+  if (!ip.includes(':') || ip.includes('.')) return ip;
+  const [head, tail = ''] = ip.split('::');
+  const front = head ? head.split(':') : [];
+  const back = tail ? tail.split(':') : [];
+  const gap = Array(Math.max(0, 8 - front.length - back.length)).fill('0');
+  const hextets = [...front, ...gap, ...back].slice(0, 4);
+  return `${hextets.map((h) => (parseInt(h, 16) || 0).toString(16)).join(':')}::/64`;
 }
 
 export function requireString(value, field, { max, allowEmpty = false } = {}) {

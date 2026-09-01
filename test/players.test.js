@@ -186,6 +186,22 @@ test('sign-ups are rate limited per address, harder than scores', async (t) => {
   assert.match(blocked.body.error, /signups/);
 });
 
+// Every residential IPv6 connection is a /64 at least, so the bucket is the
+// prefix: a fresh address inside it is the same asker (spec.md §6).
+test('an IPv6 asker is limited by their /64, not by each address they can mint', async (t) => {
+  const { games } = await origins(t, {
+    trustProxy: true, signupRate: { max: 2, windowMs: 60_000, what: 'signups' },
+  });
+  const ask = (ip, i) => games.client.json('POST', '/_signup', {
+    body: { name: `Kid ${i}`, email: `kid${i}@example.com`, password: 'secret7' },
+    headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` },
+  });
+  assert.equal((await ask('2001:db8:1:2::1', 1)).status, 202);
+  assert.equal((await ask('2001:db8:1:2:ffff::2', 2)).status, 202);
+  assert.equal((await ask('2001:db8:1:2:abcd::3', 3)).status, 429, 'same /64, same bucket');
+  assert.equal((await ask('2001:db8:1:3::1', 4)).status, 202, 'the next /64 is somebody else');
+});
+
 test('approval makes a player account: games origin yes, studio no', async (t) => {
   const { app, games } = await origins(t);
   await games.client.json('POST', '/_signup', {

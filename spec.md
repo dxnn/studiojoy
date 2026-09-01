@@ -1461,6 +1461,13 @@ name a fresh one per request and never be limited. Unset behind a proxy, the
 limit still holds — as one bucket for every player of every game, which is
 ten posts a minute for the whole studio.
 
+⚠️ And an IPv6 address is not a client. Every residential connection holds a
+/64 at least, so a limiter keyed on the whole address is stepped around with
+a fresh one per request, each a new map entry. `clientIp` folds an IPv6
+address to its /64 before anything keys on it — the login lockouts on both
+origins, the sign-up limiter, the scoreboard — so the household is the
+bucket. IPv4 stays whole, the `::ffff:` mapped form included.
+
 ⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
 cheap and read-only, but it is a bigger amplification than a file read, and it
 sits alongside the "no rate limiting outside login" tradeoff in §11.
@@ -2099,6 +2106,7 @@ everybody else.
 - Login lockout: per email 10 failures / 5 min → 5 min lock; per IP 20
   failures / 5 min → 10 min lock. In-memory, resets on restart. The games
   origin's `/_login` carries its own pair with the same numbers.
+- Wherever an address is a key, an IPv6 address counts as its /64 (§6).
 - Scoreboard: score a JS-safe integer, the name the account's squeezed to
   24 chars, best 100 rows kept per game, `?limit=` ≤ 100, body 1 KB; posts
   10 / min / IP, in-memory like the lockouts.
