@@ -230,10 +230,9 @@ than one somebody makes as a row.
    in this build.
 5. Field names: `how` for the earning text, `when` for the rule; the tests
    `atLeast`, `atMost`, `is`, `times`.
-6. Built in a fresh session, in the build order above, after the screens v6
-   work in the tree at the time of writing is committed — it touches
-   `public/studio-lib/index.json`, `server/agents/orchestrator.js` and
-   `test/orchestrator.test.js`, the same files this build edits.
+6. Built in a fresh session, in the build order above. The screens v6 work
+   that was in the tree when this was decided has landed since (`f2b66d9`),
+   so the tree it starts from is clean.
 
 ## For the build session
 
