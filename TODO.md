@@ -23,7 +23,7 @@ deliberately deferred.
 - find a standard set of characters and backgrounds for the visual novel:
   CC0 first, kid-safe, small files, one or two styles that sit together,
   portraits with several moods each — kept studio-side and copied into a
-  game when picked, never in the template tree (ideas/vn-builder.md §5)
+  game when picked, never in the template tree (ideas/vn-builder.md §6)
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see
