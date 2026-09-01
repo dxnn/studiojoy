@@ -489,6 +489,11 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /"\+ Make a sound"/);
   assert.match(system, /"\+ Upload"/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
+  // The two config files that are somebody's whole editing surface, named so a
+  // helper knows what a stray extra key costs them.
+  assert.match(system, /"quiz editor"/);
+  assert.match(system, /"story editor"/);
+  assert.match(system, /config\/story\.js/);
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');
   assert.match(system, /textContent, never innerHTML/, 'and so is the safe way to show it');
 
