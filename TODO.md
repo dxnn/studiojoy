@@ -37,11 +37,10 @@ deliberately deferred.
   DOM-buttons one (ideas/control-schemes.md, "Deferred, and why")
 - ask a helper to move space-racer to the buttons scheme, and its hand-rolled
   menus onto Screens.title — its screens still sit under the drawn controls
-- ask a helper to move asteriskoids' own title and game-over screens onto
-  Screens.title, so the drawn controls step aside there too — its board is
-  now `Screens.title({ score, post: true, board: true })`, and the vestigial
-  name box goes with it
-- ! deploy input v5 / screens v6: npm run sweep on the studio machine, then
+- asteriskoids' upgrade chooser still sits under the drawn touch controls —
+  the title and game-over screens step aside now, that one does not. It is
+  the game's own screen, and `screens-open` is the library's class to set
+- ! deploy input v5 / screens v10: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade

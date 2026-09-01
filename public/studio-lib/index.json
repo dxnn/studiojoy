@@ -35,6 +35,20 @@
       ],
       "seeds": [],
       "scripts": ["studio/screens.js"]
+    },
+    "moments": {
+      "version": 1,
+      "what": "Lets the game say what just happened — a level gained, a run over, an ending reached — in one line, so achievements and the studio can listen.",
+      "files": ["moments.js"],
+      "seeds": [],
+      "scripts": ["studio/moments.js"]
+    },
+    "achievements": {
+      "version": 1,
+      "what": "What a player can earn in this game, written in config/achievements.js as rules over the game's moments. Earned ones are kept forever by the studio and shown as a toast the moment they are won.",
+      "files": ["achievements.js"],
+      "seeds": [{ "from": "/templates/achievements.js", "to": "config/achievements.js" }],
+      "scripts": ["config/achievements.js", "studio/achievements.js"]
     }
   }
 }
