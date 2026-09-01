@@ -16,10 +16,14 @@ deliberately deferred.
   with its own editor mode where one fits (ideas/templates.md). The visual
   novel went first and settled the vocabulary they inherit: a *scene*, and
   `set`/`need` on a *switch* rather than the `flip` the adventure sketch had
-- the story editor's open scene is not in the address: `?file=` says which
-  file, nothing says which scene. Worth `?scene=` once it has been lived in
-- try the story editor on a phone-width rail — the choice rows wrap there and
-  it has only been looked at at 660px and 360px
+- ! make the visual novel a game type: the story editor in the centre, the
+  conversation left, a Story tab in the rail, then the guide, fill and
+  stand-ins — ideas/vn-builder.md, in its build order; it also carries
+  `?scene=` and the phone-width re-check
+- find a standard set of characters and backgrounds for the visual novel:
+  CC0 first, kid-safe, small files, one or two styles that sit together,
+  portraits with several moods each — kept studio-side and copied into a
+  game when picked, never in the template tree (ideas/vn-builder.md §5)
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see
@@ -47,6 +51,9 @@ deliberately deferred.
 - add `--scores` to `npm run deluser` so a removed player's rows leave every
   board too — today they stay, and the panel deletes per row, per game
   (ideas/scoreboard-trust.md, rung 1)
+- build achievements: `config/achievements.js` and its editor, the
+  achievements library, `/_achievements` on the games origin, score-given
+  ones awarded on a score post, and the helper prompt (ideas/achievements.md)
 - ask a helper to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice
