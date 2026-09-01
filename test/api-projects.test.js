@@ -71,6 +71,18 @@ test('a new game is born holding the studio library', async (t) => {
     fs.readFileSync(path.join(dir, 'config/controls.js')),
     fs.readFileSync(path.join(publicDir, 'templates/controls.js')),
   );
+  // Every file each library declares, byte for byte — the screens library
+  // carries its own typefaces, and a .woff2 that came through a text read
+  // would be a game with no type and no error to say why.
+  for (const [name, library] of Object.entries(index.libraries)) {
+    for (const file of library.files) {
+      assert.deepEqual(
+        fs.readFileSync(path.join(dir, 'studio', file)),
+        fs.readFileSync(path.join(publicDir, 'studio-lib', name, file)),
+        `studio/${file}`,
+      );
+    }
+  }
 
   const commits = await logCommits(dir);
   assert.equal(commits.length, 3);

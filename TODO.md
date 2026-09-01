@@ -16,10 +16,10 @@ deliberately deferred.
   with its own editor mode where one fits (ideas/templates.md). The visual
   novel went first and settled the vocabulary they inherit: a *scene*, and
   `set`/`need` on a *switch* rather than the `flip` the adventure sketch had
-- ! make the visual novel a game type: the story editor in the centre, the
-  conversation left, a Story tab in the rail, then the guide, fill and
-  stand-ins — ideas/vn-builder.md, in its build order; it also carries
-  `?scene=` and the phone-width re-check
+- ! make the visual novel a game type: the story editor as a tab beside the
+  chats in the centre, then the guide, fill and stand-ins —
+  ideas/vn-builder.md, in its build order; it also carries `?scene=` and the
+  phone-width re-check
 - find a standard set of characters and backgrounds for the visual novel:
   CC0 first, kid-safe, small files, one or two styles that sit together,
   portraits with several moods each — kept studio-side and copied into a
@@ -38,22 +38,29 @@ deliberately deferred.
 - ask a helper to move space-racer to the buttons scheme, and its hand-rolled
   menus onto Screens.title — its screens still sit under the drawn controls
 - ask a helper to move asteriskoids' own title and game-over screens onto
-  Screens.title, so the drawn controls step aside there too
-- ! deploy input v5 / screens v5: npm run sweep on the studio machine, then
+  Screens.title, so the drawn controls step aside there too — its board is
+  now `Screens.title({ score, post: true, board: true })`, and the vestigial
+  name box goes with it
+- ! deploy input v5 / screens v6: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
-- offer the Top 10 on `Screens.title()` — every game refetches /_scores by
-  hand today (the screens library's one surviving open question); since the
-  sign-in build a title screen also wants the `/_me` dance — signed out, show
-  the sign-in link instead of posting
+- a fourth screens snippet: the choices list, from asteriskoids' upgrade
+  cards — deferred from the snippets build as much bigger than board/rows,
+  and it wants a real second game asking for it first
 - show personal bests beside the Top 100 — tracked per (game, person) in
-  `personal_bests` since the sign-in build, displayed nowhere yet
+  `personal_bests` since the sign-in build, displayed nowhere yet. The screens
+  library is the place now: `Screens.board()` already does the /_me dance
 - add `--scores` to `npm run deluser` so a removed player's rows leave every
   board too — today they stay, and the panel deletes per row, per game
   (ideas/scoreboard-trust.md, rung 1)
-- build achievements: `config/achievements.js` and its editor, the
-  achievements library, `/_achievements` on the games origin, score-given
-  ones awarded on a score post, and the helper prompt (ideas/achievements.md)
+- build achievements: the moments library the game says its moments through,
+  `config/achievements.js` as rules over them with its editor, the
+  achievements library, `/_achievements` on the games origin, the reporter
+  forwarding moments to the studio, and the helper prompt
+  (ideas/achievements.md, in its build order)
+- think about microhelpers: fixed-purpose helpers the studio ships rather
+  than rows somebody makes — the achievements helper is the first candidate
+  (ideas/achievements.md, the last section)
 - ask a helper to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice

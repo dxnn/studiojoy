@@ -8,6 +8,7 @@ import {
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
+import { NOTE_BYTES } from '../server/agents/orchestrator.js';
 
 // A studio with one project, one agent, and the chat that agent is in. The
 // human-only chat a project opens on is not that chat, so every message here
@@ -336,6 +337,27 @@ test('the library is named to a helper, not poured into its context', async (t) 
   const listing = system.split('\n\n').find((part) => part.startsWith('PROJECT FILES'));
   assert.match(listing, /js\/game\.js/);
   assert.equal(listing.includes('studio/'), false, 'the library is not among the game files');
+});
+
+// A library documents itself with the comment block at the top of its file,
+// and a block past the cap is cut with a "// (cut)" and nothing said. Screens
+// and input both run close to it, so the fleet is held against the number
+// here rather than discovered by a helper missing the tail of an API.
+test('every library API note fits the cap it is sent under', () => {
+  const dir = new URL('../public/studio-lib/', import.meta.url);
+  const index = JSON.parse(fs.readFileSync(new URL('index.json', dir), 'utf8'));
+  for (const [name, library] of Object.entries(index.libraries)) {
+    const source = fs.readFileSync(new URL(`${name}/${name}.js`, dir), 'utf8');
+    const note = [];
+    for (const line of source.split('\n')) {
+      if (!line.startsWith('//')) break;
+      note.push(line);
+    }
+    const bytes = Buffer.byteLength(note.join('\n'), 'utf8');
+    assert.ok(bytes > 0, `${name} documents itself`);
+    assert.ok(bytes <= NOTE_BYTES, `${name}: ${bytes} bytes against a ${NOTE_BYTES} cap`);
+    assert.ok(library.version >= 1);
+  }
 });
 
 test('read_file reaches a file that was left out of context', async (t) => {

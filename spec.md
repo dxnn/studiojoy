@@ -1142,6 +1142,54 @@ frame boundaries as an overlay — one screen pixel at any zoom, never saved
 into the picture. `+ Draw a picture` offers the frame count that makes a
 strip.
 
+The **screens library** (`studio/screens.js`) is the fourth, and the first
+presentational one: `Screens.hint()`, the phone-fit `Screens.title()` and the
+`Screens.chips()` HUD strip. Three decisions in it are worth writing down.
+
+**Its rules live in `@layer screens`.** `injectStyle()` appends a `<style>` to
+`<head>`, which is after the game's own `<link>` — so at equal specificity the
+library won every tie, and a game could not restyle a screen without
+`!important` or a specificity fight. A cascade layer inverts that for good: an
+unlayered rule beats a layered one at any specificity and in any order, so a
+game's `css/style.css` wins by existing. The library's variables are declared
+inside the layer at `:root` and are overridden the same way; ⚠️ the four `LOOK`
+colours are the exception — those are set inline on the screen node and beat a
+stylesheet, which is right, because they come from the game's own
+`config/look.js`. Where `LOOK` names nothing the layered default stands and a
+game can set it from css instead.
+
+**Its default is the studio's form in the game's colour.** The four `LOOK`
+names carry the colour; the shapes are the ones `public/style.css` and the
+catalog use — the halftone dots, a hairline across the top, a panel card, a
+pill button with a glow under it, and every number in a mono face with tabular
+figures. The fallbacks are the studio's own four rather than white-on-black,
+because most games have not picked colours yet. ⚠️ Gold is policed here as
+everywhere: the game-over score, a board score and a chip value, nothing else.
+
+**It carries its own typefaces.** Space Grotesk and Space Mono (OFL 1.1,
+`studio/fonts-license.txt`), the latin and latin-ext subsets, as four `.woff2`
+files beside the library — about 60 KB in the tree, of which an ASCII page
+fetches 41 KB, because the `unicode-range` on each face is Google's own. A
+`<link>` to a font host was the alternative and was rejected on the same
+grounds as the shared route below: it makes a game that only looks right while
+somebody else's server is up. ⚠️ A relative `url()` in an injected `<style>`
+resolves against the *document*, not the script, so the paths are derived from
+`document.currentScript.src` and a game with a page in a subdirectory still
+finds them.
+
+The library also carries **snippets**: pieces of a screen it builds and the
+game places. `Screens.board()` is the scoreboard — it calls `/_scores` itself,
+marks the rank it is given, and brackets a rank that landed past the shown rows
+with the four either side, numbered where they really are rather than from 1.
+`Screens.rows()` is a label-and-value list, `Screens.signin()` is who is playing
+or the link to the catalog, and `Screens.me()`/`Screens.post()` are the two
+calls behind them. `title({ score, post: true, board: true })` is the whole
+game-over dance in one line, which is what every game was writing by hand —
+asteriskoids' version is where the bracket rule came from, and where the
+off-by-four it had (a rank of 11 repeated four rows already shown) was fixed.
+Signed out, the post answers 401 and the screen offers the sign-in link instead
+of a name box (§6).
+
 **Copied, not shared.** The alternatives were considered and rejected on
 evidence:
 

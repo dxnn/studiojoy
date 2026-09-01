@@ -552,8 +552,40 @@ to the top of the screen: built once, only changed text touched, so calling
 it every frame is fine; each call says the whole strip and `chips({})`
 clears it; values wear the look's highlight and taps fall through to the
 game. All three surfaces browser-checked at phone size against the long
-asteriskoids name — the library that was ideas/game-header.md is complete,
-with one question moved to TODO.md (the Top 10 on the title screen).
+asteriskoids name — the library that was ideas/game-header.md is complete.
+
+Screens v6 answers the last three things asked of it (spec.md §4).
+⚠️ **A game's own css now wins**, which it did not before: `injectStyle()`
+appends to `<head>`, after the game's `<link>`, so at equal specificity the
+library took every tie — a game could not restyle a screen without
+`!important`. Every rule it injects is now inside `@layer screens`, and an
+unlayered rule beats a layered one at any specificity in any order. Its
+variables are layered `:root` defaults, overridden the same way; the four
+`LOOK` colours stay inline on the node and beat a stylesheet, which is right —
+they are the game's own `config/look.js`. Where `LOOK` names nothing the game
+can set `--screens-primary` from css instead, which is most games.
+
+The **default** is the studio's form in the game's colour: halftone dots, a
+hairline in the game's own three, a panel card, the filled pill with a glow,
+Space Grotesk with Space Mono on every number — and the fallbacks are the
+studio's four rather than white-on-black. The **typefaces are in the tree**,
+four `.woff2` beside the library under OFL (`studio/fonts-license.txt`): 60 KB
+held, 41 KB fetched by an ASCII page, because `unicode-range` is Google's own.
+⚠️ A relative `url()` in an injected `<style>` resolves against the *document*,
+so the paths come from `document.currentScript.src`.
+
+And it carries **snippets** — nodes it builds and the game places.
+`Screens.board()` is the scoreboard, fetched by the library, with asteriskoids'
+neighbours bracket built in (four above, your row, four below, real ranks; its
+own version repeated four already-shown rows at rank 11). `Screens.rows()` is a
+label-and-value list, `Screens.signin()` is who is playing or the link to sign
+in, and `Screens.me()`/`Screens.post()` are underneath. `title({ score,
+post: true, board: true })` is the whole game-over dance in one line. ⚠️ Gold
+stays a score: the board's score column and a chip value, never a rank, a name
+or a `rows()` value. Browser-checked end to end at 1280 and 360: the layer
+proved against a game stylesheet that restyles the name and squares the panel,
+latin-ext fetched only for `ő`, the bracket at ranks 1–10 · 16–24 with 20 lit,
+and signed out the post 401ing into the sign-in link instead of a bracket.
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

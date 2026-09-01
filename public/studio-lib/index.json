@@ -23,9 +23,16 @@
       "scripts": ["studio/sprites.js"]
     },
     "screens": {
-      "version": 5,
-      "what": "A phone-fit title and game-over screen, a HUD strip of score chips, and a one-line how-to-play hint worked out from config/controls.js and the device — keys on a keyboard, the touch scheme's own shape on a phone, controller buttons when one is plugged in.",
-      "files": ["screens.js"],
+      "version": 6,
+      "what": "A phone-fit title and game-over screen, a HUD strip of score chips, a one-line how-to-play hint worked out from config/controls.js and the device, and snippets to put inside a screen — the scoreboard above all, fetched and posted for you. Carries its own two typefaces, so a game asks nothing of a font host.",
+      "files": [
+        "screens.js",
+        "space-grotesk.woff2",
+        "space-grotesk-ext.woff2",
+        "space-mono.woff2",
+        "space-mono-bold.woff2",
+        "fonts-license.txt"
+      ],
       "seeds": [],
       "scripts": ["studio/screens.js"]
     }

@@ -256,8 +256,10 @@ function pinnedPaths(db, chatId) {
 // source. Read from the game's own copy under studio/, not from the studio's
 // current one, so the note always matches the version this game holds. Capped
 // so a note stays a note — raised from 2 KB when the input header grew the
-// buttons shape and toggles, which were worth the bytes.
-const NOTE_BYTES = 3072;
+// buttons shape and toggles, which were worth the bytes. Exported because a
+// note that outgrows it is cut in silence: the suite holds every library's
+// header against this number.
+export const NOTE_BYTES = 3072;
 
 function libraryNote(buffer) {
   const lines = [];
