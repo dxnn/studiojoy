@@ -592,7 +592,7 @@ addresses to do its job.
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/projects` | — | all projects incl. archived, with last-message preview |
+| GET | `/api/projects` | — | all projects incl. archived, with last-message preview; each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
 | POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open, `Building` when the *starter helper* joined it |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
@@ -990,6 +990,24 @@ another, and no `url()` or `var()`. A game that names none of them wears the
 studio's defaults, so a partial look is fine, and a helper's edit to `look.js`
 re-reads it unless there are unsaved colours in the editor.
 
+**Three picture names at a game's root are reserved images** — the studio's
+dressing rather than the game's: `chat.png` tiles behind the conversation,
+`hero.png` backs the bar over it and the game's card in the catalog (§7), and
+`icon.png` sits before the game's name in the sidebar. Root rather than
+`assets/` on purpose: a sprite that happens to be called `icon.png` must not
+become the studio's dressing, and the upload dialog routes the three names to
+the root the same way it routes a strip to `assets/sprites/`. All optional —
+a game without one wears the studio's own look — and person-made like any
+other picture; the preamble names them so a helper asks rather than filing a
+wallpaper where nothing looks. In the studio they sit under a wash of the
+game's `deep` colour, dark always; the catalog is the one surface with a
+light mode, so its wash is `light-dark()`. The client holds the open game's
+two, and every game's icon, as object URLs replaced on `files.changed` and
+revoked on replace — the file routes send `no-store`, and a background
+rebuilt by every render would refetch on every keystroke; `has_icon` on the
+project list is what keeps the sidebar from probing every game for an icon
+it does not have.
+
 ### The studio library
 
 `studio/` is a reserved directory in a game's working tree holding the studio's
@@ -1303,7 +1321,7 @@ for a dialog's controls the same way as for the composer.
 
 | method | path | effect |
 |---|---|---|
-| GET, HEAD | `/` | the catalog: published games, names escaped |
+| GET, HEAD | `/` | the catalog: published games, names escaped; a card wears the game's `hero.png` when its tree holds one (§6), under a `light-dark()` wash — this page, unlike the studio, has a light mode |
 | GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |

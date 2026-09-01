@@ -488,6 +488,12 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /"\+ Make a sound"/);
   assert.match(system, /"\+ Upload"/);
+  // The three reserved images, by their exact names: a helper that has not
+  // heard of them files a wallpaper under assets/images/ where nothing looks.
+  // hero.png alone would match the sprite example above, so the bar rides in.
+  assert.match(system, /chat\.png/);
+  assert.match(system, /hero\.png backs the bar/);
+  assert.match(system, /icon\.png/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
   // The two config files that are somebody's whole editing surface, named so a
   // helper knows what a stray extra key costs them.
