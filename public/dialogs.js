@@ -375,6 +375,7 @@ export function dialogFor(d) {
   // outlives every render, so a rebuilt list would never appear.
   if (d.kind === 'studio') {
     const list = h('div', { class: 'plan' });
+    const waitBox = h('div', { class: 'col' });
     const budget = h('input', { type: 'number', min: '0', class: 'cfg-num' });
     const starter = h('select', { title: 'Joins the Building chat of every new game' });
     const box = h('div', { class: 'col' });
@@ -429,6 +430,20 @@ export function dialogFor(d) {
               admin: !person.admin,
             }).then(paint),
           }),
+          // The toggle between the two kinds of account. Off, they sign in on
+          // the games site and their scores wear their name — the studio's
+          // door, crew list and games say nothing about them. The server
+          // refuses to take the studio from an admin.
+          h('button', {
+            class: `quiet tiny${person.studio_access ? ' on' : ''}`,
+            text: person.studio_access ? 'In the studio' : 'Games only',
+            title: person.studio_access
+              ? 'Can sign in to the studio — click to make them games-only'
+              : 'Plays games and posts scores — click to let them into the studio',
+            onclick: () => studioChange('PATCH', `/users/${person.id}`, {
+              studio_access: !person.studio_access,
+            }).then(paint),
+          }),
           h('button', {
             class: 'quiet tiny', text: 'Password',
             title: 'Give them a new password',
@@ -438,14 +453,35 @@ export function dialogFor(d) {
             },
           }));
       }));
+      // The waiting list: who asked to join from the games site. The whole
+      // section is only there when somebody is — an empty list would be a
+      // question nobody asked. `Let them in` makes a games-only account;
+      // the toggle above is how they ever get more.
+      waitBox.replaceChildren(...(data.waiting.length ? [
+        h('div', { class: 'section-label', text: 'Waiting to join' }),
+        ...data.waiting.map((w) => h('div', { class: 'person' },
+          h('span', { text: w.display_name }),
+          h('span', { class: 'hint muted mono', text: w.email }),
+          h('button', {
+            class: 'filled tiny', text: 'Let them in',
+            title: 'Make them an account that plays games and posts scores',
+            onclick: () => studioChange('POST', `/signups/${w.id}/approve`, {}).then(paint),
+          }),
+          h('button', {
+            class: 'quiet tiny', text: 'Turn away',
+            title: 'Say no to this one',
+            onclick: () => studioChange('POST', `/signups/${w.id}/refuse`, {}).then(paint),
+          }))),
+      ] : []));
     };
 
     const email = h('input', { placeholder: 'them@example.com' });
     const who = h('input', { placeholder: 'Their name' });
     const pass = h('input', { placeholder: 'A password they can remember' });
     box.append(
-      h('div', { class: 'section-label', text: 'In the studio' }),
+      h('div', { class: 'section-label', text: 'Accounts' }),
       list,
+      waitBox,
       h('div', { class: 'section-label', text: 'Add somebody' }),
       h('div', { class: 'person' }, who, email, pass, h('button', {
         class: 'filled tiny', text: 'Add them',
@@ -484,7 +520,7 @@ export function dialogFor(d) {
     if (!S.admin) loadStudio().then(paint);
     paint();
     return wide('Studio settings',
-      h('p', { class: 'hint muted', text: 'Everyone here can read every game and talk in every “Humans only”. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
+      h('p', { class: 'hint muted', text: 'In the studio means reading every game and talking in every “Humans only”; games only means playing and posting scores under their name. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
       box,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
