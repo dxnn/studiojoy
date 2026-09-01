@@ -97,6 +97,9 @@ export function dialogFor(d) {
         for (const [key, t] of Object.entries(templates ?? {})) {
           const option = h('option', { value: key, text: t.title });
           option.dataset.what = t.what;
+          // The file the new game opens on: the one a person edits to change
+          // the game. A template with an editor of its own puts you in it.
+          if (t.heart) option.dataset.heart = t.heart;
           from.append(option);
         }
       });
@@ -116,6 +119,7 @@ export function dialogFor(d) {
           const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
           if (slug.value.trim()) body.slug = slug.value.trim();
           if (!chat && from.value) body.template = from.value;
+          const heart = chat ? null : (from.selectedOptions[0]?.dataset.heart ?? null);
           const res = await api('POST', '/api/projects', body);
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
           close();
@@ -125,7 +129,16 @@ export function dialogFor(d) {
           // for a chat project the one room it has. A new project has nothing
           // remembered about it, so without this a game would land on its
           // front door with nobody in the room.
-          await openProject(res.body.slug, { view: { chat: res.body.chat?.id } });
+          //
+          // A template also opens its heart, because that is where the game is
+          // made: a quiz or a story is written in its own editor rather than
+          // asked for. Both steps under one hold, or arriving would leave two
+          // entries behind and Back would land in the empty half of it.
+          await urlAs('hold', async () => {
+            await openProject(res.body.slug, { view: { chat: res.body.chat?.id } });
+            if (heart) await openFile(heart);
+          });
+          render();
         },
       })));
   }

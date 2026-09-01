@@ -154,7 +154,9 @@ export function projectRoutes(r) {
     // nobody to ask, which is a second trip to the Crew tab before anything
     // can happen — so the studio's starter helper joins, and the answer says
     // where to open. Games only: a chat project has no working tree to build.
-    const joined = kind === 'game' ? joinStarter(ctx.db, work, user.id, now) : null;
+    const joined = kind === 'game'
+      ? joinStarter(ctx.db, work, user.id, now, !template)
+      : null;
     // The person who made it is its first author: everything else about
     // authorship starts from somebody being able to say who else is in.
     addAuthor(ctx.db, row.id, user.id, user.id, now);

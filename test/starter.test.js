@@ -8,10 +8,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { setup, signIn } from './helpers.js';
 
-async function studio(t) {
-  const app = await setup();
+async function studio(t, opts = {}) {
+  const app = await setup(opts);
   t.after(() => app.close());
   await signIn(app);
   const made = await app.client.json('POST', '/api/agents', {
@@ -57,6 +58,29 @@ test('the starter helper joins the Building chat, and the game opens there', asy
   const humans = made.body.chats.find((c) => !c.bots);
   const alone = await app.client.json('GET', `/api/projects/tank?chat=${humans.id}`);
   assert.deepEqual(alone.body.agents, []);
+});
+
+// A template game is made in its own editor rather than asked for, so the
+// starter helper is there by name and says nothing until called.
+test('a game from a template gets the starter helper, not chatty', async (t) => {
+  // The real public/, because the fixture ships no templates.
+  const { app, steve } = await studio(t, {
+    publicDir: path.resolve(import.meta.dirname, '..', 'public'),
+  });
+  await setStarter(app, steve.id);
+
+  const made = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Quizzy', slug: 'quizzy', template: 'quiz' },
+  });
+  assert.equal(made.status, 201);
+  assert.equal(made.body.chat.name, 'Building', 'still where the helper is');
+
+  const opened = await app.client.json('GET', `/api/projects/quizzy?chat=${made.body.chat.id}`);
+  assert.deepEqual(
+    opened.body.agents.map((a) => [a.name, a.chatty]),
+    [['Buildermate Steve', false]],
+    'in the room, waiting to be called',
+  );
 });
 
 // The one room takes helpers — you can call one in by name — but nobody is

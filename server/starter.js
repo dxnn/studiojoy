@@ -18,16 +18,23 @@ export function starterAgent(db) {
 }
 
 // Chatty, because a helper that has to be called by name is not company: the
-// point is that the first thing typed into that chat is answered. ⚠️ Still
-// through assertBotsAllowed — the chat handed in is the game's Building chat,
-// and the one rule about where a helper may be put has no exceptions.
-export function joinStarter(db, chat, userId, now = new Date().toISOString()) {
+// point is that the first thing typed into that chat is answered.
+//
+// Not chatty when the game started from a template, which is the whole point
+// of a template: the game already exists and is changed in its own editor, so
+// a helper answering the first thing said is noise with a token bill attached.
+// It still joins, so it is there by name the moment somebody does want it.
+//
+// ⚠️ Still through assertBotsAllowed either way — the chat handed in is the
+// game's Building chat, and the one rule about where a helper may be put has
+// no exceptions.
+export function joinStarter(db, chat, userId, now = new Date().toISOString(), chatty = true) {
   const agent = starterAgent(db);
   if (!agent) return null;
   assertBotsAllowed(chat);
   db.prepare(
     `INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
-     VALUES (?, ?, 1, ?, ?)`,
-  ).run(chat.id, agent.id, userId, now);
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(chat.id, agent.id, chatty ? 1 : 0, userId, now);
   return agent;
 }
