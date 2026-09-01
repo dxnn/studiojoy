@@ -434,6 +434,24 @@ oversized file being refused before upload, one commit per new file and none for
 an identical replace, and the bytes coming back byte-identical on the public
 games origin.
 
+Games wear their own **reserved images**: three optional PNGs at the tree
+root — `chat.png` tiled behind the conversation, `hero.png` behind the bar
+over it and on the game's catalog card once published, `icon.png` in front of
+the game's name in the sidebar — each under a wash of the game's `deep`
+colour, and no image is simply the studio's own look. Root on purpose, so a
+sprite sharing a name cannot become the studio's dressing: the upload dialog
+routes the three names there ahead of the strip check, and the preamble names
+them so a helper asks instead of filing a wallpaper under `assets/images/`.
+⚠️ The client holds them as object URLs replaced on `files.changed`, never as
+a `src` pointed at the file routes — those send no-store, and a background
+rebuilt by every render would refetch on every keystroke; `has_icon` on the
+project list is what keeps the sidebar from probing every game for an icon it
+does not have. Browser-checked end to end: all three uploaded in one drop
+(hero.png strip-shaped and still landing at the root), the studio redressing
+live and on reload, a game without them unchanged, a deleted icon vanishing
+from the sidebar while another game was open, and the published card wearing
+the hero on the catalog.
+
 A picture opens as the **pixel editor** — there is no separate look-only view,
 because it showed the same picture at the same size. Up to 1024 a side, so a
 backdrop is as editable as a sprite, and saved at exactly the size it arrived.
