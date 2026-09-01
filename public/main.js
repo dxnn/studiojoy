@@ -26,6 +26,8 @@ import {
 import { isConfigPath, renderConfigForm } from './config-form.js';
 import { isQuizPath, quizModel } from './quiz-editor.js';
 import { renderQuizForm } from './quiz-form.js';
+import { isStoryPath, storyModel } from './story-editor.js';
+import { renderStoryForm } from './story-form.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat, applyReactionDelta } from './chat.js';
@@ -140,6 +142,9 @@ export const S = {
   // somebody typing into a studio that cannot hear them.
   connected: true,
   previewNonce: 0,
+  // "Try this scene" in the story editor: the scene the preview opens into.
+  // Read only while that file is the one open, so closing it clears itself.
+  tryScene: null,
   autoscroll: true,
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
@@ -2836,6 +2841,9 @@ function renderFilesTab() {
     const quiz = isQuizPath(S.open.path) && S.open.content !== null && !S.open.asText
       ? quizModel(S.open.content)
       : null;
+    const story = isStoryPath(S.open.path) && S.open.content !== null && !S.open.asText
+      ? storyModel(S.open.content)
+      : null;
 
     if (S.open.content === null) {
       const refused = S.drawRefused ?? S.soundRefused;
@@ -2844,10 +2852,13 @@ function renderFilesTab() {
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
     } else if (quiz?.ok) {
       editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
+    } else if (story?.ok) {
+      editor.push(h('div', { class: 'editor' }, bar, ...renderStoryForm(story)));
     } else if (parsed?.ok && !S.open.asText) {
+      const outgrown = (quiz && !quiz.ok && quiz.reason) || (story && !story.ok && story.reason);
       editor.push(h('div', { class: 'editor' }, bar,
-        quiz && !quiz.ok
-          ? h('div', { class: 'pad hint muted', text: `Showing every field because ${quiz.reason}.` })
+        outgrown
+          ? h('div', { class: 'pad hint muted', text: `Showing every field because ${outgrown}.` })
           : null,
         renderConfigForm(parsed.decls)));
     } else {
@@ -2971,7 +2982,12 @@ const showScore = (n) => n.toLocaleString();
 // already reports.
 function renderPreview() {
   const best = bestScore();
-  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
+  // "Try this scene" adds the game's own ?scene= — a template that honours it
+  // opens straight into that scene, and one that does not ignores it. Tied to
+  // the story file being open, so nothing has to remember to clear it.
+  const scene = S.tryScene && S.open && isStoryPath(S.open.path) ? S.tryScene : null;
+  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
+    + (scene ? `&scene=${encodeURIComponent(scene)}` : '');
   const shut = () => {
     S.previewOpen = !S.previewOpen;
     prefs.set('preview', S.previewOpen ? 'open' : 'closed');
