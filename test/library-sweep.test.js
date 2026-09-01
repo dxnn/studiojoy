@@ -54,10 +54,18 @@ test('a game from before the library gets everything, once', async () => {
     fs.readFileSync(path.join(dir, 'studio/studio.json'), 'utf8'),
   );
   assert.deepEqual(manifest, CURRENT);
-  assert.deepEqual(
-    fs.readFileSync(path.join(dir, 'studio/screens.js')),
-    fs.readFileSync(path.join(publicDir, 'studio-lib/screens/screens.js')),
-  );
+  // Every declared file, byte for byte — the sweep is how the fleet gets the
+  // screens library's typefaces, and a .woff2 that came through a text read
+  // would be a game with no type and nothing said about why.
+  for (const [name, library] of Object.entries(INDEX.libraries)) {
+    for (const file of library.files) {
+      assert.deepEqual(
+        fs.readFileSync(path.join(dir, 'studio', file)),
+        fs.readFileSync(path.join(publicDir, 'studio-lib', name, file)),
+        `studio/${file}`,
+      );
+    }
+  }
   assert.ok(fs.existsSync(path.join(dir, 'config/controls.js')), 'the seed came too');
 
   const commits = await logCommits(dir);
