@@ -216,9 +216,50 @@ Worth one live run against a real game. It is also the first candidate for
 a *microhelper* (TODO.md): a fixed-purpose helper the studio ships rather
 than one somebody makes as a row.
 
-## Open
+## Decided
 
-- `how` as the field name, or `hint`? `when` for the rule, or `on`?
+(Dann, 2026-09-01 — every default taken.)
+
+1. Moments are their own tiny library, `studio/moments.js`, not a method on
+   Achievements. Publishing is the game's; subscribing is one consumer's.
+2. No server-awarded `score:` rule. A score is a moment like any other,
+   evaluated in the browser; one mechanism, the same forgeability.
+3. The reporter forwards moments and the editor offers the ones it has seen,
+   in this build — the editor is not no-code without it.
+4. The quiz and visual-novel templates say their moments and load the tags,
+   in this build.
+5. Field names: `how` for the earning text, `when` for the rule; the tests
+   `atLeast`, `atMost`, `is`, `times`.
+6. Built in a fresh session, in the build order above, after the screens v6
+   work in the tree at the time of writing is committed — it touches
+   `public/studio-lib/index.json`, `server/agents/orchestrator.js` and
+   `test/orchestrator.test.js`, the same files this build edits.
+
+## For the build session
+
+- Read CLAUDE.md, then spec.md §3 (`scores`, `personal_bests` — the shape to
+  copy), §4 (the library and the compatibility law), §6 (the games origin
+  table and the scoreboard's studio-side routes), §8 (the reporter feed and
+  the preamble), then this file. `server/scores.js`, `server/games.js` and
+  `test/scores.test.js` are the closest existing code.
+- `git status` first. Nothing here starts until the tree is clean.
+- New libraries take version 1 each; no existing library's version moves.
+  The sweep then adds both files and the empty seed to every game — the tags
+  in each game's `index.html` stay a helper's job, as the preamble says.
+- Two traps, both already documented for their neighbours: moments arriving
+  from the preview are painted in place, never through `render()` (the
+  problems panel's reason, CLAUDE.md); and the server's `parseConfigFile`
+  import is from `public/config-file.js`, the first of its kind — say so in
+  a comment where it happens and in spec.md §16.
+- Every button and file name the preamble gains is asserted in
+  `orchestrator.test.js`, like the two editors before it.
+- Docs are part of the build, not after it: spec.md §3 §4 §6 §8 §10 §12,
+  GLOSSARY.md (*moment*, *moments library*, *achievement*, *achievements
+  editor*, *achievements library*; widen *reporter*), CLAUDE.md's current
+  state, and the TODO.md line deleted in the same commit as the last step.
+
+## Still open
+
 - Counts across sessions ("win ten times"): the server would have to keep a
   counter per (game, player, moment), which is the moments stream leaving
   the client. Not now; the case for it is real.
@@ -226,3 +267,5 @@ than one somebody makes as a row.
   (`assets/sounds/achievement.wav`), the way the reserved images work?
 - The catalog card: a trophy count in cyan (the studio speaking; never gold,
   which stays a score) once somebody asks for it.
+- Trophies on the title screen: screens v6 grew `Screens.board()` and the
+  `/_me` dance, which is where a trophy list would sit as a later snippet.
