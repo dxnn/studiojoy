@@ -8,17 +8,27 @@ import { readFileAt } from './files/tree.js';
 import { currentSha } from './files/git.js';
 import { WRAPPER_PATH, wrapHtml } from './reporter.js';
 import { readJson } from './http/body.js';
-import { json } from './http/respond.js';
+import { json, noContent } from './http/respond.js';
 import {
   topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
 } from './scores.js';
-// The one thing this listener borrows from the studio's routes: a pure
-// function over headers. It reads no session and nothing here calls anything
-// else in that module.
+// What this listener borrows from the studio's modules is pure and narrow: a
+// function over headers, the password verifiers and lockouts, and the player
+// half of accounts. Nothing here can resolve a *studio* session.
 import { clientIp } from './routes/helpers.js';
-import { escapeHtml } from './util/html.js';
+import {
+  normalizeEmail, verifyPassword, verifyAgainstDummy, parseCookies,
+  createLockout, DEFAULT_EMAIL_LOCKOUT, DEFAULT_IP_LOCKOUT, MAX_EMAIL_CHARS,
+} from './auth.js';
+import {
+  PLAYER_COOKIE, createPlayerSession, deletePlayerSession, playerForToken,
+  playerCookie, clearedPlayerCookie, createSignup,
+} from './players.js';
+import { catalogPage } from './catalog.js';
 
 const ENTRY_FILE = 'index.html';
+// Login and sign-up bodies: three short strings.
+const MAX_AUTH_BODY_BYTES = 1024;
 
 // ⚠️ The public listener, and the reason the studio is safe (spec.md §7).
 //
@@ -30,16 +40,33 @@ const ENTRY_FILE = 'index.html';
 // has no such route, and each origin gets its own localStorage — so games
 // keep working save state, which a CSP sandbox would have cost them.
 //
-// Nothing here reads a cookie or touches a session. The scoreboard is the
-// one write, and it writes one bounded table — never a working tree
-// (spec.md §6). Names and slugs reach the catalog as text, never as markup.
+// ⚠️ The one cookie read here is the *player* cookie — never `session`,
+// which in development travels to this listener on the shared hostname and
+// must open nothing. A player token opens exactly three doors: post a score
+// as yourself, say who you are, sign out. Everything a game's own code could
+// drive with it, it may as well do — a game already speaks for its player.
+// The writes are the scoreboard and the waiting list, each one bounded
+// table, never a working tree (spec.md §6). Names and slugs reach the
+// catalog as text, never as markup.
 
-export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) {
+export function createGamesApp({
+  db, gamesDir, scoreRate, signupRate, trustProxy = false, secureCookies = false,
+  emailLockout = createLockout(DEFAULT_EMAIL_LOCKOUT),
+  ipLockout = createLockout(DEFAULT_IP_LOCKOUT),
+}) {
   if (!db) throw new Error('createGamesApp requires a db');
   const root = path.resolve(gamesDir);
 
   const r = createRouter();
   const limitScores = createScoreLimiter(scoreRate);
+  // Stingier than scores on purpose: a person signs up once, a flood is
+  // never a person, and every row costs a scrypt derivation on the way in.
+  const limitSignups = createScoreLimiter(
+    signupRate ?? { max: 5, windowMs: 10 * 60 * 1000, what: 'signups' },
+  );
+
+  const currentPlayer = (ctx) =>
+    playerForToken(db, parseCookies(ctx.req.headers.cookie)[PLAYER_COOKIE]);
 
   // Slug → game row. Any refusal is a plain 404: the public has no business
   // learning why. A directory on disk with no project row is not public —
@@ -64,75 +91,111 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
     return game;
   };
 
-  // The catalog. Only published games appear, so an unfinished one stays
-  // unlisted while still being playable by link — the same bargain as before,
-  // just findable now. Names are escaped: they are typed by people and this
-  // page is served to the public with no session anywhere near it.
+  // The catalog (catalog.js). Only published games appear, so an unfinished
+  // one stays unlisted while still being playable by link — the same bargain
+  // as before, just findable now. Each card carries the game's hero.png when
+  // it holds one (a reserved image, served like any other file of the
+  // game's) and its board's best score when the board is on.
+  //
+  // ⚠️ The two extra headers are load-bearing, not hygiene: this page holds
+  // a password form on the same origin as LLM-written game code, so a game
+  // could otherwise iframe it or script a window it opened onto it and read
+  // what is typed. frame-ancestors refuses every frame — the studio only
+  // ever frames games, never this page — and COOP cuts the opener handle, so
+  // window.open('/') from a game hands back nothing (spec.md §7).
   r.get('/', (ctx) => {
     const games = db
       .prepare(
-        `SELECT slug, name FROM projects
-          WHERE published = 1 AND kind = 'game' AND archived = 0
-          ORDER BY name`,
+        `SELECT p.slug, p.name,
+                (SELECT MAX(score) FROM scores s WHERE s.project_id = p.id) AS top
+           FROM projects p
+          WHERE p.published = 1 AND p.kind = 'game' AND p.archived = 0
+          ORDER BY p.name`,
       )
-      .all();
+      .all()
+      .map((g) => ({
+        slug: g.slug,
+        name: g.name,
+        top: g.top ?? null,
+        hero: fs.existsSync(path.join(root, g.slug, 'hero.png')),
+      }));
 
-    // hero.png at a game's root dresses its card — a reserved image, served
-    // like any other file of the game's. Only the flag rides the markup: the
-    // slug is validated at creation and escaped here regardless, and the
-    // overlay lives in the stylesheet, where light-dark() picks the wash —
-    // this page, unlike the studio, has a light mode.
-    const cards = games
-      .map((g) => {
-        const slug = escapeHtml(g.slug);
-        const hero = fs.existsSync(path.join(root, g.slug, 'hero.png'))
-          ? ` class="hero" style="--hero:url('/${slug}/hero.png')"`
-          : '';
-        return `<li><a href="/${slug}/"${hero}>${escapeHtml(g.name)}</a></li>`;
-      })
-      .join('\n      ');
-
-    const page = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Unbridled Joy</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 40px 20px;
-         display: flex; justify-content: center; }
-  main { width: 100%; max-width: 640px; }
-  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .tag { margin: 0 0 24px; opacity: 0.7; }
-  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  a { display: block; padding: 16px 18px; border: 1px solid currentColor;
-      border-radius: 12px; text-decoration: none; font-weight: 600; }
-  a:hover { outline: 2px solid currentColor; }
-  a.hero { min-height: 96px; display: flex; align-items: flex-end;
-           background-image:
-             linear-gradient(light-dark(rgba(255,255,255,0.78), rgba(10,8,18,0.55)),
-                             light-dark(rgba(255,255,255,0.78), rgba(10,8,18,0.55))),
-             var(--hero);
-           background-size: cover; background-position: center; }
-  p { opacity: 0.7; }
-</style>
-</head>
-<body>
-  <main>
-    <h1>Unbridled Joy</h1>
-    <p class="tag">Games made by us. Click one and play it.</p>
-    ${games.length ? `<ul>\n      ${cards}\n    </ul>` : '<p>No games yet.</p>'}
-  </main>
-</body>
-</html>
-`;
+    const page = catalogPage({ games, player: currentPlayer(ctx) });
     ctx.res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
+      'Content-Security-Policy': "frame-ancestors 'none'",
+      'Cross-Origin-Opener-Policy': 'same-origin',
     });
     if (ctx.req.method === 'HEAD') return ctx.res.end();
     return ctx.res.end(page);
+  });
+
+  // Who is signed in, for game code: {user: {name}} or {user: null}, never
+  // an error — a game asking is how it decides whether to offer the sign-in
+  // link or post the score.
+  r.get('/_me', (ctx) => {
+    const player = currentPlayer(ctx);
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 200, { user: player ? { name: player.display_name } : null });
+  });
+
+  // The same accounts as the studio, deliberately not the same session: what
+  // this mints is a `player` cookie backed by player_sessions, which the
+  // studio never reads and which opens nothing there. Any account still in
+  // signs in — studio access is about the other origin. Same lockouts, same
+  // dummy-hash path, same refusal for every kind of miss as /api/login: which
+  // kind of account an address carries is not said here either (spec.md §11).
+  r.post('/_login', async (ctx) => {
+    const body = await readJson(ctx.req, MAX_AUTH_BODY_BYTES);
+    const email = normalizeEmail(body.email);
+    const password = typeof body.password === 'string' ? body.password : '';
+    const ip = clientIp(ctx);
+
+    ipLockout.check(ip);
+    if (email) emailLockout.check(email);
+
+    if (!email || email.length > MAX_EMAIL_CHARS || !password) {
+      throw new HttpError(400, 'email and password are required');
+    }
+
+    const user = db
+      .prepare('SELECT id, display_name, password_hash FROM users WHERE email = ? AND deleted = 0')
+      .get(email);
+    const ok = user
+      ? verifyPassword(password, user.password_hash)
+      : verifyAgainstDummy(password);
+
+    if (!ok) {
+      emailLockout.fail(email);
+      ipLockout.fail(ip);
+      throw new HttpError(401, 'incorrect email or password');
+    }
+
+    emailLockout.succeed(email);
+    const token = createPlayerSession(db, user.id);
+    ctx.res.setHeader('Set-Cookie', playerCookie(token, { secure: secureCookies }));
+    json(ctx.res, 200, { user: { name: user.display_name } });
+  });
+
+  r.post('/_logout', (ctx) => {
+    deletePlayerSession(db, parseCookies(ctx.req.headers.cookie)[PLAYER_COOKIE]);
+    ctx.res.setHeader('Set-Cookie', clearedPlayerCookie({ secure: secureCookies }));
+    noContent(ctx.res);
+  });
+
+  // The waiting list (spec.md §11). Nobody gets in from here: an admin
+  // approves the row into an account with game access only, from Studio
+  // settings. The answer is the same whether a row was made or the address
+  // was already spoken for — a public form does not say what an email is to
+  // this studio — so 202 is honest either way: accepted, decided later.
+  r.post('/_signup', async (ctx) => {
+    limitSignups(clientIp(ctx));
+    const body = await readJson(ctx.req, MAX_AUTH_BODY_BYTES);
+    createSignup(db, {
+      email: body.email, displayName: body.name, password: body.password,
+    });
+    json(ctx.res, 202, { waiting: true });
   });
 
   // The game's own index.html with the reporter injected (reporter.js), at a
@@ -174,16 +237,22 @@ export function createGamesApp({ db, gamesDir, scoreRate, trustProxy = false }) 
 
   r.post('/_scores/:slug', async (ctx) => {
     const game = scoreboardFor(ctx.params.slug);
+    // Signed in, or the score does not count: the name on the board is the
+    // account's, so there is nothing an anonymous post could honestly say.
+    // The 401's message is written for the player a game shows it to.
+    const player = currentPlayer(ctx);
+    if (!player) throw new HttpError(401, 'sign in to get on the board');
     // The limit is checked before the body is read, so a flood costs headers.
-    // ⚠️ Behind a reverse proxy every player arrives from the proxy's own
-    // address, so without `TRUST_PROXY=1` this is one bucket for the whole
-    // studio: ten posts a minute shared by every player of every game. The
-    // flag is what makes the forwarded address readable, and it stays a flag
-    // because unproxied anyone could send a fresh one per post and never be
-    // limited at all.
+    // Still per IP rather than per player — a signed-in flood is still a
+    // flood. ⚠️ Behind a reverse proxy every player arrives from the proxy's
+    // own address, so without `TRUST_PROXY=1` this is one bucket for the
+    // whole studio: ten posts a minute shared by every player of every game.
+    // The flag is what makes the forwarded address readable, and it stays a
+    // flag because unproxied anyone could send a fresh one per post and
+    // never be limited at all.
     limitScores(clientIp(ctx));
     const body = await readJson(ctx.req, MAX_SCORE_BODY_BYTES);
-    const rank = submitScore(db, game.id, body);
+    const rank = submitScore(db, game.id, player, body);
     ctx.res.setHeader('Cache-Control', 'no-store');
     json(ctx.res, 201, { rank });
   });

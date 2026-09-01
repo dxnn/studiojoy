@@ -61,6 +61,7 @@ const games = http.createServer(createGamesApp({
   db,
   gamesDir,
   trustProxy: process.env.TRUST_PROXY === '1',
+  secureCookies: process.env.NODE_ENV === 'production',
 }));
 
 // Without these, a port clash surfaces as an unhandled 'error' event and a

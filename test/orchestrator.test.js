@@ -501,6 +501,8 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /"story editor"/);
   assert.match(system, /config\/story\.js/);
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');
+  assert.match(system, /GET \/_me/, 'and the way a game learns who is signed in');
+  assert.match(system, /sign in to get on the board/, 'and what to offer when nobody is');
   assert.match(system, /textContent, never innerHTML/, 'and so is the safe way to show it');
 
   // The files sit in the system prompt, ahead of the transcript, so the prefix

@@ -175,13 +175,17 @@ function studioPreamble({
     // would happily build a broken board (spec.md §6).
     if (project.scores_on !== 0) lines.push(
       '',
-      'Every game also has a scoreboard, kept by the studio rather than in the files. From the game\'s own',
-      'page: POST /_scores/<slug> with JSON {"name": "Pat", "score": 120} saves one entry and answers',
-      '{"rank": 3} — or a null rank when it did not make the board — and GET /_scores/<slug> returns the',
-      'best first as {"scores": [{"name": …, "score": …}, …]}, ten of them unless ?limit= asks for up to',
-      '100. The slug is the first piece of the page\'s address: location.pathname.split("/")[1]. Scores are',
-      'whole numbers and bigger is better, so post a time as its negative and flip it back to show it. The',
-      'board keeps the best 100. Show names with textContent, never innerHTML: anyone playing can post one.',
+      'Every game also has a scoreboard, kept by the studio rather than in the files, and a score only',
+      'counts for a signed-in player: people sign in on the games site\'s front page, and the name on the',
+      'board is their account\'s — never typed into the game, never in the body. From the game\'s own page:',
+      'GET /_me answers {"user": {"name": "Pat"}} or {"user": null}; when it is null, offer a plain link',
+      'to / saying to sign in to get on the board, and skip the post. POST /_scores/<slug> with JSON',
+      '{"score": 120} saves one entry and answers {"rank": 3} — a null rank missed the board, a 401 means',
+      'nobody is signed in — and GET /_scores/<slug> returns the best first as',
+      '{"scores": [{"name": …, "score": …}, …]}, ten of them unless ?limit= asks for up to 100. The slug',
+      'is the first piece of the page\'s address: location.pathname.split("/")[1]. Scores are whole',
+      'numbers and bigger is better, so post a time as its negative and flip it back to show it. The',
+      'board keeps the best 100. Show names with textContent, never innerHTML.',
     );
     lines.push(
       '',
