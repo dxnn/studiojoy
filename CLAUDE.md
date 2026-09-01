@@ -554,16 +554,26 @@ clears it; values wear the look's highlight and taps fall through to the
 game. All three surfaces browser-checked at phone size against the long
 asteriskoids name — the library that was ideas/game-header.md is complete.
 
-Screens v6 answers the last three things asked of it (spec.md §4).
+Screens v10 answers the last three things asked of it (spec.md §4).
 ⚠️ **A game's own css now wins**, which it did not before: `injectStyle()`
 appends to `<head>`, after the game's `<link>`, so at equal specificity the
 library took every tie — a game could not restyle a screen without
-`!important`. Every rule it injects is now inside `@layer screens`, and an
-unlayered rule beats a layered one at any specificity in any order. Its
-variables are layered `:root` defaults, overridden the same way; the four
+`!important`. Every rule it injects is now written `body :where(…)`, which
+weighs exactly one element selector: a game's `.screens-name` (0-1-0) wins, its
+`button {}` (0-0-1) ties and loses to the sheet being later, and its
+`* { margin: 0 }` (0-0-0) loses. ⚠️ **`@layer` is the wrong tool and shipped
+for four versions before a browser said so** — unlayered beats layered at
+*any* specificity, so a game's reset flattened every margin on the screen and
+the panel sat squashed against the left edge. Bare `:where()` was the next
+wrong answer: 0-0-0 lost the Start button to the game's own `button {}`. The
+harness page had no reset, which is why neither showed up until asteriskoids
+did. Variables are the deliberate exception at `:where(:root)`, specificity
+zero, so a game's `:root` replaces a default rather than fighting it; the four
 `LOOK` colours stay inline on the node and beat a stylesheet, which is right —
 they are the game's own `config/look.js`. Where `LOOK` names nothing the game
 can set `--screens-primary` from css instead, which is most games.
+`HIDDEN` in `config/controls.js` keeps making-the-game verbs out of the hint,
+so no title screen offers a kid `Alt to debug`.
 
 The **default** is the studio's form in the game's colour: halftone dots, a
 hairline in the game's own three, a panel card, the filled pill with a glow,
@@ -580,12 +590,26 @@ neighbours bracket built in (four above, your row, four below, real ranks; its
 own version repeated four already-shown rows at rank 11). `Screens.rows()` is a
 label-and-value list, `Screens.signin()` is who is playing or the link to sign
 in, and `Screens.me()`/`Screens.post()` are underneath. `title({ score,
-post: true, board: true })` is the whole game-over dance in one line. ⚠️ Gold
+post: true, board: true })` is the whole game-over dance in one line, and
+`extra` puts the game's own node in the panel — a run breakdown of sections and
+sub-lines is not what `rows()` is for. ⚠️ Gold
 stays a score: the board's score column and a chip value, never a rank, a name
-or a `rows()` value. Browser-checked end to end at 1280 and 360: the layer
+or a `rows()` value. Browser-checked end to end at 1280 and 360: the weighting
 proved against a game stylesheet that restyles the name and squares the panel,
 latin-ext fetched only for `ő`, the bracket at ranks 1–10 · 16–24 with 20 lit,
 and signed out the post 401ing into the sign-in link instead of a bracket.
+
+**Asteriskoids is migrated** and is the worked example: its title and game-over
+screens are `Screens.title()`, and `postScore`/`loadScores`/`fillBoard`/
+`renderOverBoard` and the pilot-name box are gone with `Save` — 216 lines out
+of the game. Its breakdown rides in on `extra`, its `config/look.js` names the
+four colours at last (so the studio wears its orange too), and its
+`css/style.css` is the reference for the two things a game says about a screen:
+`--screens-font` back to its own typeface, and `button:not(.screens-start)` so
+a generic button rule does not eat the library's pill. `key:arrowleft` became
+`key:left` so the hint can say "Arrows", and a `start` verb bound to
+`key:enter pad:start pad:a` — no touch binding — is how a controller gets past
+a screen without a second drawn button.
 `+ Make a sound` renders a
 `.wav` from a preset and a row of sliders, and `+ Draw a picture` opens a PNG
 as a grid of squares. Both are arithmetic in `public/` rather than Web Audio or

@@ -1146,17 +1146,38 @@ The **screens library** (`studio/screens.js`) is the fourth, and the first
 presentational one: `Screens.hint()`, the phone-fit `Screens.title()` and the
 `Screens.chips()` HUD strip. Three decisions in it are worth writing down.
 
-**Its rules live in `@layer screens`.** `injectStyle()` appends a `<style>` to
-`<head>`, which is after the game's own `<link>` — so at equal specificity the
-library won every tie, and a game could not restyle a screen without
-`!important` or a specificity fight. A cascade layer inverts that for good: an
-unlayered rule beats a layered one at any specificity and in any order, so a
-game's `css/style.css` wins by existing. The library's variables are declared
-inside the layer at `:root` and are overridden the same way; ⚠️ the four `LOOK`
-colours are the exception — those are set inline on the screen node and beat a
-stylesheet, which is right, because they come from the game's own
-`config/look.js`. Where `LOOK` names nothing the layered default stands and a
-game can set it from css instead.
+**Every rule it injects weighs exactly one element selector.** `injectStyle()`
+appends a `<style>` to `<head>`, which is after the game's own `<link>` — so at
+equal specificity the library won every tie, and a game could not restyle a
+screen without `!important` or a specificity fight. Each rule is therefore
+written `body :where(…)`: `:where()` contributes nothing, so the whole sheet
+sits at 0-0-1. That single weight is what makes the three cases come out right,
+and each of the three is a real game's stylesheet:
+
+| the game's rule | weight | who wins | why it matters |
+| --- | --- | --- | --- |
+| `.screens-name { … }` | 0-1-0 | the game | it meant this |
+| `button { … }` | 0-0-1 | the library, by being later | its page style should not eat the Start button |
+| `* { margin: 0 }` | 0-0-0 | the library | a reset is not an opinion about a title screen |
+
+⚠️ **A cascade layer is the wrong tool here, and worse than doing nothing.**
+`@layer screens` was the first answer and it shipped for four versions. An
+unlayered rule beats a layered one at *any* specificity, and the first line of
+a game's stylesheet is almost always `* { margin: 0; padding: 0 }` — under a
+layer that reset flattened every margin and padding on the screen, the panel
+lost its `margin:auto` and sat squashed against the left edge with no rhythm
+between anything. Bare `:where()` was the second answer and is 0-0-0, which
+then lost the Start button to the game's own `button { … }`. Both were found in
+a browser on asteriskoids; neither was visible in a harness page written
+without a reset, which is the lesson worth keeping — **a styling contract is
+only tested against a stylesheet that did not expect it.**
+
+The library's variables are the deliberate exception: they are declared at
+`:where(:root)`, specificity zero, so a game's own `:root` *replaces* a default
+instead of fighting it. ⚠️ The four `LOOK` colours are the other exception —
+those are set inline on the screen node and beat a stylesheet, which is right,
+because they come from the game's own `config/look.js`. Where `LOOK` names
+nothing the default stands and a game can set it from css instead.
 
 **Its default is the studio's form in the game's colour.** The four `LOOK`
 names carry the colour; the shapes are the ones `public/style.css` and the
