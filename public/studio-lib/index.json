@@ -23,7 +23,7 @@
       "scripts": ["studio/sprites.js"]
     },
     "screens": {
-      "version": 7,
+      "version": 10,
       "what": "A phone-fit title and game-over screen, a HUD strip of score chips, a one-line how-to-play hint worked out from config/controls.js and the device, and snippets to put inside a screen — the scoreboard above all, fetched and posted for you. A screen takes the game's own nodes too. Carries its own two typefaces, so a game asks nothing of a font host.",
       "files": [
         "screens.js",

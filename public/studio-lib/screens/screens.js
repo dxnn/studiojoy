@@ -1,14 +1,15 @@
 // The words around the game: a how-to-play hint, the title and game-over
-// screen, the HUD strip, and snippets to put inside them — the scoreboard
-// most of all.
+// screen, the HUD strip, and snippets to go inside them — the scoreboard
+// above all.
 //
 //   ctx.fillText(Screens.hint(), x, y);  // "Arrows / WASD to move · Space to fire"
 //
-// hint() is a string worked out from config/controls.js and the device, so it
-// is never wrong: a keyboard gets player1's keys, a touchscreen the shape
-// SCHEME draws and nothing that is not on the screen, a plugged-in controller
-// is folded in. The doing-words are the binding names; start is left out.
-// WORDS.howToPlay replaces it verbatim.
+// hint() is worked out from config/controls.js and the device, so it is never
+// wrong: a keyboard gets player1's keys, a touchscreen the shape SCHEME draws
+// and nothing that is not on it, a plugged-in controller is folded in. The
+// doing-words are the binding names; start is left out, and so is any verb in
+// HIDDEN in that file — the ones that make the game rather than play it.
+// WORDS.howToPlay replaces the line verbatim.
 //
 //   Screens.title({ onStart: start });               // the title screen
 //   Screens.title({ onStart: start, board: true });  // + the top ten
@@ -16,20 +17,20 @@
 //
 // title() fills the window over the game: the name (WORDS.title, else the page
 // title), WORDS.tagline, one focused Start button — Enter or Space press it,
-// the drawn touch controls step aside, and a tap also reaches Input as one
-// frame of "start" — and the hint. A score shows big; the button says Play
-// again (WORDS.again). Any part can be passed instead — { name, tagline, hint,
-// start, score, onStart } beat config. Returns { close }; DOM only.
+// the drawn controls step aside, and a tap reaches Input as one frame of
+// "start" — and the hint. A score shows big; the button says Play again
+// (WORDS.again). Any part can be passed instead — { name, tagline, hint,
+// start, score, onStart } beat config. Returns { close }.
 // `post: true` puts the score on the scoreboard and the board shows where it
 // landed; `board: true` adds the top ten, or pass { limit, around, title };
-// `extra` is your own node, or a list of them, put in the panel.
+// `extra` is your own node, or a list, put in the panel.
 //
 //   Screens.chips({ Score: 12, Lives: 3 });   // the HUD strip, top of screen
 //
 // chips() is cheap every frame: built once, only changed text touched. Each
-// call says the whole strip — a key not named is removed, chips({}) clears it.
+// call says the whole strip; a key not named is removed, chips({}) clears it.
 //
-// Snippets are nodes you place yourself, in these screens or your own page:
+// Snippets are nodes you place yourself, in a screen or your own page:
 //
 //   Screens.board({ limit: 10, around: 14 }) // the scoreboard, fetched
 //   Screens.rows({ Rocks: 42, Level: 7 })    // a label-and-value list
@@ -37,17 +38,17 @@
 //   await Screens.me()                       // { name } or null
 //   await Screens.post(score)                // {rank} | {signin:true} | {}
 //
-// board() asks the studio for /_scores itself and fills in when it answers.
-// `around: rank` marks that row, and past the list it adds the four above and
-// four below, numbered where they really are.
+// board() asks for /_scores itself and fills in when it answers. `around:
+// rank` marks that row, and past the list it adds the four above and four
+// below, numbered where they really are.
 //
-// Styling: every part wears a screens- class and your own css always wins —
-// the library's rules sit in an @layer, so nothing needs !important. The
-// screen also wears screens-over on game over. Colours come from LOOK in
+// Styling: every part wears a screens- class and your own css wins — a rule
+// here weighs one element selector, so `.screens-name { … }` beats it and
+// !important is never needed. The screen wears screens-over on game over.
+// Colours come from LOOK in
 // config/look.js: primary (name, button), accent (tagline), highlight (⚠️ a
 // score and nothing else), deep (the ground). --screens-font and -mono, -text,
-// -muted, -ink, -panel, -border, -radius are yours on :root. The typefaces sit
-// beside this file.
+// -muted, -ink, -panel, -border, -radius are yours on :root.
 //
 // Missing pieces are quiet — an empty string or a no-op, never an error.
 // Load config/controls.js first.
@@ -80,6 +81,14 @@ const Screens = (function () {
 
   function schemeName() {
     return typeof SCHEME === "string" ? SCHEME : "";
+  }
+
+  // Verbs config/controls.js asks to keep out of the hint: the ones that make
+  // the game rather than play it, like a key that draws the hitboxes. start is
+  // always out — the title screen is its whole job.
+  function hiddenVerbs() {
+    if (typeof HIDDEN !== "undefined" && Array.isArray(HIDDEN)) return HIDDEN;
+    return [];
   }
 
   function ownWords() {
@@ -115,8 +124,9 @@ const Screens = (function () {
     if (!verbs) return null;
     const groups = [];
     const singles = [];
+    const hidden = hiddenVerbs();
     for (const verb of Object.keys(verbs)) {
-      if (verb === "start") continue;
+      if (verb === "start" || hidden.indexOf(verb) >= 0) continue;
       const tokens = bindings(verbs[verb]);
       const dash = verb.lastIndexOf("-");
       const dir = dash < 0 ? verb : verb.slice(dash + 1);
@@ -342,11 +352,23 @@ const Screens = (function () {
     + face("Space Mono", "400", "space-mono.woff2", LATIN)
     + face("Space Mono", "700", "space-mono-bold.woff2", LATIN);
 
-  // The stylesheet, injected once, and ⚠️ all of it inside `@layer screens`:
-  // an unlayered rule beats a layered one whatever its specificity and
-  // wherever it sits, so a game's own css/style.css wins by existing. Without
-  // the layer this <style> lands after the game's <link> and quietly outranks
-  // it, which is what made these screens un-restylable.
+  // The stylesheet, injected once, and ⚠️ every rule in it is written
+  // `body :where(…)`, which is deliberate to the last character. :where()
+  // contributes nothing, so each rule weighs exactly one element selector —
+  // 0-0-1. That is the one weight that does what a library wants:
+  //
+  //   .screens-name { … }        a game means this        0-1-0  game wins
+  //   button { … }               the game's page style    0-0-1  tie, we are later
+  //   * { margin: 0 }            a reset                  0-0-0  we win
+  //
+  // ⚠️ Two wrong answers, both found in a browser, both on asteriskoids.
+  // Plain `.screens-name` — no wrapper — wins every tie because this <style>
+  // lands after the game's <link>, so a screen could not be restyled at all.
+  // `@layer screens` is worse than doing nothing: an unlayered rule beats a
+  // layered one at ANY specificity, and a game's first line is usually
+  // `* { margin: 0; padding: 0 }` — that reset flattened every margin on the
+  // screen, and the panel lost `margin:auto` and sat against the left edge.
+  // Bare :where() then lost the Start button to the game's own `button { … }`.
   //
   // Colour is the game's — the four LOOK names, set inline on the screen —
   // and the shapes are the studio's: the halftone dots, the hairline across
@@ -361,8 +383,8 @@ const Screens = (function () {
   // never clipped at both ends the way flex centering clips — and safe-area
   // padding for notches. The chips row takes no pointer events: a tap on the
   // HUD is a tap on the game.
-  const SCREENS_CSS = "@layer screens{"
-    + ":root{"
+  const SCREENS_CSS = ""
+    + ":where(:root){"
     + "--screens-font:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;"
     + "--screens-mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"
     + "--screens-text:#f2effe;--screens-muted:#9a8fd0;--screens-ink:#12101f;"
@@ -371,7 +393,7 @@ const Screens = (function () {
     + "--screens-accent:oklch(0.78 0.15 350);--screens-highlight:oklch(0.85 0.15 95);"
     + "--screens-deep:#191033}"
 
-    + ".screens-title-screen{position:fixed;inset:0;z-index:9998;overflow:auto;display:flex;"
+    + "body :where(.screens-title-screen){position:fixed;inset:0;z-index:9998;overflow:auto;display:flex;"
     + "box-sizing:border-box;text-align:center;font-family:var(--screens-font);"
     + "color:var(--screens-text);-webkit-font-smoothing:antialiased;"
     + "padding:calc(22px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-right,0px)) "
@@ -387,82 +409,81 @@ const Screens = (function () {
     // The hairline: the studio's one gesture, drawn in this game's own three
     // colours rather than the studio's, so it reads as the house style and
     // not as the studio's badge on somebody's game.
-    + ".screens-title-screen::before{content:'';position:fixed;top:0;left:0;right:0;height:2px;"
+    + "body :where(.screens-title-screen)::before{content:'';position:fixed;top:0;left:0;right:0;height:2px;"
     + "background:linear-gradient(90deg,var(--screens-primary),var(--screens-accent),"
     + "var(--screens-highlight))}"
 
-    + ".screens-panel{margin:auto;box-sizing:border-box;width:min(34rem,100%);padding:28px 22px;"
+    + "body :where(.screens-panel){margin:auto;box-sizing:border-box;width:min(34rem,100%);padding:28px 22px;"
     + "background:var(--screens-panel);border:1px solid var(--screens-border);"
     + "border-radius:var(--screens-radius);box-shadow:0 18px 50px rgba(6,4,14,.5)}"
-    + ".screens-name{margin:0;font-size:clamp(30px,9vw,58px);line-height:1.05;font-weight:700;"
+    + "body :where(.screens-name){margin:0;font-size:clamp(30px,9vw,58px);line-height:1.05;font-weight:700;"
     + "letter-spacing:-.03em;overflow-wrap:break-word;color:var(--screens-primary)}"
-    + ".screens-tagline{margin:11px 0 0;font-size:clamp(14px,3.8vw,18px);"
+    + "body :where(.screens-tagline){margin:11px 0 0;font-size:clamp(14px,3.8vw,18px);"
     + "color:var(--screens-accent)}"
-    + ".screens-score{margin:16px 0 0;font-family:var(--screens-mono);font-weight:700;"
+    + "body :where(.screens-score){margin:16px 0 0;font-family:var(--screens-mono);font-weight:700;"
     + "font-size:clamp(34px,11vw,58px);line-height:1;font-variant-numeric:tabular-nums;"
     + "color:var(--screens-highlight)}"
-    + ".screens-start{display:inline-block;margin:24px 0 0;min-height:52px;padding:13px 34px;"
+    + "body :where(.screens-start){display:inline-block;margin:24px 0 0;min-height:52px;padding:13px 34px;"
     + "font:700 clamp(17px,4.5vw,21px)/1.2 var(--screens-font);color:var(--screens-ink);"
     + "cursor:pointer;border:0;border-radius:999px;"
     + "background:linear-gradient(100deg,var(--screens-primary),var(--screens-accent));"
     + "box-shadow:0 0 26px color-mix(in oklab,var(--screens-primary) 34%,transparent)}"
-    + ".screens-start:hover{filter:brightness(1.08)}"
-    + ".screens-start:active{filter:brightness(.92)}"
-    + ".screens-start:focus-visible{outline:2px solid var(--screens-text);outline-offset:3px}"
-    + ".screens-hint{margin:20px 0 0;font-size:clamp(13px,3.4vw,15px);color:var(--screens-muted)}"
+    + "body :where(.screens-start:hover){filter:brightness(1.08)}"
+    + "body :where(.screens-start:active){filter:brightness(.92)}"
+    + "body :where(.screens-start:focus-visible){outline:2px solid var(--screens-text);outline-offset:3px}"
+    + "body :where(.screens-hint){margin:20px 0 0;font-size:clamp(13px,3.4vw,15px);color:var(--screens-muted)}"
 
     // The scoreboard snippet. A rank is mono and muted, a name is the reading
     // face, and ⚠️ only the score is gold — the moment that spreads to a rank
     // or a name the colour stops meaning "a number worth looking at".
-    + ".screens-board{margin:24px 0 0;text-align:left}"
-    + ".screens-board-title{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.14em;"
+    + "body :where(.screens-board){margin:24px 0 0;text-align:left}"
+    + "body :where(.screens-board-title){margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.14em;"
     + "text-transform:uppercase;color:var(--screens-muted)}"
-    + ".screens-board-list{list-style:none;margin:0;padding:0;display:flex;"
+    + "body :where(.screens-board-list){list-style:none;margin:0;padding:0;display:flex;"
     + "flex-direction:column;gap:2px}"
-    + ".screens-place{display:grid;grid-template-columns:2.4em 1fr auto;gap:10px;"
+    + "body :where(.screens-place){display:grid;grid-template-columns:2.4em 1fr auto;gap:10px;"
     + "align-items:baseline;padding:4px 9px;border:1px solid transparent;border-radius:8px}"
-    + ".screens-place.screens-mine{border-color:var(--screens-primary);"
+    + "body :where(.screens-place.screens-mine){border-color:var(--screens-primary);"
     + "background:color-mix(in oklab,var(--screens-primary) 14%,transparent)}"
-    + ".screens-place-rank{font-family:var(--screens-mono);font-size:11.5px;"
+    + "body :where(.screens-place-rank){font-family:var(--screens-mono);font-size:11.5px;"
     + "font-variant-numeric:tabular-nums;color:var(--screens-muted)}"
-    + ".screens-place-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+    + "body :where(.screens-place-name){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
     + "font-size:14px}"
-    + ".screens-place-score{font-family:var(--screens-mono);font-weight:700;font-size:14px;"
+    + "body :where(.screens-place-score){font-family:var(--screens-mono);font-weight:700;font-size:14px;"
     + "font-variant-numeric:tabular-nums;color:var(--screens-highlight)}"
-    + ".screens-gap{padding:1px 9px;color:var(--screens-muted);letter-spacing:.2em;"
+    + "body :where(.screens-gap){padding:1px 9px;color:var(--screens-muted);letter-spacing:.2em;"
     + "font-size:11px}"
-    + ".screens-empty{padding:4px 9px;color:var(--screens-muted);font-size:13px}"
-    + ".screens-signin{margin:14px 0 0;font-size:13px;color:var(--screens-muted)}"
-    + ".screens-signin a{color:var(--screens-primary)}"
+    + "body :where(.screens-empty){padding:4px 9px;color:var(--screens-muted);font-size:13px}"
+    + "body :where(.screens-signin){margin:14px 0 0;font-size:13px;color:var(--screens-muted)}"
+    + "body :where(.screens-signin a){color:var(--screens-primary)}"
 
     // The label-and-value list. Not gold: a count of rocks is a number, but
     // it is not a score.
-    + ".screens-rows{list-style:none;margin:20px 0 0;padding:0;display:flex;"
+    + "body :where(.screens-rows){list-style:none;margin:20px 0 0;padding:0;display:flex;"
     + "flex-direction:column;gap:2px;text-align:left}"
-    + ".screens-row{display:flex;justify-content:space-between;gap:14px;padding:3px 9px;"
+    + "body :where(.screens-row){display:flex;justify-content:space-between;gap:14px;padding:3px 9px;"
     + "font-size:14px}"
-    + ".screens-row-label{color:var(--screens-muted)}"
-    + ".screens-row-value{font-family:var(--screens-mono);font-weight:700;"
+    + "body :where(.screens-row-label){color:var(--screens-muted)}"
+    + "body :where(.screens-row-value){font-family:var(--screens-mono);font-weight:700;"
     + "font-variant-numeric:tabular-nums;color:var(--screens-text)}"
 
-    + ".screens-chips{position:fixed;top:0;left:0;right:0;z-index:9997;display:flex;"
+    + "body :where(.screens-chips){position:fixed;top:0;left:0;right:0;z-index:9997;display:flex;"
     + "flex-wrap:wrap;justify-content:center;gap:8px;pointer-events:none;"
     + "padding:calc(10px + env(safe-area-inset-top,0px)) 12px 0;"
     + "font-family:var(--screens-font)}"
-    + ".screens-chip{display:flex;align-items:baseline;gap:7px;padding:4px 12px;"
+    + "body :where(.screens-chip){display:flex;align-items:baseline;gap:7px;padding:4px 12px;"
     + "border-radius:999px;background:var(--screens-panel);"
     + "border:1px solid var(--screens-border);color:var(--screens-text);"
     + "font-size:clamp(12px,3vw,13.5px)}"
-    + ".screens-chip-label{color:var(--screens-muted);letter-spacing:.04em}"
-    + ".screens-chip-value{font-family:var(--screens-mono);font-weight:700;"
+    + "body :where(.screens-chip-label){color:var(--screens-muted);letter-spacing:.04em}"
+    + "body :where(.screens-chip-value){font-family:var(--screens-mono);font-weight:700;"
     + "font-size:clamp(13px,3.4vw,16px);font-variant-numeric:tabular-nums;"
     + "color:var(--screens-highlight)}"
     // The HUD steps aside under a title or game-over screen, the same way the
     // drawn touch controls do. The screen is not quite opaque — the game shows
     // faintly through it on purpose — and a score bleeding through the top of
     // it reads as a mistake rather than as a HUD.
-    + "body.screens-open .screens-chips{display:none}"
-    + "}";
+    + "body:where(.screens-open) :where(.screens-chips){display:none}";
 
   let styleDone = false;
 

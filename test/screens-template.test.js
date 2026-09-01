@@ -258,6 +258,32 @@ test('a renamed verb renames the hint', () => {
   assert.equal(boot({ controls, coarse: true }).hint(), 'DIG to plant');
 });
 
+// A key that draws the hitboxes is for making the game, not playing it, and
+// "Alt to debug" on a kid's title screen is noise with a keyboard shortcut in
+// it. HIDDEN sits in config/controls.js beside the verb it names, so every
+// call gets it right — title() asks for the hint itself.
+test('HIDDEN keeps the making-the-game verbs out of the hint', () => {
+  const controls = `
+    const HIDDEN = ["debug"];
+    const CONTROLS = { player1: {
+      left: "key:left", right: "key:right",
+      fire: "key:space",
+      debug: "key:alt",
+    } };
+  `;
+  assert.equal(boot({ controls }).hint(), 'Arrows to move · Space to fire');
+  // Without it the verb is said like any other, which is the old behaviour.
+  assert.equal(
+    boot({ controls: controls.replace('const HIDDEN = ["debug"];', '') }).hint(),
+    'Arrows to move · Space to fire · Alt to debug',
+  );
+  // A HIDDEN that is not a list is ignored rather than thrown over.
+  assert.equal(
+    boot({ controls: controls.replace('["debug"]', '"debug"') }).hint(),
+    'Arrows to move · Space to fire · Alt to debug',
+  );
+});
+
 test('WORDS.howToPlay wins as written, on every device', () => {
   const words = 'const WORDS = { howToPlay: "steer with one finger" };';
   assert.equal(boot({ controls: SEED, words }).hint(), 'steer with one finger');
@@ -500,28 +526,59 @@ test('Enter and Space press the Start button, and let go with the screen', () =>
 
 // ---------- the stylesheet ----------
 
-// ⚠️ The whole reason for the layer: injectStyle() appends to <head>, which is
-// after the game's own <link>, so before this every screens- rule quietly
-// outranked the stylesheet a game wrote to change it. An unlayered rule beats
-// a layered one wherever it sits, so a game now wins by existing.
-test("the library's rules sit in a layer, so a game's own css always wins", () => {
+// ⚠️ Why every rule is written `body :where(…)`. injectStyle() appends to
+// <head>, after the game's own <link>, so the sheet wins every tie it is
+// allowed to enter — the weight it carries is the whole design:
+//
+//   .screens-name { … }   a game means it   0-1-0  the game wins
+//   button { … }          the page's style  0-0-1  a tie, and we are later
+//   * { margin: 0 }       a reset           0-0-0  we win
+//
+// Two wrong answers came first, both found in a browser on asteriskoids.
+// `@layer screens` is worse than nothing — an unlayered rule beats a layered
+// one at ANY specificity, and a game opens with `* { margin: 0; padding: 0 }`,
+// which flattened every margin on the screen and left the panel against the
+// left edge. Bare :where() is 0-0-0 and then lost the Start button to the
+// game's own `button { … }`. One element selector is the weight that works.
+test("the library's css weighs one element selector, so a game's own wins", () => {
   const { Screens, document } = bootDom({});
   Screens.title({});
   const css = document.head.children[0].textContent;
   assert.ok(css.startsWith('@font-face{'), 'the faces come first');
-  const at = css.indexOf('@layer screens{');
-  assert.ok(at > 0, 'and the rules are in a layer');
-  assert.equal(css.indexOf('@font-face', at), -1, 'no face inside it — those are not cascaded');
-  assert.equal(css.endsWith('}'), true, 'the layer is closed');
+  assert.equal(css.includes('@layer'), false, 'never a layer — a game reset would beat it');
   assert.equal(css.includes('!important'), false, 'nothing outranks a game by force');
-  for (const rule of [':root{', '.screens-title-screen{', '.screens-panel{',
-    '.screens-place{', '.screens-row{', '.screens-chip{']) {
-    assert.ok(css.indexOf(rule) > at, rule);
+
+  // Every rule past the faces, and every one of them carrying that weight:
+  // one selector written any other way is one thing a game silently cannot
+  // restyle, or one default a stray `p { margin: 0 }` silently wipes out.
+  const selectors = css
+    .slice(css.indexOf(':where('))
+    .split('}')
+    .map((chunk) => chunk.split('{')[0].trim())
+    .filter((selector) => selector !== '' && selector !== ':where(:root)');
+  assert.ok(selectors.length >= 25, `${selectors.length} rules`);
+  for (const selector of selectors) {
+    assert.ok(
+      selector.startsWith('body :where(') || selector.startsWith('body:where('),
+      selector,
+    );
+    // Nothing outside a :where() but that one body and, on the hairline, a
+    // pseudo-element — which cannot go inside one. So the weight is 0-0-1,
+    // or 0-0-2 for the hairline, and both stay under a game's class.
+    const bare = selector.replace(/:where\([^)]*\)/g, '').replace('body', '').trim();
+    assert.ok(bare === '' || bare === '::before', selector);
   }
-  // The HUD steps aside under a screen the way the drawn controls do — the
-  // screen is not quite opaque, and a score showing through the top of it
-  // reads as a mistake. Layered like the rest, so a game can bring it back.
-  assert.ok(css.indexOf('body.screens-open .screens-chips{display:none}') > at);
+  // The variables are the exception and are meant to be: 0-0-0, so a game's
+  // own :root — 0-1-0 — replaces a default rather than fighting it.
+  assert.ok(css.includes(':where(:root){--screens-font:'));
+  for (const rule of ['body :where(.screens-title-screen){', 'body :where(.screens-panel){',
+    'body :where(.screens-place){', 'body :where(.screens-row){', 'body :where(.screens-chip){',
+    // The HUD steps aside under a screen the way the drawn controls do: the
+    // screen is not quite opaque, and a score showing through it reads as a
+    // mistake. Same weight as the rest, so a game can bring it back.
+    'body:where(.screens-open) :where(.screens-chips){']) {
+    assert.ok(css.includes(rule), rule);
+  }
 });
 
 test('the typefaces are files beside the library, asked for from where it lives', () => {
