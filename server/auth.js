@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
+import { forbiddenCharKind } from './util/text.js';
 
 // scrypt parameters from spec.md §11. Stored format carries them so an
 // existing hash keeps verifying if these are ever raised.
@@ -275,6 +276,8 @@ export function createUser(db, { email, password, displayName }, now = new Date(
   if (name.length > MAX_DISPLAY_NAME_CHARS) {
     throw new Error(`display name is longer than ${MAX_DISPLAY_NAME_CHARS} characters`);
   }
+  const unprintable = forbiddenCharKind(name);
+  if (unprintable) throw new Error(`display name has ${unprintable} in it`);
   // Removed accounts do not count: a studio whose people have all been taken
   // out still has to be able to make somebody who can let the rest back in.
   const first = db.prepare('SELECT COUNT(*) AS c FROM users WHERE deleted = 0').get().c === 0;

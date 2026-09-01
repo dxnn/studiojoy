@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
+import { forbiddenCharKind } from './util/text.js';
 import {
   hashPassword, normalizeEmail, parseCookies,
   MAX_EMAIL_CHARS, MAX_DISPLAY_NAME_CHARS, MIN_PASSWORD_CHARS,
@@ -88,7 +89,9 @@ export function createSignup(db, { email, displayName, password }, now = new Dat
   if (name.length > MAX_DISPLAY_NAME_CHARS) {
     throw new HttpError(400, `a name stops at ${MAX_DISPLAY_NAME_CHARS} characters`);
   }
-  if ([...name].some((ch) => ch.codePointAt(0) < 0x20 || ch.codePointAt(0) === 0x7f)) {
+  // The path validator's class, not just C0: a zero-width space or a bidi
+  // override prints as nothing or as another name, on a board kids read.
+  if (forbiddenCharKind(name)) {
     throw new HttpError(400, 'that name has characters that will not print');
   }
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_CHARS) {

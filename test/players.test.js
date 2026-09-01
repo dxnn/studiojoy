@@ -4,6 +4,11 @@ import { setup, signIn, playerSignIn, startGames } from './helpers.js';
 import { createLockout } from '../server/auth.js';
 import { PLAYER_SESSION_DAYS, createPlayerSession } from '../server/players.js';
 
+// Spelled as codepoints rather than typed in: invisible bytes in a source
+// file grep badly and die silently if an editor normalises them.
+const RLO = String.fromCodePoint(0x202e); // right-to-left override
+const ZWSP = String.fromCodePoint(0x200b); // zero-width space
+
 // The games origin's own sign-in: same accounts as the studio, separate
 // sessions, and a public sign-up that only ever feeds the waiting list.
 
@@ -152,6 +157,10 @@ test('a sign-up that cannot be an account is a 400 that says why', async (t) => 
     { name: 'Robin', email: 'not-an-email', password: 'secret7' },
     { name: '  ', email: 'robin@example.com', password: 'secret7' },
     { name: 'a\tb', email: 'robin@example.com', password: 'secret7' },
+    // The path validator's class too: a bidi override or a zero-width space
+    // would print as another name on the board.
+    { name: `Rob${RLO}in`, email: 'robin@example.com', password: 'secret7' },
+    { name: `Ro${ZWSP}bin`, email: 'robin@example.com', password: 'secret7' },
     { name: 'x'.repeat(101), email: 'robin@example.com', password: 'secret7' },
     { name: 'Robin', email: 'robin@example.com', password: 'short' },
     { name: 'Robin', email: 'robin@example.com' },

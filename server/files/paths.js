@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { HttpError } from '../http/respond.js';
+import { forbiddenCharKind } from '../util/text.js';
 
 // ⚠️ This module is the security boundary described in spec.md §4. Every
 // read, write, delete, move, and public serve routes through it. Agents are
@@ -24,34 +25,9 @@ export const LIBRARY_MANIFEST = `${LIBRARY_DIR}/studio.json`;
 
 export const isLibraryPath = (rel) => rel === LIBRARY_DIR || rel.startsWith(`${LIBRARY_DIR}/`);
 
-// Codepoint ranges rather than a regex on purpose: a character class holding
-// these would be a run of invisible bytes in the source, which greps badly
-// and dies silently if an editor normalises the file. Hex literals are plain
-// ASCII and say what they mean.
-//
-// - control: C0 and DEL, meaningless in a filename and a classic truncation
-//   trick against anything that later hands the path to a C API.
-// - format: soft hyphen, zero-width spaces/joiners, bidi overrides, BOM.
-//   macOS treats several as ignorable, so `.gi<ZWSP>t` opens the real `.git`
-//   directory; bidi overrides make a filename render as something it isn't.
-function forbiddenCharKind(s) {
-  for (const ch of s) {
-    const c = ch.codePointAt(0);
-    if (c < 0x20 || c === 0x7f) return 'a control character';
-    if (
-      c === 0x00ad ||
-      (c >= 0x200b && c <= 0x200f) ||
-      (c >= 0x202a && c <= 0x202e) ||
-      (c >= 0x2060 && c <= 0x2064) ||
-      (c >= 0x206a && c <= 0x206f) ||
-      c === 0xfeff ||
-      (c >= 0xfff9 && c <= 0xfffb)
-    ) {
-      return 'a zero-width or bidi character';
-    }
-  }
-  return null;
-}
+// The control and format characters a path refuses are `forbiddenCharKind`
+// in util/text.js — shared with account names, which refuse them for the
+// same spoofing reason.
 
 const bad = (reason) => ({ ok: false, reason });
 

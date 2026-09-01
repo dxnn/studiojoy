@@ -1,5 +1,6 @@
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
+import { stripForbidden } from './util/text.js';
 
 // The scoreboard: the games origin's one write (spec.md §6). Posting takes
 // being signed in now, and the name on the row is the account's — but every
@@ -40,12 +41,13 @@ export function topScores(db, projectId, rawLimit) {
 // is kinder than failing the games that already work. It is squeezed to the
 // board's width here rather than refused: the account's name was validated
 // when it was made, and a scoreboard is no place to bounce somebody for the
-// length of their name. Still bounded and control-free on the way out,
-// because a game renders it (the preamble says textContent, never innerHTML).
+// length of their name. Still bounded on the way out, and stripped of the
+// control and format characters every door now refuses — a name from before
+// the door checked could carry a bidi override, which reads as another name
+// on a board a game renders (the preamble says textContent, never innerHTML).
 export function submitScore(db, projectId, player, body, now = new Date()) {
-  const name = [...player.display_name]
-    .filter((ch) => ch.codePointAt(0) >= 0x20 && ch.codePointAt(0) !== 0x7f)
-    .join('').trim().slice(0, MAX_NAME_CHARS).trimEnd() || 'Player';
+  const name = stripForbidden(player.display_name)
+    .trim().slice(0, MAX_NAME_CHARS).trimEnd() || 'Player';
   const { score } = body;
   if (!Number.isSafeInteger(score)) {
     throw new HttpError(400, 'score must be a whole number');

@@ -85,6 +85,19 @@ test('a long account name is squeezed to the board\'s width, not refused', async
   assert.equal(body.scores[0].name, 'Bartholomew Montgomery I');
 });
 
+// Every door refuses these now; a name stored before the door checked still
+// reaches the board, and loses them on the way.
+test('a stored name loses its invisible characters on the board', async (t) => {
+  const { app, games } = await board(t);
+  // A bidi override, a zero-width space and a soft hyphen, as codepoints so
+  // no invisible byte sits in this file.
+  const [rlo, zwsp, shy] = [0x202e, 0x200b, 0x00ad].map((c) => String.fromCodePoint(c));
+  app.db.prepare('UPDATE users SET display_name = ? WHERE email = ?')
+    .run(`P${rlo}at${zwsp} ${shy}X`, 'pat@example.com');
+  assert.equal((await post(games, { score: 9 })).status, 201);
+  assert.deepEqual((await top(games)).body.scores, [{ name: 'Pat X', score: 9 }]);
+});
+
 test('the board answers ten by default and ?limit= is clamped, never an error', async (t) => {
   const { games } = await board(t);
   for (let i = 1; i <= 15; i++) await post(games, { score: i });

@@ -42,7 +42,7 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `id` | INTEGER PK | |
 | `email` | TEXT UNIQUE NOT NULL | login handle |
 | `password_hash` | TEXT NOT NULL | scrypt, includes salt + params |
-| `display_name` | TEXT NOT NULL | shown in UI and used as the git author name |
+| `display_name` | TEXT NOT NULL | shown in UI and used as the git author name; ≤ 100 chars, and every door that sets one refuses the path validator's control and format characters (§4) — it is a scoreboard name |
 | `created_at` | TEXT NOT NULL | |
 
 A row here is an account, and it comes in two kinds: with `studio_access = 1`
@@ -123,7 +123,7 @@ take both kinds, the toggle only the studio's.
 |---|---|---|
 | `id` | INTEGER PK | |
 | `email` | TEXT UNIQUE NOT NULL | |
-| `display_name` | TEXT NOT NULL | ≤ 100 chars, no control characters — it will be a scoreboard name |
+| `display_name` | TEXT NOT NULL | ≤ 100 chars, no control or format characters (the path validator's class, §4) — it will be a scoreboard name |
 | `password_hash` | TEXT NOT NULL | scrypt, hashed at sign-up so approval needs nobody present |
 | `created_at` | TEXT NOT NULL | |
 | `approved_by` / `approved_at` / `approved_user_id` | | who let them in, when, and the account it made |
@@ -472,7 +472,7 @@ anything is reported for that project.
 | `id` | INTEGER PK | ties rank by it: earlier post wins |
 | `project_id` | INTEGER NOT NULL → projects | |
 | `user_id` | INTEGER → users | who posted it; NULL on every row from before sign-in existed |
-| `name` | TEXT NOT NULL | the poster's account name, squeezed to 24 chars, control characters stripped |
+| `name` | TEXT NOT NULL | the poster's account name, squeezed to 24 chars, control and format characters stripped — the doors refuse them now, the strip covers names stored before they did |
 | `score` | INTEGER NOT NULL | a JS-safe integer; bigger is better |
 | `created_at` | TEXT NOT NULL | |
 

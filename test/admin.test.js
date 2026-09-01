@@ -72,6 +72,26 @@ test('an admin adds somebody and renames them', async (t) => {
   // Taking somebody out is not in here at all — see remove-account.test.js.
 });
 
+// A name is a scoreboard name, so both doors here keep the path validator's
+// rule: a bidi override or a zero-width space is refused, not stored.
+test('a name with an invisible character in it is refused at both doors', async (t) => {
+  const { app, robin } = await two(t);
+  const rlo = String.fromCodePoint(0x202e); // as a codepoint: no invisible byte in this file
+  const zwsp = String.fromCodePoint(0x200b);
+  const made = await app.client.json('POST', '/api/admin/users', {
+    body: { email: 'z@example.com', display_name: `Rob${rlo}in`, password: 'hunter2' },
+  });
+  assert.equal(made.status, 400);
+  assert.match(made.body.error, /bidi/);
+  const renamed = await app.client.json('PATCH', `/api/admin/users/${robin.id}`, {
+    body: { display_name: `Ro${zwsp}bin` },
+  });
+  assert.equal(renamed.status, 400);
+  assert.match(renamed.body.error, /bidi/);
+  const panel = await app.client.json('GET', '/api/admin/studio');
+  assert.deepEqual(panel.body.people.map((p) => p.display_name), ['Dann', 'Robin']);
+});
+
 test('a password an admin sets works, and ends the old sessions', async (t) => {
   const { app, robin, theirs } = await two(t);
   assert.equal((await theirs.json('GET', '/api/me')).status, 200);

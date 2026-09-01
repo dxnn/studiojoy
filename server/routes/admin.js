@@ -14,6 +14,7 @@ import {
 } from '../auth.js';
 import { waitingSignups, approveSignup, refuseSignup } from '../players.js';
 import { requireString, optionalBool } from './helpers.js';
+import { forbiddenCharKind } from '../util/text.js';
 import {
   DEFAULT_DAILY_TOKEN_BUDGET, studioLimit, userSpentToday, budgetState,
 } from '../budget.js';
@@ -133,6 +134,9 @@ export function adminRoutes(r) {
 
     if (body.display_name !== undefined) {
       const name = requireString(body.display_name, 'display_name', { max: MAX_NAME });
+      // The same door createUser keeps: a name is a scoreboard name.
+      const unprintable = forbiddenCharKind(name);
+      if (unprintable) throw new HttpError(400, `display_name has ${unprintable} in it`);
       ctx.db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(name, id);
     }
     const tokens = optionalTokens(body.daily_tokens, 'daily_tokens');
