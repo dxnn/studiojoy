@@ -1808,6 +1808,12 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
   background: var(--panel-3);
   display: block;
 }
+/* The live frame is one node on the body, never moved — an <iframe> reloads
+   whenever it leaves the document, and render() rebuilds the tree — laid over
+   the placeholder the tree holds for it (main.js, placePreview): its size and
+   place come from the placeholder's rectangle, so nothing else is said here.
+   Above the rail, under the banner and every dialog. */
+.preview-frame.live { position: fixed; z-index: 3; aspect-ratio: auto; margin: 0; }
 /* Under the frame: the best score in highlight, then the two things you do to
    the running game — open it in a tab, or fold it away. Both belong to the
    preview, so both live on the preview. */

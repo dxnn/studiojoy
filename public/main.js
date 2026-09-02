@@ -3351,6 +3351,51 @@ const bestScore = () => (S.project.scores_on !== 0 && S.scores?.length ? S.score
 
 const showScore = (n) => n.toLocaleString();
 
+// ⚠️ The game must not restart on every render. render() rebuilds the whole
+// tree, and an <iframe> reloads the moment it leaves the document — so while
+// the frame lived in the tree, every render was a reload: a banner arriving
+// and leaving six seconds later, a line typed in the story editor, a file
+// opened on the right, all restarted the game (spec.md §17). So the one frame
+// is appended to the body once and never moved. The tree holds a placeholder
+// of its size where it used to be, and the frame is a fixed box laid over the
+// placeholder's rectangle — measured again after every render, on resize, on
+// any scroll and while the rail is dragged — hidden while the placeholder is
+// hidden or gone, and unloaded (about:blank) when the preview is folded away
+// or no game is open, so a game never runs silently behind a chat.
+const previewFrame = h('iframe', { class: 'preview-frame live', title: 'Game preview' });
+document.body.append(previewFrame);
+let previewSlot = null;
+let previewSrc = '';
+
+// Only an address that changed is set, so only a nonce bump — a commit — or
+// a different game reloads the frame.
+function showPreview(url) {
+  if (previewSrc === url) return;
+  previewSrc = url;
+  previewFrame.src = url;
+}
+
+function placePreview() {
+  const box = previewSlot?.isConnected ? previewSlot.getBoundingClientRect() : null;
+  // A placeholder under display:none — a picture open, a phone showing the
+  // chat — measures as nothing, so a hidden placeholder is a hidden frame:
+  // hidden, never unloaded, exactly as the frame in the tree used to be.
+  const shown = Boolean(box && box.width > 0 && box.height > 0);
+  previewFrame.style.display = shown ? '' : 'none';
+  if (!shown) return;
+  Object.assign(previewFrame.style, {
+    top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px`,
+  });
+}
+
+// After a render: no placeholder on screen means no game to show.
+function settlePreview() {
+  if (!previewSlot) showPreview('about:blank');
+  placePreview();
+}
+window.addEventListener('resize', placePreview);
+document.addEventListener('scroll', placePreview, true);
+
 // The preview, which is no longer a tab: a game is the thing you are working
 // on, so it sits at the top of the rail whatever else is open. Collapsed, it
 // is one row that still plays.
@@ -3368,6 +3413,12 @@ function renderPreview() {
   const scene = S.editor && S.tryScene ? S.tryScene : null;
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
     + (scene ? `&scene=${encodeURIComponent(scene)}` : '');
+  // Folded, the frame is unloaded rather than hidden: a collapsed preview is
+  // not a game running silently in the background.
+  showPreview(S.previewOpen ? url : 'about:blank');
+  // The frame's place in the tree: a box of its size the live frame is laid
+  // over (placePreview, above).
+  previewSlot = S.previewOpen ? h('div', { class: 'preview-frame slot' }) : null;
   const shut = () => {
     S.previewOpen = !S.previewOpen;
     prefs.set('preview', S.previewOpen ? 'open' : 'closed');
@@ -3383,9 +3434,7 @@ function renderPreview() {
   }, h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' }));
 
   return h('div', { class: `preview-wrap${S.previewOpen ? '' : ' collapsed'}` },
-    // Built either way: the iframe is only in the tree when it is open, so a
-    // collapsed preview is not a game running silently in the background.
-    S.previewOpen ? h('iframe', { class: 'preview-frame', src: url, title: 'Game preview' }) : null,
+    previewSlot,
     S.previewOpen
       ? h('div', { class: 'preview-foot' },
         best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
@@ -3429,6 +3478,8 @@ function railGrip() {
     const move = (event) => {
       S.railWidth = railClamp(window.innerWidth - event.clientX);
       app.style.setProperty('--rail', `${S.railWidth}px`);
+      // The live frame follows the rail's edge as it moves.
+      placePreview();
     };
     const up = () => {
       grip.removeEventListener('pointermove', move);
@@ -3499,14 +3550,18 @@ export function render() {
   // problem has nothing live to paint into and needs a full render.
   problemNodes = null;
   momentNodes = null;
+  // The live frame's placeholder is rebuilt with the tree, or not at all.
+  previewSlot = null;
   root.replaceChildren();
 
   if (S.loading) {
     root.append(h('div', { class: 'auth-page' }, h('p', { class: 'muted', text: 'Loading…' })));
+    settlePreview();
     return;
   }
   if (!S.me) {
     root.append(renderAuth());
+    settlePreview();
     return;
   }
 
@@ -3563,6 +3618,9 @@ export function render() {
   stickToBottom();
   keepOpenFileInView();
   keepDiffInView();
+  // The tree is on screen and laid out, so the live frame can be put over
+  // its placeholder — or taken away with it.
+  settlePreview();
   // Last, so the URL is written from the state that actually made it onto the
   // screen.
   syncUrl();

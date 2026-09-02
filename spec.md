@@ -3206,9 +3206,18 @@ is gone unless it is snapshotted and put back.
 - **The open dialog**, which is built once and re-appended as the same node,
   never rebuilt mid-decision — a background render used to wipe what was
   being typed into it. ⚠️
-- **The preview iframe**, which is rebuilt and so restarts the game, which
-  reports again. The problems panel and the moments panel are therefore
-  painted in place, never through `render()`, or a report renders a report. ⚠️
+- **The preview iframe** — which is why it is no longer in the tree. ⚠️ An
+  `<iframe>` reloads the moment it leaves the document, so while it lived in
+  the tree every render restarted the game: a banner arriving and leaving six
+  seconds later, a line typed in the story editor, a file opened on the
+  right. The one frame is appended to the body once and never moved; the tree
+  holds a placeholder of its size where it was, and `placePreview` lays the
+  fixed frame over the placeholder's rectangle after every render, on resize,
+  on any scroll and while the rail is dragged — hidden while the placeholder
+  is hidden, unloaded to `about:blank` when the preview is folded or no game
+  is open. The problems panel and the moments panel are still painted in
+  place, never through `render()`: the game does restart on every commit, and
+  a report that rendered would render a report. ⚠️
 
 Streamed text is painted at most once per animation frame (`paintSoon`),
 never per delta: repainting the box and forcing a reflow ~90 times a second
@@ -3294,7 +3303,9 @@ something git cannot recover.
   show a new kind of file.
 - The preview reloads itself: every commit bumps `previewNonce`, which is in
   the iframe's `src`, so a helper's write, a save or an upload all restart the
-  game. There is no Reload button.
+  game. There is no Reload button. Nothing else restarts it: the `src` is set
+  only when that address changes (`showPreview`), and the frame never leaves
+  the document (above).
 - ⚠️ The three reserved images are held as object URLs replaced on
   `files.changed`, never as a `src` pointed at the file routes — those send
   `no-store`, and a background rebuilt by every render would refetch on every
