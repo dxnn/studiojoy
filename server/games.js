@@ -13,7 +13,8 @@ import {
   topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
 } from './scores.js';
 import {
-  listAchievements, unlockAchievement, UNLOCKS_PER_MINUTE, MAX_UNLOCK_BODY_BYTES,
+  listAchievements, unlockAchievement, definedAchievements,
+  UNLOCKS_PER_MINUTE, MAX_UNLOCK_BODY_BYTES,
 } from './achievements.js';
 // What this listener borrows from the studio's modules is pure and narrow: a
 // function over headers, the password verifiers and lockouts, and the player
@@ -111,24 +112,52 @@ export function createGamesApp({
   // what is typed. frame-ancestors refuses every frame — the studio only
   // ever frames games, never this page — and COOP cuts the opener handle, so
   // window.open('/') from a game hands back nothing (spec.md §7).
-  r.get('/', (ctx) => {
-    const games = db
+  r.get('/', async (ctx) => {
+    const player = currentPlayer(ctx);
+    const rows = db
       .prepare(
-        `SELECT p.slug, p.name,
+        `SELECT p.id, p.slug, p.name,
                 (SELECT MAX(score) FROM scores s WHERE s.project_id = p.id) AS top
            FROM projects p
           WHERE p.published = 1 AND p.kind = 'game' AND p.archived = 0
           ORDER BY p.name`,
       )
-      .all()
-      .map((g) => ({
+      .all();
+
+    // Signed in, each card also says how *you* are doing: your best on that
+    // board, and your trophies against what the game defines. Two reads keyed
+    // on the player, and one file read per game — a handful of games, on a
+    // page built per request anyway (ideas/front-page-players.md, rung 1).
+    // Only ids the file still defines are counted, so a rule a helper removed
+    // never makes it "3 of 2".
+    const bests = new Map();
+    const earned = new Map();
+    if (player) {
+      for (const b of db.prepare('SELECT project_id, score FROM personal_bests WHERE user_id = ?').all(player.id)) {
+        bests.set(b.project_id, b.score);
+      }
+      for (const a of db.prepare('SELECT project_id, achievement FROM achievements WHERE user_id = ?').all(player.id)) {
+        if (!earned.has(a.project_id)) earned.set(a.project_id, new Set());
+        earned.get(a.project_id).add(a.achievement);
+      }
+    }
+    const games = [];
+    for (const g of rows) {
+      const defined = player ? await definedAchievements(path.join(root, g.slug)) : [];
+      const mine = earned.get(g.id) ?? new Set();
+      games.push({
         slug: g.slug,
         name: g.name,
         top: g.top ?? null,
         hero: fs.existsSync(path.join(root, g.slug, 'hero.png')),
-      }));
+        best: bests.get(g.id) ?? null,
+        achievements: defined.length
+          ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
+          : null,
+      });
+    }
 
-    const page = catalogPage({ games, player: currentPlayer(ctx) });
+    const page = catalogPage({ games, player });
     ctx.res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',

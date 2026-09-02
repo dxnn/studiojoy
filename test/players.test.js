@@ -346,6 +346,47 @@ test('a game the board knows shows its top score on the card, in order', async (
   assert.match(html, /4,520/, 'formatted for reading, not for parsing');
 });
 
+// Signed in, a card says how you are doing: your own best on that board and
+// your trophies against what the game defines — yours, never another player's,
+// and nothing of the kind for the signed-out.
+test('a card says your best and your trophies to whoever is signed in', async (t) => {
+  const { app, games } = await origins(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  await app.client.json('PUT', '/api/projects/tank/files/config/achievements.js', {
+    rawBody: 'const ACHIEVEMENTS = [\n'
+      + '  { id: "first", name: "First run", how: "Finish a run", when: { moment: "run-over" } },\n'
+      + '  { id: "ten", name: "Ten", how: "Reach level 10", when: { moment: "level", atLeast: 10 } },\n'
+      + '];\n',
+    headers: { 'content-type': 'application/octet-stream' },
+  });
+
+  const dann = await playerSignIn(app, games, { email: 'dann@example.com', displayName: 'Dann' });
+  await dann.json('POST', '/_scores/tank', { body: { score: 4520 } });
+  await dann.json('POST', '/_scores/tank', { body: { score: 300 } });
+  await dann.json('POST', '/_achievements/tank', { body: { id: 'first' } });
+  const pat = await playerSignIn(app, games, {
+    email: 'pat@example.com', displayName: 'Pat', client: games.newClient(),
+  });
+  await pat.json('POST', '/_scores/tank', { body: { score: 1000 } });
+
+  const mine = await (await dann.request('GET', '/')).text();
+  assert.match(mine, /top score<\/small> 4,520/);
+  assert.match(mine, /your best<\/small> 4,520/, 'the best, not the latest');
+  assert.match(mine, /1 of 2/);
+
+  const theirs = await (await pat.request('GET', '/')).text();
+  assert.match(theirs, /top score<\/small> 4,520/, 'the board\'s top is everybody\'s');
+  assert.match(theirs, /your best<\/small> 1,000/, 'the best is the signed-in player\'s own');
+  assert.doesNotMatch(theirs, /your best<\/small> 4,520/);
+  assert.match(theirs, /0 of 2/, 'trophies to be had, none yet');
+
+  const nobody = await (await games.newClient().request('GET', '/')).text();
+  assert.match(nobody, /top score/);
+  assert.doesNotMatch(nobody, /your best/);
+  assert.doesNotMatch(nobody, / of 2/);
+});
+
 // The games origin still never mints or honours a *studio* session; the
 // player cookie is the only one it reads, and games.test.js keeps holding it
 // to that for every game-file route.

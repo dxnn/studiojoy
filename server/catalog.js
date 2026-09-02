@@ -8,22 +8,30 @@ import { escapeHtml } from './util/html.js';
 // It wears the studio's look on purpose: the wordmark, the dark ground, the
 // halftone and the hairline are lifted from public/style.css so the front
 // door and the studio read as one place. Cyan is the studio's voice, crimson
-// is JOY, and gold appears on exactly one thing — a top score.
+// is JOY, and gold appears on scores — the board's top and your own best —
+// and on nothing else: a count of trophies is a number, not a score.
 //
 // Names and slugs are typed by people and this page is served to the public:
 // everything interpolated below goes through escapeHtml, and the client
 // script writes only textContent.
 
 // A card: the game's name, its hero.png when it has one (the `hero` class
-// and `--hero` variable are load-bearing — tests assert them), and the
-// board's best score in gold when the game keeps one.
+// and `--hero` variable are load-bearing — tests assert them), and its
+// numbers stacked at the right: the board's best score in gold when the game
+// keeps one, and — signed in — your own best and your trophies against what
+// the game defines (ideas/front-page-players.md, rung 1).
 const card = (g) => {
   const slug = escapeHtml(g.slug);
   const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
-  const top = g.top === null || g.top === undefined
-    ? ''
-    : `<span class="top"><small>top score</small> ${g.top.toLocaleString('en-US')}</span>`;
-  return `<li><a href="/${slug}/"${hero}><span class="name">${escapeHtml(g.name)}</span>${top}</a></li>`;
+  const num = (n) => n.toLocaleString('en-US');
+  const has = (n) => n !== null && n !== undefined;
+  const nums = [
+    has(g.top) ? `<span class="top"><small>top score</small> ${num(g.top)}</span>` : '',
+    has(g.best) ? `<span class="best"><small>your best</small> ${num(g.best)}</span>` : '',
+    g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
+  ].join('');
+  return `<li><a href="/${slug}/"${hero}><span class="name">${escapeHtml(g.name)}</span>`
+    + `${nums ? `<span class="nums">${nums}</span>` : ''}</a></li>`;
 };
 
 export function catalogPage({ games, player = null }) {
@@ -211,8 +219,12 @@ export function catalogPage({ games, player = null }) {
     background-size: cover; background-position: center;
   }
   .name { overflow: hidden; text-overflow: ellipsis; }
-  .top { color: var(--gold); font-weight: 700; white-space: nowrap; font-size: 15px; }
-  .top small { color: var(--muted); font-weight: 500; font-size: 12px; margin-right: 4px; }
+  /* The numbers, stacked at the card's foot: scores in gold, the trophy count
+     in the page's own ink, because a count is a number but not a score. */
+  .nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+  .top, .best { color: var(--gold); font-weight: 700; white-space: nowrap; font-size: 15px; }
+  .got { color: var(--text); font-weight: 600; white-space: nowrap; font-size: 13px; }
+  .nums small { color: var(--muted); font-weight: 500; font-size: 12px; margin-right: 4px; }
   .empty { color: var(--muted); margin: 26px 0 0; }
 
   dialog {
@@ -244,7 +256,7 @@ export function catalogPage({ games, player = null }) {
     </header>
     <p class="tag">Games made by us. Click one and play it.</p>
     ${games.length ? `<ul>\n      ${cards}\n    </ul>` : '<p class="empty">No games yet.</p>'}
-    ${player ? '' : '<p class="note">Sign in and every score you get goes on the board under your name.</p>'}
+    ${player ? '' : '<p class="note">Sign in and every score you get goes on the board under your name — and each game here says how you are doing.</p>'}
   </main>
 
   ${dialogs}
