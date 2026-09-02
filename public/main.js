@@ -25,6 +25,8 @@ import {
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
 import { isQuizPath, quizModel } from './quiz-editor.js';
+import { isAchievementsPath, achievementsModel } from './achievements-editor.js';
+import { renderAchievementsForm } from './achievements-form.js';
 import { renderQuizForm } from './quiz-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
@@ -82,8 +84,6 @@ export const S = {
   // can be put — and can have as many as it wants (spec.md §3).
   chat: null,
   chats: [],
-  files: [],
-  // What the game said when it ran, for the version of the files on disk now.
   // What the centre pane shows under the game's bar: a chat, or an editor a
   // game type brings (public/game-types.js) — null for the chat, else the
   // editor's id. S.chat is untouched by it: the chat behind an editor is
@@ -93,6 +93,8 @@ export const S = {
   // dirty, scene, step, person}, {grown: reason} when the file will not read
   // as a story, or null (story-form.js).
   story: null,
+  files: [],
+  // What the game said when it ran, for the version of the files on disk now.
   errors: [],
   pinned: new Set(),
   tab: 'files',
@@ -227,12 +229,12 @@ const EDITOR_AREA = 'editor-area';
 // The sidebar's filter box. Every keystroke in it re-renders the pane it is
 // in, so without this it would lose the caret on its own second character.
 export const SIDE_SEARCH = 'side-find';
-
-function focusSnapshot() {
 // The story editor's fields are every one of these too: a helper's reply
 // landing behind the editor renders, and the line being typed must not lose
 // its caret to it. They carry ids starting story-.
 const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH || Boolean(id?.startsWith('story-'));
+
+function focusSnapshot() {
   const el = document.activeElement;
   // A control inside the open dialog survives render() by identity — the
   // dialog node is re-appended, never rebuilt — so the element itself is the
@@ -438,8 +440,6 @@ const viewFromUrl = () => {
   };
 };
 
-// The inverse of applyView, and written in the same two branches so the pair
-// can be read against each other.
 // An editor id the open game's type actually brings, or null. An unknown id
 // in an address falls back to the chat rather than to an empty pane.
 const editorOf = (id) => (editorsFor(S.project?.type).some((e) => e.id === id) ? id : null);
@@ -458,6 +458,8 @@ export function openEditor(id) {
   render();
 }
 
+// The inverse of applyView, and written in the same two branches so the pair
+// can be read against each other.
 function urlNow() {
   if (!S.slug) return '/';
   const q = new URLSearchParams();
@@ -742,16 +744,14 @@ export async function openProject(slug, { view = null } = {}) {
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
-
-  // Colours changed in the editor belong to the game being left, so they go in
   // So do unsaved story edits: parked against the game being left, put back
   // on return while the file is still the one they were made on.
   parkStory();
+
+  // Colours changed in the editor belong to the game being left, so they go in
   // before the slug does.
   await flushPalette();
 
-  if (!slug) {
-    S.slug = null;
   // The centre pane's surface and the story editor's state are the game's;
   // both are settled again below for the one being opened.
   S.editor = null;
@@ -759,6 +759,8 @@ export async function openProject(slug, { view = null } = {}) {
   S.tryScene = null;
   dropStageImages();
 
+  if (!slug) {
+    S.slug = null;
     S.project = null;
     S.files = [];
     S.errors = [];
@@ -791,8 +793,6 @@ export async function openProject(slug, { view = null } = {}) {
   S.chats = res.body.chats ?? [];
   S.chat = res.body.chat ?? null;
   if (S.chat) prefs.set(`chat-${slug}`, S.chat.id);
-  S.files = res.body.files;
-  S.errors = res.body.errors ?? [];
   // Which surface the centre opens on: the address if it says — an editor by
   // name, or a chat, which is no editor — else what is remembered for this
   // game, else the type's first editor for a game that has one and the chat
@@ -803,6 +803,8 @@ export async function openProject(slug, { view = null } = {}) {
     ? null
     : (remembered ?? editorsFor(res.body.type)[0]?.id ?? null));
   S.editor = editorOf(edit);
+  S.files = res.body.files;
+  S.errors = res.body.errors ?? [];
   S.pinned = new Set();
   S.open = null;
   S.history = [];
@@ -839,11 +841,11 @@ export async function openProject(slug, { view = null } = {}) {
     await loadScores();
     await loadPalette();
     await loadReservedImages();
-    render();
-  }
     // And the story, when this game has the editor for it — before applyView,
     // so ?edit= and ?scene= have something to land on.
     if (hasEditor('story')) await loadStory();
+    render();
+  }
   // The rail keeps whichever tab you were on unless a URL says otherwise, so
   // arriving at a game with Versions already open has to fetch now. Waiting
   // for the next click on the tab is what made the list look empty until you
@@ -1235,6 +1237,49 @@ let errorVersion = null;
 // The live nodes of the problems panel, while the Play tab is on screen.
 let problemNodes = null;
 
+/* Moments the game said ---------------------------------------------------- */
+
+// What the running game said happened (GLOSSARY: *moment*), forwarded by the
+// reporter in batches — the latest value per name and how often it was said.
+// Kept per game for the session, so the achievements editor can offer the
+// moments this game has been seen to say. ⚠️ Painted in place like the
+// problems panel: a moment said at startup, drawn through render(), would
+// rebuild the iframe, restart the game and say it again.
+const MOMENT_NAME = /^[a-z0-9-]{1,40}$/;
+const MAX_MOMENT_NAMES = 100;
+const momentsSeen = new Map(); // slug -> Map(name -> {value, times})
+let momentNodes = null;
+
+export const momentsFor = (slug) => momentsSeen.get(slug) ?? new Map();
+
+// The value as the moments library would have heard it, or undefined: this is
+// text from inside the frame, and a game can dispatch the event itself.
+function momentValue(v) {
+  if (v === true || v === null || v === undefined) return true;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (typeof v === 'string' && v.length <= 100) return v;
+  return undefined;
+}
+
+function noteMoments(list) {
+  if (!Array.isArray(list) || !S.slug) return;
+  let seen = momentsSeen.get(S.slug);
+  if (!seen) {
+    seen = new Map();
+    momentsSeen.set(S.slug, seen);
+  }
+  for (const m of list.slice(0, 50)) {
+    if (!m || typeof m.name !== 'string' || !MOMENT_NAME.test(m.name)) continue;
+    const value = momentValue(m.value);
+    if (value === undefined) continue;
+    const had = seen.get(m.name);
+    if (!had && seen.size >= MAX_MOMENT_NAMES) continue;
+    const times = Number.isInteger(m.times) && m.times > 0 ? m.times : 1;
+    seen.set(m.name, { value, times: (had?.times ?? 0) + times });
+  }
+  paintMoments();
+}
+
 function gamesOrigin() {
   if (!S.project?.play_url) return null;
   try {
@@ -1327,49 +1372,6 @@ async function loadReservedImages() {
   const slug = S.slug;
   const want = (path) => (S.files.some((f) => f.path === path) ? imageUrl(slug, path) : null);
   const [chat, hero] = await Promise.all([want(CHAT_IMAGE), want(HERO_IMAGE)]);
-/* Moments the game said ---------------------------------------------------- */
-
-// What the running game said happened (GLOSSARY: *moment*), forwarded by the
-// reporter in batches — the latest value per name and how often it was said.
-// Kept per game for the session, so the achievements editor can offer the
-// moments this game has been seen to say. ⚠️ Painted in place like the
-// problems panel: a moment said at startup, drawn through render(), would
-// rebuild the iframe, restart the game and say it again.
-const MOMENT_NAME = /^[a-z0-9-]{1,40}$/;
-const MAX_MOMENT_NAMES = 100;
-const momentsSeen = new Map(); // slug -> Map(name -> {value, times})
-let momentNodes = null;
-
-export const momentsFor = (slug) => momentsSeen.get(slug) ?? new Map();
-
-// The value as the moments library would have heard it, or undefined: this is
-// text from inside the frame, and a game can dispatch the event itself.
-function momentValue(v) {
-  if (v === true || v === null || v === undefined) return true;
-  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
-  if (typeof v === 'string' && v.length <= 100) return v;
-  return undefined;
-}
-
-function noteMoments(list) {
-  if (!Array.isArray(list) || !S.slug) return;
-  let seen = momentsSeen.get(S.slug);
-  if (!seen) {
-    seen = new Map();
-    momentsSeen.set(S.slug, seen);
-  }
-  for (const m of list.slice(0, 50)) {
-    if (!m || typeof m.name !== 'string' || !MOMENT_NAME.test(m.name)) continue;
-    const value = momentValue(m.value);
-    if (value === undefined) continue;
-    const had = seen.get(m.name);
-    if (!had && seen.size >= MAX_MOMENT_NAMES) continue;
-    const times = Number.isInteger(m.times) && m.times > 0 ? m.times : 1;
-    seen.set(m.name, { value, times: (had?.times ?? 0) + times });
-  }
-  paintMoments();
-}
-
   // A slow fetch must not dress the game opened after it.
   if (S.slug !== slug) {
     for (const url of [chat, hero]) if (url) URL.revokeObjectURL(url);
@@ -3113,6 +3115,8 @@ function renderFilesTab() {
       ? quizModel(S.open.content)
       : null;
 
+    const achievements = isAchievementsPath(S.open.path) && S.open.content !== null && !S.open.asText
+      ? achievementsModel(S.open.content) : null;
     if (S.open.content === null) {
       const refused = S.drawRefused ?? S.soundRefused;
       editor.push(h('div', { class: 'editor' }, bar,
@@ -3120,6 +3124,8 @@ function renderFilesTab() {
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
     } else if (quiz?.ok) {
       editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
+    } else if (achievements?.ok) {
+      editor.push(h('div', { class: 'editor' }, bar, ...renderAchievementsForm(achievements)));
     } else if (parsed?.ok && !S.open.asText) {
       const outgrown = quiz && !quiz.ok && quiz.reason;
       editor.push(h('div', { class: 'editor' }, bar,
@@ -3149,13 +3155,13 @@ function renderFilesTab() {
         parsed && !parsed.ok
           ? h('div', { class: 'pad hint muted' }, `Showing the text because ${parsed.reason}.`)
           : null,
+        inEditor
+          ? h('div', { class: 'pad hint muted', text: 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.' })
+          : null,
         /\.svg$/i.test(S.open.path) ? svgPreview(area) : null,
         codeBox(area, S.open.path),
         h('div', { class: 'editor-bar row' },
           h('span', { class: 'hint muted', text: S.open.dirty ? 'Not saved yet' : 'Saved' }),
-        inEditor
-          ? h('div', { class: 'pad hint muted', text: 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.' })
-          : null,
           h('div', { class: 'spacer' }),
           parsed?.ok
             ? h('button', {
@@ -3232,6 +3238,32 @@ function renderProblems() {
     h('div', { class: 'hint muted', text: 'Your helpers can see this. Ask them to fix it.' }));
   problemNodes = { box, list };
   paintProblems();
+  return box;
+}
+
+// What the game has said so far, under the problems: a chip per moment name
+// with its latest value, so somebody writing an achievement can see the names
+// the game actually says. Built empty and filled in place, like the problems.
+function paintMoments() {
+  if (!momentNodes) return;
+  const { box, list } = momentNodes;
+  const seen = momentsFor(S.slug);
+  box.hidden = seen.size === 0;
+  list.replaceChildren(...[...seen].map(([name, m]) => h('span', {
+    class: 'moment', title: `said ${m.times} ${m.times === 1 ? 'time' : 'times'}`,
+  },
+  h('span', { class: 'mname', text: name }),
+  m.value === true ? null : h('span', { class: 'mvalue', text: String(m.value) }),
+  m.times > 1 ? h('span', { class: 'muted', text: `×${m.times}` }) : null)));
+}
+
+function renderMoments() {
+  const list = h('div', { class: 'moment-list' });
+  const box = h('div', { class: 'moments' },
+    h('div', { class: 'moments-head', text: 'The game said' }),
+    list);
+  momentNodes = { box, list };
+  paintMoments();
   return box;
 }
 
@@ -3342,32 +3374,6 @@ function renderRail() {
       // Clicking Versions means all of them, the same as Show all. A list
       // filtered to one file is somewhere you arrive from that file, not a
       // state the tab should hold on to. Held and awaited, or the render below
-// What the game has said so far, under the problems: a chip per moment name
-// with its latest value, so somebody writing an achievement can see the names
-// the game actually says. Built empty and filled in place, like the problems.
-function paintMoments() {
-  if (!momentNodes) return;
-  const { box, list } = momentNodes;
-  const seen = momentsFor(S.slug);
-  box.hidden = seen.size === 0;
-  list.replaceChildren(...[...seen].map(([name, m]) => h('span', {
-    class: 'moment', title: `said ${m.times} ${m.times === 1 ? 'time' : 'times'}`,
-  },
-  h('span', { class: 'mname', text: name }),
-  m.value === true ? null : h('span', { class: 'mvalue', text: String(m.value) }),
-  m.times > 1 ? h('span', { class: 'muted', text: `×${m.times}` }) : null)));
-}
-
-function renderMoments() {
-  const list = h('div', { class: 'moment-list' });
-  const box = h('div', { class: 'moments' },
-    h('div', { class: 'moments-head', text: 'The game said' }),
-    list);
-  momentNodes = { box, list };
-  paintMoments();
-  return box;
-}
-
       // would write the filter's address on the way to dropping it.
       await urlAs('hold', async () => {
         S.tab = id;
@@ -3415,6 +3421,7 @@ export function render() {
   // Rebuilt by the Play tab if it is on screen; null means an arriving
   // problem has nothing live to paint into and needs a full render.
   problemNodes = null;
+  momentNodes = null;
   root.replaceChildren();
 
   if (S.loading) {
@@ -3492,4 +3499,3 @@ for (const type of ['dragover', 'drop']) {
 }
 
 start();
-  momentNodes = null;
