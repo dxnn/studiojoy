@@ -152,12 +152,15 @@ test('parseCookies handles absent, multiple, and undecodable values', () => {
   assert.equal(parseCookies('session=ab=cd').session, 'ab=cd');
 });
 
-test('the session cookie is HttpOnly, Lax, and Secure only when asked', () => {
+test('the session cookie is HttpOnly, Lax, kept 400 days, and Secure only when asked', () => {
   const plain = sessionCookie('tok');
   assert.match(plain, /^session=tok;/);
   assert.match(plain, /HttpOnly/);
   assert.match(plain, /SameSite=Lax/);
   assert.match(plain, /Path=\//);
+  // A Max-Age, or the browser drops the cookie when it closes and everybody
+  // signs in again every morning. 400 days is the most a browser will keep.
+  assert.match(plain, /Max-Age=34560000/);
   assert.ok(!/Secure/.test(plain));
   assert.match(sessionCookie('tok', { secure: true }), /Secure/);
   assert.match(clearedSessionCookie(), /Max-Age=0/);

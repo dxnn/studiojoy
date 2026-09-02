@@ -2585,7 +2585,12 @@ everybody else.
 - Passwords: `scrypt` (`node:crypto`), 16-byte salt, N=16384, r=8, p=1,
   64-byte key, stored as `scrypt$<N>$<r>$<p>$<salt_b64>$<key_b64>`.
 - Sessions: 32 random bytes base64url in a `session` cookie — `HttpOnly`,
-  `SameSite=Lax`, `Path=/`, `Secure` iff `NODE_ENV=production`, no `Max-Age`.
+  `SameSite=Lax`, `Path=/`, `Secure` iff `NODE_ENV=production`, `Max-Age` 400
+  days (the most a browser keeps a cookie), re-issued on every `GET /api/me`
+  so the days count from the last visit. ⚠️ It had no `Max-Age` once, which
+  makes a cookie a *browser-session* cookie — gone when the browser closes —
+  so everybody signed in again every time they opened the studio. The row
+  behind it still never expires; only the cookie's life changed.
 - Player sessions: the same shape in a `player` cookie on the games origin,
   with a 90-day `Max-Age` and a matching row-age check (§3). The two never
   cross: each origin resolves only its own table, so neither token is worth
@@ -2663,11 +2668,13 @@ archived game is disabled for somebody else's. The server is what refuses.
 - **No CSRF token.** `SameSite=Lax` plus the `readJson` content-type guard
   (§7), which bounds a cross-site forgery to `POST /api/logout`.
 - **Lockout state is in-memory.** A restart clears all lockouts.
-- **Studio sessions never expire.** No `Max-Age`, no rotation: a session
-  lasts until a removal, a password change, or the studio-access toggle
-  deletes its row, or the browser loses the cookie. Expiry and rotation are
-  deferred to v1 (§15) and belong to the same gate as the rest of this list.
-  Player sessions are the exception, 90 days, because their door is public.
+- **Studio sessions never expire.** No rotation, and no expiry on the row: a
+  session lasts until a removal, a password change, or the studio-access
+  toggle deletes its row, or the browser loses the cookie — which, with a
+  400-day `Max-Age` refreshed on every load, it does only after more than a
+  year away. Expiry and rotation are deferred to v1 (§15) and belong to the
+  same gate as the rest of this list. Player sessions are the exception, 90
+  days, because their door is public.
 - **No rate limiting outside login, the scoreboard and the sign-up.** An
   authenticated user can flood message posts and file writes on a game they
   may change; bounded only by the token budget and size caps. The trust

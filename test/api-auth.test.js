@@ -30,6 +30,12 @@ test('login issues a session cookie that /api/me accepts', async (t) => {
   assert.equal(me.status, 200);
   assert.equal(me.body.email, 'dann@example.com');
   assert.equal(me.body.games_url, 'http://games.test');
+  // Every load re-issues the same cookie, so its 400 days count from the last
+  // visit: an open studio never asks for the password again.
+  const again = me.headers.getSetCookie()[0];
+  assert.equal(again.split(';')[0], cookie.split(';')[0], 'the same token, not a new session');
+  assert.match(again, /Max-Age=34560000/);
+  assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n, 1);
 });
 
 test('the email is matched case-insensitively', async (t) => {

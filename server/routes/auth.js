@@ -83,6 +83,12 @@ export function authRoutes(r) {
 
   r.get('/api/me', (ctx) => {
     const user = requireAuth(ctx);
+    // The same cookie again, with its 400 days counted from now: the studio
+    // asks this on every load, so anybody who opens it once a year never
+    // signs in again, and the row itself never expires anyway (auth.js).
+    ctx.res.setHeader('Set-Cookie', sessionCookie(
+      parseCookies(ctx.req.headers.cookie)[SESSION_COOKIE], { secure: ctx.secureCookies },
+    ));
     json(ctx.res, 200, {
       id: user.id,
       email: user.email,

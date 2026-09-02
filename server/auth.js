@@ -131,8 +131,20 @@ export function parseCookies(header) {
   return out;
 }
 
+// How long the browser keeps the cookie: 400 days, the most a browser will
+// hold one for (RFC 6265bis). ⚠️ Without a Max-Age a cookie is a *browser
+// session* cookie — dropped when the browser closes, and on a phone whenever
+// it is put away for long enough — which is why everybody was signing in
+// again every time they opened the studio. The row behind it never expires
+// (spec.md §11); /api/me re-issues the cookie on every load, so the 400 days
+// count from the last visit rather than from the sign-in.
+export const SESSION_COOKIE_DAYS = 400;
+
 export function sessionCookie(token, { secure = false } = {}) {
-  const parts = [`${SESSION_COOKIE}=${token}`, 'HttpOnly', 'SameSite=Lax', 'Path=/'];
+  const parts = [
+    `${SESSION_COOKIE}=${token}`, 'HttpOnly', 'SameSite=Lax', 'Path=/',
+    `Max-Age=${SESSION_COOKIE_DAYS * 24 * 60 * 60}`,
+  ];
   if (secure) parts.push('Secure');
   return parts.join('; ');
 }
