@@ -41,17 +41,51 @@ const ART = '/story-art';
 const LANDS = { backgrounds: 'assets/images', portraits: 'assets/sprites', sounds: 'assets/sounds' };
 const landing = (file) => `${LANDS[file.split('/')[0]]}/${file.split('/').pop()}`;
 
-// The set's index, read once a session and held: it is a static file shipped
-// with the studio and cannot change while it runs. Only a good read is kept,
-// so a studio that was briefly unreachable is asked again rather than being
-// remembered as having no art at all.
+// The shelf reads two halves as one list. The **standard set** is a static
+// file shipped with the studio and cannot change while it runs; the **studio
+// collection** is what people here have added and changes whenever somebody
+// does. Held for the session, and only a good read is kept, so a studio that
+// was briefly unreachable is asked again rather than remembered as having no
+// art at all.
+//
+// Every entry gains a `src` at merge time, because the two halves are fetched
+// differently — the shipped half by its path under public/, a contributed one
+// by its own route — and nothing downstream should have to know which it is
+// looking at. A contributed entry carries `made_here` and no `licence`:
+// whoever drew it kept it (ideas/studio-collection.md).
 let heldIndex = null;
+// Bumped with every drop, and part of the guide card's key below: the card is
+// kept for as long as its question stands, and a picture leaving the
+// collection does not change the question — so without this the shelf went on
+// offering a thumbnail whose bytes were already gone. Rebuilding costs
+// whatever was typed into that card, which is the same price a renamed person
+// already charges, and a collection change is rare.
+let artEpoch = 0;
+
+export function dropArtIndex() {
+  heldIndex = null;
+  artEpoch += 1;
+}
 
 async function artIndex() {
   if (heldIndex) return heldIndex;
-  const res = await send(`${ART}/index.json`);
-  if (!res.ok) return null;
-  heldIndex = await res.json().catch(() => null);
+  const shipped = await send(`${ART}/index.json`);
+  if (!shipped.ok) return null;
+  const index = await shipped.json().catch(() => null);
+  if (!index) return null;
+
+  // The collection is the studio's own and needs a session; a failure here
+  // leaves the shipped half working rather than emptying the shelf.
+  const mine = await send('/api/collection');
+  const added = mine.ok ? await mine.json().catch(() => null) : null;
+
+  heldIndex = {
+    ...index,
+    art: [
+      ...(index.art ?? []).map((a) => ({ ...a, src: `${ART}/${a.file}` })),
+      ...(added?.art ?? []).map((a) => ({ ...a, src: a.file })),
+    ],
+  };
   return heldIndex;
 }
 
@@ -324,26 +358,43 @@ export function artShelf(kind, place, label = 'Ready to use:') {
     if (!art.length) return;
     shelf.append(
       h('span', { class: 'hint muted', text: label }),
-      ...art.map((a) => h('button', {
-        class: 'art',
-        // Who made it and under what, on the picture itself: the set is other
-        // people's work and the licence travels with it, not just with the
-        // index it was listed in.
-        title: `${a.name} — ${a.by}, ${a.licence}`,
-        onclick: async () => {
-          const res = await send(`${ART}/${a.file}`);
-          if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
-          await place(a, await res.blob());
-        },
-      }, h('img', { src: `${ART}/${a.file}`, alt: a.name }))),
+      ...art.map((a) => {
+        const pick = h('button', {
+          class: 'art',
+          // Who made it and under what, on the picture itself: the shipped
+          // half is other people's work and its licence travels with it. A
+          // picture somebody here drew has no licence to travel — it says
+          // "Made here" and stops.
+          title: artTitle(a),
+          onclick: async () => {
+            const res = await send(a.src);
+            if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
+            await place(a, await res.blob());
+          },
+        }, h('img', { src: a.src, alt: a.name }));
+        // Yours to take back out, which the sharing dialog promised. Only on
+        // your own, and it asks first, like every other destructive thing.
+        if (!a.mine) return pick;
+        return h('span', { class: 'art-mine' }, pick, h('button', {
+          class: 'art-out', text: '✕', title: `Take ${a.name} out of the collection`,
+          onclick: () => { S.dialog = { kind: 'unshare-art', art: a }; render(); },
+        }));
+      }),
     );
   });
   return shelf;
 }
 
-// The credit, as the banner says it: the set is somebody's work and the
-// person putting it in a game should see whose.
-export const artCredit = (a, path) => `Added ${path} — ${a.name}, by ${a.by} (${a.licence}).`;
+export const artTitle = (a) => (a.made_here
+  ? `${a.name} — made here by ${a.by}`
+  : `${a.name} — ${a.by}, ${a.licence}`);
+
+// The credit, as the banner says it: the person putting a picture in a game
+// should see whose it is. ⚠️ No licence on a contributed one, because there
+// is none to state — saying "CC0" there would be inventing a grant.
+export const artCredit = (a, path) => (a.made_here
+  ? `Added ${path} — ${a.name}, made here by ${a.by}.`
+  : `Added ${path} — ${a.name}, by ${a.by} (${a.licence}).`);
 
 function pictureCard(q) {
   const person = q.who ? model().cast.find((p) => p.key === q.who) : null;
@@ -629,7 +680,9 @@ export function renderGuide() {
   if (!st?.model) return null;
   const skipped = skippedSet();
   const q = nextQuestion(st.model, S.files.map((f) => f.path), skipped);
-  const key = q ? `${S.slug}:${q.id}:${q.ask}` : (skipped.size ? `${S.slug}:ready` : null);
+  const key = q
+    ? `${S.slug}:${artEpoch}:${q.id}:${q.ask}`
+    : (skipped.size ? `${S.slug}:ready` : null);
   if (!key) {
     shown = { key: null, node: null };
     return null;

@@ -217,8 +217,10 @@ specified:
 - The **standard set** (`public/story-art/`) is picked from a shelf — on the
   guide's picture card and behind `Pick a picture` on a scene's Picture row —
   one file, one commit. 33 portraits and 9 backgrounds, all CC0 (Kenney and
-  Stealthix). Letting people add their own is designed and unbuilt, blocked
-  on one licence question: ideas/studio-collection.md (§6).
+  Stealthix). Beside it the **studio collection**: pictures people here have
+  added, on the same shelf, `Share to studio…` on an open picture's bar.
+  ⚠️ Bytes in the row so `npm run backup` covers them, and ⚠️ no licence
+  recorded — whoever drew it keeps it (§3).
 - A scene takes **music** (`assets/music/`, looped, carried into the next
   scene naming the same track) and a **sound step** — a noise among the lines
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is

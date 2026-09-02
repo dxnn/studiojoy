@@ -1757,6 +1757,29 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 }
 .guide button.art:hover { border-color: var(--look-primary, var(--accent)); }
 .guide button.art img { height: 48px; width: auto; max-width: 96px; object-fit: cover; }
+/* A picture you put in the collection yourself, with the way back out in its
+   corner. Hidden until the pointer or the keyboard is on it, because a shelf
+   of thirty faces wearing thirty ✕ is a shelf of buttons rather than art. */
+.guide .art-mine { position: relative; display: inline-flex; flex: 0 0 auto; }
+.guide .art-out {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.guide .art-mine:hover .art-out,
+.guide .art-out:focus-visible { opacity: 1; }
+.guide .art-out:hover { color: var(--danger); border-color: var(--danger); }
 
 /* On a phone the strip goes over the scene rather than beside it. */
 @media (max-width: 860px) {

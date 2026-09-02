@@ -13,7 +13,7 @@ import {
   renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
   createChat, createSound, setAuthors, setOpenEdit, setPublished,
   frozen, loadStudio, studioChange,
-  copyFileTo, LIBRARY_DIR, deleteScore, clearScores,
+  copyFileTo, LIBRARY_DIR, deleteScore, clearScores, shareArt, unshareArt,
 } from './main.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
@@ -702,6 +702,58 @@ export function dialogFor(d) {
           close();
           await copyFileTo(where.value, d.path, to);
         },
+      })));
+  }
+
+  // A picture into the studio's collection, where every game's shelf can
+  // pick it. ⚠️ It says whose it stays: nothing here asks for a licence and
+  // nothing records one, because the studio does not need a grant to show
+  // somebody their own drawing (ideas/studio-collection.md).
+  if (d.kind === 'share-art') {
+    const name = h('input');
+    name.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
+    const kind = h('select', {},
+      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
+      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
+    // A face suggests the name it lands under when somebody picks it, the way
+    // the shipped set's faces do. Left empty it is still offered.
+    const who = h('input');
+    who.placeholder = 'optional';
+    const err = h('p', { class: 'error' });
+    const whoRow = h('div', {},
+      h('label', { text: 'Who is it, in one word?' }), who,
+      h('p', { class: 'hint muted', text: 'Only used to suggest a file name — "dragon" makes dragon-normal.png.' }));
+    const sync = () => { whoRow.hidden = kind.value !== 'portrait'; };
+    kind.addEventListener('change', sync);
+    sync();
+    return wrap('Put this picture in the studio\'s collection',
+      h('label', { text: 'What is it called?' }), name,
+      h('label', { text: 'What kind of picture?' }), kind,
+      whoRow,
+      h('p', { class: 'hint muted', text: 'Every game in the studio can pick it from the shelf, and it will say you made it. It stays yours — the studio is not asking for it, and you can take it out again whenever you like.' }),
+      err,
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Share it',
+        onclick: async () => {
+          const label = name.value.trim();
+          if (!label) { err.textContent = 'Give it a name.'; return; }
+          close();
+          await shareArt(d.path, { kind: kind.value, name: label, who: who.value.trim() });
+        },
+      })));
+  }
+
+  // ⚠️ A real delete: the collection's row is the only copy, so unlike a
+  // file there is no Versions to bring it back from. Games that already
+  // picked it keep theirs, because picking copies the bytes in — which is
+  // the thing that makes this safe to offer at all, and worth saying.
+  if (d.kind === 'unshare-art') {
+    return wrap(`Take ${d.art.name} out of the collection?`,
+      h('p', { text: 'Nobody will be offered it again, and this is the only copy — there is no Versions to bring it back from.' }),
+      h('p', { class: 'hint muted', text: 'Any game that already used it keeps its own copy. Taking it out here changes nothing in a game.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'danger', text: 'Take it out',
+        onclick: async () => { close(); await unshareArt(d.art); },
       })));
   }
 

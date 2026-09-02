@@ -28,10 +28,16 @@ deliberately deferred.
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
   and step 4 (the standard set) is the line below
-- ! let people add their own art to the studio's collection —
-  ideas/studio-collection.md. ⚠️ Blocked on one question only, in that file:
-  what licence a child's own drawing carries, which matters because a
-  published game carries those bytes. Everything else is decided
+- ⚠️ revisit what a shared picture's licence is. Decided 2026-09-02: the
+  *studio collection* records none at all and whoever drew it keeps their
+  copyright, which is right for a studio of a few trusted people. It is worth
+  asking again if the studio ever grows, if a published game's art needs to
+  say where it came from, or if anybody wants to take art out of here and use
+  it elsewhere — because "no licence" also means nobody has been given
+  permission (spec.md §3, ideas/studio-collection.md)
+- moderation of the studio collection is "an admin can take anything out" and
+  no queue, which suits a few trusted people and would not suit more. Same
+  trigger as the line above
 - the standard set is short of **moods**: 30 animal faces, one expression
   each, so a cast member cannot look happy and then worried. More CC0 faces
   with several moods, or the same animals redrawn — `npm test` checks the

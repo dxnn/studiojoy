@@ -1,5 +1,12 @@
 # Letting people put their own art in the studio's collection
 
+**Built, 2026-09-02.** Dann answered the licence question with *no licence,
+the kid keeps their copyright*, which is what the code does — there is no
+`licence` column and nothing prints one. spec.md §3 and §6 are the state now;
+this file is the argument, and the two "also unsettled" items at the end that
+were settled by choosing defaults are marked below. TODO.md carries the line
+to revisit the licence if the studio ever grows.
+
 Dann, 2026-09-02: *"I want kids to be able to add their art to this studio
 collection also."* Said while the *standard set* was being filled with CC0
 packs. Nothing here is built. The set itself is built and full (spec.md §6):

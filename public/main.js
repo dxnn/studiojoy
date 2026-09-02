@@ -32,6 +32,7 @@ import { isStoryPath } from './story-editor.js';
 import {
   STORY_FILE, loadStory, parkStory, storyChanged, dropStageImages, selectScene,
 } from './story-form.js';
+import { dropArtIndex } from './story-guide.js';
 import { editorsFor } from './game-types.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
@@ -866,10 +867,15 @@ window.addEventListener('popstate', followUrl);
 
 /* Live events ------------------------------------------------------------- */
 
+// ⚠️ An allow-list, and the reason a new event does nothing until it is
+// named here: EventSource only delivers what has been subscribed to, so a
+// handler added to onEvent below without a line in this list is dead code
+// that looks alive.
 const STREAM_EVENTS = [
   'project.new', 'project.updated', 'message.new', 'message.reaction',
   'agent.stream.start', 'agent.stream.reasoning', 'agent.stream.chunk',
   'agent.tool', 'agent.stream.end', 'files.changed', 'game.errors',
+  'collection.changed',
 ];
 
 function connectStream() {
@@ -1144,6 +1150,14 @@ function onEvent(name, data) {
       else render();
       return;
     }
+
+    // Somebody put a picture in the studio's collection, or took one out.
+    // Every shelf everywhere reads the same list, so every tab drops its
+    // copy — not only the tab that did it, and not only this game's.
+    case 'collection.changed':
+      dropArtIndex();
+      render();
+      return;
 
     case 'files.changed': {
       // Any game's icon: the sidebar wears them all, so this one is looked at
@@ -2254,6 +2268,43 @@ export async function copyFileTo(slug, from, to) {
   say(`Copied ${to} into ${game?.name ?? slug}.`);
 }
 
+// A picture out of this game and into the studio's collection, where every
+// game's shelf can pick it. The bytes go up raw, like an upload, with
+// everything else in the query — a picture is not a JSON field.
+export async function shareArt(path, { kind, name, who }) {
+  const read = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`);
+  if (!read.ok) {
+    say(read.status === 0 ? NO_CONNECTION : `Could not read ${path}.`, true);
+    return;
+  }
+  const q = new URLSearchParams({ kind, name, ...(who ? { who } : {}) });
+  const res = await send(`/api/collection?${q}`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png' },
+    body: await read.blob(),
+  });
+  if (!res.ok) {
+    const parsed = await res.json().catch(() => null);
+    say(res.status === 0 ? NO_CONNECTION : (parsed?.error ?? 'Could not share that picture.'), true);
+    return;
+  }
+  dropArtIndex();
+  say(`${name} is in the studio's collection now. Every game can pick it.`);
+}
+
+// Back out again. The row is the only copy, which the dialog says; a game
+// that already picked it keeps its own.
+export async function unshareArt(art) {
+  const res = await api('DELETE', `/api/collection/${art.id}`);
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not take that picture out.', true);
+    return;
+  }
+  dropArtIndex();
+  say(`${art.name} is out of the studio's collection.`);
+  render();
+}
+
 /* Running the studio ------------------------------------------------------- */
 
 // The panel's data, fetched when it opens and re-fetched after every change:
@@ -3103,6 +3154,16 @@ function renderFilesTab() {
         title: 'Copy this file into another game',
         onclick: () => { S.dialog = { kind: 'copy-to', path: S.open.path }; render(); },
       }),
+      // Into the studio's own collection, so every game's shelf can pick it.
+      // Beside Copy to… because it is the other "send this elsewhere", and
+      // for pictures only: the shelf offers faces and places. Not disabled by
+      // frozen() for the same reason Copy to… is not — sharing a picture out
+      // of a game takes nothing from it.
+      /\.png$/i.test(S.open.path) ? h('button', {
+        class: 'quiet tiny', text: 'Share to studio…',
+        title: 'Put this picture in the studio\'s collection, for any game to use',
+        onclick: () => { S.dialog = { kind: 'share-art', path: S.open.path }; render(); },
+      }) : null,
       h('button', {
         class: 'danger tiny', text: 'Delete',
         onclick: () => { S.dialog = { kind: 'delete-file', path: S.open.path }; render(); },

@@ -272,6 +272,36 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL,
     PRIMARY KEY (project_id, user_id, achievement)
   )`,
+
+  // Art people here have added to the studio's collection, offered on the
+  // same shelf as the shipped standard set (spec.md §6).
+  //
+  // ⚠️ The bytes are in the row rather than in a directory, and that is the
+  // whole point: a game's tree recovers itself from git and the shipped set
+  // is in this repo, but a picture somebody drew here exists nowhere else.
+  // `npm run backup` is a VACUUM INTO of this database and nothing else, so
+  // in a row it is already protected and on disk it would not be.
+  //
+  // ⚠️ No licence column, on purpose (ideas/studio-collection.md): whoever
+  // drew it keeps their copyright, and the studio neither asks for nor
+  // records a grant. `by_name` is copied rather than resolved through
+  // users — unlike a message's author, a credit on a picture is a statement
+  // about who drew it, not about what that person is called today.
+  `CREATE TABLE IF NOT EXISTS collection_art (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    who TEXT NOT NULL DEFAULT '',
+    mood TEXT NOT NULL DEFAULT '',
+    bytes BLOB NOT NULL,
+    mime TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    added_by INTEGER NOT NULL REFERENCES users,
+    by_name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_collection_kind ON collection_art (kind, id)`,
 ];
 
 export function openDb(dbPath) {
