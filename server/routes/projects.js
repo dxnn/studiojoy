@@ -8,7 +8,9 @@ import {
   initRepo, isRepo, forkRepo, currentSha,
 } from '../files/git.js';
 import { scaffoldLibraries } from '../files/library.js';
-import { listTemplates, scaffoldTemplate, scaffoldStart } from '../files/templates.js';
+import {
+  listTemplates, scaffoldTemplate, scaffoldStart, typeFromTree,
+} from '../files/templates.js';
 import { joinStarter } from '../starter.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
@@ -28,6 +30,20 @@ import { unseenInProject, unseenInChat } from '../mentions.js';
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
 
+// The game's type — a template's key — deciding which editors the centre pane
+// offers (spec.md §3). Null is a free-form game. '' is a game from before the
+// column: asked once, answered from its own tree, and the answer kept — null
+// included, so a helper writing config/story.js into a free-form game
+// afterwards changes nothing.
+function typeOf(ctx, row) {
+  if (row.kind !== 'game') return null;
+  if (row.type === '') {
+    row.type = typeFromTree(projectDirFor(ctx, row), ctx.publicDir);
+    ctx.db.prepare('UPDATE projects SET type = ? WHERE id = ?').run(row.type, row.id);
+  }
+  return row.type ?? null;
+}
+
 function projectPublic(ctx, row, user = null) {
   const db = ctx.db;
   const last = db
@@ -40,6 +56,7 @@ function projectPublic(ctx, row, user = null) {
     slug: row.slug,
     name: row.name,
     kind: row.kind,
+    type: typeOf(ctx, row),
     archived: row.archived === 1,
     published: row.published === 1,
     scores_on: row.scores_on === 1,
@@ -145,12 +162,15 @@ export function projectRoutes(r) {
     // default: an existing database already has the column, and SQLite cannot
     // change a default after the fact.
     const openEdit = kind === 'game' ? 1 : 0;
+    // The template's key is the game's type from here on: what decides the
+    // editors the centre offers and how helpers are briefed. Null for a game
+    // started from a blank page (spec.md §3).
     const info = ctx.db
       .prepare(
-        `INSERT INTO projects (slug, name, kind, created_by, created_at, open_edit)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(slug, name, kind, user.id, now, openEdit);
+      .run(slug, name, kind, template, user.id, now, openEdit);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
     // A game gets two conversations from the start: the human-only one it
     // opens on, and one where helpers can be put — a game with nowhere to ask
@@ -353,13 +373,13 @@ export function projectRoutes(r) {
     const row = tx(ctx.db, () => {
       // Open, like any other new game — and open whatever the original was,
       // because a copy is its own game and inherits nothing about who may
-      // touch it.
+      // touch it. Its type it does inherit: the files are the same game.
       const info = ctx.db
         .prepare(
-          `INSERT INTO projects (slug, name, kind, created_by, created_at, open_edit)
-           VALUES (?, ?, 'game', ?, ?, 1)`,
+          `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit)
+           VALUES (?, ?, 'game', ?, ?, ?, 1)`,
         )
-        .run(slug, name, user.id, now);
+        .run(slug, name, typeOf(ctx, source), user.id, now);
       const id = Number(info.lastInsertRowid);
       // The copy starts with the same two chats every game gets, and a fresh
       // thread in each: a fork is the files and the helpers, not the

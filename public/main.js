@@ -26,8 +26,11 @@ import {
 import { isConfigPath, renderConfigForm } from './config-form.js';
 import { isQuizPath, quizModel } from './quiz-editor.js';
 import { renderQuizForm } from './quiz-form.js';
-import { isStoryPath, storyModel } from './story-editor.js';
-import { renderStoryForm } from './story-form.js';
+import { isStoryPath } from './story-editor.js';
+import {
+  STORY_FILE, loadStory, parkStory, storyChanged, dropStageImages, selectScene,
+} from './story-form.js';
+import { editorsFor } from './game-types.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat, applyReactionDelta } from './chat.js';
@@ -81,6 +84,15 @@ export const S = {
   chats: [],
   files: [],
   // What the game said when it ran, for the version of the files on disk now.
+  // What the centre pane shows under the game's bar: a chat, or an editor a
+  // game type brings (public/game-types.js) — null for the chat, else the
+  // editor's id. S.chat is untouched by it: the chat behind an editor is
+  // still the chat, filling and marking while the editor is up.
+  editor: null,
+  // The story editor's state while the open game has one: {text, etag, model,
+  // dirty, scene, step, person}, {grown: reason} when the file will not read
+  // as a story, or null (story-form.js).
+  story: null,
   errors: [],
   pinned: new Set(),
   tab: 'files',
@@ -148,7 +160,7 @@ export const S = {
   connected: true,
   previewNonce: 0,
   // "Try this scene" in the story editor: the scene the preview opens into.
-  // Read only while that file is the one open, so closing it clears itself.
+  // Read only while an editor is up, and cleared with the game.
   tryScene: null,
   autoscroll: true,
   narrowPane: 'chat',
@@ -217,6 +229,10 @@ const EDITOR_AREA = 'editor-area';
 export const SIDE_SEARCH = 'side-find';
 
 function focusSnapshot() {
+// The story editor's fields are every one of these too: a helper's reply
+// landing behind the editor renders, and the line being typed must not lose
+// its caret to it. They carry ids starting story-.
+const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH || Boolean(id?.startsWith('story-'));
   const el = document.activeElement;
   // A control inside the open dialog survives render() by identity — the
   // dialog node is re-appended, never rebuilt — so the element itself is the
@@ -231,7 +247,7 @@ function focusSnapshot() {
       scroll: el.scrollTop,
     };
   }
-  if (el !== composerBox && el?.id !== EDITOR_AREA && el?.id !== SIDE_SEARCH) return null;
+  if (el !== composerBox && !keepsFocus(el?.id)) return null;
   return {
     composer: el === composerBox,
     id: el.id,
@@ -418,18 +434,43 @@ const viewFromUrl = () => {
   const q = new URLSearchParams(location.search);
   return {
     tab: q.get('tab'), file: q.get('file'), version: q.get('version'),
-    chat: q.get('chat'),
+    chat: q.get('chat'), edit: q.get('edit'), scene: q.get('scene'),
   };
 };
 
 // The inverse of applyView, and written in the same two branches so the pair
 // can be read against each other.
+// An editor id the open game's type actually brings, or null. An unknown id
+// in an address falls back to the chat rather than to an empty pane.
+const editorOf = (id) => (editorsFor(S.project?.type).some((e) => e.id === id) ? id : null);
+const hasEditor = (id) => editorOf(id) === id;
+
+// Which surface the centre shows, remembered per game beside the chat. '' is
+// a chat, chosen — different from nothing remembered, which lets a game with
+// a type open on its editor the first time.
+function showEditor(id) {
+  S.editor = id;
+  if (S.slug) prefs.set(`edit-${S.slug}`, id ?? '');
+}
+
+export function openEditor(id) {
+  showEditor(editorOf(id));
+  render();
+}
+
 function urlNow() {
   if (!S.slug) return '/';
   const q = new URLSearchParams();
-  // Which conversation, unless it is the one the project opens on: a link to
-  // a game means its front door, and a chat is a place inside it.
-  if (S.chat && S.chats.length > 1 && S.chat.id !== S.chats[0].id) {
+  // What the centre shows. An editor, and the scene it is on when that is not
+  // the first; or which conversation, unless it is the one the project opens
+  // on — a link to a game means its front door, and a chat is a place inside
+  // it. Never both: an editor stands in front of whichever chat was open, so
+  // Back to the chat is the address without ?edit=.
+  if (S.editor) {
+    q.set('edit', S.editor);
+    const first = S.story?.model?.scenes[0]?.key;
+    if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
+  } else if (S.chat && S.chats.length > 1 && S.chat.id !== S.chats[0].id) {
     q.set('chat', String(S.chat.id));
   }
   if (!isChat()) {
@@ -506,11 +547,27 @@ export const historyNeedsLoad = (path) => path !== S.historyPath
 // of a file has to close it. Every part is optional, and a part that is no
 // longer there — a deleted file, a commit off the end of the list — simply
 // does not open; the rest of the view still arrives.
-async function applyView({ tab, file, version, chat }) {
-  // The chat first: it is the only part of the view a chat-kind project has,
-  // and switching it replaces the thread the rest of this is arranged around.
-  const wanted = chat === null || chat === undefined ? S.chats[0]?.id : Number(chat);
-  if (wanted && wanted !== S.chat?.id) await openChat(wanted);
+async function applyView({
+  tab, file, version, chat, edit, scene,
+}) {
+  // The centre first: it is the only part of the view a chat-kind project
+  // has, and switching it replaces the thread the rest of this is arranged
+  // around. An editor stands in front of whichever chat is open and leaves it
+  // alone; without one the chat is the address's, else the one the project
+  // opens on.
+  const editor = editorOf(edit);
+  if (!editor) {
+    const wanted = chat === null || chat === undefined ? S.chats[0]?.id : Number(chat);
+    if (wanted && wanted !== S.chat?.id) await openChat(wanted);
+  }
+  showEditor(editor);
+  // The scene the address names, else the first: a missing ?scene= is the
+  // address talking, the same as a missing ?file=. Undefined is no address at
+  // all — a game opened from the sidebar — and leaves the reader where the
+  // story was loaded, parked edits and their place included.
+  if (editor === 'story' && scene !== undefined) {
+    selectScene(scene ?? S.story?.model?.scenes[0]?.key);
+  }
   if (isChat()) return;
   S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
   const want = file ?? null;
@@ -687,11 +744,21 @@ export async function openProject(slug, { view = null } = {}) {
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
 
   // Colours changed in the editor belong to the game being left, so they go in
+  // So do unsaved story edits: parked against the game being left, put back
+  // on return while the file is still the one they were made on.
+  parkStory();
   // before the slug does.
   await flushPalette();
 
   if (!slug) {
     S.slug = null;
+  // The centre pane's surface and the story editor's state are the game's;
+  // both are settled again below for the one being opened.
+  S.editor = null;
+  S.story = null;
+  S.tryScene = null;
+  dropStageImages();
+
     S.project = null;
     S.files = [];
     S.errors = [];
@@ -726,6 +793,16 @@ export async function openProject(slug, { view = null } = {}) {
   if (S.chat) prefs.set(`chat-${slug}`, S.chat.id);
   S.files = res.body.files;
   S.errors = res.body.errors ?? [];
+  // Which surface the centre opens on: the address if it says — an editor by
+  // name, or a chat, which is no editor — else what is remembered for this
+  // game, else the type's first editor for a game that has one and the chat
+  // for a game that does not. Settled before the first paint, so the address
+  // written then is the one that stays rather than one entry on the way to it.
+  const remembered = prefs.get(`edit-${slug}`, null);
+  const edit = view?.edit ?? (view?.chat !== null && view?.chat !== undefined
+    ? null
+    : (remembered ?? editorsFor(res.body.type)[0]?.id ?? null));
+  S.editor = editorOf(edit);
   S.pinned = new Set();
   S.open = null;
   S.history = [];
@@ -742,7 +819,9 @@ export async function openProject(slug, { view = null } = {}) {
   // survive the switch the same way.
   S.live = liveMapFor(slug, S.chat?.id);
   S.autoscroll = true;
-  readMentions();
+  // Opening the chat is reading it. Behind an editor it is not on screen, so
+  // its marks wait for the pill to be pressed.
+  if (!S.editor) readMentions();
   S.palette = null;
   // Off with the last game's dressing before the first paint, like the
   // palette: this game's own arrives with its colours below.
@@ -762,6 +841,9 @@ export async function openProject(slug, { view = null } = {}) {
     await loadReservedImages();
     render();
   }
+    // And the story, when this game has the editor for it — before applyView,
+    // so ?edit= and ?scene= have something to land on.
+    if (hasEditor('story')) await loadStory();
   // The rail keeps whichever tab you were on unless a URL says otherwise, so
   // arriving at a game with Versions already open has to fetch now. Waiting
   // for the next click on the tab is what made the list look empty until you
@@ -771,8 +853,11 @@ export async function openProject(slug, { view = null } = {}) {
   // on". Left out, this call undid the remembered chat a beat after opening
   // it — the game appeared in the conversation you left it in and then
   // switched itself to Humans only. Back and Forward still reset, because
-  // there the missing chat is the address talking.
-  await applyView({ ...(view ?? { tab: S.tab }), chat: S.chat?.id });
+  // there the missing chat is the address talking. The editor is named for
+  // the same reason.
+  await applyView({
+    ...(view ?? { tab: S.tab }), chat: S.chat?.id, edit: S.editor, scene: view?.scene,
+  });
 }
 
 window.addEventListener('popstate', followUrl);
@@ -938,9 +1023,10 @@ function onEvent(name, data) {
       }
       // Somebody called you by name. Where the message landed decides what
       // happens to it: in the chat you are looking at it is already read, and
-      // anywhere else it leaves a mark on that game until you go and look.
+      // anywhere else — the chat behind an editor included — it leaves a mark
+      // on that game, and on that chat's pill, until you go and look.
       if (data.mentions?.includes(S.me?.id)) {
-        if (here(data)) {
+        if (here(data) && S.editor === null) {
           api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
         } else {
           const row = S.projects.find((p) => p.slug === data.project_slug);
@@ -1063,10 +1149,15 @@ function onEvent(name, data) {
       if (data.paths.includes(ICON_IMAGE)) refreshIcon(data.project_slug);
       if (!mine(data)) return;
       // A new wallpaper or hero redresses the studio, and the loader reads
-      // S.files for what exists — so the tree has to land first.
+      // S.files for what exists — so the tree has to land first. The story
+      // editor reads it the same way, and its stage drops the pictures that
+      // moved so the next paint fetches them again.
+      const tree = refreshFiles();
       if (data.paths.includes(CHAT_IMAGE) || data.paths.includes(HERO_IMAGE)) {
-        refreshFiles().then(loadReservedImages).then(render);
-      } else refreshFiles();
+        tree.then(loadReservedImages).then(render);
+      }
+      if (hasEditor('story') && data.paths.includes(STORY_FILE)) tree.then(storyChanged);
+      dropStageImages(data.paths);
       // A helper changing the game's colours retints the studio. Not while
       // there are unsaved ones in the editor: re-reading would throw those
       // away, and they are on their way into this same file.
@@ -2192,7 +2283,20 @@ export async function studioChange(method, path, body) {
 // throwing them away to read a different thread would be the same mistake
 // Back used to make.
 export async function openChat(id) {
-  if (!S.project || id === S.chat?.id) return;
+  // A chat pill pressed while an editor is up brings the chat forward — the
+  // one already behind the editor included, which is why the early return
+  // below still paints.
+  const fromEditor = S.editor !== null;
+  showEditor(null);
+  if (!S.project || id === S.chat?.id) {
+    // Coming out from behind the editor is opening the chat: what called you
+    // there while it was hidden has now been seen.
+    if (fromEditor) {
+      readMentions();
+      render();
+    }
+    return;
+  }
   const res = await api('GET', `/api/projects/${S.slug}?chat=${id}`);
   if (!res.ok) {
     say(res.body?.error ?? 'Could not open that chat.', true);
@@ -2248,7 +2352,9 @@ async function sendMessage(text) {
 }
 
 function stickToBottom() {
-  const scroller = document.querySelector('.chat .scroll');
+  // By name: with an editor up the pane's first scroller is the editor's, and
+  // that one must not be pulled to its bottom on every render.
+  const scroller = document.querySelector('.chat .scroll[data-scroll="chat"]');
   if (scroller && S.autoscroll) scroller.scrollTop = scroller.scrollHeight;
 }
 
@@ -2995,15 +3101,16 @@ function renderFilesTab() {
     // the reader will not touch, or you asked to see the text. Before that,
     // config/questions.js in the quiz shape opens as the quiz editor — the
     // whole game as a form — falling back through the generic form to the
-    // text as the file outgrows each reader.
-    const parsed = isConfigPath(S.open.path) && S.open.content !== null
+    // text as the file outgrows each reader. The story is the exception: in a
+    // game with the story editor, its file opens here as plain text and
+    // nothing else — the editor is the Story tab in the middle, and a form
+    // here would be a second one writing the same file.
+    const inEditor = isStoryPath(S.open.path) && hasEditor('story');
+    const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)
       : null;
     const quiz = isQuizPath(S.open.path) && S.open.content !== null && !S.open.asText
       ? quizModel(S.open.content)
-      : null;
-    const story = isStoryPath(S.open.path) && S.open.content !== null && !S.open.asText
-      ? storyModel(S.open.content)
       : null;
 
     if (S.open.content === null) {
@@ -3013,10 +3120,8 @@ function renderFilesTab() {
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
     } else if (quiz?.ok) {
       editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
-    } else if (story?.ok) {
-      editor.push(h('div', { class: 'editor' }, bar, ...renderStoryForm(story)));
     } else if (parsed?.ok && !S.open.asText) {
-      const outgrown = (quiz && !quiz.ok && quiz.reason) || (story && !story.ok && story.reason);
+      const outgrown = quiz && !quiz.ok && quiz.reason;
       editor.push(h('div', { class: 'editor' }, bar,
         outgrown
           ? h('div', { class: 'pad hint muted', text: `Showing every field because ${outgrown}.` })
@@ -3039,7 +3144,8 @@ function renderFilesTab() {
       editor.push(h('div', { class: 'editor' },
         bar,
         // Why a config file is showing as text: either you asked, or it holds
-        // something the form will not pretend to understand.
+        // something the form will not pretend to understand — or it is the
+        // story, whose editor is in the middle.
         parsed && !parsed.ok
           ? h('div', { class: 'pad hint muted' }, `Showing the text because ${parsed.reason}.`)
           : null,
@@ -3047,6 +3153,9 @@ function renderFilesTab() {
         codeBox(area, S.open.path),
         h('div', { class: 'editor-bar row' },
           h('span', { class: 'hint muted', text: S.open.dirty ? 'Not saved yet' : 'Saved' }),
+        inEditor
+          ? h('div', { class: 'pad hint muted', text: 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.' })
+          : null,
           h('div', { class: 'spacer' }),
           parsed?.ok
             ? h('button', {
@@ -3144,9 +3253,10 @@ const showScore = (n) => n.toLocaleString();
 function renderPreview() {
   const best = bestScore();
   // "Try this scene" adds the game's own ?scene= — a template that honours it
-  // opens straight into that scene, and one that does not ignores it. Tied to
-  // the story file being open, so nothing has to remember to clear it.
-  const scene = S.tryScene && S.open && isStoryPath(S.open.path) ? S.tryScene : null;
+  // opens straight into that scene, and one that does not ignores it. Held
+  // while the editor is up, so a save from it lands back in the scene being
+  // worked on; cleared with the game.
+  const scene = S.editor && S.tryScene ? S.tryScene : null;
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
     + (scene ? `&scene=${encodeURIComponent(scene)}` : '');
   const shut = () => {

@@ -27,6 +27,18 @@ export function listTemplates(publicDir) {
   }
 }
 
+// Which game type a game from before `projects.type` is, read off its tree:
+// the type whose heart file it holds. Null when it holds none — a free-form
+// game. Asked once per game and the answer written back (routes/projects.js),
+// so a helper writing config/story.js into a free-form game later changes
+// nothing about which editors anybody sees.
+export function typeFromTree(dir, publicDir) {
+  for (const [type, t] of Object.entries(listTemplates(publicDir))) {
+    if (t.heart && fs.existsSync(path.join(dir, t.heart))) return type;
+  }
+  return null;
+}
+
 // "A blank page" in the New game dialog, which until now meant a blank
 // *directory*: a game with no index.html is nothing the games origin can
 // serve, so the preview and the play link both answered `{"error":"not

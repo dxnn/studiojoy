@@ -210,6 +210,22 @@ function studioPreamble({
       'You have no file tools. You can read and discuss the project but not change it.',
     );
   }
+  // What this game is, when the studio knows (projects.type). A type brings
+  // an editor the person works in, and a helper that has not been told sees
+  // the story as a file to rewrite from the wrong end. Named by the words on
+  // the tab, like every other button; orchestrator.test.js asserts them.
+  if (project.type === 'visual-novel') {
+    lines.push(
+      '',
+      'This game is a visual novel. The whole story is config/story.js — CAST, who speaks and their moods,',
+      'and SCENES, each a picture, a sound, lines said one at a time, then choices, a go, or the end — and',
+      'the person writes it in the "story editor", the Story tab beside this chat, which shows it as scenes',
+      'and lines rather than as code. So the story is changed by changing that file inside its shape,',
+      'and a picture is asked for by the name the story gives it: a scene\'s is its picture path under',
+      'assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played',
+      'and css/style.css how it looks; a request about what happens is config/story.js alone.',
+    );
+  }
   lines.push(
     '',
     'The game is served from a different origin than the studio, so absolute URLs back to the studio',
@@ -710,7 +726,7 @@ export function createOrchestrator({
                 c.project_id, c.name AS chat_name,
                 a.name AS agent_name, a.description, a.model, a.thinking,
                 a.file_tools, a.deleted,
-                p.slug, p.name AS project_name, p.kind, p.archived, p.scores_on
+                p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on
            FROM chat_agents ca
            JOIN chats c ON c.id = ca.chat_id
            JOIN agents a ON a.id = ca.agent_id
@@ -722,7 +738,7 @@ export function createOrchestrator({
 
     const project = {
       id: row.project_id, slug: row.slug, name: row.project_name, kind: row.kind,
-      scores_on: row.scores_on,
+      type: row.type, scores_on: row.scores_on,
     };
     const chat = { id: row.chat_id, name: row.chat_name };
     const clearPending = () => db

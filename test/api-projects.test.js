@@ -24,6 +24,8 @@ test('creating a project makes a working tree with a repo behind it', async (t) 
   assert.equal(res.body.slug, 'tank-game');
   assert.equal(res.body.name, 'Tank Game');
   assert.equal(res.body.archived, false);
+  // A blank page is a free-form game: no type, so no editors in the centre.
+  assert.equal(res.body.type, null);
 
   const dir = path.join(app.gamesDir, 'tank-game');
   assert.equal(fs.existsSync(dir), true, 'the working tree exists');
@@ -141,6 +143,8 @@ test('a game born from the quiz template holds its starter tree', async (t) => {
     body: { name: 'Quizzy', template: 'quiz' },
   });
   assert.equal(res.status, 201);
+  // The template's key is the game's type from here on.
+  assert.equal(res.body.type, 'quiz');
 
   const dir = path.join(app.gamesDir, 'quizzy');
   const templateRoot = path.join(publicDir, 'game-templates', 'quiz');
@@ -186,6 +190,7 @@ test('a game born from the visual novel template holds its starter tree', async 
     body: { name: 'Nightfall', template: 'visual-novel' },
   });
   assert.equal(res.status, 201);
+  assert.equal(res.body.type, 'visual-novel');
 
   const dir = path.join(app.gamesDir, 'nightfall');
   const templateRoot = path.join(publicDir, 'game-templates', 'visual-novel');
@@ -208,6 +213,38 @@ test('a game born from the visual novel template holds its starter tree', async 
   const parsed = parseConfigFile(fs.readFileSync(path.join(dir, 'config/story.js'), 'utf8'));
   assert.equal(parsed.ok, true, parsed.reason);
   assert.deepEqual(parsed.decls.map((d) => d.name), ['CAST', 'SCENES']);
+});
+
+// A game from before the type column is marked '' by the migration and asked
+// once: its type is read off its tree — the template whose heart it holds —
+// and the answer written back, null included. So a helper writing a story file
+// into a free-form game afterwards changes nothing about its editors.
+test('a game from before the column gets its type from its tree, once', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Old Story', slug: 'old-story', template: 'visual-novel' },
+  });
+  await app.client.json('POST', '/api/projects', { body: { name: 'Plain', slug: 'plain' } });
+  // What the migration leaves on every game that predates the column.
+  app.db.prepare("UPDATE projects SET type = ''").run();
+
+  const list = await app.client.json('GET', '/api/projects');
+  const bySlug = Object.fromEntries(list.body.map((p) => [p.slug, p.type]));
+  assert.equal(bySlug['old-story'], 'visual-novel');
+  assert.equal(bySlug.plain, null);
+  // Written back, so the tree is never read for it again.
+  const stored = (slug) => app.db.prepare('SELECT type FROM projects WHERE slug = ?').get(slug).type;
+  assert.equal(stored('old-story'), 'visual-novel');
+  assert.equal(stored('plain'), null);
+
+  // The free-form game gaining a story file is not a visual novel now.
+  fs.mkdirSync(path.join(app.gamesDir, 'plain', 'config'), { recursive: true });
+  fs.writeFileSync(path.join(app.gamesDir, 'plain', 'config', 'story.js'), 'const CAST = {};\n');
+  const again = await app.client.json('GET', '/api/projects/plain');
+  assert.equal(again.body.type, null);
 });
 
 // Every template's index.json entry has to name a file the tree really holds,
@@ -421,12 +458,16 @@ test('a fork copies the files, their history, and the helpers', async (t) => {
   await app.client.put('/api/projects/tank/files/index.html', {
     headers: { 'content-type': 'text/plain' }, rawBody: '<h1>tank</h1>',
   });
+  // The fixture's public/ has no templates to start from, so the type is set
+  // by hand: a copy is the same game, and brings its type with it.
+  app.db.prepare("UPDATE projects SET type = 'quiz' WHERE slug = 'tank'").run();
 
   const forked = await app.client.json('POST', '/api/projects/tank/fork', {
     body: { name: 'Tank Two', slug: 'tank-two' },
   });
   assert.equal(forked.status, 201);
   assert.equal(forked.body.slug, 'tank-two');
+  assert.equal(forked.body.type, 'quiz');
 
   const dir = path.join(app.gamesDir, 'tank-two');
   assert.equal(await isRepo(dir), true, 'the fork is its own repository');

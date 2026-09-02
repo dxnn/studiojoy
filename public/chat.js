@@ -8,8 +8,9 @@ import {
   S, render, prefs, isChat, agentName, toolLabel, thinkingFor, urlAs,
   loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
   composerBox, sendComposer, send, api, say, sizeText,
-  openChat, frozen, canTalk, nearQuota, calledMark,
+  openChat, openEditor, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
+import { editorsFor } from './game-types.js';
 
 /* Render: chat ------------------------------------------------------------ */
 
@@ -478,6 +479,11 @@ function renderActs(p) {
 // helpers listening in this one, and the + that calls another in. They were in
 // the bar above with the game's name, which is the game's row, not the room's.
 //
+// Before the chats, the editors the game's type brings — a pill each, with a
+// hairline between the two kinds so a surface reads as a different thing from
+// a room (public/game-types.js). On an editor's tab the right-hand end is
+// empty: the chips and the + are the open chat's, and no chat is showing.
+//
 // ⚠️ The pills and the chips are each their own scroller. Two rows of helpers
 // and a studio's worth of chats will not fit on a phone, and something has to
 // give sideways rather than push the other off the end.
@@ -488,6 +494,8 @@ function renderActs(p) {
 // cannot be done is not offered.
 function renderChatTabs(p) {
   if (!S.chat) return null;
+  const editors = editorsFor(p.type);
+  const onEditor = S.editor !== null;
   // The name toggles between answering everything and waiting to be called;
   // the ✕ takes them out. Both are a change to the game, so neither is
   // offered on a game that is archived or somebody else's — the server refuses
@@ -511,27 +519,33 @@ function renderChatTabs(p) {
   const rooms = !isChat();
   const addChat = rooms && !frozen() && S.chats.length < MAX_CHATS;
   const addHelper = !frozen() && S.chat.bots;
-  if (!rooms && !addHelper && chips.length === 0) return null;
+  if (!rooms && !addHelper && chips.length === 0 && editors.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
     addChat ? h('button', {
       class: 'chat-tab add', text: 'Add chat', title: 'Start another chat in this game',
       onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
     }) : null,
+    editors.length ? h('div', { class: 'pills editors' }, editors.map((e) => h('button', {
+      class: `chat-tab editor${S.editor === e.id ? ' on' : ''}`,
+      title: e.what,
+      onclick: () => openEditor(e.id),
+    }, e.label))) : null,
+    editors.length && rooms ? h('span', { class: 'sep' }) : null,
     rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
-      class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
+      class: `chat-tab${c.id === S.chat.id && !onEditor ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
       title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
     },
     c.bots ? null : h('span', { class: 'hush', text: '·' }),
     c.name,
     // The mark on the game says somebody called you; this says in which
-    // conversation.
+    // conversation — the one behind the editor included.
     calledMark(c.mentions)))) : null,
     h('div', { class: 'spacer' }),
-    chips.length ? h('div', { class: 'hchips' }, chips) : null,
+    chips.length && !onEditor ? h('div', { class: 'hchips' }, chips) : null,
     // Outside the chips and never scrolled away with them: the way to add
     // somebody has to stay put whether the row holds nobody or nine.
-    addHelper ? h('button', {
+    addHelper && !onEditor ? h('button', {
       class: 'hchip-add', text: '+',
       title: 'Put a helper in this chat', 'aria-label': 'Put a helper in this chat',
       onclick: () => { S.dialog = { kind: 'add-helper' }; render(); },
@@ -594,6 +608,11 @@ export function renderChat() {
   // opens, which is where its meaning is explained.
   const locked = !isChat() && !p.open_edit;
 
+  // The body of the pane is a chat or an editor. The bar over it and the row
+  // of pills stay whatever is showing; the thread and the composer are the
+  // chat's, and an editor takes their whole space the way a chat does.
+  const editor = editorsFor(p.type).find((e) => e.id === S.editor) ?? null;
+
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
     // hero.png, when the game has one, backs the bar under a dark wash so the
     // name stays readable. An object URL, so nothing user-typed is in the style.
@@ -627,11 +646,11 @@ export function renderChat() {
         onclick: () => { S.dialog = { kind: 'archive' }; render(); },
       })),
     renderChatTabs(p),
-    scroller,
+    editor ? editor.render() : scroller,
     // Send sits beside the box rather than under it: the strip it used to have
     // to itself was a whole row of studio for one button, and the box is wide
     // enough to give the width up.
-    h('div', { class: 'composer' },
+    editor ? null : h('div', { class: 'composer' },
       gap,
       pinNote ? h('div', { class: 'hint pins', text: pinNote }) : null,
       h('div', { class: 'say' },

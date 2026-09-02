@@ -352,6 +352,17 @@ export function openDb(dbPath) {
   // already has the column, and SQLite cannot change a default afterwards, so
   // the value has to be stated where the row is made (see projects.js).
   addColumnIfMissing(db, 'projects', 'open_edit', 'INTEGER NOT NULL DEFAULT 0');
+  // What kind of game this is — a template's key, 'visual-novel' or 'quiz' —
+  // which decides the editors the centre pane offers and how helpers are
+  // briefed (spec.md §3). Null is a free-form game, and stays the default.
+  // Set at creation from the template and copied by a fork; a column rather
+  // than a file in the tree, so no write_file can change which editors
+  // somebody sees. ⚠️ Every game from before the column is marked '' — not yet
+  // looked at — and projectPublic answers that once from the game's own tree
+  // and writes the answer back, null included.
+  addColumnIfMissing(db, 'projects', 'type', 'TEXT', (d) => {
+    d.prepare("UPDATE projects SET type = '' WHERE kind = 'game'").run();
+  });
   // The studio-wide budget, editable in the admin panel rather than a
   // constant in the source. Null means the built-in default still applies.
   addColumnIfMissing(db, 'studio_state', 'daily_token_budget', 'INTEGER');

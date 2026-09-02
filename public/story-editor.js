@@ -205,6 +205,74 @@ export function renameScene(model, from, to) {
   }
 }
 
+// A mood is the tail of a picture's name, so renaming one renames the picture
+// the story asks for — and every line said in that mood comes along, the way
+// every way into a scene follows a scene rename.
+export function renameMood(model, who, from, to) {
+  const person = model.cast.find((p) => p.key === who);
+  if (!person) return;
+  person.moods = person.moods.map((m) => (m === from ? to : m));
+  for (const scene of model.scenes) {
+    for (const line of scene.lines) if (line.who === who && line.mood === from) line.mood = to;
+  }
+}
+
+/* The stage ---------------------------------------------------------------- */
+
+// What the player sees at one step of a scene, for the studio to draw from the
+// unsaved model. A step is 'scene', 'picture' or 'sound' — the picture alone —
+// a line's index — that line, with its speaker and portrait — or 'exit': the
+// last line still up, and what follows it. Null for a scene that is gone.
+export function stageFor(model, key, step) {
+  const scene = model.scenes.find((s) => s.key === key);
+  if (!scene) return null;
+  const out = {
+    picture: scene.picture, portrait: '', who: '', say: '', choices: [], go: '', end: false,
+  };
+  const at = step === 'exit' ? scene.lines.length - 1 : step;
+  const line = Number.isInteger(at) ? scene.lines[at] : null;
+  if (line) {
+    out.say = line.say;
+    const person = model.cast.find((p) => p.key === line.who);
+    if (person) {
+      out.who = person.name || person.key;
+      if (line.mood) out.portrait = `assets/sprites/${line.who}-${line.mood}.png`;
+    } else if (line.who) {
+      out.who = line.who;
+    }
+  }
+  if (step === 'exit') {
+    out.choices = scene.choices;
+    out.go = scene.go;
+    out.end = scene.choices.length === 0 && !scene.go;
+  }
+  return out;
+}
+
+// Every scene that leads to this one, in story order — by a go or by a choice.
+export function leadingTo({ scenes }, key) {
+  return scenes
+    .filter((s) => s.go === key || s.choices.some((c) => c.go === key))
+    .map((s) => s.key);
+}
+
+// Move one line so that it ends up at index `to`. ▲ and ▼ are a move of one;
+// a drop is a move to the row it landed on.
+export function moveLine(scene, from, to) {
+  if (from === to || from < 0 || from >= scene.lines.length) return;
+  const [line] = scene.lines.splice(from, 1);
+  scene.lines.splice(Math.max(0, Math.min(to, scene.lines.length)), 0, line);
+}
+
+// Make a scene the one the story starts at. Order decides where the story
+// starts and nothing else, so this is the one reordering a scene ever needs.
+export function startAt(model, key) {
+  const at = model.scenes.findIndex((s) => s.key === key);
+  if (at <= 0) return;
+  const [scene] = model.scenes.splice(at, 1);
+  model.scenes.unshift(scene);
+}
+
 /* Checks ------------------------------------------------------------------- */
 
 // What the whole graph says that one field cannot. `paths` is every file in

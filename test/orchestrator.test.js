@@ -522,6 +522,8 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /"quiz editor"/);
   assert.match(system, /"story editor"/);
   assert.match(system, /config\/story\.js/);
+  // A free-form game gets no type section: nothing here is a visual novel.
+  assert.ok(!system.includes('This game is a visual novel'), 'no type section without a type');
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');
   assert.match(system, /GET \/_me/, 'and the way a game learns who is signed in');
   assert.match(system, /sign in to get on the board/, 'and what to offer when nobody is');
@@ -547,6 +549,28 @@ test('the context carries the tree and the brief, and the pin rides the last mes
     messages.at(-1).content,
     '(the user pinned these files: js/game.js)\n\n[Dann] look at this',
   );
+});
+
+// A game with a type is briefed about it: what the story file is, that the
+// person works in the "story editor" tab, and how a picture is asked for by
+// the name the story gives it. Named by the words on the tab, so renaming the
+// tab without updating the prompt fails here.
+test('a visual novel tells its helpers what the story file is', async (t) => {
+  const llm = createFakeLlm([says('ok')]);
+  const { app } = await studio(t, { llm });
+  // The fixture's public/ has no templates, so the type is set by hand.
+  app.db.prepare("UPDATE projects SET type = 'visual-novel' WHERE slug = 'tank'").run();
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make the cat say more');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /This game is a visual novel/);
+  assert.match(system, /"story editor", the Story tab beside this chat/);
+  assert.match(system, /assets\/sprites\/<who>-<mood>\.png/);
+  assert.match(system, /a request about what happens is config\/story\.js alone/);
 });
 
 // DeepSeek re-bills the chain's accumulated reasoning on every continuation

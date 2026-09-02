@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { openDb, tx, addColumnIfMissing } from '../server/db.js';
 import { nextUtcMidnight } from '../server/util/time.js';
+import { scratchDir } from './helpers.js';
 
 function seeded() {
   const db = openDb(':memory:');
@@ -176,6 +178,33 @@ test('an agent from before three thinking levels keeps what it had', () => {
     .prepare('SELECT thinking FROM agents WHERE name = ?').get(name).thinking;
   assert.equal(thinking('Thinker'), 'full');
   assert.equal(thinking('Quiet'), 'none');
+  db.close();
+});
+
+// A game from before projects.type is marked '' — not yet looked at — so the
+// routes can answer its type from its tree once and write it back. A chat is
+// left null: it has no tree to ask. Against a file, because the mark is made
+// by reopening a database that already has games in it.
+test('games from before the type column are marked to be looked at', () => {
+  const file = path.join(scratchDir('db'), 'studio.db');
+  let db = openDb(file);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO users (email, password_hash, display_name, created_at)
+     VALUES ('a@b.c', 'x', 'Dann', ?)`,
+  ).run(now);
+  db.prepare(
+    `INSERT INTO projects (slug, name, kind, created_by, created_at)
+     VALUES ('old', 'Old', 'game', 1, ?), ('room', 'Room', 'chat', 1, ?)`,
+  ).run(now, now);
+  // Put the table back the way a database from before this looked.
+  db.exec('ALTER TABLE projects DROP COLUMN type');
+  db.close();
+
+  db = openDb(file);
+  const typeOf = (slug) => db.prepare('SELECT type FROM projects WHERE slug = ?').get(slug).type;
+  assert.equal(typeOf('old'), '');
+  assert.equal(typeOf('room'), null);
   db.close();
 });
 

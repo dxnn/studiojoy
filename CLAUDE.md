@@ -705,6 +705,46 @@ game that is already made is noise with a token bill on it.
 key on an answer or a scene costs somebody their editor. `orchestrator.test.js`
 asserts both names are in the prompt.
 
+A template is now what a **game type** starts from: `projects.type` is the
+template's key, set at creation, copied by a fork, null for a free-form game,
+and ⚠️ a column rather than a file so no `write_file` can change which editors
+somebody sees. A game from before the column is marked `''` and answered once
+from its tree (`typeFromTree`: the type whose heart it holds), the answer
+written back, null included. `public/game-types.js` maps a type to its
+**editors**: surfaces in the *centre pane*, a pill each before the chat pills
+with a hairline between the kinds, taking the whole pane the way a chat does.
+`S.editor` is which; `S.chat` is untouched by it, so the chat behind an editor
+keeps filling and a mention marks its pill until pressed. `?edit=` in the URL,
+never beside `?chat=`, remembered per game in `edit-<slug>` beside the chat;
+a new visual novel opens on its editor and a free-form game is exactly as it
+was. The preamble gains a visual-novel section, asserted in the tests.
+
+The **story editor** is the first editor and lives there now — a scene strip,
+a **stage** drawn from the unsaved model (`stageFor`, pure), the scene as
+**steps** read top to bottom with the selected one open in place, drag and
+▲▼ for lines, and the bar: Show the text, Try this scene, Save. `?scene=`
+carries the selected scene when it is not the first. In the rail
+`config/story.js` is plain text and nothing else, with a note; a grown story
+keeps its tab and says why. Unsaved story edits are parked per game and come
+back while the etag matches. Three traps found in the browser: ⚠️ the story on
+screen stays put while a reload reads the file — nulling it for a fetch let a
+render write the address without its scene as a new entry, and the reload
+write it back as another; ⚠️ a button's click bubbles to the row it was in
+*after* the button has already moved the line and rendered, so a row ignores
+button clicks (fields still select the row in place — a render would close the
+select as it opened); and `openProject`'s own `applyView` passes `scene:
+undefined`, not null, so a sidebar click leaves parked edits where the reader
+was while a followed address still resets to the first scene. Browser-checked
+against `tmp/vn-studio.mjs` (a fake helper plus the games listener): the tab
+beside the chats with the chips coming and going, a reply arriving behind the
+editor, a human mention marking the pill and clearing on press, the stage
+following the steps, in-place typing keeping the caret, Save as one commit and
+a preview reload with `history.length` unmoved, `?edit=`/`?scene=` on reload
+and Back, Try this scene at `&scene=`, the text in the rail, a grown story
+round trip, a blank game unchanged, parked edits back with their place. Not
+yet felt on a phone: at 390px the strip stacks over the stage and both are
+tall — the phone-width re-check is still the TODO line's.
+
 The move-and-collect and point-and-click templates are queued in TODO.md, each
 owed its own editor mode where one fits (ideas/templates.md).
 

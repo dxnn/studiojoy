@@ -175,6 +175,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `slug` | TEXT UNIQUE NOT NULL | `[a-z0-9-]{1,40}`; the directory name under `GAMES_DIR` **and** the public URL path |
 | `name` | TEXT NOT NULL | ≤ 200 chars |
 | `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
+| `type` | TEXT | the game's **type**, a template's key (`visual-novel`, `quiz`): which *editors* the centre pane offers and how helpers are briefed (§6, §8). Null is a free-form game |
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
 | `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
 | `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |
@@ -191,6 +192,15 @@ refuses it with 409, its slug is not served on the games origin, a message in
 it may not carry `context_paths`, and its agents are offered no file tools and
 no file block in their context (§8). The column is added by
 `addColumnIfMissing`, so an existing database upgrades with every row a game.
+
+`type` is set at creation from the template and copied by a fork; a blank page
+is null and stays so. A column rather than a file in the tree on purpose: a
+helper must not be able to change which editors somebody sees with a
+`write_file`. ⚠️ A game from before the column is marked `''` by the
+migration — not yet looked at — and `projectPublic` answers it once from the
+game's own tree, the type whose heart file (§6) it holds, writing the answer
+back, null included. So a free-form game that later gains a `config/story.js`
+is still free-form, and the tree is read for it once ever.
 
 There is no `system_prompt` column. Project-level standing instructions live
 in `BRIEF.md` at the project root: a plain file in the working tree, so it gets
@@ -1049,6 +1059,23 @@ and the helper chips are each their own horizontal scroller, so a studio's
 worth of chats and a crowd of helpers give way to each other rather than one
 pushing the other off the end.
 
+**The body of the centre pane is a chat or an editor.** An **editor** is a
+surface a *game type* brings — `public/game-types.js` maps `projects.type` to
+its editors, one entry each, and that file is the whole registry — and it is
+one more pill in the row over the conversation, before the chats with a
+hairline between the two kinds, taking the whole pane the way a chat does: no
+narrow chat beside it, no drawer, the sidebar and the rail as they are. Which
+is showing is the centre's one piece of state (`S.editor`); `S.chat` is
+untouched by it, so the chat behind an editor keeps filling, a mention lands
+as a mark on its pill rather than being read, and pressing the pill paints
+what arrived. On an editor's tab the right-hand end of the row is empty — the
+chips and the `+` are the open chat's. A game opens on the address if it says
+(`?edit=`, or `?chat=`, which is no editor), else what this browser remembers
+for the game, else the type's first editor for a game that has one and the
+chat for a game that does not; so a new visual novel opens on its story
+editor, and a free-form game is exactly as it was. The *story editor* is the
+first (below); a type may bring several.
+
 **A game a person makes is open** — the whole studio may change it — and an
 editor closes it in the `Editors` dialog, which puts a padlock in front of its
 name. This is a studio of a few people who trust each other: a game nobody else
@@ -1363,20 +1390,52 @@ so nothing about it is blocked on eyes. Building it first also settles the
 vocabulary the adventure inherits, `set`/`need` on a switch rather than the
 `flip` the sketch had.
 
-`config/story.js` opens as the **story editor**: the story as a list of
-scenes, one open in its own row at a time — the studio's rule that what a
-control reveals opens where it belongs — with the cast as a peer section. Like
-the quiz editor it regenerates the whole file and is byte-identical on an
-untouched save, and it falls back through the config form to the text. Two
-things are its own. Renaming a scene brings every way in with it, which a text
-editor cannot do without a find-and-replace that also hits the words of the
-story. And it holds the whole graph and the game's file list at once, so it
-says five things no single field can: a scene nothing leads to, a way out
-pointing at a scene that is gone, a switch nothing sets, a picture or portrait
-the game does not have, and a mood the cast does not have. `Try this scene`
-reloads the preview at the game's own `?scene=` — the studio only puts the
-parameter on the iframe's `src`; honouring it is the template's four lines, and
-a game that does not ignores it.
+A visual novel is the first **game type** (§3), and its `config/story.js` is
+edited in the **story editor**: an *editor* in the centre pane (the shell,
+above) rather than a form in the rail, with TyranoBuilder's three regions
+inside one tab. The **scene strip** down the left — every scene with its
+problems and its tail (*3 choices* / *→ hall* / *the end*), then the cast —
+is the editor's own navigation, which is what lets a type bring several
+editors without each wanting a rail tab. For the selected scene, the
+**stage** shows what the player sees at the selected **step**, drawn by the
+studio from the *unsaved* model — instant, no commit: the scene's picture,
+the line's portrait and speaker, the words along the bottom, and on the exit
+step the choices, the go or the end (`stageFor` in `story-editor.js`, pure and
+tested). Its pictures are object URLs in a cache keyed by path — the
+reserved-images pattern, since the file routes send `no-store` — dropped for
+the paths a `files.changed` names. Under it the **steps**: the scene as rows
+read top to bottom — its name (renaming brings every way in with it), *comes
+from* links, *Start here*, *Remove* (disabled while something leads here);
+the picture and the sound; one row per line, the selected one open in place
+with who, mood and the words, rows dragged into order by a handle or moved
+with ▲ ▼; then the exit — the player chooses, go straight on, or the end —
+and the scene's problems. A selected person shows their moods and the file
+each expects. Typing repaints the stage and the status in place; anything that
+changes the shape renders.
+
+Like the quiz editor it regenerates the whole file and is byte-identical on
+an untouched save. It still says the five things no single field can: a scene
+nothing leads to, a way out pointing at a scene that is gone, a switch nothing
+sets, a picture or portrait the game does not have, and a mood the cast does
+not have. Explicit **Save**, like every editor here — a save is a commit and a
+preview reload, so autosave would be a commit a keystroke — with `if-match`
+and a `story-conflict` dialog on a 409. *Show the text* saves first and opens
+the file as plain text in the rail, where it is now text and nothing else —
+the editor is in the middle, and a form there too would be a second surface
+writing the same file — while the tab's body says so and waits. *Try this
+scene* saves first, then reloads the preview at the game's own `?scene=` —
+the studio only puts the parameter on the iframe's `src`; honouring it is the
+template's four lines, and a game that does not ignores it. A story that has
+grown past the shape keeps its tab, and the tab's body says why and offers
+the text on the right: the type decides the tabs, the file's shape decides
+what a tab can show. ⚠️ Unsaved edits are parked per game when the game is
+left and put back on return while the file's etag still matches — the
+composer's words are the one other thing git cannot recover, and a mis-click
+in the sidebar must not cost a scene; a file changed underneath drops them
+with a word. ⚠️ A reload after a save keeps the story on screen until the new
+one is read: nulling it for the length of a fetch let a render write the
+address without its scene as a new history entry, and the reload write it back
+as another.
 
 The quiz editor grew the same read, because the authoring bug in a quiz is
 never a typo: four endings of which three are unreachable, or one a single
@@ -1454,7 +1513,13 @@ Other paths serve from `public/`.
 The rest of the view is in the query string, which the server never reads:
 `?tab=play|versions` (absent means Files), `?file=<path>` — the open file under
 Files, the filter under Versions — and `?version=<sha>` for the changes opened
-in the Versions list. The client writes it from its own state on every render
+in the Versions list. The centre pane's surface is there too: `?chat=<id>`
+for a conversation other than the one the project opens on, or `?edit=<id>`
+for an *editor* with `?scene=<key>` for the story editor's selected scene when
+it is not the first — never both, because an editor stands in front of
+whichever chat was open, so Back to the chat is the address without `?edit=`.
+Switching tab or scene is a navigation and its own entry; selecting a step
+inside a scene is not. The client writes it from its own state on every render
 rather than at each click, so no control can forget to, and every view is an
 entry of its own: Back walks back through the files, tabs and versions opened
 inside a game the way it walks back through games. `replaceState` is used only
@@ -1685,8 +1750,12 @@ what prompt caching pays for (below):
 1. A fixed studio preamble: what this app is, the project slug, the path rules
    from §4, how each tool behaves, a nudge to prefer `patch_file` over
    rewriting whole files, the project documents and file layout it is expected
-   to keep (below), and a note that games run on a separate origin so absolute
-   URLs back to the studio will not resolve.
+   to keep (below), a section for the game's *type* when it has one — a visual
+   novel is told what `config/story.js` is, that the person writes it in the
+   "story editor" tab beside the chat, and that a picture is asked for by the
+   name the story gives it — and a note that games run on a separate origin so
+   absolute URLs back to the studio will not resolve. Fixed per project rather
+   than per fire, so it caches like the rest.
 2. `BRIEF.md`'s content, if the file exists, cut to `BRIEF_BYTES` with a note
    saying where it was cut.
 3. The agent's `description`.

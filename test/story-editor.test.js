@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, isStoryPath,
+  renameMood, stageFor, leadingTo, moveLine, startAt,
 } from '../public/story-editor.js';
 
 const ROOT = new URL('../public/game-templates/visual-novel/', import.meta.url);
@@ -107,6 +108,88 @@ test('a portrait or a sound the game does not have is named', () => {
   // One line per missing file, however many scenes use it.
   assert.equal(said.filter((s) => s.startsWith('assets/images/kitchen.png')).length, 2,
     'kitchen and tea both use it, and each says so once');
+});
+
+test('renaming a mood renames the picture and every line said in it', () => {
+  const model = storyModel(TEMPLATE);
+  renameMood(model, 'mila', 'happy', 'glad');
+  assert.deepEqual(model.cast[0].moods, ['glad', 'worried']);
+  const moods = model.scenes.flatMap((s) => s.lines.filter((l) => l.who === 'mila').map((l) => l.mood));
+  assert.deepEqual(moods, ['glad', 'worried', 'glad']);
+  // Somebody else's mood of the same name is theirs and stays.
+  renameMood(model, 'cat', 'happy', 'x');
+  assert.deepEqual(model.cast[1].moods, ['there']);
+});
+
+// The stage is drawn from the unsaved model, step by step, so it has to say
+// exactly what the player would see at each one.
+test('the stage shows what the player sees at each step', () => {
+  const model = storyModel(TEMPLATE);
+  // The scene itself, and its picture and sound rows: the picture alone.
+  for (const step of ['scene', 'picture', 'sound']) {
+    assert.deepEqual(stageFor(model, 'hall', step), {
+      picture: 'assets/images/hall.png', portrait: '', who: '', say: '', choices: [], go: '', end: false,
+    });
+  }
+  // A line: its words, its speaker's name, and the portrait the file names.
+  assert.deepEqual(stageFor(model, 'hall', 0), {
+    picture: 'assets/images/hall.png',
+    portrait: 'assets/sprites/mila-happy.png',
+    who: 'Mila',
+    say: 'Oh! I thought you had forgotten.',
+    choices: [], go: '', end: false,
+  });
+  // Narration has no speaker and no portrait.
+  assert.equal(stageFor(model, 'hall', 1).who, '');
+  assert.equal(stageFor(model, 'hall', 1).portrait, '');
+  // The exit keeps the last line up and adds what follows: a go here …
+  const hall = stageFor(model, 'hall', 'exit');
+  assert.equal(hall.say, 'The house smells of toast, at eleven o\'clock at night.');
+  assert.equal(hall.go, 'kitchen');
+  assert.equal(hall.end, false);
+  // … the choices in the porch, need and all …
+  const porch = stageFor(model, 'porch', 'exit');
+  assert.equal(porch.choices.length, 3);
+  assert.equal(porch.choices[1].set, 'saw-the-cat');
+  // … and nothing at all after an ending.
+  assert.equal(stageFor(model, 'away', 'exit').end, true);
+  // A speaker who is not in the cast is still named, by their key.
+  model.scenes[2].lines[0].who = 'ghost';
+  assert.equal(stageFor(model, 'hall', 0).who, 'ghost');
+  assert.equal(stageFor(model, 'hall', 0).portrait, '');
+  assert.equal(stageFor(model, 'gone', 0), null);
+});
+
+test('leadingTo says every way into a scene', () => {
+  const model = storyModel(TEMPLATE);
+  assert.deepEqual(leadingTo(model, 'hall'), ['porch', 'window']);
+  assert.deepEqual(leadingTo(model, 'kitchen'), ['hall']);
+  assert.deepEqual(leadingTo(model, 'away'), ['porch', 'window', 'kitchen']);
+  assert.deepEqual(leadingTo(model, 'porch'), []);
+});
+
+test('lines move to where they are told, and a scene can be made the start', () => {
+  const model = storyModel(TEMPLATE);
+  const porch = model.scenes[0];
+  porch.lines.push({ who: '', mood: '', say: 'third' });
+  moveLine(porch, 0, 2);
+  assert.deepEqual(porch.lines.map((l) => l.say.split(',')[0]), [
+    'There is a light on somewhere at the back of the house.', 'third', 'It is late',
+  ]);
+  moveLine(porch, 2, 0);
+  assert.equal(porch.lines[0].say.startsWith('It is late'), true);
+  // Out of range and no-op moves change nothing.
+  const before = porch.lines.map((l) => l.say);
+  moveLine(porch, 1, 1);
+  moveLine(porch, 7, 0);
+  assert.deepEqual(porch.lines.map((l) => l.say), before);
+
+  startAt(model, 'kitchen');
+  assert.deepEqual(model.scenes.map((s) => s.key), ['kitchen', 'porch', 'window', 'hall', 'tea', 'away']);
+  startAt(model, 'kitchen');
+  assert.equal(model.scenes[0].key, 'kitchen');
+  // The file still round-trips after both.
+  assert.equal(storyModel(storyText(model)).ok, true);
 });
 
 test('anything past the shape declines with the grown reason', () => {
