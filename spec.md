@@ -1872,7 +1872,7 @@ for a dialog's controls the same way as for the composer.
 
 | method | path | effect |
 |---|---|---|
-| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `hero.png` when its tree holds one (§6) under a dark wash and its board's best score in gold; sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
+| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `hero.png` when its tree holds one (§6) under a dark wash and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
 | GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error |
 | POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
 | POST | `/_logout` | delete the player session, clear the cookie |
