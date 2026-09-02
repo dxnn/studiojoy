@@ -522,7 +522,7 @@ export function renderStoryEditor() {
       h('span', { class: 'glyph', text: '▤' }),
       h('span', { class: 'label', text: 'Picture' }),
       pick(
-        [['', 'none'], ...filesUnder(IMAGE_DIR).map((p) => [p, p.slice(IMAGE_DIR.length + 1)])],
+        [['', 'None'], ...filesUnder(IMAGE_DIR).map((p) => [p, p.slice(IMAGE_DIR.length + 1)])],
         scene.picture,
         (e) => { scene.picture = e.currentTarget.value; touched(); render(); },
       ),
