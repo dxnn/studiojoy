@@ -517,11 +517,16 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /hero\.png backs the bar/);
   assert.match(system, /icon\.png/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
-  // The two config files that are somebody's whole editing surface, named so a
-  // helper knows what a stray extra key costs them.
+  // The three config files that are somebody's whole editing surface, named so
+  // a helper knows what a stray extra key costs them.
   assert.match(system, /"quiz editor"/);
   assert.match(system, /"story editor"/);
+  assert.match(system, /"achievements editor"/);
   assert.match(system, /config\/story\.js/);
+  assert.match(system, /config\/achievements\.js/);
+  // Moments are what achievements are written over, so the preamble says where
+  // to say them.
+  assert.match(system, /Moments\.say\("name", value\)/);
   // A free-form game gets no type section: nothing here is a visual novel.
   assert.ok(!system.includes('This game is a visual novel'), 'no type section without a type');
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');
