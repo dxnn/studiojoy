@@ -2158,14 +2158,31 @@ deltas themselves rather than a timer, so it stops when they do.
 
 Thinking is bounded twice. The level (§14) decides how hard it thinks at all,
 and the **thinking cap** stops a turn whose trace runs past
-`THINKING_CAP_CHARS` with nothing else produced: the stream is closed, the same
-turn is asked again with thinking off, and a `'system'` banner says so. The cap
-is characters rather than tokens because `reasoning_tokens` is only reported
-when the stream ends, by which time the whole allowance is spent. It is off
-once the turn produces content or a tool call, since a trace interleaved with
-real output is a turn that is working. The retried attempt costs nothing —
-usage arrives only with the end of a stream, and that one has none — so the
-studio undercounts here rather than over.
+`THINKING_CAP_CHARS` (35,000 — near 10 K tokens at 3.5 characters each, about
+90 seconds at the rate measured in §14) with nothing else produced: the stream
+is closed, the same turn is asked again with thinking off, and a `'system'`
+banner says so. The cap is characters rather than tokens because
+`reasoning_tokens` is only reported when the stream ends, by which time the
+whole allowance is spent. It is off once the turn produces content or a tool
+call, since a trace interleaved with real output is a turn that is working.
+
+The cap sits above the traces `'low'` actually produces (1,597 and 6,886
+tokens in §14's runs), so what it mostly catches is a helper left on `'full'`.
+
+⚠️ **`max_tokens` is not the dial to turn here, and lowering it is worse than
+leaving it.** The trace is generated before the reply and the tool calls, so a
+smaller ceiling rations the *files*, not the thinking: measured at 32,768, one
+run spent 25,004 on reasoning and had its fifth `write_file` cut off
+mid-arguments, committing a game with a file missing, where the same prompt at
+65,536 finished all eight cleanly (§14). A capped trace is a visible failure
+with a banner on it; a truncated tool call is a silent one.
+
+The abandoned attempt does not count as a turn but **is** charged, from
+`tokensForChars` over the trace the stream watched go past. No usage frame
+arrives for a stream nobody let finish, so there is nothing exact to bill;
+the tokens were generated and the key is paying for them regardless. Only the
+trace is estimated — the prompt behind it was billed too and there is no count
+to put on it — so the studio still undercounts a capped turn, by less.
 
 It is **never persisted** to `messages.body` and **never sent back** in a
 later request's history. Both rules matter: it would bloat the database and

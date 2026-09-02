@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createDeepSeek, tokensCharged, LlmError, MODEL_IDS,
+  createDeepSeek, tokensCharged, tokensForChars, LlmError, MODEL_IDS,
   DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS,
 } from '../server/llm/deepseek.js';
 
@@ -288,11 +288,26 @@ test('a trace past the cap with nothing produced stops the stream', async () => 
     (err) => {
       assert.ok(err instanceof LlmError);
       assert.equal(err.code, 'thinking_cap');
+      // The trace it ran up rides out on the error: no usage frame arrives
+      // for a stream nobody let finish, so this is all the caller has to
+      // charge from.
+      assert.equal(err.reasoningChars, 60);
       return true;
     },
   );
   // The trace up to the cap was delivered, and nothing after it.
   assert.deepEqual(events.map((e) => e.type), ['reasoning', 'reasoning']);
+});
+
+test('a trace is estimated in tokens, and nonsense is zero', () => {
+  assert.equal(tokensForChars(35_000), 10_000);
+  assert.equal(tokensForChars(1), 1);
+  assert.equal(tokensForChars(0), 0);
+  // A cap thrown by something that did not count characters must not poison
+  // the sum it is added to.
+  assert.equal(tokensForChars(undefined), 0);
+  assert.equal(tokensForChars(-5), 0);
+  assert.equal(tokensForChars(NaN), 0);
 });
 
 test('the cap is off once the turn has produced something', async () => {

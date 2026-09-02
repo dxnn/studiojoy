@@ -4,7 +4,7 @@ import { listTree, readFileAt } from '../files/tree.js';
 import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { hasErrors, listErrors } from '../runtime.js';
-import { tokensCharged, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
+import { tokensCharged, tokensForChars, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
 import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
   studioLimit, userHasBudget, chargeUser,
@@ -117,11 +117,14 @@ function studioPreamble({
       'state; config/ holds the numbers and the words. A few hundred lines each. One enormous index.html',
       'cannot be patched cheaply and is the thing most likely to be cut off half-written.',
       '',
-      'assets/ holds the pictures and sounds, in three folders: assets/sounds/ for sounds, assets/sprites/',
-      'for pictures that move — a film strip of square frames — and assets/images/ for the ones that do not.',
-      'The sound and sprites libraries look up a plain name in the first two, so Sound.play("laser") plays',
-      'assets/sounds/laser.wav and Sprites.draw(ctx, "hero", x, y) draws assets/sprites/hero.png; anything',
-      'in assets/images/ is drawn by its whole path. write_file takes text, so you can neither make nor',
+      'assets/ holds the pictures and sounds, in four folders: assets/sounds/ for short noises,',
+      'assets/music/ for whole tracks, assets/sprites/ for pictures that move — a film strip of square',
+      'frames — and assets/images/ for the ones that do not.',
+      'The sound and sprites libraries look up a plain name in assets/sounds/ and assets/sprites/, so',
+      'Sound.play("laser") plays assets/sounds/laser.wav and Sprites.draw(ctx, "hero", x, y) draws',
+      'assets/sprites/hero.png; anything in assets/images/ or assets/music/ is named by its whole path,',
+      'and Sound.loop("assets/music/theme.mp3", 0.4) is how a track plays behind a game — quieter than a',
+      'noise, because it is under everything else. write_file takes text, so you can neither make nor',
       'change one of these files, but a person can, from the "Add a file" button above the file list. Ask',
       'for what you need by name and say what it is for — "assets/sounds/laser.wav, the shooting noise" —',
       'and say which of its choices makes it:',
@@ -226,12 +229,18 @@ function studioPreamble({
     lines.push(
       '',
       'This game is a visual novel. The whole story is config/story.js — CAST, who speaks and their moods,',
-      'and SCENES, each a picture, a sound, lines said one at a time, then choices, a go, or the end — and',
+      'and SCENES, each a picture, music, lines read from the top, then choices, a go, or the end — and',
       'the person writes it in the "story editor", the Story tab beside this chat, which shows it as scenes',
       'and lines rather than as code. So the story is changed by changing that file inside its shape,',
       'and a picture is asked for by the name the story gives it: a scene\'s is its picture path under',
       'assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played',
       'and css/style.css how it looks; a request about what happens is config/story.js alone.',
+      'A scene\'s "music" is a whole path under assets/music/; it loops behind the scene and keeps playing',
+      'into the next scene naming the same track. A noise is a step among the lines instead —',
+      '{ sound: "page" } between two spoken lines plays assets/sounds/page.wav and carries straight on —',
+      'so "play the door slam after she knocks" is a line in the list, not a key on the scene. ⚠️ A',
+      'scene-level "sound" is the older shape: still played, but the editor moves it into the lines the',
+      'next time somebody saves, so write new ones as steps.',
       'The editor walks the person through the story a question at a time, and each question offers',
       '"Fill it in for me", which writes the lines of a scene from a sentence about what happens, and',
       '"Make one for me", which draws a simple picture at the name the story expects. So somebody stuck',
@@ -930,9 +939,15 @@ export function createOrchestrator({
           // reply nine minutes later (spec.md §14). Not a failure to salvage
           // — the same turn is asked again with thinking off, which is the
           // one setting measured to get files out of it. This attempt does
-          // not count as a turn, and nothing was billed for it: the usage
-          // frame only arrives at the end of a stream and this one had none.
+          // not count as a turn.
+          //
+          // ⚠️ It is charged, though, from an estimate: no usage frame
+          // arrives for a stream nobody let finish, but the trace was
+          // generated and the key is paying for it. Only the trace — the
+          // prompt behind it was billed too and there is no count to put on
+          // it, so this still undercounts, just by less.
           if (err.code === 'thinking_cap' && !thinkingOff) {
+            charged += tokensForChars(err.reasoningChars);
             thinkingOff = true;
             cappedThinking = true;
             turn -= 1;

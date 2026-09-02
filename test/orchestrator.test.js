@@ -9,6 +9,7 @@ import {
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
 import { NOTE_BYTES } from '../server/agents/orchestrator.js';
+import { tokensForChars } from '../server/llm/deepseek.js';
 
 // A studio with one project, one agent, and the chat that agent is in. The
 // human-only chat a project opens on is not that chat, so every message here
@@ -580,6 +581,29 @@ test('a visual novel tells its helpers what the story file is', async (t) => {
   // or for art has one, and a helper that has not been told cannot offer it.
   assert.match(system, /"Fill it in for me"/);
   assert.match(system, /"Make one for me"/);
+  // Music belongs to a scene and a noise is a step among the lines. A helper
+  // told neither would put a door slam on the scene and it would play at the
+  // wrong moment, or not at all.
+  assert.match(system, /"music" is a whole path under assets\/music\//);
+  assert.match(system, /\{ sound: "page" \} between two spoken lines/);
+});
+
+// The four asset folders, by name: a helper that has not been told about
+// assets/music/ has nowhere to put a track, and one that thinks a plain name
+// resolves there writes a path that never loads.
+test('the preamble names all four asset folders and how music plays', async (t) => {
+  const llm = createFakeLlm([says('ok')]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'add some music');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /in four folders/);
+  assert.match(system, /assets\/music\/ for whole tracks/);
+  assert.match(system, /Sound\.loop\("assets\/music\/theme\.mp3", 0\.4\)/);
 });
 
 // DeepSeek re-bills the chain's accumulated reasoning on every continuation
@@ -1206,6 +1230,7 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
           yield { type: 'reasoning', text: 'and another thing. ' };
           const err = new Error('thought too long');
           err.code = 'thinking_cap';
+          err.reasoningChars = 35_000;
           throw err;
         }
         // The retry writes its file; the turn after it has nothing left to
@@ -1240,6 +1265,15 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
   await stream.waitFor(
     (e) => e.event === 'message.new' && e.data.kind === 'system'
       && /stop planning and start working/.test(e.data.body),
+  );
+
+  // ⚠️ The abandoned attempt is charged from an estimate of its trace. No
+  // usage frame arrives for a stream nobody let finish, but the tokens were
+  // generated and the key is paying for them, so the reply's cost carries
+  // 35,000 characters' worth on top of what the two real turns reported.
+  assert.ok(
+    reply.data.tokens >= tokensForChars(35_000),
+    `${reply.data.tokens} should include the abandoned trace`,
   );
 });
 

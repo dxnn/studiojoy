@@ -21,15 +21,24 @@ export const MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 export const THINKING_LEVELS = ['full', 'low', 'none'];
 export const DEFAULT_THINKING = 'low';
 
+// Characters of reasoning_content per token, near enough to turn a trace we
+// watched go past into the tokens it cost. Only an estimate: reasoning_tokens
+// is reported at the end of a stream, and a capped turn has no end.
+export const CHARS_PER_TOKEN = 3.5;
+export const tokensForChars = (chars) => Math.ceil(
+  Math.max(0, Number(chars) || 0) / CHARS_PER_TOKEN,
+);
+
 // ⚠️ A ceiling on one turn's trace, counted in characters of
 // reasoning_content, because reasoning_tokens is only reported when the
-// stream ends — by which time the whole allowance is already spent. ~3.5
-// characters per token puts this near 20 K tokens, three minutes at the
-// 90–125 tokens/s measured in §14, and comfortably above what an ordinary
-// request provokes: it is a backstop against the nine-minute silence, not a
-// working limit. It applies only until the turn produces something else,
-// since a trace interleaved with real output is a turn that is working.
-export const THINKING_CAP_CHARS = 70_000;
+// stream ends — by which time the whole allowance is already spent. At
+// CHARS_PER_TOKEN this is near 10 K tokens, about 90 seconds at the 90–125
+// tokens/s measured in §14, and still well above the traces 'low' actually
+// produces there (1,597 and 6,886 tokens): it is a backstop against the
+// nine-minute silence, not a working limit, and what it mostly catches is a
+// helper left on 'full'. It applies only until the turn produces something
+// else, since a trace interleaved with real output is a turn that is working.
+export const THINKING_CAP_CHARS = 35_000;
 
 // The model's ceiling is 65536, and omitting max_tokens uses all of it.
 //
@@ -47,12 +56,17 @@ export const DEFAULT_MAX_TOKENS = MAX_OUTPUT_TOKENS;
 export const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
 
 export class LlmError extends Error {
-  constructor(message, { status = null, type = null, code = null } = {}) {
+  constructor(message, {
+    status = null, type = null, code = null, reasoningChars = 0,
+  } = {}) {
     super(message);
     this.name = 'LlmError';
     this.status = status;
     this.type = type;
     this.code = code;
+    // Only the thinking cap sets this: the trace a turn ran up before it was
+    // abandoned, so the caller can charge for what was generated.
+    this.reasoningChars = reasoningChars;
   }
 }
 
@@ -285,13 +299,14 @@ export function createDeepSeek({
               // ⚠️ Thrown rather than aborted through the controller, so the
               // catch below can tell this from the idle guard firing. The
               // finally cancels the reader, which is what closes the request
-              // and stops the model. Nothing is billed for what was read: the
-              // usage frame only comes at the end and never arrives, so this
-              // undercounts rather than over.
+              // and stops the model. No usage frame ever arrives, so the
+              // trace we watched go past is carried out on the error and the
+              // caller charges an estimate of it — the tokens were generated
+              // and the key is paying for them whatever this stream saw.
               if (thinkingCap && !produced && reasoningChars > thinkingCap) {
                 throw new LlmError(
                   `deepseek thought past ${thinkingCap} characters without producing anything`,
-                  { code: 'thinking_cap' },
+                  { code: 'thinking_cap', reasoningChars },
                 );
               }
             }
