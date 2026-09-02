@@ -558,49 +558,6 @@ the only witness, and a rule evaluated in game code is one anyone can satisfy
 from devtools. The server never sees a *moment* — only the unlock a rule
 produced — and accepts it for the same reason it accepts a score.
 
-### `collection_art`
-
-| column | type | note |
-|---|---|---|
-| `id` | INTEGER PK | |
-| `kind` | TEXT NOT NULL | `portrait` or `background` |
-| `name` | TEXT NOT NULL | what the *shelf* calls it, ≤ 60 |
-| `who`, `mood` | TEXT NOT NULL DEFAULT `''` | a portrait's suggested file name; empty otherwise |
-| `bytes` | BLOB NOT NULL | the picture itself |
-| `mime` | TEXT NOT NULL | `image/png`; PNG is the only kind kept |
-| `width`, `height` | INTEGER NOT NULL | measured server-side from the IHDR |
-| `added_by` | INTEGER NOT NULL | → `users.id` |
-| `by_name` | TEXT NOT NULL | the display name at the time |
-| `created_at` | TEXT NOT NULL | |
-
-The **studio collection**: art people here have added, offered on the same
-shelf as the shipped *standard set* (§6). Every account may add and read; a
-row is taken out by whoever added it or by an admin.
-
-⚠️ **The bytes are in the row rather than in a directory, and that is the
-point.** A game's tree recovers itself from git and the shipped set is in this
-repo, but a picture somebody drew here exists nowhere else. `npm run backup` is
-a `VACUUM INTO` of this database and nothing else, so in a row it is already
-protected and in a directory beside `games/` it would be outside both the git
-safety net and the backup.
-
-⚠️ **No licence column, on purpose.** Whoever drew it keeps their copyright and
-the studio neither asks for a grant nor records one — the shelf says *made here
-by Ada* and stops. The shipped half still carries `by` and `licence`, because
-that half is other people's CC0 work; a contributed entry carries `made_here`
-and no `licence` at all, so nothing can quietly print one. Decided
-2026-09-02; TODO.md carries a line to revisit it, because a *published* game
-carries those bytes out of the studio.
-
-`by_name` is copied rather than resolved through `users`, unlike a message's
-author: a credit on a picture is a statement about who drew it, not about what
-that person is called today.
-
-⚠️ Unlike an *achievement* this really is a delete — the row is the only copy,
-and there is no Versions to come back from. It is safe to offer only because
-picking copies the bytes into the game: a game that used a picture keeps its
-own, and taking the row out reaches back into nothing.
-
 ### `studio_state`
 
 Single row, `id = 1`.
@@ -781,10 +738,6 @@ email addresses to do its job.
 | DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
 | DELETE | `/api/projects/:slug/scores` | — | delete them all |
 | GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
-| GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
-| POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height. Broadcasts `collection.changed` |
-| GET | `/api/collection/:id` | — | the bytes. The one studio read that may be cached hard (`immutable`): a row's bytes never change |
-| DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
