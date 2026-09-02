@@ -1631,7 +1631,10 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
   border-bottom: 1px solid var(--border);
   overflow: hidden;
 }
-.stage .picture { position: absolute; top: 0; left: 0; width: 100%; height: 70%; object-fit: contain; object-position: center bottom; }
+/* Pixelated like the portrait under it, and like the game's own .picture:
+   the stage is a picture of what the player will see, so it has to scale a
+   backdrop the same way the game does. */
+.stage .picture { position: absolute; top: 0; left: 0; width: 100%; height: 70%; object-fit: contain; object-position: center bottom; image-rendering: pixelated; }
 .stage .portrait {
   position: absolute;
   left: 50%;

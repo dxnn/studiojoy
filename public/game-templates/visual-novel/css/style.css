@@ -41,6 +41,11 @@ body {
   width: 100%;
   object-fit: contain;
   object-position: center bottom;
+  /* Crisp when it is scaled up, like the portrait below. Every picture this
+     studio makes is pixel art — the drawing tool works square by square — and
+     the pictures on its shelf are too, some of them only 65 across. Smoothed,
+     those blur into mush; nearest-neighbour is what the artist drew. */
+  image-rendering: pixelated;
 }
 .portrait {
   position: absolute;
