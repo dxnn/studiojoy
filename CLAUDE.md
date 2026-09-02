@@ -210,6 +210,10 @@ specified:
 - Two templates carry their own editors, so a game can be made with no helper
   at all: the quiz, and the visual novel with a guide that builds a story by
   asking one question at a time (§4).
+- **Microhelpers**: the guide's *Fill it in for me* and *Make one for me* —
+  one request, one answer, nothing kept, through the same two token walls a
+  reply goes through and billed to whoever pressed. No message row anywhere
+  (§6, §10).
 - The rail opens a file as coloured text, a config form, a pixel editor, a
   sound editor or a media player; the centre pane opens a game type's editors
   beside its chats (§6).

@@ -16,10 +16,10 @@ deliberately deferred.
   with its own editor mode where one fits (ideas/templates.md). The visual
   novel went first and settled the vocabulary they inherit: a *scene*, and
   `set`/`need` on a *switch* rather than the `flip` the adventure sketch had
-- ! make the visual novel a game type: the story editor as a tab beside the
-  chats in the centre, then the guide, fill and stand-ins —
-  ideas/vn-builder.md, in its build order; it also carries `?scene=` and the
-  phone-width re-check
+- re-check the story editor at phone width: at 390px the scene strip stacks
+  over the stage and both are tall. The last of ideas/vn-builder.md's step 1
+  — the type, the guide, the fill and both stand-ins are built and green,
+  and step 4 (the standard set) is the line below
 - find a standard set of characters and backgrounds for the visual novel:
   CC0 first, kid-safe, small files, one or two styles that sit together,
   portraits with several moods each — kept studio-side and copied into a
@@ -58,9 +58,10 @@ deliberately deferred.
 - run the achievements helper live against a real game once, the last step of
   the achievements build (ideas/achievements.md, "The achievements helper");
   the rest is built and green
-- think about microhelpers: fixed-purpose helpers the studio ships rather
-  than rows somebody makes — the achievements helper is the first candidate
-  (ideas/achievements.md, the last section)
+- make the achievements helper a *microhelper*, now that the story's fill and
+  drawn stand-in have shown the shape works (ideas/achievements.md, the last
+  section). It wants tools, which those two do not, so it is the first one
+  that is not a single request
 - ask a helper to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice

@@ -726,6 +726,8 @@ email addresses to do its job.
 | DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
 | DELETE | `/api/projects/:slug/scores` | — | delete them all |
 | GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
+| POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
+| POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
@@ -1516,20 +1518,64 @@ edit to the model and selects what it changed; Save commits, as always. The
 card is built once per question and re-appended by later renders, like a
 dialog, so a helper's reply landing does not wipe what is being typed.
 
-A picture is a file, so the guide's three ways to one commit at once: **Draw
+A picture is a file, so the guide's four ways to one commit at once: **Draw
 it** writes a blank PNG at the path the story expects and opens it in the
 rail's pixel editor; **Upload one** takes any picture from this device and
-saves it as a PNG at that path; and **A plain card for now** is the **plain
-stand-in** — a flat card in the game's *look*, the deep colour, a primary
-border, a round face for a person, the name in white, drawn on a canvas
-(128×128 for a face, 480×270 for a place). It costs nothing and never fails,
-which is what keeps a story from getting stuck on art. The model-drawn rung,
-*Make one for me*, is step 3 of ideas/vn-builder.md.
+saves it as a PNG at that path; **Make one for me** asks the studio to draw
+one (below); and **A plain card for now** is the **plain stand-in** — a flat
+card in the game's *look*, the deep colour, a primary border, a round face for
+a person, the name in white, drawn on a canvas (128×128 for a face, 480×270
+for a place). It costs nothing and never fails, which is what keeps a story
+from getting stuck on art, and it is where the drawn one falls back to.
 
 The shape grows two optional keys, `about` on a cast member and on a scene: a
 line about them for the studio and its helpers, which the game never reads
-and the editor shows as one field on the open person or scene. Absent keys
-write nothing, so a story without them is byte-identical through a save.
+and the editor shows as one field on the open person or scene — and on the
+picture card, where it doubles as what to draw. Absent keys write nothing, so
+a story without them is byte-identical through a save.
+
+#### The two small asks
+
+**Fill it in for me** and **Make one for me** are the studio's own requests to
+the model: no helper row, no chat, no message, no receipt, no eligibility, no
+cooldown, no tools, no transcript and no file block. One request built from
+the story, one answer, nothing kept — `llm.complete()`, thinking off, a small
+`max_tokens`. Server-side, because the key never reaches a browser, and
+through the same two walls every reply goes through: the studio-wide budget
+and the presser's own allowance, charged to whoever pressed (§10). Neither is
+a *fire*, so neither leaves a row anywhere but `user_tokens` and
+`studio_state`. The UI never says "prompt" or "model"; the buttons keep their
+own words.
+
+JSON is asked for in the system prompt and parsed by taking the outermost
+braces, not requested through `response_format` — §14 measured what this API
+does and that was never one of the things measured, and an unrecognised
+parameter fails open there, so the defensive parse would be needed anyway.
+
+⚠️ **The story comes up from the browser, not off the disk.** The guide works
+on the unsaved model — the scene it is asking about is usually one made a
+moment ago and Save is a commit — so a disk read would be asking about a scene
+that is not there yet. It is the author's own words going into a prompt billed
+to them, so the trust is theirs either way; what matters is that it is
+bounded, and every field is cut to a cap rather than refused (§10). A `who`
+the cast does not hold comes back as the story narrating, so a fill cannot
+leave a line said by nobody for the checks to flag straight back.
+
+The **drawn stand-in** asks for a flat SVG at the size the kind wants and the
+game's own colours. The server checks only that the answer is plainly an SVG
+and within 20 KB; the browser probes it in an `<img>` — where an SVG runs no
+scripts and loads nothing, the same probe the `.svg` editor paints unsaved
+text through (§7) — draws it to a canvas and saves it as the PNG the story
+already expects, so the pixel editor opens it like any other picture and
+drawing over it is the next thing rather than a fresh start. ⚠️ The probe is
+constructed at the size it should be: an SVG carrying only a `viewBox` has no
+intrinsic size and left to itself draws as nothing. An answer that will not
+draw falls back to the plain card, saying so; a refusal — not yours to change,
+out of tokens, no connection — writes nothing and lets its own banner stand.
+
+These are the second and third *microhelper*: a fixed-purpose helper the studio
+ships rather than a row somebody makes, the achievements helper being the
+first. Smaller than it, too — no tools, one request, JSON back.
 
 The Mila story is the **example**: *Or put in an example story* on the first
 card while the story is still empty copies its seven files in from the
@@ -2399,6 +2445,14 @@ everybody else.
   id ≤ 40 (slug), name ≤ 60, `how` ≤ 200, icon ≤ 32 bytes (the reaction cap),
   ≤ 50 entries; an entry outside the shape is skipped, not refused. Unlocks
   20 / min / player, body 1 KB, in-memory like the scoreboard's.
+- The story's two small asks (§6): sentence and `about` ≤ 500 chars, a cast
+  member's `about` ≤ 200 and their name ≤ 100, ≤ 20 of them, the last ≤ 40
+  lines of the scene at ≤ 500 chars each, ≤ 4 colours each matching a plain
+  colour pattern. Back: ≤ 12 lines at ≤ 500 chars, or ≤ 20 KB of SVG.
+  `max_tokens` 1024 for a fill and 2048 for a picture. Everything sent is cut
+  to its cap rather than refused; everything back past one is dropped. **No
+  rate limit of their own** — the two token walls are the walls, and the
+  button goes quiet while an ask is out.
 - Sign-up: 5 / 10 min / IP; name ≤ 100 chars and control-free, password
   6–200 chars, email ≤ 254; body 1 KB, as is `/_login`'s.
 - Player sessions: 90 days, cookie `Max-Age` and row age both.
@@ -2857,18 +2911,23 @@ server/
                   reads with, public/achievement-shape.js, is the same module the
                   achievements editor uses, so the games origin and the form
                   cannot disagree about which entries are valid.
+  story.js        the two small asks (§6): the fill's and the stand-in's tiny
+                  prompts, the two walls around each, and the charge. Not a
+                  fire — nothing here writes a row but user_tokens.
   files/
     paths.js      project-path validation (§4)
     tree.js       recursive listing, caps
     git.js        per-project repo: init, commit, log, show, diff, mv
     mutex.js      per-project serialization
   llm/
-    deepseek.js   SSE -> {delta|reasoning|tool_use|end} iterator
+    deepseek.js   SSE -> {delta|reasoning|tool_use|end} iterator, and
+                  complete() for one whole answer with no stream at all
     tools.js      the four file tools
   agents/
     orchestrator.js  dirty bit, cooldown, tool loop, context builder
     mentions.js
-  routes/         auth, projects, agents, messages, errors, files, history, stream
+  routes/         auth, projects, agents, messages, errors, files, history,
+                  stream, achievements, story
 public/
   index.html      shell
   main.js         the SPA's core: state, transport, URL, stream, the file,
