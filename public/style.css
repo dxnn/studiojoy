@@ -1486,6 +1486,33 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .quiz-q .cfg-text { flex: 1; min-width: 4rem; }
 .quiz-answer { padding-left: 16px; }
 .quiz-answer select { max-width: 9rem; }
+/* The achievements editor: a card per achievement, the open one grown in
+   place under its row. Same card as a question or a scene — a piece of the
+   game. The row lights up because it opens. */
+.ach-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: oklch(0.22 0.05 295 / 0.5);
+  padding: 9px 11px;
+  margin: 8px 0;
+  display: grid;
+  gap: 6px;
+}
+.ach-card.on { border-color: color-mix(in oklab, var(--primary) 65%, transparent); }
+.ach-row {
+  display: flex; align-items: baseline; gap: 8px; cursor: pointer;
+  margin: -9px -11px; padding: 9px 11px; border-radius: var(--radius);
+}
+.ach-row:hover { background: color-mix(in oklab, var(--primary) 14%, transparent); }
+.ach-row .aname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ach-row .hint { white-space: nowrap; }
+.ach-open { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
+.ach-open .row { flex-wrap: nowrap; }
+.ach-open .cfg-text { flex: 1; min-width: 4rem; }
+.ach-open .ach-icon-field { flex: 0 1 4rem; }
+.ach-when { flex-wrap: wrap; }
+.ach-when .cfg-text { flex: 0 1 9rem; }
+.ach-when select { max-width: 12rem; }
 /* The story editor: a row per scene, and the open one grows in place. Same
    card as a quiz question, because they are the same kind of thing — a piece
    of the game rather than a field of it. */
@@ -1536,6 +1563,130 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 /* Something to look at, not something broken: a story with a scene nothing
    leads to still runs. Crimson is danger and this is not that. */
 .hint.warn { color: var(--accent); }
+
+/* The story editor ---------------------------------------------------------
+   The centre pane of a visual novel: the scene strip down the left, and for
+   the selected scene a stage over its steps and the editor bar. Full width,
+   so the strip costs the scene nothing; the strip is the editor's own
+   navigation, which is what lets a type bring several editors without each
+   wanting a rail tab. The stage wears the game's own colours the way the
+   game does, because it is standing in for the game. */
+.story-editor { flex: 1; min-height: 0; display: flex; }
+.story-strip {
+  flex: 0 0 200px;
+  border-right: 1px solid var(--border);
+  padding: 8px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.story-strip .strip-head { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 4px; }
+.story-strip .strip-head:first-child { margin-top: 2px; }
+.story-strip .strip-head .hint { font-size: 11.5px; white-space: nowrap; }
+.story-strip > button { align-self: flex-start; margin: 4px 0 0 4px; }
+.strip-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+.strip-row:hover { background: var(--hover); }
+.strip-row.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
+.strip-row .sname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-row .tail { display: flex; gap: 6px; }
+.strip-row .hint { font-size: 11.5px; white-space: nowrap; }
+.story-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* Drawn from the unsaved model: the picture behind, the portrait on it, the
+   words along the bottom — the template's own layout at a third of the pane. */
+.stage {
+  position: relative;
+  flex: 0 0 38%;
+  min-height: 180px;
+  background: var(--look-deep);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.stage .picture { position: absolute; top: 0; left: 0; width: 100%; height: 70%; object-fit: contain; object-position: center bottom; }
+.stage .portrait {
+  position: absolute;
+  left: 50%;
+  bottom: 32%;
+  transform: translateX(-50%);
+  height: 42%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.5));
+}
+.stage .box {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 30%;
+  padding: 10px 14px;
+  background: color-mix(in oklab, var(--look-deep) 92%, transparent);
+  border-top: 2px solid color-mix(in oklab, var(--look-primary) 70%, transparent);
+}
+.stage .who { margin: 0 0 3px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--look-accent); }
+.stage .say { margin: 0; max-width: 44rem; font-size: 14px; line-height: 1.4; min-height: 1.4em; }
+.stage .choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.stage .choices:empty { display: none; }
+.stage .choice {
+  padding: 4px 10px;
+  border: 1px solid color-mix(in oklab, var(--look-primary) 75%, transparent);
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+.stage .choice small { color: var(--muted); }
+.stage .goes { font-size: 12.5px; align-self: center; }
+.stage-note { padding: 4px 14px 0; font-size: 11.5px; }
+/* The steps: the scene as rows read top to bottom. The selected one opens in
+   its own row, and lights up the way any row that opens does. */
+.steps { padding: 6px 14px 14px; display: flex; flex-direction: column; gap: 3px; }
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.step:hover { background: var(--hover); }
+.step.on {
+  border-color: color-mix(in oklab, var(--look-primary) 55%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 12%, transparent);
+  cursor: default;
+}
+/* An open row, and the exit always: their second lines wrap under the first. */
+.step.open, .step.exit { flex-wrap: wrap; }
+.step .glyph { flex: 0 0 1.2em; text-align: center; color: var(--muted); }
+.step .label { flex: 0 0 5rem; font-size: 12.5px; color: var(--muted); }
+.step .words { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.step .speaker { flex: 0 0 auto; font-weight: 600; color: var(--look-accent); }
+.step .speaker.muted { color: var(--muted); font-weight: 500; }
+.step .thumb { flex: 0 0 auto; width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; }
+.step .handle { cursor: grab; color: var(--muted); user-select: none; }
+.step.drop { box-shadow: inset 0 2px 0 var(--accent); }
+.step .cfg-text { flex: 1; min-width: 4rem; }
+.step textarea.cfg-text { font: inherit; resize: vertical; min-height: 2.6em; }
+.step select { max-width: 11rem; }
+/* The open line's who and mood, narrower, so ▲ ▼ ✕ stay on their line. */
+.step.line .sub select { max-width: 8.5rem; min-width: 0; flex: 0 1 auto; }
+/* The open row's second line: the controls, indented past the handle. */
+.step .sub { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-left: 28px; }
+.step .sub .hint { white-space: nowrap; }
+.step.exit .sub .cfg-text { flex: 1 1 10rem; }
+.steps .add-line { align-self: flex-start; margin: 2px 0 6px 38px; }
+.steps .problem { margin: 6px 10px 0; }
+/* On a phone the strip goes over the scene rather than beside it. */
+@media (max-width: 860px) {
+  .story-editor { flex-direction: column; }
+  .story-strip { flex: 0 0 auto; max-height: 34%; border-right: none; border-bottom: 1px solid var(--border); }
+}
 /* A group's comment is often the several lines explaining a whole table, so it
    gets the full width under the name rather than a squeezed side column. */
 .cfg .cfg-group-head { display: block; }
@@ -1899,6 +2050,10 @@ label.knob {
 /* Never squeezed and never scrolled away: when it is there at all it is in
    the same place in every game. */
 .chat-tab.add { flex: 0 0 auto; padding: 5px 11px; color: var(--accent); }
+/* The editors a game type brings sit before the chats, never scrolled away,
+   with a hairline between the two kinds: a surface is not a room. */
+.chat-tabs .pills.editors { flex: 0 0 auto; overflow: visible; }
+.chat-tabs .sep { flex: 0 0 auto; width: 1px; height: 18px; background: var(--border-soft); }
 
 /* One person in the studio settings: their name, what they have spent, what
    they may spend, and the things an admin can do to the account. */

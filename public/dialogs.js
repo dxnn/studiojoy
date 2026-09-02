@@ -15,6 +15,8 @@ import {
   frozen, loadStudio, studioChange,
   copyFileTo, LIBRARY_DIR, deleteScore, clearScores,
 } from './main.js';
+import { editorsFor } from './game-types.js';
+import { STORY_FILE, discardStory, saveStory } from './story-form.js';
 
 /* Render: dialogs -------------------------------------------------------- */
 
@@ -130,13 +132,17 @@ export function dialogFor(d) {
           // remembered about it, so without this a game would land on its
           // front door with nobody in the room.
           //
-          // A template also opens its heart, because that is where the game is
-          // made: a quiz or a story is written in its own editor rather than
-          // asked for. Both steps under one hold, or arriving would leave two
-          // entries behind and Back would land in the empty half of it.
+          // A template also opens where the game is made: a type with an
+          // editor opens on it, in the middle — its heart stays in the rail's
+          // list rather than opening there too, because two surfaces for one
+          // file is one too many — and a template with a heart and no editor
+          // opens the heart in the rail, the quiz's form. Both steps under one
+          // hold, or arriving would leave two entries behind and Back would
+          // land in the empty half of it.
+          const editor = editorsFor(res.body.type)[0]?.id ?? null;
           await urlAs('hold', async () => {
-            await openProject(res.body.slug, { view: { chat: res.body.chat?.id } });
-            if (heart) await openFile(heart);
+            await openProject(res.body.slug, { view: { chat: res.body.chat?.id, edit: editor } });
+            if (heart && !editor) await openFile(heart);
           });
           render();
         },
@@ -728,6 +734,23 @@ export function dialogFor(d) {
       })));
   }
 
+  // Taking an achievement out of the file hides what players earned rather
+  // than deleting it: the earned rows are keyed by the id and come back with
+  // it (spec.md §3), so the warning is about the players, not about data.
+  if (d.kind === 'remove-achievement') {
+    const who = d.players === 1 ? 'One player has' : `${d.players} players have`;
+    return wrap(d.name ? `Take out ${d.name}?` : 'Take out this achievement?',
+      h('p', {
+        text: d.players
+          ? `${who} earned it. They keep it, and see it again if an achievement with the same id comes back.`
+          : 'Nobody has earned it yet.',
+      }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'danger', text: 'Take it out',
+        onclick: () => { close(); d.remove(); render(); },
+      })));
+  }
+
   if (d.kind === 'fork') {
     const name = h('input');
     name.value = `${S.project.name} copy`;
@@ -814,6 +837,23 @@ export function dialogFor(d) {
         h('button', {
           class: 'filled', text: 'Keep mine',
           onclick: async () => { close(); await saveOpenFile({ force: true }); },
+        })));
+  }
+
+  // The story editor's own conflict: the same question as a file's, asked
+  // about the story rather than the text, because nobody here has seen the
+  // text. Keep theirs re-reads the file; Keep mine writes over it.
+  if (d.kind === 'story-conflict') {
+    return wrap('The story changed while you were editing',
+      h('p', { text: `A helper saved ${STORY_FILE} after you started. Which story do you want to keep?` }),
+      h('div', { class: 'actions' },
+        h('button', {
+          class: 'quiet', text: 'Keep theirs',
+          onclick: async () => { close(); await discardStory(); },
+        }),
+        h('button', {
+          class: 'filled', text: 'Keep mine',
+          onclick: async () => { close(); await saveStory({ force: true }); },
         })));
   }
 
