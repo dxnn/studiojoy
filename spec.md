@@ -810,7 +810,12 @@ any account (§11).
 | PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
 | POST | `/api/admin/signups/:id/approve` | — | the waiting list's yes: makes the player account, marks the row; 404 once decided |
 | POST | `/api/admin/signups/:id/refuse` | — | the waiting list's no: marks the row and keeps it (§3) |
-| PATCH | `/api/admin/studio` | `{daily_token_budget, starter_agent_id?}` | the wall around everybody, and who joins a new game; the helper is optional here — both settings share one Save, and leaving it out changes nothing |
+| PATCH | `/api/admin/studio` | `{daily_token_budget, starter_agent_id?}` | the wall around everybody, and who joins a new game; the helper is optional here — the panel sends both whenever either changes, and leaving it out changes nothing |
+
+The panel has no Save buttons: every field saves itself on `change` — when
+focus leaves it, so a half-typed number is never sent — and the row repaints
+from the server's answer, so a refused value goes back to what it was. A
+panel of rows each wanting its own Save was a form pretending to be a list.
 
 ⚠️ A password set here ends that person's sessions: a password changed because
 somebody else knew it has to end the somebody else's session too.

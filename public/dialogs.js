@@ -399,20 +399,32 @@ export function dialogFor(d) {
         ...S.agents.map((a) => h('option', { value: String(a.id), text: a.name })),
       );
       starter.value = number(data.starter_agent_id);
+      // Every field saves itself the moment it is left — `change`, so a
+      // half-typed number is never sent — and the row repaints from the
+      // server's answer, so a refused value goes back to what it was. No Save
+      // buttons: a panel of rows each wanting its own Save was a form
+      // pretending to be a list.
       list.replaceChildren(...data.people.map((person) => {
-        const name = h('input', { value: person.display_name });
+        const name = h('input', {
+          value: person.display_name,
+          onchange: () => studioChange('PATCH', `/users/${person.id}`, {
+            display_name: name.value.trim(),
+          }).then(paint),
+        });
         name.value = person.display_name;
         const allowance = h('input', {
           type: 'number', min: '0', class: 'cfg-num',
           placeholder: 'no limit',
           title: 'Tokens this person’s helpers may spend in a day',
+          onchange: () => studioChange('PATCH', `/users/${person.id}`, {
+            daily_tokens: allowance.value === '' ? null : Number(allowance.value),
+          }).then(paint),
         });
         allowance.value = number(person.daily_tokens);
         // ⚠️ Three buttons, and no Remove. Taking somebody out of the studio
         // is `npm run deluser -- <email>` at a terminal and nothing else — a
-        // red button beside Save and Password invites the press, and no click
-        // can show what leaving means. There is no route behind it either
-        // (spec.md §11).
+        // red button beside Password invites the press, and no click can show
+        // what leaving means. There is no route behind it either (spec.md §11).
         return h('div', { class: 'person' },
           name,
           h('span', {
@@ -421,13 +433,6 @@ export function dialogFor(d) {
             text: `${person.spent_today.toLocaleString()} today`,
           }),
           allowance,
-          h('button', {
-            class: 'quiet tiny', text: 'Save',
-            onclick: () => studioChange('PATCH', `/users/${person.id}`, {
-              display_name: name.value.trim(),
-              daily_tokens: allowance.value === '' ? null : Number(allowance.value),
-            }).then(paint),
-          }),
           h('button', {
             class: `quiet tiny${person.admin ? ' on' : ''}`,
             text: person.admin ? 'Admin' : 'Make admin',
@@ -503,25 +508,20 @@ export function dialogFor(d) {
       h('div', { class: 'section-label', text: 'Every new game starts with' }),
       h('div', { class: 'person' },
         starter,
-        h('span', { class: 'hint muted', text: 'waiting in the game’s Building chat' }),
-        h('button', {
-          class: 'quiet tiny', text: 'Save',
-          onclick: () => studioChange('PATCH', '/studio', {
-            daily_token_budget: budget.value === '' ? null : Number(budget.value),
-            starter_agent_id: starter.value === '' ? null : Number(starter.value),
-          }).then(paint),
-        })),
+        h('span', { class: 'hint muted', text: 'waiting in the game’s Building chat' })),
       h('div', { class: 'section-label', text: 'The whole studio, in a day' }),
       h('div', { class: 'person' },
         budget,
-        h('span', { class: 'hint muted', text: 'tokens a day for everybody together' }),
-        h('button', {
-          class: 'quiet tiny', text: 'Save',
-          onclick: () => studioChange('PATCH', '/studio', {
-            daily_token_budget: budget.value === '' ? null : Number(budget.value),
-          }).then(paint),
-        })),
+        h('span', { class: 'hint muted', text: 'tokens a day for everybody together' })),
     );
+    // The two studio-wide settings travel on one route, so either one changing
+    // sends both as they stand.
+    const saveStudio = () => studioChange('PATCH', '/studio', {
+      daily_token_budget: budget.value === '' ? null : Number(budget.value),
+      starter_agent_id: starter.value === '' ? null : Number(starter.value),
+    }).then(paint);
+    starter.addEventListener('change', saveStudio);
+    budget.addEventListener('change', saveStudio);
 
     if (!S.admin) loadStudio().then(paint);
     paint();
