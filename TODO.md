@@ -43,6 +43,9 @@ deliberately deferred.
 - ! deploy input v5 / screens v10: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
+- draw on the real phone now the pane fits: a finger is not a pointer, so how
+  big a sprite has to be before a 1-pixel brush is usable, and whether a stroke
+  that starts off the canvas is a scroll, are both things headless cannot say
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first

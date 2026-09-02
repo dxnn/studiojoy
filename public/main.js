@@ -2585,6 +2585,12 @@ function renderDrawing() {
   const spotOf = (event) => {
     const box = canvas.getBoundingClientRect();
     const scale = Math.min(box.width / viewW, box.height / picture.height);
+    // ⚠️ A canvas the layout has squeezed to nothing scales by zero, and the
+    // arithmetic below then answers NaN rather than a square — which drawLine
+    // walks towards forever, because NaN is never equal to the end of the
+    // line. That is a frozen page, not a missed stroke. There is no pixel
+    // under the pointer here, so say so and let every tool refuse the gesture.
+    if (!(scale > 0)) return null;
     const left = box.left + (box.width - viewW * scale) / 2;
     const top = box.top + (box.height - picture.height * scale) / 2;
     return [
@@ -2597,7 +2603,9 @@ function renderDrawing() {
   canvas.addEventListener('pointerdown', (event) => {
     if (frozen()) return;
     event.preventDefault();
-    const [x, y] = spotOf(event);
+    const spot = spotOf(event);
+    if (!spot) return;
+    const [x, y] = spot;
     if (S.drawPrefs.tool === 'pick') {
       const found = pixelAt(picture, x, y);
       // Picking nothing would set the colour to invisible, which reads as the
@@ -2631,7 +2639,9 @@ function renderDrawing() {
 
   canvas.addEventListener('pointermove', (event) => {
     if (!last || S.drawPrefs.tool === 'pick') return;
-    const [x, y] = spotOf(event);
+    const spot = spotOf(event);
+    if (!spot) return;
+    const [x, y] = spot;
     if (last[0] === x && last[1] === y) return;
     drawLine(picture, last[0], last[1], x, y, colour(), S.drawPrefs.brush);
     last = [x, y];

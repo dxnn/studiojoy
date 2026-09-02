@@ -459,6 +459,22 @@ A version that touched a picture shows it as a thumbnail in Versions without
 being asked, and opening the row shows it whole; a unified diff of a PNG was
 only ever git talking about itself.
 
+⚠️ The canvas is the only thing in that pane that can give — the preview above
+it and the tools, palette and save bar below it are all fixed height — so it
+was the one that gave, all the way to nothing: 0 pixels tall on a phone *and*
+at 1440 by 900, which is not a small canvas but no canvas, since a pointer has
+to land on it for a stroke to happen at all. Three rules hold it open, all in
+`style.css`: while a picture is open the preview steps aside, the canvas keeps
+a floor of `min(150px, 25vh)`, and the tools scroll rather than push Save off
+the bottom. On a narrow screen an open file takes the whole rail — the file
+list goes too — and the open file's bar wraps at every width, because
+unwrapped it ran Delete and ✕ off the right edge of a 360-wide rail and left
+somebody stuck in a file they could not close. `spotOf` also answers null for
+a canvas of no size: the arithmetic gave NaN, and `drawLine` walks towards NaN
+forever — a frozen page rather than a missed stroke. Browser-checked at
+390×844, 844×390 and 1440×900: pencil, fill, undo, palette, and a save that
+made one commit.
+
 The four tools and undo/redo are icons with the words on `title`/`aria-label`.
 The **palette** is `PALETTE` in the game's own `config/look.js` — 32 colours, two
 rows of 16 — so changing a colour is a commit on the game rather than a setting

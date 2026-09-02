@@ -1287,6 +1287,11 @@ details.thinking .trace {
 }
 
 .editor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+/* ⚠️ The open file's bar wraps, because unwrapped it ran off the right edge of
+   the rail and took Delete and ✕ with it — and a file that cannot be closed is
+   a file you are stuck in. The rail goes down to 280 and opens at 360, so this
+   is the ordinary width rather than a narrow-screen one. */
+.editor > .bar { flex-wrap: wrap; }
 .editor textarea {
   flex: 1;
   min-height: 120px;
@@ -1385,6 +1390,23 @@ details.thinking .trace {
 /* Blocky is right for a sprite blown up and wrong for a photograph, so the
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
+
+/* ⚠️ The canvas is the only thing in the rail that can give, and it gave all
+   the way to nothing. Everything stacked above it — the preview, the tabs, the
+   file list — and everything under it — the tools, the brushes, the palette,
+   the save bar — is fixed height, and together they are more than a window is
+   tall: at 1440 by 900 the canvas came out 0 pixels high, which is not a small
+   canvas but no canvas at all, since a pointer has to land on it for a stroke
+   to happen. So while a picture is open the preview steps aside — the file is
+   what the rail is about for as long as it is open — the canvas keeps a floor,
+   and in a short window the tools scroll rather than pushing Save off the
+   bottom. Closing the picture brings the preview straight back. */
+.pane.rail:has(.drawing) > .preview-wrap { display: none; }
+/* A floor of 150, or a quarter of the window where a quarter is less than
+   that — a phone held sideways is 390 tall, and a canvas taking 150 of it
+   leaves the tools nothing. */
+.drawing .media { min-height: min(150px, 25vh); }
+.drawing > .pad { min-height: 0; overflow-y: auto; }
 /* The strip looping beside the frame buttons while it is edited. */
 .strip-preview {
   height: 40px;
@@ -2014,6 +2036,15 @@ label.knob {
   .messages { padding: 16px; }
   .composer { padding: 12px 16px 16px; }
   .pane.chat > .bar { padding: 10px 16px; }
+
+  /* On a phone an open file takes the rail, the way the panes already take
+     turns here: the preview and the file list are 486 of 844 pixels, and the
+     preview stepping aside is not enough on its own. The ✕ on the file's own
+     wrapped bar is the way back to the list. */
+  .pane.rail:has(.editor) > .preview-wrap,
+  .pane.rail:has(.editor) > .tree { display: none; }
+  /* The frame around the picture spent on the picture instead. */
+  .drawing .media { padding: 6px; }
 }
 .only-narrow { display: none; }
 @media (max-width: 860px) { .only-narrow { display: inline-flex; } }
