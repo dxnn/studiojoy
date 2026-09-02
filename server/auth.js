@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
+import { DEFAULT_DAILY_TOKENS } from './budget.js';
 import { forbiddenCharKind } from './util/text.js';
 
 // scrypt parameters from spec.md §11. Stored format carries them so an
@@ -282,9 +283,14 @@ export function createUser(db, { email, password, displayName }, now = new Date(
   // out still has to be able to make somebody who can let the rest back in.
   const first = db.prepare('SELECT COUNT(*) AS c FROM users WHERE deleted = 0').get().c === 0;
   const info = db.prepare(
-    `INSERT INTO users (email, password_hash, display_name, admin, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(normalized, hashPassword(password), name, first ? 1 : 0, now.toISOString());
-  return db.prepare('SELECT id, email, display_name, admin, created_at FROM users WHERE id = ?')
-    .get(info.lastInsertRowid);
+    `INSERT INTO users
+       (email, password_hash, display_name, admin, daily_tokens, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    normalized, hashPassword(password), name, first ? 1 : 0,
+    DEFAULT_DAILY_TOKENS, now.toISOString(),
+  );
+  return db.prepare(
+    'SELECT id, email, display_name, admin, daily_tokens, created_at FROM users WHERE id = ?',
+  ).get(info.lastInsertRowid);
 }

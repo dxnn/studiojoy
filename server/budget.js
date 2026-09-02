@@ -9,6 +9,15 @@ import { nextUtcMidnight } from './util/time.js';
 // whose turn it is is the one who wanted the answer.
 export const DEFAULT_DAILY_TOKEN_BUDGET = 5_000_000;
 
+// What a new account may spend in a day. Stated at creation rather than being
+// the column's default, because `daily_tokens` already exists in every live
+// database and SQLite will not change a default afterwards. Null still means
+// no allowance of one's own, and an admin can set that from the panel — this
+// is only where somebody starts. A measured reply averages ~40 K tokens, so
+// this is ~25 of them: an afternoon's work, not a wall anybody meets by
+// accident.
+export const DEFAULT_DAILY_TOKENS = 1_000_000;
+
 // UTC, like the studio-wide reset, so both walls fall on the same midnight.
 const dayKey = (now = new Date()) => now.toISOString().slice(0, 10);
 

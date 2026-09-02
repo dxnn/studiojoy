@@ -222,7 +222,7 @@ every agent's context (§8).
 |---|---|---|
 | `admin` | INTEGER NOT NULL DEFAULT 0 | may run the studio: add an account, rename one, set an allowance, decide the waiting list, hand out this bit |
 | `studio_access` | INTEGER NOT NULL DEFAULT 1 | off, the account is a player only: games-origin login and the scoreboard, nothing in the studio. The panel's toggle; an admin never has it off |
-| `daily_tokens` | INTEGER NULL | what this person's helpers may spend in a day. Null is no allowance of their own |
+| `daily_tokens` | INTEGER NULL | what this person's helpers may spend in a day. Null is no allowance of their own; a new account starts on `DEFAULT_DAILY_TOKENS` (1 M, ~25 replies), stated at creation because the column already exists everywhere and SQLite will not change a default afterwards |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | taken out of the studio. Set, every door is shut and every row is kept; `restoreuser` clears it |
 
 The first account made is an admin — somebody has to be able to make the

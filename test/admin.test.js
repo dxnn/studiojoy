@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, signIn, openStream, workChat } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
-import { userSpentToday } from '../server/budget.js';
+import { userSpentToday, DEFAULT_DAILY_TOKENS } from '../server/budget.js';
 
 async function studio(t, opts = {}) {
   const app = await setup(opts);
@@ -70,6 +70,20 @@ test('an admin adds somebody and renames them', async (t) => {
   const panel = await app.client.json('GET', '/api/admin/studio');
   assert.deepEqual(panel.body.people.map((p) => p.display_name), ['Dann', 'Robin', 'Samantha']);
   // Taking somebody out is not in here at all — see remove-account.test.js.
+});
+
+// Somebody starts with an allowance rather than without one, so the inner
+// wall is on from the first day and the studio-wide budget is not the only
+// thing standing between one runaway and everybody else's afternoon.
+test('a new account starts on the default allowance', async (t) => {
+  const { app } = await two(t);
+  const made = await app.client.json('POST', '/api/admin/users', {
+    body: { email: 'sam@example.com', display_name: 'Sam', password: 'hunter2' },
+  });
+  assert.equal(made.body.daily_tokens, DEFAULT_DAILY_TOKENS);
+  // And the first account, the one no panel made.
+  const mine = await app.client.json('GET', '/api/me');
+  assert.equal(mine.body.daily_tokens, DEFAULT_DAILY_TOKENS);
 });
 
 // A name is a scoreboard name, so both doors here keep the path validator's
@@ -218,9 +232,10 @@ test('you can see your own day, and nobody else’s', async (t) => {
   assert.equal(me.body.daily_tokens, 1000);
   assert.ok(me.body.spent_today > 0, 'their own spend is theirs to see');
 
-  // The admin's own row says nothing about Robin's day.
+  // The admin's own row says nothing about Robin's day: their own allowance
+  // is the one they started with, not the 1000 set on somebody else.
   const mine = await app.client.json('GET', '/api/me');
-  assert.equal(mine.body.daily_tokens, null);
+  assert.equal(mine.body.daily_tokens, DEFAULT_DAILY_TOKENS);
   assert.equal(mine.body.spent_today, 0);
 
   // And a message carries no allowance with it, so a thread cannot leak one.
