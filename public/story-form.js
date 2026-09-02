@@ -537,7 +537,10 @@ export function renderStoryEditor() {
       h('span', { class: 'glyph', text: '♫' }),
       h('span', { class: 'label', text: 'Music' }),
       pick(
-        [['', 'none'], ...filesUnder(MUSIC_DIR).map((p) => [p, p.slice(MUSIC_DIR.length + 1)])],
+        // None first and selected by default, and the only thing offered
+        // until somebody uploads a track: a picker listing music the game
+        // does not have would be naming files nothing could play.
+        [['', 'None'], ...filesUnder(MUSIC_DIR).map((p) => [p, p.slice(MUSIC_DIR.length + 1)])],
         scene.music,
         (e) => { scene.music = e.currentTarget.value; touched(); render(); },
       ),
