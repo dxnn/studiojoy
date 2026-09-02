@@ -745,6 +745,31 @@ round trip, a blank game unchanged, parked edits back with their place. Not
 yet felt on a phone: at 390px the strip stacks over the stage and both are
 tall — the phone-width re-check is still the TODO line's.
 
+The template now **ships empty** and the story editor has a **guide**
+(`public/story-guide.js`): one card over the stage asking one thing at a
+time — who, how they look, where, what it looks like, what happens, who else,
+then where each scene leads — each answer an edit to the model that selects
+what it changed. `nextQuestion(model, paths, skipped)` in `story-editor.js`
+is pure and tested against the empty template and the example: it reads what
+is missing off the story and the file list, so the only state is what the
+author set aside (`guide-<slug>` in prefs; *Ask me again* clears it), and an
+ending is a scene with lines and no way out that has been answered *The story
+ends here*. Pictures come three ways: Draw (a blank PNG at the story's path,
+opened in the rail), Upload (any image, saved as PNG at that path), and the
+**plain stand-in** — a card in the game's look with the name on it, drawn on
+a canvas, 128² for a face and 480×270 for a place. `about` is an optional key
+on a person and a scene for later fills; absent writes nothing. The Mila
+story moved out of the template to `public/story-art/` — the **standard
+set**'s home, with an `index.json` — and *Or put in an example story* copies
+its seven files in and saves the story. ⚠️ The template has *zero* scenes,
+not one: a scene called `start` meant "Where does the story start?" was never
+asked. `js/story.js` ends a scene with nothing in it, so the empty game shows
+its title and The End. Browser-checked against the fake studio: the first
+question on a new game, a face and a place as plain cards (one commit each),
+two lines, Nobody yet, two choices making two scenes, Save as one commit, the
+example landing as seven files and a saved story with the ready row, and an
+empty game playing title → The End on the games origin with no errors.
+
 The move-and-collect and point-and-click templates are queued in TODO.md, each
 owed its own editor mode where one fits (ideas/templates.md).
 

@@ -1,21 +1,34 @@
 // The story editor's model layer: what it reads, what it declines, that
-// opening the shipped template and saving changes nothing, and the five
-// things it knows about the whole story that no single field can say.
+// opening the shipped template or the example and saving changes nothing, the
+// five things it knows about the whole story that no single field can say,
+// the stage's arithmetic, and the guide's questions.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, isStoryPath,
   renameMood, stageFor, leadingTo, moveLine, startAt,
+  addPerson, addScene, sceneCalled, emptyStory, nextQuestion, wayInto, DEFAULT_MOOD,
 } from '../public/story-editor.js';
 
-const ROOT = new URL('../public/game-templates/visual-novel/', import.meta.url);
-const TEMPLATE = fs.readFileSync(new URL('config/story.js', ROOT), 'utf8');
+const PUBLIC = new URL('../public/', import.meta.url);
+const read = (rel) => fs.readFileSync(new URL(rel, PUBLIC), 'utf8');
 
-// Every file the template ships, the way the studio's file list would have it.
-const PATHS = ['assets/images', 'assets/sprites', 'assets/sounds'].flatMap(
-  (dir) => fs.readdirSync(new URL(`${dir}/`, ROOT)).map((f) => `${dir}/${f}`),
-);
+// The template ships empty; the story that used to be it is the example in
+// the standard set's home, with the art it uses beside it.
+const TEMPLATE = read('game-templates/visual-novel/config/story.js');
+const ART = JSON.parse(read('story-art/index.json'));
+const EXAMPLE = read(`story-art/${ART.examples.mila.story}`);
+// Where each kind lands in a game, as the guide copies it (story-guide.js).
+const LANDS = { backgrounds: 'assets/images', portraits: 'assets/sprites', sounds: 'assets/sounds' };
+const landing = (f) => `${LANDS[f.split('/')[0]]}/${f.split('/').pop()}`;
+const PATHS = ART.examples.mila.uses.map(landing);
+
+const example = () => {
+  const m = storyModel(EXAMPLE);
+  assert.equal(m.ok, true, m.reason);
+  return { cast: m.cast, scenes: m.scenes };
+};
 
 test('only config/story.js is a story', () => {
   assert.equal(isStoryPath('config/story.js'), true);
@@ -23,43 +36,72 @@ test('only config/story.js is a story', () => {
   assert.equal(isStoryPath('story.js'), false);
 });
 
-test('the shipped template reads, and writing it back changes nothing', () => {
+// Nobody and nowhere: the first thing an author meets is the guide's first
+// question, and the first place is theirs to name rather than a scene called
+// "start" to rename.
+test('the template ships empty, reads, and writes back byte for byte', () => {
   const model = storyModel(TEMPLATE);
+  assert.equal(model.ok, true, model.reason);
+  assert.deepEqual(model.cast, []);
+  assert.deepEqual(model.scenes, []);
+  assert.equal(emptyStory(model), true);
+  assert.deepEqual(storyChecks(model, []), []);
+  assert.deepEqual(storyShape(model), { scenes: 0, endings: 0 });
+  assert.equal(storyText(model), TEMPLATE);
+});
+
+test('the example reads, has nothing to look at, and writes back byte for byte', () => {
+  const model = storyModel(EXAMPLE);
   assert.equal(model.ok, true, model.reason);
   assert.deepEqual(model.scenes.map((s) => s.key), ['porch', 'window', 'hall', 'kitchen', 'tea', 'away']);
   assert.deepEqual(model.cast.map((p) => p.key), ['mila', 'cat']);
   assert.deepEqual(model.cast[0].moods, ['happy', 'worried']);
+  // The two lines about, for the studio: one on a person, one on a place.
+  assert.match(model.cast[0].about, /end of the lane/);
+  assert.match(model.scenes[0].about, /front porch/);
+  assert.equal(model.scenes[1].about, '');
   // The three exits, one of each.
   assert.equal(model.scenes[0].choices.length, 3);
   assert.equal(model.scenes[2].go, 'kitchen');
   assert.deepEqual(model.scenes[5].choices, []);
   assert.equal(model.scenes[5].go, '');
   // Byte-stable: opening the editor and pressing Save is not an edit.
-  assert.equal(storyText(model), TEMPLATE);
-});
-
-test('the shipped template has nothing to look at', () => {
-  const model = storyModel(TEMPLATE);
+  assert.equal(storyText(model), EXAMPLE);
   assert.deepEqual(storyChecks(model, PATHS), []);
   assert.deepEqual(storyShape(model), { scenes: 6, endings: 2 });
+  assert.equal(emptyStory(model), false);
 });
 
-test('edits round-trip, quotes and all', () => {
-  const model = storyModel(TEMPLATE);
+test('the standard set lists files that exist, and the example uses only those', () => {
+  for (const entry of ART.art) {
+    assert.ok(fs.existsSync(new URL(`story-art/${entry.file}`, PUBLIC)), entry.file);
+    assert.ok(entry.kind && entry.name && entry.licence, `${entry.file} is described`);
+    assert.ok(LANDS[entry.file.split('/')[0]], `${entry.file} has somewhere to land`);
+  }
+  const listed = new Set(ART.art.map((a) => a.file));
+  for (const used of ART.examples.mila.uses) assert.ok(listed.has(used), used);
+});
+
+test('edits round-trip, quotes, about and all', () => {
+  const model = example();
   model.scenes[0].lines[0].say = 'What\'s "late"?\ttabs too';
-  model.cast.push({ key: 'ghost', name: 'A Néw One', moods: [] });
+  model.cast.push({
+    key: 'ghost', name: 'A Néw One', about: 'Only "there" at night.', moods: [],
+  });
   model.scenes.push({
-    key: 'attic', picture: '', sound: '', lines: [{ who: 'ghost', mood: '', say: 'boo' }],
+    key: 'attic', about: '', picture: '', sound: '', lines: [{ who: 'ghost', mood: '', say: 'boo' }],
     choices: [], go: '',
   });
   model.scenes[0].choices.push({ say: 'Go up', go: 'attic', set: 'brave', need: 'saw-the-cat' });
   const again = storyModel(storyText(model));
   assert.equal(again.ok, true, again.reason);
   assert.deepEqual(again, { ok: true, cast: model.cast, scenes: model.scenes });
+  // An empty about writes nothing, so a story without them stays as it was.
+  assert.ok(!storyText(model).includes('about: ""'));
 });
 
 test('renaming a scene brings every way in with it', () => {
-  const model = storyModel(TEMPLATE);
+  const model = example();
   renameScene(model, 'hall', 'front_room');
   const text = storyText(model);
   assert.match(text, /go: "front_room"/);
@@ -78,10 +120,10 @@ test('freshKey makes an identifier, and never one already taken', () => {
 });
 
 test('the checks say what one field cannot', () => {
-  const model = storyModel(TEMPLATE);
+  const model = example();
   // A scene nothing leads to, and a mood nobody drew.
   model.scenes.push({
-    key: 'attic', picture: 'assets/images/attic.png', sound: '',
+    key: 'attic', about: '', picture: 'assets/images/attic.png', sound: '',
     lines: [{ who: 'mila', mood: 'furious', say: 'Hey.' }], choices: [], go: '',
   });
   // A choice pointing at a scene that is gone, and a switch nothing sets.
@@ -100,8 +142,7 @@ test('the checks say what one field cannot', () => {
 });
 
 test('a portrait or a sound the game does not have is named', () => {
-  const model = storyModel(TEMPLATE);
-  const said = storyChecks(model, []).map((c) => c.say);
+  const said = storyChecks(example(), []).map((c) => c.say);
   assert.ok(said.includes('assets/sprites/mila-happy.png is not in this game.'));
   assert.ok(said.includes('assets/sounds/page.wav is not in this game.'));
   assert.ok(said.includes('assets/images/porch.png is not in this game.'));
@@ -111,7 +152,7 @@ test('a portrait or a sound the game does not have is named', () => {
 });
 
 test('renaming a mood renames the picture and every line said in it', () => {
-  const model = storyModel(TEMPLATE);
+  const model = example();
   renameMood(model, 'mila', 'happy', 'glad');
   assert.deepEqual(model.cast[0].moods, ['glad', 'worried']);
   const moods = model.scenes.flatMap((s) => s.lines.filter((l) => l.who === 'mila').map((l) => l.mood));
@@ -124,7 +165,7 @@ test('renaming a mood renames the picture and every line said in it', () => {
 // The stage is drawn from the unsaved model, step by step, so it has to say
 // exactly what the player would see at each one.
 test('the stage shows what the player sees at each step', () => {
-  const model = storyModel(TEMPLATE);
+  const model = example();
   // The scene itself, and its picture and sound rows: the picture alone.
   for (const step of ['scene', 'picture', 'sound']) {
     assert.deepEqual(stageFor(model, 'hall', step), {
@@ -160,16 +201,19 @@ test('the stage shows what the player sees at each step', () => {
   assert.equal(stageFor(model, 'gone', 0), null);
 });
 
-test('leadingTo says every way into a scene', () => {
-  const model = storyModel(TEMPLATE);
+test('leadingTo and wayInto say how a scene is reached', () => {
+  const model = example();
   assert.deepEqual(leadingTo(model, 'hall'), ['porch', 'window']);
   assert.deepEqual(leadingTo(model, 'kitchen'), ['hall']);
   assert.deepEqual(leadingTo(model, 'away'), ['porch', 'window', 'kitchen']);
   assert.deepEqual(leadingTo(model, 'porch'), []);
+  assert.deepEqual(wayInto(model, 'hall'), { from: 'porch', say: 'Knock' });
+  assert.deepEqual(wayInto(model, 'kitchen'), { from: 'hall', say: '' });
+  assert.equal(wayInto(model, 'porch'), null);
 });
 
 test('lines move to where they are told, and a scene can be made the start', () => {
-  const model = storyModel(TEMPLATE);
+  const model = example();
   const porch = model.scenes[0];
   porch.lines.push({ who: '', mood: '', say: 'third' });
   moveLine(porch, 0, 2);
@@ -192,26 +236,125 @@ test('lines move to where they are told, and a scene can be made the start', () 
   assert.equal(storyModel(storyText(model)).ok, true);
 });
 
+test('a person or a place by name: made once, found after', () => {
+  const model = storyModel(TEMPLATE);
+  assert.equal(addPerson(model, 'Mila Blue'), 'mila_blue');
+  assert.deepEqual(model.cast[0], {
+    key: 'mila_blue', name: 'Mila Blue', about: '', moods: [DEFAULT_MOOD],
+  });
+  assert.equal(addScene(model, 'The Hall'), 'the_hall');
+  assert.equal(model.scenes.length, 1);
+  // Asked for again by any spelling that tidies to the same key, it is the
+  // same scene; a new name is a new scene.
+  assert.equal(sceneCalled(model, 'the hall!'), 'the_hall');
+  assert.equal(sceneCalled(model, 'Kitchen'), 'kitchen');
+  assert.equal(sceneCalled(model, 'kitchen'), 'kitchen');
+  assert.deepEqual(model.scenes.map((s) => s.key), ['the_hall', 'kitchen']);
+  assert.equal(storyModel(storyText(model)).ok, true);
+});
+
+// The guide is the checks asked as questions: a function of the story and
+// the game's files, so this walks a story from nothing to ready by answering
+// each one the way the card would.
+test('the guide asks for what the story is missing, in the order a story is told', () => {
+  const model = storyModel(TEMPLATE);
+  const files = [];
+  const skipped = new Set();
+  const q = () => nextQuestion(model, files, skipped);
+
+  assert.equal(q().id, 'cast-first');
+  assert.equal(q().kind, 'name');
+  addPerson(model, 'Mila');
+  // Her face, before anywhere: a story starts with somebody.
+  assert.deepEqual(q(), {
+    id: 'portrait:mila:normal', kind: 'picture', path: 'assets/sprites/mila-normal.png',
+    who: 'mila', mood: 'normal', ask: 'How does Mila usually look?',
+  });
+  files.push('assets/sprites/mila-normal.png');
+  // Then where it starts, and what that looks like.
+  assert.deepEqual(q(), { id: 'scene-first', kind: 'name', ask: 'Where does the story start?' });
+  assert.equal(addScene(model, 'The porch'), 'the_porch');
+  assert.equal(q().id, 'picture:the_porch');
+  assert.equal(q().path, 'assets/images/the_porch.png');
+  assert.equal(q().ask, 'What does the_porch look like?');
+  model.scenes[0].picture = 'assets/images/the_porch.png';
+  files.push('assets/images/the_porch.png');
+  assert.equal(q().id, 'lines:the_porch');
+  assert.equal(q().ask, 'What happens first?');
+  model.scenes[0].lines.push({ who: '', mood: '', say: 'It is late.' });
+  // With one person and a first scene told, who else.
+  assert.equal(q().id, 'cast-more');
+  assert.equal(q().later, 'Nobody yet');
+  skipped.add('cast-more');
+  // Then where the first scene leads.
+  assert.equal(q().id, 'exit:the_porch');
+  assert.equal(q().ask, 'Then what?');
+  model.scenes[0].choices.push({ say: 'Knock', go: sceneCalled(model, 'Hall'), set: '', need: '' });
+  // The new scene comes round as its own questions, saying how it is reached.
+  assert.equal(q().id, 'picture:hall');
+  assert.equal(q().ask, '“Knock” leads to hall. What does hall look like?');
+  skipped.add('picture:hall');
+  assert.equal(q().id, 'lines:hall');
+  assert.equal(q().ask, '“Knock” leads to hall. What happens there?');
+  model.scenes[1].lines.push({ who: 'mila', mood: 'normal', say: 'Oh!' });
+  assert.equal(q().id, 'exit:hall');
+  assert.equal(q().ask, 'After hall, then what?');
+  // "The story ends here" is the answer that sets an exit question aside.
+  skipped.add('exit:hall');
+  assert.equal(q(), null, 'nothing left to ask');
+  // Asked again, the set-aside ones come back — and only they do.
+  skipped.clear();
+  assert.equal(q().id, 'picture:hall');
+  assert.equal(storyModel(storyText(model)).ok, true);
+});
+
+test('the guide has nothing to ask of the example but its endings, and names what is dangling', () => {
+  const model = example();
+  assert.equal(nextQuestion(model, PATHS).id, 'exit:tea');
+  assert.equal(nextQuestion(model, PATHS, new Set(['exit:tea'])).id, 'exit:away');
+  assert.equal(nextQuestion(model, PATHS, new Set(['exit:tea', 'exit:away'])), null);
+  // Without its files, the faces come before the places.
+  assert.equal(nextQuestion(model, []).id, 'portrait:mila:happy');
+  assert.equal(nextQuestion(model, []).ask, 'How does Mila look when happy?');
+  // A way out to a scene that is not there yet is offered to be made.
+  model.scenes[0].choices[0].go = 'attic';
+  const q = nextQuestion(model, PATHS, new Set(['exit:tea', 'exit:away']));
+  assert.deepEqual(q, {
+    id: 'make:porch:attic', kind: 'make', scene: 'porch', target: 'attic',
+    ask: '“Knock” leads to attic, which is not a scene yet. Make it?',
+  });
+  // A scene led to by a go says so.
+  model.scenes[0].choices[0].go = 'hall';
+  model.scenes[2].go = 'pantry';
+  assert.equal(nextQuestion(model, PATHS, new Set(['exit:tea', 'exit:away'])).ask,
+    'hall goes on to pantry, which is not a scene yet. Make it?');
+});
+
 test('anything past the shape declines with the grown reason', () => {
   const grown = /grown past/;
   // An extra declaration.
-  assert.match(storyModel(`${TEMPLATE}\nconst EXTRA = 1;\n`).reason, grown);
+  assert.match(storyModel(`${EXAMPLE}\nconst EXTRA = 1;\n`).reason, grown);
   // A field on a scene the editor does not know.
-  assert.match(storyModel(TEMPLATE.replace(
+  assert.match(storyModel(EXAMPLE.replace(
     '    picture: "assets/images/hall.png",',
     '    picture: "assets/images/hall.png",\n    fade: 400,',
   )).reason, grown);
+  // An empty about is not the shape either: absent writes nothing.
+  assert.match(storyModel(EXAMPLE.replace(
+    '    picture: "assets/images/hall.png",',
+    '    about: "",\n    picture: "assets/images/hall.png",',
+  )).reason, grown);
   // Both exits at once: choices and go are the same decision.
-  assert.match(storyModel(TEMPLATE.replace(
+  assert.match(storyModel(EXAMPLE.replace(
     '    go: "kitchen",',
     '    go: "kitchen",\n    choices: [{ say: "or not", go: "away" }],',
   )).reason, grown);
   // A choice with no target.
-  assert.match(storyModel(TEMPLATE.replace(
+  assert.match(storyModel(EXAMPLE.replace(
     '{ say: "Knock", go: "hall" }', '{ say: "Knock" }',
   )).reason, grown);
   // A scene key the serializer could not write bare.
-  assert.match(storyModel(TEMPLATE.replace('  porch: {', '  "front porch": {')).reason, grown);
+  assert.match(storyModel(EXAMPLE.replace('  porch: {', '  "front porch": {')).reason, grown);
   // Code is not the grown reason — it is the reader refusing, passed through.
   const code = storyModel('const CAST = window.c;\nconst SCENES = {};\n');
   assert.equal(code.ok, false);

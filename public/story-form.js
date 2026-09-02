@@ -22,12 +22,13 @@
 
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, renameMood,
-  stageFor, leadingTo, moveLine, startAt,
+  stageFor, leadingTo, moveLine, startAt, addScene, addPerson,
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, NO_CONNECTION,
 } from './main.js';
+import { renderGuide } from './story-guide.js';
 
 export const STORY_FILE = 'config/story.js';
 
@@ -234,7 +235,10 @@ export async function discardStory() {
 let stageNodes = null;
 
 // Every edit comes through here: the model changed, the file will be
-// different, the stage and the status say so at once.
+// different, the stage and the status say so at once. The guide's answers
+// come through it too, as storyEdited.
+export { touched as storyEdited };
+
 function touched() {
   const st = S.story;
   st.dirty = true;
@@ -407,8 +411,7 @@ export function renderStoryEditor() {
     h('button', {
       class: 'quiet tiny', text: '+ Add a scene', disabled: ro,
       onclick: () => {
-        const key = freshKey('', keys);
-        scenes.push({ key, picture: '', sound: '', lines: [], choices: [], go: '' });
+        const key = addScene(model, '');
         touched();
         go(key);
       },
@@ -418,8 +421,7 @@ export function renderStoryEditor() {
     h('button', {
       class: 'quiet tiny', text: '+ Add someone', disabled: ro,
       onclick: () => {
-        const key = freshKey('', cast.map((p) => p.key), 'person');
-        cast.push({ key, name: '', moods: [] });
+        const key = addPerson(model, '');
         touched();
         st.person = key;
         st.step = 0;
@@ -457,7 +459,9 @@ export function renderStoryEditor() {
     const rows = [];
 
     // The scene itself: its name, every way in, and where the story starts.
-    rows.push(rowOf('scene', 'head',
+    // Open, a line about the place too — the studio's material, which the
+    // game never reads.
+    rows.push(rowOf('scene', `head${st.step === 'scene' ? ' open' : ''}`,
       h('span', { class: 'glyph', text: '▸' }),
       field('story-name', scene.key, 'a short name', {
         onchange: (e) => {
@@ -489,7 +493,12 @@ export function renderStoryEditor() {
           touched();
           go(model.scenes[0]?.key);
         },
-      })));
+      }),
+      st.step === 'scene' ? h('div', { class: 'sub' },
+        h('span', { class: 'hint muted', text: 'about' }),
+        field('story-about', scene.about ?? '', 'A line about this place, for the studio and its helpers', {
+          oninput: (e) => { scene.about = e.currentTarget.value; touched(); },
+        })) : null));
 
     rows.push(rowOf('picture', 'fixed',
       h('span', { class: 'glyph', text: '▤' }),
@@ -689,7 +698,7 @@ export function renderStoryEditor() {
   const personSteps = (person) => {
     const used = scenes.reduce((n, s) => n + s.lines.filter((l) => l.who === person.key).length, 0);
     const rows = [];
-    rows.push(rowOf('name', 'head',
+    rows.push(rowOf('name', `head${st.step === 'name' ? ' open' : ''}`,
       h('span', { class: 'glyph', text: '▣' }),
       field('story-person', person.name, 'Their name', {
         oninput: (e) => { person.name = e.currentTarget.value; touched(); },
@@ -705,7 +714,12 @@ export function renderStoryEditor() {
           touched();
           go(st.scene);
         },
-      })));
+      }),
+      st.step === 'name' ? h('div', { class: 'sub' },
+        h('span', { class: 'hint muted', text: 'about' }),
+        field('story-person-about', person.about ?? '', 'A line about them, for the studio and its helpers', {
+          oninput: (e) => { person.about = e.currentTarget.value; touched(); },
+        })) : null));
     // One row per mood: the picture it is, and the file it expects — naming
     // the file is how somebody knows what to call the picture they draw.
     person.moods.forEach((mood, mi) => {
@@ -779,6 +793,8 @@ export function renderStoryEditor() {
   return h('div', { class: 'story-editor' },
     strip,
     h('div', { class: 'story-main' },
+      // The guide's one question, when it has one, over everything else.
+      renderGuide(),
       buildStage(),
       h('div', {
         class: 'stage-note hint muted',

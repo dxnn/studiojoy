@@ -44,13 +44,19 @@ export function storyModel(text) {
   const cast = [];
   for (const prop of castNode.props) {
     if (!KEY.test(prop.key) || prop.node.kind !== 'object') return grown;
-    if (keysOf(prop.node) !== 'moods,name') return grown;
+    // `about` is a line about them for the studio's own use — the fill reads
+    // it, the game never does — and optional like a scene's.
+    if (!['moods,name', 'about,moods,name'].includes(keysOf(prop.node))) return grown;
     const name = str(propNode(prop.node, 'name'));
+    const about = str(propNode(prop.node, 'about')) ?? '';
     const moodsNode = propNode(prop.node, 'moods');
     if (name === null || !moodsNode || moodsNode.kind !== 'array') return grown;
+    if (propNode(prop.node, 'about') && about === '') return grown;
     const moods = moodsNode.items.map(str);
     if (moods.some((m) => m === null)) return grown;
-    cast.push({ key: prop.key, name, moods });
+    cast.push({
+      key: prop.key, name, about, moods,
+    });
   }
 
   const scenes = [];
@@ -60,16 +66,18 @@ export function storyModel(text) {
     // The three exits are exclusive: choices branch, go carries straight on,
     // neither is the end. A scene with both is not this shape.
     if (held.includes('choices') && held.includes('go')) return grown;
-    if (held.some((k) => !['picture', 'sound', 'lines', 'choices', 'go'].includes(k))) return grown;
+    if (held.some((k) => !['about', 'picture', 'sound', 'lines', 'choices', 'go'].includes(k))) return grown;
 
     const scene = {
       key: prop.key,
+      about: str(propNode(prop.node, 'about')) ?? '',
       picture: str(propNode(prop.node, 'picture')) ?? '',
       sound: str(propNode(prop.node, 'sound')) ?? '',
       lines: [],
       choices: [],
       go: str(propNode(prop.node, 'go')) ?? '',
     };
+    if (held.includes('about') && scene.about === '') return grown;
     if (held.includes('picture') && scene.picture === '') return grown;
     if (held.includes('sound') && scene.sound === '') return grown;
     if (held.includes('go') && scene.go === '') return grown;
@@ -119,7 +127,8 @@ export function storyModel(text) {
 const CAST_NOTE = [
   '// Who is in the story. A person\'s picture is assets/sprites/<who>-<mood>.png,',
   '// so "mila" looking "happy" is assets/sprites/mila-happy.png. Add a mood here',
-  '// and draw a picture with the matching name.',
+  '// and draw a picture with the matching name. "about" is a line about them for',
+  '// the studio; the game never reads it.',
 ];
 
 const SCENES_NOTE = [
@@ -133,7 +142,8 @@ const SCENES_NOTE = [
   '//',
   '// A line with no "who" is the story talking rather than a person.',
   '// A choice can "set" a switch, and a choice that "need"s a switch is only',
-  '// offered once something has set it.',
+  '// offered once something has set it. "about" is a line about the place for',
+  '// the studio; the game never reads it.',
 ];
 
 export function storyText({ cast, scenes }) {
@@ -141,6 +151,7 @@ export function storyText({ cast, scenes }) {
   const out = [...CAST_NOTE, 'const CAST = {'];
   for (const person of cast) {
     out.push(`  ${person.key}: { name: ${s(person.name)}, `
+      + (person.about ? `about: ${s(person.about)}, ` : '')
       + `moods: [${person.moods.map(s).join(', ')}] },`);
   }
   out.push('};', '', ...SCENES_NOTE, 'const SCENES = {');
@@ -150,6 +161,7 @@ export function storyText({ cast, scenes }) {
     // rather than one wall. None before the first.
     if (at > 0) out.push('');
     out.push(`  ${scene.key}: {`);
+    if (scene.about) out.push(`    about: ${s(scene.about)},`);
     if (scene.picture) out.push(`    picture: ${s(scene.picture)},`);
     if (scene.sound) out.push(`    sound: ${s(scene.sound)},`);
     if (scene.lines.length) {
@@ -215,6 +227,151 @@ export function renameMood(model, who, from, to) {
   for (const scene of model.scenes) {
     for (const line of scene.lines) if (line.who === who && line.mood === from) line.mood = to;
   }
+}
+
+/* Making things ------------------------------------------------------------ */
+
+// The mood a person starts with — "how do they usually look?" — so a face
+// has a file name from the first question on.
+export const DEFAULT_MOOD = 'normal';
+
+export const portraitPath = (who, mood) => `assets/sprites/${who}-${mood}.png`;
+export const picturePath = (key) => `assets/images/${key}.png`;
+
+export function addPerson(model, name) {
+  const key = freshKey(name, model.cast.map((p) => p.key), 'person');
+  model.cast.push({
+    key, name: name.trim(), about: '', moods: [DEFAULT_MOOD],
+  });
+  return key;
+}
+
+export function addScene(model, name) {
+  const key = freshKey(name, model.scenes.map((s) => s.key));
+  model.scenes.push({
+    key, about: '', picture: '', sound: '', lines: [], choices: [], go: '',
+  });
+  return key;
+}
+
+// A place by the name somebody typed: the scene already called that, else a
+// new one — so "where does it lead?" can name a scene that exists or one that
+// does not yet, without asking which.
+export function sceneCalled(model, name) {
+  const want = freshKey(name, []);
+  const found = model.scenes.find((s) => s.key === want || s.key === name.trim());
+  return found ? found.key : addScene(model, name);
+}
+
+// Nothing in it yet: what the template ships, and when the example is offered.
+export const emptyStory = ({ cast, scenes }) => cast.length === 0
+  && scenes.every((s) => !s.picture && !s.lines.length && !s.choices.length && !s.go);
+
+/* The guide ---------------------------------------------------------------- */
+
+// The first way into a scene — the choice or the go that leads there — so the
+// guide can say "“Knock” leads to the hall" rather than only "the hall".
+export function wayInto({ scenes }, key) {
+  for (const scene of scenes) {
+    if (scene.go === key) return { from: scene.key, say: '' };
+    const choice = scene.choices.find((c) => c.go === key);
+    if (choice) return { from: scene.key, say: choice.say };
+  }
+  return null;
+}
+
+const leadIn = (model, scene) => {
+  const way = wayInto(model, scene.key);
+  if (!way) return '';
+  return way.say ? `“${way.say}” leads to ${scene.key}. ` : `After ${way.from} comes ${scene.key}. `;
+};
+
+// The guide's next question: the first thing the story is missing, in the
+// order a story is told — who, then how they look, then where, then what it
+// looks like, then what happens, then who else, then where each scene leads.
+// A function of the story and the game's files, with no state of its own
+// beyond the questions the author has set aside, so it works on a new story,
+// a half-built one and one hand-edited for a week, and re-asks from the model
+// whenever the author ignores it and clicks around. Null when nothing is
+// missing. `paths` is every file in the game, as for storyChecks.
+export function nextQuestion(model, paths = [], skipped = new Set()) {
+  const has = new Set(paths);
+  const { cast, scenes } = model;
+  const ask = (id, q) => (skipped.has(id) ? null : { id, ...q });
+
+  if (cast.length === 0) return { id: 'cast-first', kind: 'name', ask: 'Who is the main character?' };
+  for (const person of cast) {
+    const name = person.name || person.key;
+    for (const mood of person.moods) {
+      const path = portraitPath(person.key, mood);
+      if (has.has(path)) continue;
+      const q = ask(`portrait:${person.key}:${mood}`, {
+        kind: 'picture',
+        path,
+        who: person.key,
+        mood,
+        ask: mood === DEFAULT_MOOD
+          ? `How does ${name} usually look?`
+          : `How does ${name} look when ${mood}?`,
+      });
+      if (q) return q;
+    }
+  }
+
+  if (scenes.length === 0) return { id: 'scene-first', kind: 'name', ask: 'Where does the story start?' };
+  for (const [at, scene] of scenes.entries()) {
+    if (!scene.picture || !has.has(scene.picture)) {
+      const q = ask(`picture:${scene.key}`, {
+        kind: 'picture',
+        path: scene.picture || picturePath(scene.key),
+        scene: scene.key,
+        ask: `${leadIn(model, scene)}What does ${scene.key} look like?`,
+      });
+      if (q) return q;
+    }
+    if (scene.lines.length === 0) {
+      const q = ask(`lines:${scene.key}`, {
+        kind: 'lines',
+        scene: scene.key,
+        ask: at === 0 ? 'What happens first?' : `${leadIn(model, scene)}What happens there?`,
+      });
+      if (q) return q;
+    }
+  }
+
+  if (cast.length === 1) {
+    const q = ask('cast-more', { kind: 'name', ask: 'Who else is there?', later: 'Nobody yet' });
+    if (q) return q;
+  }
+
+  const keys = new Set(scenes.map((s) => s.key));
+  for (const scene of scenes) {
+    // A way out pointing at a scene that is not there yet.
+    for (const target of [scene.go, ...scene.choices.map((c) => c.go)].filter(Boolean)) {
+      if (keys.has(target)) continue;
+      const choice = scene.choices.find((c) => c.go === target);
+      const q = ask(`make:${scene.key}:${target}`, {
+        kind: 'make',
+        scene: scene.key,
+        target,
+        ask: choice
+          ? `“${choice.say}” leads to ${target}, which is not a scene yet. Make it?`
+          : `${scene.key} goes on to ${target}, which is not a scene yet. Make it?`,
+      });
+      if (q) return q;
+    }
+    // Lines and no way out. An ending looks the same, so this is asked once
+    // per scene, and "the story ends here" is the answer that sets it aside.
+    if (scene.lines.length && !scene.choices.length && !scene.go) {
+      const q = ask(`exit:${scene.key}`, {
+        kind: 'exit',
+        scene: scene.key,
+        ask: scenes.length === 1 ? 'Then what?' : `After ${scene.key}, then what?`,
+      });
+      if (q) return q;
+    }
+  }
+  return null;
 }
 
 /* The stage ---------------------------------------------------------------- */

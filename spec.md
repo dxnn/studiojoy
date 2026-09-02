@@ -1496,6 +1496,52 @@ one is read: nulling it for the length of a fetch let a render write the
 address without its scene as a new history entry, and the reload write it back
 as another.
 
+The template **ships empty** — no cast, no scenes — so the first thing an
+author meets is the **guide**'s first question, and `js/story.js` treats a
+scene with nothing in it as the end, so an empty story shows its title and
+then The End rather than a blank stage. The guide is one card at the top of
+the scene column asking one thing: who the main character is, how they look,
+where the story starts, what that looks like, what happens first, who else is
+there, then where each scene leads — and every scene the story points at but
+has not filled comes round as its own question, saying how it is reached
+(*“Knock” leads to the hall. What does the hall look like?*). **Deterministic**:
+`nextQuestion(model, paths, skipped)` in `story-editor.js` reads the next
+question off the story and the game's file list, the same facts the checks
+read, so the guide needs no state of its own beyond what the author set aside
+(*Later*, a set per game in prefs, cleared by *Ask me again*) and works on a
+new story, a half-built one and one hand-edited for a week. An ending looks
+like a scene without a way out, so *Then what?* is asked once per such scene
+and *The story ends here* is the answer that sets it aside. Every answer is an
+edit to the model and selects what it changed; Save commits, as always. The
+card is built once per question and re-appended by later renders, like a
+dialog, so a helper's reply landing does not wipe what is being typed.
+
+A picture is a file, so the guide's three ways to one commit at once: **Draw
+it** writes a blank PNG at the path the story expects and opens it in the
+rail's pixel editor; **Upload one** takes any picture from this device and
+saves it as a PNG at that path; and **A plain card for now** is the **plain
+stand-in** — a flat card in the game's *look*, the deep colour, a primary
+border, a round face for a person, the name in white, drawn on a canvas
+(128×128 for a face, 480×270 for a place). It costs nothing and never fails,
+which is what keeps a story from getting stuck on art. The model-drawn rung,
+*Make one for me*, is step 3 of ideas/vn-builder.md.
+
+The shape grows two optional keys, `about` on a cast member and on a scene: a
+line about them for the studio and its helpers, which the game never reads
+and the editor shows as one field on the open person or scene. Absent keys
+write nothing, so a story without them is byte-identical through a save.
+
+The Mila story is the **example**: *Or put in an example story* on the first
+card while the story is still empty copies its seven files in from the
+**standard set** and writes and saves the story, marking its endings as meant.
+The set's home is `public/story-art/` — pictures and sounds an author can put
+into a visual novel without drawing, listed in its `index.json` (file, kind,
+name, who made it, licence) and copied into a game when picked, backgrounds to
+`assets/images/`, portraits to `assets/sprites/`, sounds to `assets/sounds/`,
+keeping the file name. Studio-side rather than in the template tree, which is
+copied whole into every new game. Finding the rest of the set and the picker
+are step 4.
+
 The quiz editor grew the same read, because the authoring bug in a quiz is
 never a typo: four endings of which three are unreachable, or one a single
 answer feeds.

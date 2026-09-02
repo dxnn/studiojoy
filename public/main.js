@@ -1672,18 +1672,24 @@ async function startDrawing() {
   render();
 }
 
+// A blank picture at exactly this path, opened ready to draw on. The story
+// guide uses it for a face or a place the story already names.
+export async function createPictureAt(path, width, height) {
+  const { failure } = await writeFiles([{ path, body: await pictureBlob(blankPicture(width, height)) }]);
+  if (failure) { say(failure, true); return false; }
+  say(`Made ${path}.`);
+  // openFile opens a picture ready to draw on; there is nothing to add here.
+  await openFile(path);
+  return true;
+}
+
 export async function createPicture(name, width, height) {
   // A strip is wider than it is tall by whole frames, which is the same test
   // the sprites library makes when it decides to animate one. So the shape
   // picks the folder: something that moves is a sprite, and everything else is
   // a picture to look at.
   const dir = width > height ? SPRITE_DIR : IMAGE_DIR;
-  const path = assetPath(dir, `${name || 'picture'}.png`);
-  const { failure } = await writeFiles([{ path, body: await pictureBlob(blankPicture(width, height)) }]);
-  if (failure) { say(failure, true); return; }
-  say(`Made ${path}.`);
-  // openFile opens a picture ready to draw on; there is nothing to add here.
-  await openFile(path);
+  await createPictureAt(assetPath(dir, `${name || 'picture'}.png`), width, height);
 }
 
 /* Sounds ------------------------------------------------------------------- */

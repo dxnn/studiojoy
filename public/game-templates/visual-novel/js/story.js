@@ -69,6 +69,10 @@
     at = key;
     line = 0;
     waiting = false;
+    // A scene with nothing in it — no lines, no choices, nowhere to go — is
+    // the end: a story with nothing written yet shows its title and then The
+    // End, never a blank stage.
+    if (!lines().length && !(scene().choices || []).length && !scene().go) { finish(); return; }
     moment("scene", key);
     if (scene().sound && window.Sound) Sound.play(scene().sound);
     show();

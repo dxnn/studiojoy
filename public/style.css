@@ -1682,6 +1682,29 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .step.exit .sub .cfg-text { flex: 1 1 10rem; }
 .steps .add-line { align-self: flex-start; margin: 2px 0 6px 38px; }
 .steps .problem { margin: 6px 10px 0; }
+/* The guide: one question at the top of the scene column, each answer an edit
+   to the story. Not a dialog — the author can ignore it and click around, and
+   it asks again from the story as it stands. */
+.guide {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--look-primary) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.guide .guide-ask { font-weight: 600; font-size: 14.5px; }
+.guide .guide-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.guide .guide-row .cfg-text { flex: 1 1 8rem; min-width: 6rem; }
+.guide .guide-row .hint { white-space: nowrap; }
+.guide textarea.cfg-text { width: 100%; font: inherit; resize: vertical; }
+.guide .guide-acts { gap: 6px; }
+.guide .hint { font-size: 12px; margin: 0; }
+.guide > button.link { align-self: flex-start; }
+.guide.ready { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.guide.ready .guide-ask { font-weight: 500; font-size: 13px; color: var(--muted); }
+
 /* On a phone the strip goes over the scene rather than beside it. */
 @media (max-width: 860px) {
   .story-editor { flex-direction: column; }

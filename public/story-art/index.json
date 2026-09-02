@@ -1,0 +1,24 @@
+{
+  "_what": "The standard set: pictures and sounds an author can put into a visual novel without drawing. Studio-side, never in the template tree — a set of any size would bloat every game — and copied into a game when picked, one file, one commit. `file` is the path under public/story-art/; where it lands in a game is by kind, keeping the file name: backgrounds to assets/images/, portraits to assets/sprites/, sounds to assets/sounds/. `examples` are whole stories the story editor's guide can put in, each naming the art it uses.",
+  "art": [
+    { "file": "backgrounds/porch.png", "kind": "background", "name": "A porch at night", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "backgrounds/hall.png", "kind": "background", "name": "A hall", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "backgrounds/kitchen.png", "kind": "background", "name": "A kitchen", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "portraits/mila-happy.png", "kind": "portrait", "name": "Mila, happy", "who": "mila", "mood": "happy", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "portraits/mila-worried.png", "kind": "portrait", "name": "Mila, worried", "who": "mila", "mood": "worried", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "portraits/cat-there.png", "kind": "portrait", "name": "The cat", "who": "cat", "mood": "there", "by": "Unbridled Joy", "licence": "CC0" },
+    { "file": "sounds/page.wav", "kind": "sound", "name": "A page turning", "by": "Unbridled Joy", "licence": "CC0" }
+  ],
+  "examples": {
+    "mila": {
+      "title": "The Light at the Back of the House",
+      "what": "Six scenes, two people, a cat, a switch, and two endings.",
+      "story": "examples/mila-story.js",
+      "uses": [
+        "backgrounds/porch.png", "backgrounds/hall.png", "backgrounds/kitchen.png",
+        "portraits/mila-happy.png", "portraits/mila-worried.png", "portraits/cat-there.png",
+        "sounds/page.wav"
+      ]
+    }
+  }
+}

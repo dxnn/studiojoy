@@ -195,14 +195,16 @@ test('a game born from the visual novel template holds its starter tree', async 
   const dir = path.join(app.gamesDir, 'nightfall');
   const templateRoot = path.join(publicDir, 'game-templates', 'visual-novel');
   for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css',
-    'config/look.js', 'config/story.js', 'config/words.js', 'js/story.js',
-    'assets/images/porch.png', 'assets/sprites/mila-happy.png', 'assets/sounds/page.wav']) {
+    'config/look.js', 'config/story.js', 'config/words.js', 'js/story.js']) {
     assert.deepEqual(
       fs.readFileSync(path.join(dir, f)),
       fs.readFileSync(path.join(templateRoot, f)),
       `${f} is copied whole`,
     );
   }
+  // Born empty of art and of story: the guide asks for both, and the example
+  // is one click in it. The pictures live studio-side, in public/story-art.
+  assert.equal(fs.existsSync(path.join(dir, 'assets')), false, 'no art in the tree');
 
   const commits = await logCommits(dir);
   assert.equal(commits.length, 3);
