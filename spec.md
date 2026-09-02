@@ -18,8 +18,11 @@ the LLM is DeepSeek rather than Anthropic.
 - Email verification, password reset, invites. Studio accounts are created
   with a CLI script or the admin panel; the games origin's public sign-up
   (§6) makes nothing by itself — it joins a waiting list an admin decides.
-- Per-user permissions of any kind. Presence in `users` is the only bit: any
-  account can read and edit every project, agent, and file.
+- Permissions finer than the four coarse bits that exist. `admin` runs the
+  studio, `studio_access` says whether somebody is in it at all, a game's
+  authors plus its `open` flag say who may change it, and `daily_tokens` is
+  what they may spend (§11). There is nothing per-file, per-chat or
+  per-agent, and every studio account reads everything.
 - Scale. One process, SQLite, synchronous `git` subprocesses.
 - Branching or merging. History is linear per project; restore is a new commit.
 - Real-time collaborative editing. Last write wins, guarded by an ETag check.
@@ -729,8 +732,15 @@ email addresses to do its job.
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
+| POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
+| DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
+| POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
+
+⚠️ The three author and open routes are the exception to **open**: they need
+an *author*, not merely somebody who may write, even when the game is open.
+Open is about the work, not about who decides (§11).
 
 #### Running the studio
 
@@ -1689,8 +1699,10 @@ away, and a message refused by a dead connection stays in the composer.
 Other paths serve from `public/`.
 
 The rest of the view is in the query string, which the server never reads:
-`?tab=play|versions` (absent means Files), `?file=<path>` — the open file under
-Files, the filter under Versions — and `?version=<sha>` for the changes opened
+`?tab=versions|scoreboard` — absent means Files, and a `?tab=play` link from
+before the Play tab was retired falls back to Files, which is where its
+preview is anyway — `?file=<path>` for the open file under Files or the filter
+under Versions, and `?version=<sha>` for the changes opened
 in the Versions list. The centre pane's surface is there too: `?chat=<id>`
 for a conversation other than the one the project opens on, or `?edit=<id>`
 for an *editor* with `?scene=<key>` for the story editor's selected scene when
@@ -2403,6 +2415,7 @@ broker entirely.
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |
 | `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator |
 | `agent.stream.end` | `{project_slug, agent_id, message_id?, error?}` |
+| `chats.changed` | `{project_slug}` — a chat was added or renamed; the client refetches the list rather than being sent it |
 | `files.changed` | `{project_slug, paths: string[]}` — client refreshes the tree and reloads the preview iframe |
 | `game.errors` | `{project_slug, errors: [{id, message, location, times, at}]}` — the whole current list, not a delta |
 
@@ -2448,10 +2461,11 @@ everybody else.
 - Agent name: 100. Agent description: 8 KB.
 - Project path: 200 chars, 8 segments.
 - Files per project: 500. Bytes per project: 200 MB.
-- Agents attached per project: 10.
+- Chats per game: 20. Agents attached per chat: 10 — a helper belongs to a
+  chat, not to a game, so both caps are per conversation.
 - Runtime errors: 20 per project, 20 per report, 500 chars of message and 200
   of location each; 20 distinct problems per page load in the reporter itself.
-- Agent cooldown: 5 s per `(project, agent)`.
+- Agent cooldown: 5 s per `(chat, agent)` — it lives on `chat_agents`.
 - Agent fire: ≤ 24 assistant turns, ≤ 40 tool calls, ≤ 512 KB of messages
   appended by the tool loop, ≤ 3 continuations per human message (§8).
 - Context sent per fire: ~700 KB of text before the tool loop and ~1.2 MB with
@@ -2908,8 +2922,6 @@ the test suite never touches the network.
 - Asset pipeline: sprite sheets, audio conversion, minification.
 - Cross-project agent memory.
 - `git push` to a remote so a game can be published elsewhere.
-- Per-agent `reasoning_effort` beyond on/off, if the levels ever behave
-  monotonically.
 
 ## 16. Shape of the implementation
 
@@ -2921,14 +2933,27 @@ server/
   index.js        boot: env, db, two listeners
   app.js          createApp({db, broker, llm, gamesDir, ...}) -> handler
   games.js        createGamesApp({db, gamesDir}) -> handler
+  catalog.js      the games origin's front door, server-rendered whole (§6)
   db.js           MIGRATIONS array + addColumnIfMissing + tx()
-  auth.js         scrypt, sessions, requireAuth
+  auth.js         scrypt, studio sessions, requireAuth, remove/restore account
+  players.js      the player cookie, player_sessions, the waiting list
+  authors.js      who may change a game: canEdit, requireAuthor (§11)
+  chats.js        a conversation inside a project; requireChat,
+                  assertBotsAllowed, and the per-chat caps
+  mentions.js     one rule resolves a helper's name and a person's (§8)
+  starter.js      the starter helper that joins a new game's Building chat
   broker.js       SSE fan-out to every tab
   budget.js       studio-wide daily counter
   http/
     router.js     method + :param/*wildcard matching
     body.js       JSON and raw body readers with caps
     static.js     extension mime table, traversal-safe serve
+    respond.js    HttpError, and the JSON refusal the router turns it into
+    origin.js     play and preview links derived per request from Host (§7)
+  util/
+    html.js       escaping shared by the catalog and the blank start page
+    text.js       codepoint ranges rather than a regex, so no invisible bytes
+    time.js       the next UTC midnight, for the budget's lazy rollover
   reporter.js     the injected script, and the wrapper it goes into (§8)
   runtime.js      what the running game reported, per project
   scores.js       the scoreboard: top, submit, the shared rate limiter
@@ -2946,35 +2971,46 @@ server/
     tree.js       recursive listing, caps
     git.js        per-project repo: init, commit, log, show, diff, mv
     mutex.js      per-project serialization
+    library.js    the studio library scaffolded into a tree, and the sweep (§4)
+    templates.js  a game template's starter tree, copied in at creation (§4)
   llm/
     deepseek.js   SSE -> {delta|reasoning|tool_use|end} iterator, and
                   complete() for one whole answer with no stream at all
     tools.js      the four file tools
   agents/
     orchestrator.js  dirty bit, cooldown, tool loop, context builder
-    mentions.js
-  routes/         auth, projects, agents, messages, errors, files, history,
-                  stream, achievements, story
+  routes/         auth, admin, projects, agents, chats, messages, achievements,
+                  errors, files, history, story, helpers, stream
 public/
   index.html      shell
   main.js         the SPA's core: state, transport, URL, stream, the file,
-                  drawing and history actions, and render()
+                  drawing and history actions, and render() (§17)
   dom.js          h(), and the icon buttons
   sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
-  dialogs.js  upload.js  achievements-form.js
+  dialogs.js  upload.js  achievements-form.js  quiz-form.js  story-form.js
+  story-guide.js
                   one pane or feature each, importing the core from main.js
-  config-file.js  patch.js  pixel-editor.js  sound-maker.js
+  game-types.js   which editors a game's type puts in the centre pane (§6)
+  config-file.js  patch.js  pixel-editor.js  sound-maker.js  highlight.js
   achievements-editor.js  achievement-shape.js  quiz-editor.js  story-editor.js
                   pure logic, shared with npm test (achievement-shape.js also
                   imported by the server, above)
+  studio-lib/     the studio library's source: index.json, and a directory per
+                  library — copied into a game, never served to one (§4)
+  templates/      a library's seeds: config/controls.js per control scheme,
+                  config/achievements.js — written once, never replaced (§4)
+  game-templates/ a starter tree per template, plus the blank start page (§4)
+  story-art/      the standard set the example story copies in (§4)
   style.css
 bin/
-  adduser.js  deluser.js  restoreuser.js  backup.js
+  adduser.js  deluser.js  restoreuser.js  backup.js  sweep.js  smoke.js
+  prompt.js
 test/
 ```
 
-Signup, email, push, reactions, typing, unread counts, and per-user
-permissions (all present in `new-y`) are absent on purpose.
+Email, web push, typing previews and unread counts (all present in `new-y`)
+are absent on purpose — the first three permanently, the last deferred
+(§2, §15).
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, and a
 scripted fake LLM client, so the suite needs no network and no API key. The
