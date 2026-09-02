@@ -10,7 +10,7 @@ import { WRAPPER_PATH, wrapHtml } from './reporter.js';
 import { readJson } from './http/body.js';
 import { json, noContent } from './http/respond.js';
 import {
-  topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES,
+  topScores, submitScore, createScoreLimiter, MAX_SCORE_BODY_BYTES, MAX_SCORE_ROWS,
 } from './scores.js';
 import {
   listAchievements, unlockAchievement, definedAchievements,
@@ -28,7 +28,7 @@ import {
   PLAYER_COOKIE, createPlayerSession, deletePlayerSession, playerForToken,
   playerCookie, clearedPlayerCookie, createSignup,
 } from './players.js';
-import { catalogPage } from './catalog.js';
+import { catalogPage, playersPage } from './catalog.js';
 
 const ENTRY_FILE = 'index.html';
 // Login and sign-up bodies: three short strings.
@@ -85,7 +85,7 @@ export function createGamesApp({
     const slug = checkSlug(raw);
     if (!slug.ok) throw new HttpError(404, 'not found');
     const project = db
-      .prepare('SELECT id, slug, kind, scores_on FROM projects WHERE slug = ?')
+      .prepare('SELECT id, slug, name, kind, scores_on FROM projects WHERE slug = ?')
       .get(slug.slug);
     if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
     return project;
@@ -157,7 +157,13 @@ export function createGamesApp({
       });
     }
 
-    const page = catalogPage({ games, player });
+    return sendPage(ctx, catalogPage({ games, player }));
+  });
+
+  // The two studio-authored pages share one posture: the catalog's headers
+  // are load-bearing for its password form (§7), and the players page has no
+  // form, but one posture for two pages costs nothing.
+  const sendPage = (ctx, page) => {
     ctx.res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
@@ -166,6 +172,48 @@ export function createGamesApp({
     });
     if (ctx.req.method === 'HEAD') return ctx.res.end();
     return ctx.res.end(page);
+  };
+
+  // A game's players page (catalog.js): everybody's scores and trophies for
+  // one game, at an underscore path no game file can shadow. The board and
+  // the personal bests are left out entirely while the game's scoreboard is
+  // off — a moderated board is not public in either direction, the same rule
+  // as both _scores routes — and the trophies stay, because earned is forever.
+  // The viewer's own rows are marked, which is the only thing the player
+  // cookie does here. Removed accounts are joined out; rows posted before the
+  // sign-in carry their own name and no user, and show as they were posted.
+  r.get('/:slug/_players', async (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    const player = currentPlayer(ctx);
+    const on = game.scores_on === 1;
+    const board = on
+      ? db.prepare(
+        `SELECT name, score, user_id FROM scores WHERE project_id = ?
+          ORDER BY score DESC, id LIMIT ?`,
+      ).all(game.id, MAX_SCORE_ROWS)
+      : [];
+    const bests = on
+      ? db.prepare(
+        `SELECT b.user_id, b.score, u.display_name AS name
+           FROM personal_bests b JOIN users u ON u.id = b.user_id
+          WHERE b.project_id = ? AND u.deleted = 0
+          ORDER BY b.score DESC, b.created_at LIMIT 500`,
+      ).all(game.id)
+      : [];
+    const holders = db.prepare(
+      `SELECT a.achievement, a.user_id, u.display_name AS name
+         FROM achievements a JOIN users u ON u.id = a.user_id
+        WHERE a.project_id = ? AND u.deleted = 0
+        ORDER BY a.created_at LIMIT 2000`,
+    ).all(game.id);
+    const achievements = (await definedAchievements(path.join(root, game.slug))).map((a) => ({
+      ...a,
+      names: holders.filter((h) => h.achievement === a.id).map((h) => h.name),
+      mine: Boolean(player) && holders.some((h) => h.achievement === a.id && h.user_id === player.id),
+    }));
+    return sendPage(ctx, playersPage({
+      game, player, board, bests, achievements,
+    }));
   });
 
   // Who is signed in, for game code: {user: {name}} or {user: null}, never

@@ -19,9 +19,6 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- ! the front page knows who you are: your best and your achievements on each
-  card, then a `/:slug/_players` page with everybody's (ideas/front-page-players.md).
-  Rung 2 also retires the personal-bests line below
 - the file editors out of the rail into the centre pane as tabs, the way the
   story editor already is — try the smaller step first (ideas/editors-in-the-centre.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
@@ -73,9 +70,6 @@ deliberately deferred.
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first
-- show personal bests beside the Top 100 — tracked per (game, person) in
-  `personal_bests` since the sign-in build, displayed nowhere yet. The screens
-  library is the place now: `Screens.board()` already does the /_me dance
 - add `--scores` to `npm run deluser` so a removed player's rows leave every
   board too — today they stay, and the panel deletes per row, per game
   (ideas/scoreboard-trust.md, rung 1)

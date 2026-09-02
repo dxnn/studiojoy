@@ -1,100 +1,25 @@
 import { escapeHtml } from './util/html.js';
 
-// The catalog page: the games origin's front door, and the one page there
-// that is the studio's own rather than a game's. Server-rendered whole —
-// the list, the signed-in name, everything — because this origin serves no
-// other studio asset and one self-contained page is the entire deployment.
+// The games origin's two studio-authored pages: the catalog at `/` — the
+// front door, and the one page there that is the studio's own rather than a
+// game's — and a game's players page at `/:slug/_players`, everybody's scores
+// and trophies for one game. Server-rendered whole — the list, the signed-in
+// name, everything — because this origin serves no other studio asset and one
+// self-contained page is the entire deployment.
 //
-// It wears the studio's look on purpose: the wordmark, the dark ground, the
+// They wear the studio's look on purpose: the wordmark, the dark ground, the
 // halftone and the hairline are lifted from public/style.css so the front
 // door and the studio read as one place. Cyan is the studio's voice, crimson
-// is JOY, and gold appears on scores — the board's top and your own best —
-// and on nothing else: a count of trophies is a number, not a score.
+// is JOY, and gold appears on scores — the board's, your own best — and on
+// nothing else: a count of trophies is a number, not a score.
 //
-// Names and slugs are typed by people and this page is served to the public:
-// everything interpolated below goes through escapeHtml, and the client
-// script writes only textContent.
+// Names and slugs are typed by people and these pages are served to the
+// public: everything interpolated below goes through escapeHtml, and the
+// client script writes only textContent.
 
-// A card: the game's name, its hero.png when it has one (the `hero` class
-// and `--hero` variable are load-bearing — tests assert them), and its
-// numbers stacked at the right: the board's best score in gold when the game
-// keeps one, and — signed in — your own best and your trophies against what
-// the game defines (ideas/front-page-players.md, rung 1).
-const card = (g) => {
-  const slug = escapeHtml(g.slug);
-  const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
-  const num = (n) => n.toLocaleString('en-US');
-  const has = (n) => n !== null && n !== undefined;
-  const nums = [
-    has(g.top) ? `<span class="top"><small>top score</small> ${num(g.top)}</span>` : '',
-    has(g.best) ? `<span class="best"><small>your best</small> ${num(g.best)}</span>` : '',
-    g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
-  ].join('');
-  return `<li><a href="/${slug}/"${hero}><span class="name">${escapeHtml(g.name)}</span>`
-    + `${nums ? `<span class="nums">${nums}</span>` : ''}</a></li>`;
-};
-
-export function catalogPage({ games, player = null }) {
-  const who = player
-    ? `<span class="me">${escapeHtml(player.display_name)}</span>
-      <button id="signout" class="quiet">Sign out</button>`
-    : `<button id="signin-go">Sign in</button>
-      <button id="join-go" class="quiet">Ask to join</button>`;
-
-  const cards = games.map(card).join('\n      ');
-
-  // Signed in, the two forms have no button to open them, so they are not on
-  // the page at all — and the script's lookups are all optional for the same
-  // reason.
-  const dialogs = player ? '' : `<dialog id="signin">
-    <form method="dialog">
-      <h2>Sign in</h2>
-      <label for="si-email">Email</label>
-      <input id="si-email" type="email" autocomplete="email" required>
-      <label for="si-pass">Password</label>
-      <input id="si-pass" type="password" autocomplete="current-password" required>
-      <p class="err" id="si-err"></p>
-      <div class="row">
-        <button type="button" class="quiet" data-close>Cancel</button>
-        <button type="submit">Sign in</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="signup">
-    <form method="dialog">
-      <h2>Ask to join</h2>
-      <p class="hint">Your name is what the scoreboards will show.</p>
-      <label for="su-name">Your name</label>
-      <input id="su-name" maxlength="100" required>
-      <label for="su-email">Email</label>
-      <input id="su-email" type="email" autocomplete="email" required>
-      <label for="su-pass">Pick a password</label>
-      <input id="su-pass" type="password" autocomplete="new-password" minlength="6" required>
-      <p class="err" id="su-err"></p>
-      <div class="row">
-        <button type="button" class="quiet" data-close>Cancel</button>
-        <button type="submit">Ask to join</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="waiting">
-    <h2>You're on the list!</h2>
-    <p class="hint">One of the studio's admins will let you in. Come back and sign in once they have.</p>
-    <div class="row"><button data-close>OK</button></div>
-  </dialog>`;
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#15112b">
-<title>Unbridled Joy</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
+// The dress both pages share — the palette, the ground, the hairline, the
+// wordmark and the buttons. Each page adds its own rules after it.
+const DRESS = `
   /* The studio's own dark, always: same ground, same halftone, same hairline
      as public/style.css, so the front door matches the house. */
   :root {
@@ -154,6 +79,7 @@ export function catalogPage({ games, player = null }) {
     letter-spacing: -0.03em; color: var(--cyan-hi); white-space: nowrap;
   }
   .brand .b2 { color: var(--red); }
+  a.home { text-decoration: none; }
   .mark {
     width: 1.34em; height: 0.84em; flex-shrink: 0; margin: 0 0.03em;
     border-radius: 0.29em;
@@ -189,23 +115,112 @@ export function catalogPage({ games, player = null }) {
   button:hover { background: var(--cyan); color: var(--ink); border-color: var(--cyan); }
   button.quiet { color: var(--muted); border-color: var(--border); }
   button.quiet:hover { background: transparent; color: var(--cyan); border-color: var(--cyan); }
-
-  .tag { margin: 6px 0 0; color: var(--muted); }
   .note { margin: 26px 0 0; color: var(--muted); font-size: 14px; }
+  .empty { color: var(--muted); margin: 26px 0 0; }
+`;
+
+const BRAND = '<h1 class="brand">UNBRIDLED<span class="mark"><span class="dpad"></span><span class="abxy"></span></span><span class="b2">JOY</span></h1>';
+
+const HEAD = (title) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#15112b">
+<title>${title}</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">`;
+
+const num = (n) => n.toLocaleString('en-US');
+const has = (n) => n !== null && n !== undefined;
+
+// A card: the game's name, its hero.png when it has one (the `hero` class
+// and `--hero` variable are load-bearing — tests assert them), and its
+// numbers stacked at the right: the board's best score in gold when the game
+// keeps one, and — signed in — your own best and your trophies against what
+// the game defines (ideas/front-page-players.md, rung 1). Under the card, the
+// link to everybody's: its own control, because the whole card opens the game.
+const card = (g) => {
+  const slug = escapeHtml(g.slug);
+  const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
+  const nums = [
+    has(g.top) ? `<span class="top"><small>top score</small> ${num(g.top)}</span>` : '',
+    has(g.best) ? `<span class="best"><small>your best</small> ${num(g.best)}</span>` : '',
+    g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
+  ].join('');
+  return `<li><a href="/${slug}/"${hero}><span class="name">${escapeHtml(g.name)}</span>`
+    + `${nums ? `<span class="nums">${nums}</span>` : ''}</a>`
+    + `<a class="players" href="/${slug}/_players">Scores &amp; trophies</a></li>`;
+};
+
+export function catalogPage({ games, player = null }) {
+  const who = player
+    ? `<span class="me">${escapeHtml(player.display_name)}</span>
+      <button id="signout" class="quiet">Sign out</button>`
+    : `<button id="signin-go">Sign in</button>
+      <button id="join-go" class="quiet">Ask to join</button>`;
+
+  const cards = games.map(card).join('\n      ');
+
+  // Signed in, the two forms have no button to open them, so they are not on
+  // the page at all — and the script's lookups are all optional for the same
+  // reason.
+  const dialogs = player ? '' : `<dialog id="signin">
+    <form method="dialog">
+      <h2>Sign in</h2>
+      <label for="si-email">Email</label>
+      <input id="si-email" type="email" autocomplete="email" required>
+      <label for="si-pass">Password</label>
+      <input id="si-pass" type="password" autocomplete="current-password" required>
+      <p class="err" id="si-err"></p>
+      <div class="row">
+        <button type="button" class="quiet" data-close>Cancel</button>
+        <button type="submit">Sign in</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="signup">
+    <form method="dialog">
+      <h2>Ask to join</h2>
+      <p class="hint">Your name is what the scoreboards will show.</p>
+      <label for="su-name">Your name</label>
+      <input id="su-name" maxlength="100" required>
+      <label for="su-email">Email</label>
+      <input id="su-email" type="email" autocomplete="email" required>
+      <label for="su-pass">Pick a password</label>
+      <input id="su-pass" type="password" autocomplete="new-password" minlength="6" required>
+      <p class="err" id="su-err"></p>
+      <div class="row">
+        <button type="button" class="quiet" data-close>Cancel</button>
+        <button type="submit">Ask to join</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="waiting">
+    <h2>You're on the list!</h2>
+    <p class="hint">One of the studio's admins will let you in. Come back and sign in once they have.</p>
+    <div class="row"><button data-close>OK</button></div>
+  </dialog>`;
+
+  return `${HEAD('Unbridled Joy')}
+<style>${DRESS}
+  .tag { margin: 6px 0 0; color: var(--muted); }
 
   ul {
     list-style: none; padding: 0; margin: 26px 0 0;
     display: grid; gap: 12px;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
-  ul a {
+  ul a:not(.players) {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
     min-height: 84px; padding: 14px 16px;
     border: 1px solid var(--border); border-radius: 12px;
     background: var(--panel);
     text-decoration: none; color: var(--text); font-weight: 600; font-size: 18px;
   }
-  ul a:hover {
+  ul a:not(.players):hover {
     border-color: var(--cyan);
     box-shadow: 0 0 20px color-mix(in oklab, var(--cyan) 28%, transparent);
   }
@@ -225,7 +240,10 @@ export function catalogPage({ games, player = null }) {
   .top, .best { color: var(--gold); font-weight: 700; white-space: nowrap; font-size: 15px; }
   .got { color: var(--text); font-weight: 600; white-space: nowrap; font-size: 13px; }
   .nums small { color: var(--muted); font-weight: 500; font-size: 12px; margin-right: 4px; }
-  .empty { color: var(--muted); margin: 26px 0 0; }
+  /* Under the card, the way to everybody's numbers: a link, because it looks
+     at something, and its own control, because the card is the game's. */
+  a.players { display: inline-block; margin: 6px 0 0 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  a.players:hover { color: var(--cyan); }
 
   dialog {
     background: var(--panel); color: var(--text);
@@ -250,7 +268,7 @@ export function catalogPage({ games, player = null }) {
   <div class="hairline"></div>
   <main>
     <header>
-      <h1 class="brand">UNBRIDLED<span class="mark"><span class="dpad"></span><span class="abxy"></span></span><span class="b2">JOY</span></h1>
+      ${BRAND}
       <span class="space"></span>
       ${who}
     </header>
@@ -301,6 +319,86 @@ export function catalogPage({ games, player = null }) {
       open('waiting');
     });
   </script>
+</body>
+</html>
+`;
+}
+
+// A game's players page: everybody's numbers for one game, the answer to
+// "who else has played this?" (ideas/front-page-players.md, rung 2). Three
+// lists — the board's top 100, one personal best per person, and the trophies
+// with who holds each — and the viewer's own rows marked, which is the only
+// thing the player cookie does here. `board` and `bests` arrive empty when
+// the game's scoreboard is switched off, so the page says nothing about
+// scores then; the trophies stay, because earned is forever. Static and
+// scriptless: nothing on it changes without a reload.
+export function playersPage({
+  game, player = null, board = [], bests = [], achievements = [],
+}) {
+  const slug = escapeHtml(game.slug);
+  const name = escapeHtml(game.name);
+  const mine = (userId) => (player && userId === player.id ? ' class="me"' : '');
+  const rows = (list) => list.map((r, i) => `<li${mine(r.user_id)}>`
+    + `<span class="rank">${i + 1}</span><span class="who">${escapeHtml(r.name)}</span>`
+    + `<span class="score">${num(r.score)}</span></li>`).join('\n      ');
+  const trophies = achievements.map((a) => `<li${a.mine ? ' class="got"' : ''}>`
+    + `<span class="icon">${a.icon ? escapeHtml(a.icon) : '★'}</span>`
+    + `<span class="what"><span class="tname">${escapeHtml(a.name)}</span>`
+    + `${a.how ? `<span class="how">${escapeHtml(a.how)}</span>` : ''}</span>`
+    + `<span class="holders">${a.names.length ? a.names.map(escapeHtml).join(', ') : '<em>nobody yet</em>'}</span></li>`)
+    .join('\n      ');
+
+  const sections = [
+    board.length
+      ? `<section><h3>Top 100</h3><ol class="board">\n      ${rows(board)}\n    </ol></section>`
+      : '',
+    bests.length
+      ? `<section><h3>Personal bests</h3><ol class="board">\n      ${rows(bests)}\n    </ol></section>`
+      : '',
+    achievements.length
+      ? `<section><h3>Trophies</h3><ul class="trophies">\n      ${trophies}\n    </ul></section>`
+      : '',
+  ].filter(Boolean);
+
+  return `${HEAD(`${name} — who's playing`)}
+<style>${DRESS}
+  h2.game { margin: 22px 0 0; font-size: 26px; line-height: 1.2; }
+  h2.game a { color: var(--text); text-decoration: none; }
+  h2.game a:hover { color: var(--cyan-hi); }
+  .tag { margin: 4px 0 0; color: var(--muted); }
+  section { margin-top: 28px; }
+  h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  ol.board, ul.trophies { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+  ol.board li, ul.trophies li { display: flex; align-items: baseline; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--border); }
+  ol.board li:first-child, ul.trophies li:first-child { border-top: none; }
+  /* Your own rows in the studio's voice: cyan is the studio talking to you. */
+  li.me, li.got { background: color-mix(in oklab, var(--cyan) 12%, transparent); }
+  li.me .who, li.got .tname { color: var(--cyan-hi); }
+  .rank { flex: 0 0 2.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  /* Gold is a score and nothing else on this page. */
+  .score { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .icon { flex: 0 0 1.6em; font-size: 18px; text-align: center; }
+  .what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tname { font-weight: 600; }
+  .how { color: var(--muted); font-size: 13px; }
+  .holders { flex: 0 1 45%; text-align: right; font-size: 14px; color: var(--text); }
+  .holders em { color: var(--muted); font-style: normal; }
+</style>
+</head>
+<body>
+  <div class="hairline"></div>
+  <main>
+    <header>
+      <a class="home" href="/">${BRAND}</a>
+      <span class="space"></span>
+      ${player ? `<span class="me">${escapeHtml(player.display_name)}</span>` : ''}
+    </header>
+    <h2 class="game"><a href="/${slug}/">${name}</a></h2>
+    <p class="tag">Everyone who has played, and how they did.</p>
+    ${sections.length ? sections.join('\n    ') : '<p class="empty">Nothing to show yet — nobody has played, or the game keeps no scores.</p>'}
+    ${player ? '' : '<p class="note">Sign in on the front page and your own rows are marked here.</p>'}
+  </main>
 </body>
 </html>
 `;

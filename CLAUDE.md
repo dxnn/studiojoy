@@ -202,8 +202,10 @@ specified:
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).
 - The games origin serves the catalog, each game through the wrapper, the
-  scoreboard and achievements (§7). The preview reloads itself on every
-  commit and reports its own errors and moments back.
+  scoreboard and achievements, and a **players page** per game (§6, §7). The
+  catalog says how *you* are doing on each card. The preview reloads itself
+  on every commit — and on nothing else: the frame lives outside the rendered
+  tree (§17) — and reports its own errors and moments back.
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by
   `npm run sweep` (§4).

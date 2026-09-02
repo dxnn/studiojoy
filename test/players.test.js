@@ -387,6 +387,76 @@ test('a card says your best and your trophies to whoever is signed in', async (t
   assert.doesNotMatch(nobody, / of 2/);
 });
 
+// Everybody's numbers for one game, on a page of its own: the board, one
+// best per person, and the trophies with who holds each — the viewer's rows
+// marked, names escaped, nothing about scores while the board is off.
+test('a game\'s players page shows everybody\'s board, bests and trophies, and marks yours', async (t) => {
+  const { app, games } = await origins(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank & <Chips>', slug: 'tank' } });
+  await app.client.json('POST', '/api/projects', { body: { name: 'Talk', slug: 'talk', kind: 'chat' } });
+  await app.client.json('PUT', '/api/projects/tank/files/config/achievements.js', {
+    rawBody: 'const ACHIEVEMENTS = [\n'
+      + '  { id: "first", name: "First run", how: "Finish a run", icon: "🚀", when: { moment: "run-over" } },\n'
+      + '  { id: "ten", name: "Ten", how: "Reach level 10", when: { moment: "level", atLeast: 10 } },\n'
+      + '];\n',
+    headers: { 'content-type': 'application/octet-stream' },
+  });
+
+  const dann = await playerSignIn(app, games, { email: 'dann@example.com', displayName: 'Dann' });
+  await dann.json('POST', '/_scores/tank', { body: { score: 4520 } });
+  await dann.json('POST', '/_scores/tank', { body: { score: 300 } });
+  await dann.json('POST', '/_achievements/tank', { body: { id: 'first' } });
+  const pat = await playerSignIn(app, games, {
+    email: 'pat@example.com', displayName: 'Pat <b>', client: games.newClient(),
+  });
+  await pat.json('POST', '/_scores/tank', { body: { score: 1000 } });
+
+  const res = await dann.request('GET', '/tank/_players');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-security-policy'), "frame-ancestors 'none'");
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const html = await res.text();
+  assert.match(html, /Tank &amp; &lt;Chips&gt;/, 'the game\'s name, escaped');
+  assert.match(html, /Pat &lt;b&gt;/, 'a player\'s name, escaped');
+  assert.doesNotMatch(html, /Pat <b>/);
+  // The board: three runs, best first; the bests: one row each.
+  assert.match(html, /Top 100/);
+  assert.match(html, /Personal bests/);
+  assert.ok(html.indexOf('4,520') < html.indexOf('1,000') && html.indexOf('1,000') < html.indexOf('>300<'), 'best first');
+  assert.equal((html.match(/>300</g) ?? []).length, 1, 'the 300 is a run, not a best');
+  // Two runs and one best are the viewer's; the trophy they hold is theirs too.
+  assert.equal((html.match(/<li class="me">/g) ?? []).length, 3);
+  assert.match(html, /<li class="got">.*First run/);
+  assert.match(html, /Ten.*nobody yet/);
+  assert.match(html, /🚀/);
+
+  // Signed out: the same page with nothing marked, and a note saying why.
+  const anon = await (await games.newClient().request('GET', '/tank/_players')).text();
+  assert.match(anon, /4,520/);
+  assert.doesNotMatch(anon, /class="me"/);
+  assert.doesNotMatch(anon, /class="got"/);
+  assert.match(anon, /Sign in on the front page/);
+
+  // Not a game: a plain 404, like everything else on this origin.
+  for (const slug of ['nope', 'talk']) {
+    const miss = await games.client.request('GET', `/${slug}/_players`);
+    assert.equal(miss.status, 404, slug);
+    await miss.text();
+  }
+
+  // The board switched off: nothing about scores, the trophies stay.
+  await app.client.json('PATCH', '/api/projects/tank', { body: { scores_on: false } });
+  const off = await (await dann.request('GET', '/tank/_players')).text();
+  assert.doesNotMatch(off, /Top 100/);
+  assert.doesNotMatch(off, /Personal bests/);
+  assert.doesNotMatch(off, /4,520/);
+  assert.match(off, /First run/);
+
+  // The catalog card links here.
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  assert.match(await (await games.client.request('GET', '/')).text(), /href="\/tank\/_players"/);
+});
+
 // The games origin still never mints or honours a *studio* session; the
 // player cookie is the only one it reads, and games.test.js keeps holding it
 // to that for every game-file route.
