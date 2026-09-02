@@ -19,8 +19,8 @@ const bytes = (file) => fs.readFileSync(new URL(file, DIR));
 // a portrait under backgrounds/ would file it in assets/images/ and the story
 // would never find it.
 const KINDS = {
-  background: { dir: 'backgrounds', ext: '.png', size: [480, 270] },
-  portrait: { dir: 'portraits', ext: '.png', square: true },
+  background: { dir: 'backgrounds', ext: '.png', landscape: true },
+  portrait: { dir: 'portraits', ext: '.png', notStrip: true },
   sound: { dir: 'sounds', ext: '.wav' },
 };
 
@@ -63,15 +63,28 @@ test('every entry in the set names a file that is there, of a kind something off
   }
 });
 
-test('a picture in the set is the shape its kind is drawn at', () => {
+// Not exact sizes: real art does not arrive at the studio's own 480×270 and
+// 128², and the studio scales. What matters is that each one *reads* as its
+// kind — which for a portrait is a rule with teeth, below.
+test('a picture in the set is the shape its kind is shown at', () => {
   for (const a of index.art.filter((x) => x.kind !== 'sound')) {
     const [width, height] = pngSize(bytes(a.file));
-    const { size, square } = KINDS[a.kind];
-    if (size) assert.deepEqual([width, height], size, `${a.file} is ${size.join('x')}`);
-    // A portrait is drawn at 128 square and shown square everywhere. It need
-    // not be exactly 128 — the studio scales — but a wide one would either
-    // squash or read as a strip to the sprites library.
-    if (square) assert.equal(width, height, `${a.file} is square`);
+    const { landscape, notStrip } = KINDS[a.kind];
+    // A background fills a pane that is wider than it is tall; a portrait
+    // one that is not. A portrait taller than wide is normal (a giraffe).
+    if (landscape) assert.ok(width > height, `${a.file} is ${width}x${height}, not landscape`);
+    // ⚠️ The one with teeth. A portrait is copied into assets/sprites/, and
+    // the sprites library reads a picture whose width is a whole multiple of
+    // its height as a *strip* of square frames — so a 2:1 portrait would
+    // animate instead of standing still, and nothing in the story would say
+    // why. Squareness was the old rule and it was too strict: every animal
+    // in the set is a little taller or wider than it is square.
+    if (notStrip) {
+      assert.ok(
+        !(width > height && width % height === 0),
+        `${a.file} is ${width}x${height}, which the sprites library reads as a strip`,
+      );
+    }
   }
 });
 

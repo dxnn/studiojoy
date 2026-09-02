@@ -313,14 +313,17 @@ function nameCard(q) {
 // safe and a background render cannot wipe it. Plain <img src> too — these
 // are static files the browser may cache, unlike a game's own, whose routes
 // send no-store and need the stage's object-URL cache.
-function artShelf(q) {
-  const want = q.who ? 'portrait' : 'background';
+// `place` is handed the chosen entry and its bytes and decides where they go,
+// because the two callers name a picture differently — the guide for the
+// character or scene it is asking about, the Picture row for its scene. Both
+// name it for what it *is in the story*, never for what the set calls it.
+export function artShelf(kind, place, label = 'Ready to use:') {
   const shelf = h('div', { class: 'guide-shelf' });
   artIndex().then((index) => {
-    const art = (index?.art ?? []).filter((a) => a.kind === want);
+    const art = (index?.art ?? []).filter((a) => a.kind === kind);
     if (!art.length) return;
     shelf.append(
-      h('span', { class: 'hint muted', text: 'Ready to use:' }),
+      h('span', { class: 'hint muted', text: label }),
       ...art.map((a) => h('button', {
         class: 'art',
         // Who made it and under what, on the picture itself: the set is other
@@ -330,13 +333,17 @@ function artShelf(q) {
         onclick: async () => {
           const res = await send(`${ART}/${a.file}`);
           if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
-          await putPicture(q, await res.blob(), `Added ${q.path} — ${a.name}, by ${a.by} (${a.licence}).`);
+          await place(a, await res.blob());
         },
       }, h('img', { src: `${ART}/${a.file}`, alt: a.name }))),
     );
   });
   return shelf;
 }
+
+// The credit, as the banner says it: the set is somebody's work and the
+// person putting it in a game should see whose.
+export const artCredit = (a, path) => `Added ${path} — ${a.name}, by ${a.by} (${a.licence}).`;
 
 function pictureCard(q) {
   const person = q.who ? model().cast.find((p) => p.key === q.who) : null;
@@ -399,7 +406,10 @@ function pictureCard(q) {
 
   return [
     h('p', { class: 'hint muted', text: `It will be ${q.path}, ${width} by ${height}.` }),
-    artShelf(q),
+    artShelf(
+      q.who ? 'portrait' : 'background',
+      (a, blob) => putPicture(q, blob, artCredit(a, q.path)),
+    ),
     h('div', { class: 'guide-row' }, about),
     h('div', { class: 'row wrap guide-acts' },
       h('button', {

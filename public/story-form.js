@@ -28,7 +28,8 @@ import { h } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, NO_CONNECTION,
 } from './main.js';
-import { renderGuide } from './story-guide.js';
+import { renderGuide, artShelf, artCredit } from './story-guide.js';
+import { writeFiles } from './upload.js';
 
 export const STORY_FILE = 'config/story.js';
 
@@ -518,7 +519,14 @@ export function renderStoryEditor() {
           oninput: (e) => { scene.about = e.currentTarget.value; touched(); },
         })) : null));
 
-    rows.push(rowOf('picture', 'fixed',
+    // The standard set, in the row it belongs to and one open at a time, with
+    // the same control closing it again — the studio's rule for anything a
+    // control reveals. Without this the set is only ever reachable through
+    // the guide's picture question, which stops being asked the moment a
+    // scene has a picture: there would be no way to change one from the shelf
+    // afterwards.
+    const showSet = st.shelf === scene.key;
+    rows.push(rowOf('picture', `fixed${showSet ? ' open' : ''}`,
       h('span', { class: 'glyph', text: '▤' }),
       h('span', { class: 'label', text: 'Picture' }),
       pick(
@@ -528,7 +536,26 @@ export function renderStoryEditor() {
       ),
       scene.picture ? thumb(scene.picture) : null,
       scene.picture && !has.has(scene.picture)
-        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
+        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null,
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'link tiny',
+        text: showSet ? 'Hide the pictures' : 'Pick a picture',
+        title: 'Pictures from the studio\'s own collection',
+        disabled: ro,
+        onclick: () => { st.shelf = showSet ? null : scene.key; render(); },
+      }),
+      showSet ? h('div', { class: 'sub' }, artShelf('background', async (a, blob) => {
+        // Named for the scene, like every other way a picture gets in — the
+        // set says what it looks like, the story says what it is called.
+        const path = `${IMAGE_DIR}/${scene.key}.png`;
+        const { failure } = await writeFiles([{ path, body: blob }]);
+        if (failure) { say(failure, true); return; }
+        scene.picture = path;
+        st.shelf = null;
+        touched();
+        say(artCredit(a, path));
+      })) : null));
 
     // Music belongs to the whole scene the way the picture does — it keeps
     // playing into the next scene that asks for the same track — so it is a

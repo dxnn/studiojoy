@@ -20,12 +20,22 @@ deliberately deferred.
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
   and step 4 (the standard set) is the line below
-- find more art for the standard set: CC0 first, kid-safe, small files, one
-  or two styles that sit together, portraits with several moods each. The
-  shelf that picks from it is built and the only entries are the example
-  story's seven, so the guide offers three faces and three places — add to
-  `public/story-art/index.json` and `npm test` checks the shape
-  (ideas/vn-builder.md §6). The last thing that plan is waiting on
+- ! let people add their own art to the studio's collection —
+  ideas/studio-collection.md. ⚠️ Blocked on one question only, in that file:
+  what licence a child's own drawing carries, which matters because a
+  published game carries those bytes. Everything else is decided
+- the standard set is short of **moods**: 30 animal faces, one expression
+  each, so a cast member cannot look happy and then worried. More CC0 faces
+  with several moods, or the same animals redrawn — `npm test` checks the
+  shape, and ⚠️ a portrait must never measure a whole multiple of its height
+  or the sprites library animates it (spec.md §6)
+- the shipped backgrounds are pixel art at 65×36 to 256×150, and the visual
+  novel's `.picture` has no `image-rendering`, so they upscale softly.
+  `image-rendering: pixelated` in the template's `css/style.css` is the fix
+  and would suit every picture the studio's own editor makes — but it is a
+  template, so it only reaches new games and each existing one by hand
+- the standard set's shelf scrolls sideways past 33 faces; it wants filtering
+  or a dialog rather than a strip once people start adding their own
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see

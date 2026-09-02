@@ -1653,10 +1653,13 @@ and no link back, and a game's repository holds exactly the art it uses.
 and `who`/`mood` on a portrait) and `examples`, whole stories the guide can
 put in, each naming the art it uses.
 
-The **shelf** is how it is picked: the pictures of the kind the guide's
-question wants, in a row across the top of the picture card, before the field
-and the buttons — the cheapest answer and the only one that is somebody's
-actual drawing. ⚠️ Picking copies the bytes to the path the *story* expects,
+The **shelf** is how it is picked: the pictures of the kind being asked for,
+in a row that scrolls sideways — across the top of the guide's picture card,
+before the field and the buttons, and behind `Pick a picture` on the scene's
+Picture row. Two places because the guide stops asking the moment a scene has
+a picture, so without the second the set could never be used to *change* one.
+The row is the studio's reveal-in-place rule: one open at a time, and the same
+control closes it with its label flipped. ⚠️ Picking copies the bytes to the path the *story* expects,
 not to the set's own landing path, so the set says what a picture looks like
 and the story says what it is called: "Mila, worried" becomes
 `assets/sprites/ben-normal.png` when that is the face being asked for. The
@@ -1666,15 +1669,26 @@ it lands rather than through `render()`, because the card is one node kept for
 as long as its question stands. A plain `<img src>` is right for these, unlike
 a game's own files, whose routes send `no-store`.
 
-Only the guide picks from it, and only pictures: a sound has `+ Make a sound`,
-which beats a shelf of stock ones, and an example is the only thing that uses
-the set's `sound` kind today. `test/story-art.test.js` is what keeps a growing
-set honest — every entry's file present and in the folder its kind lands from,
-every licence named, a background 480×270 and a portrait square, a portrait's
-file named for its `who` and `mood`, and every example's art listed in `art`
-rather than merely present. Finding more of it — CC0 first, kid-safe, small,
-one or two styles that sit together, portraits with several moods each — is
-the TODO line that outlives this build.
+Pictures only: a sound has `+ Make a sound`, which beats a shelf of stock
+ones, and an example is the only thing that uses the set's `sound` kind today.
+
+What it holds: 33 portraits and 9 backgrounds, all CC0. The studio's own
+three-and-three from the example story, 30 animal faces by **Kenney** (the
+`Round` variant of the animal pack — one face each, no moods), and 6 pixel-art
+scenes by **Stealthix**. Two styles that do not match each other, which is a
+known compromise: the alternative was three faces.
+
+`test/story-art.test.js` is what keeps a growing set honest — every entry's
+file present and in the folder its kind lands from, every licence named, a
+portrait's file named for its `who` and `mood`, and every example's art listed
+in `art` rather than merely present. The shape rules are deliberately loose,
+because real art does not arrive at the studio's own 480×270 and 128² and the
+studio scales: a background must be landscape, and ⚠️ **a portrait must not be
+a whole multiple of its own height** — it is copied into `assets/sprites/`,
+where the sprites library reads that shape as a *strip* of square frames, so a
+2:1 portrait would animate instead of standing still with nothing in the story
+saying why. Exact squareness was the rule until real art arrived; every animal
+in the set is slightly off-square.
 
 The quiz editor grew the same read, because the authoring bug in a quiz is
 never a typo: four endings of which three are unreachable, or one a single

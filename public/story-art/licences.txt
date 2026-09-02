@@ -1,0 +1,39 @@
+The standard set: where each picture came from, and under what.
+
+Every entry in index.json carries its own `by` and `licence`, which is what
+the studio shows on the shelf and in the banner when somebody picks one. This
+file is the longer version, kept beside the art the way studio/fonts-license.txt
+is kept beside the typefaces.
+
+Everything here is CC0 — public domain, no attribution required, commercial
+use fine. Credit is given anyway, because somebody drew it.
+
+
+portraits/mila-*.png, portraits/cat-there.png
+backgrounds/porch.png, backgrounds/hall.png, backgrounds/kitchen.png
+sounds/page.wav
+  The studio's own, drawn and made for the example story. CC0.
+
+
+portraits/<animal>-normal.png  (30 files)
+  Animal Pack Remastered, by Kenney — https://kenney.nl
+  Creative Commons Zero v1.0 Universal (CC0)
+  http://creativecommons.org/publicdomain/zero/1.0/
+  "This content is free to use in personal, educational and commercial
+  projects. Support us by crediting Kenney or www.kenney.nl (this is not
+  mandatory)."
+  The `Round` variant of each animal: one face, no outline. The pack ships
+  eight variants of each; only this one is here, so the set has one style
+  rather than eight near-duplicates.
+
+
+backgrounds/beach.png, cave-entrance.png, cave-inside.png,
+backgrounds/desert.png, forest.png, dawn-sky.png
+  Various Backgrounds, by Stealthix
+  https://stealthix.itch.io/various-backgrounds
+  Creative Commons Zero v1.0 Universal (CC0)
+  "Feel free to use it however you want (CC0). Attribution is appreciated
+  but not required!"
+  Six of the twelve files in that pack: the ones that are a place a story
+  can sit in. The rest are parallax and overlay layers — two cloud strips,
+  two fogs, a loopable mountain ridge — and the pack's cover image.
