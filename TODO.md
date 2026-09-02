@@ -12,10 +12,18 @@ deliberately deferred.
   and cannot write it (ideas/api-notes.md)
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
-- the move-and-collect template, then the point-and-click adventure — each
-  with its own editor mode where one fits (ideas/templates.md). The visual
-  novel went first and settled the vocabulary they inherit: a *scene*, and
-  `set`/`need` on a *switch* rather than the `flip` the adventure sketch had
+- the move-and-collect template, with a map editor over `config/world.js`
+  where one fits (ideas/templates.md)
+- ! the point-and-click adventure template and its editor — the spot picker
+  is the editor, not a follow-up, because a helper cannot see a picture
+  (ideas/point-and-click.md)
+- ! the racing template: laps against rivals, and a track editor you draw
+  with a finger over `config/track.js` (ideas/racing-template.md)
+- ! the front page knows who you are: your best and your achievements on each
+  card, then a `/:slug/_players` page with everybody's (ideas/front-page-players.md).
+  Rung 2 also retires the personal-bests line below
+- the file editors out of the rail into the centre pane as tabs, the way the
+  story editor already is — try the smaller step first (ideas/editors-in-the-centre.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
@@ -36,8 +44,6 @@ deliberately deferred.
   template, so it only reaches new games and each existing one by hand
 - the standard set's shelf scrolls sideways past 33 faces; it wants filtering
   or a dialog rather than a strip once people start adding their own
-- the spot picker for adventures: drag a box on the open picture, it writes
-  the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see
   ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
   limit, caps) are settled and tested by the scoreboard now

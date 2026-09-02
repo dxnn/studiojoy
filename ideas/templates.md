@@ -5,7 +5,10 @@ in at creation. First three (Dann, 2026-08-28): a quiz, a point-and-click
 adventure, a top-down move-and-collect. Racing, incrementals, etc. later.
 
 **Shipped so far:** the plumbing, the quiz with its editor, and the visual
-novel with the story editor. The principle that emerged (Dann): each template
+novel with the story editor. The adventure's plan has moved to its own file,
+brought up to the story editor's vocabulary — ideas/point-and-click.md — and a
+racing template is planned beside it, ideas/racing-template.md. The
+move-and-collect sketch below still stands. The principle that emerged (Dann): each template
 deserves its own editor mode over its config heart where one fits — the quiz
 needs no helper at all. For move-and-collect that is likely a map editor over
 `config/world.js` (paint tiles on a grid); for the adventure it is the spot
