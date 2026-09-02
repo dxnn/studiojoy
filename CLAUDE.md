@@ -915,6 +915,35 @@ filter box is in `focusSnapshot`'s list beside the composer and the editor —
 every keystroke re-renders the pane it is in, so without that it would lose the
 caret on its own second character.
 
+Games can hold **achievements** now. A game *says its moments* —
+`Moments.say("level", 3)` on the line where a thing happens, a fact and not a
+request for a prize — and an achievement is a rule over a moment, written in
+`config/achievements.js`: `id` (immutable, the earned rows key on it), `name`,
+`how`, an optional `icon`, and `when` (a moment and one test: `atLeast`,
+`atMost`, `is`, `times`, or none). Two new studio libraries carry it, the fifth
+and sixth: `studio/moments.js` dispatches the moment as a `CustomEvent` on the
+window, and `studio/achievements.js` reads the rules, asks the games origin
+once what the player holds, and toasts a newly-earned one — `body :where()`
+weighting like screens, the game's `primary`/`accent` and ⚠️ never `highlight`,
+because gold stays a number. Earned rows live in the `achievements` table
+(`INSERT OR IGNORE`, ⚠️ never deleted by any route); the definitions live only
+in the game's file, read per request, so removing one hides its rows rather
+than dropping them. The games origin's third write is `/_achievements/<slug>`
+(GET lists with `got`, POST unlocks: 401 signed out, 404 for an undefined id,
+20/min/player); the studio origin's `GET /api/projects/:slug/achievements`
+counts holders for the editor. ⚠️ `server/achievements.js` is the **first
+server import from `public/`** — `parseConfigFile` (pure, no eval) and the
+shape module `public/achievement-shape.js`, which the *achievements editor*
+reads with too, so server and form cannot disagree. `config/achievements.js`
+in shape opens as that editor (a third shape-locked one beside quiz and story);
+the reporter forwards moments to the studio, painted in place under the preview
+like the problems panel, and the editor offers the names it has seen. The two
+templates say their moments out of the box (the quiz `answered`/`finished`, the
+visual novel `scene`/`switch`/`ending`), so an achievement on a template game
+needs no helper. New games hold both libraries and the empty seed; the sweep
+gives existing games the same. The achievements helper prompt and the
+"still open" items are in `ideas/achievements.md`.
+
 Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)

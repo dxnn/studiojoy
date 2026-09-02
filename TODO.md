@@ -52,11 +52,9 @@ deliberately deferred.
 - add `--scores` to `npm run deluser` so a removed player's rows leave every
   board too — today they stay, and the panel deletes per row, per game
   (ideas/scoreboard-trust.md, rung 1)
-- build achievements: the moments library the game says its moments through,
-  `config/achievements.js` as rules over them with its editor, the
-  achievements library, `/_achievements` on the games origin, the reporter
-  forwarding moments to the studio, and the helper prompt
-  (ideas/achievements.md, in its build order)
+- run the achievements helper live against a real game once, the last step of
+  the achievements build (ideas/achievements.md, "The achievements helper");
+  the rest is built and green
 - think about microhelpers: fixed-purpose helpers the studio ships rather
   than rows somebody makes — the achievements helper is the first candidate
   (ideas/achievements.md, the last section)

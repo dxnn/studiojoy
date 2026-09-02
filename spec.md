@@ -521,6 +521,35 @@ insert in the same transaction. It exists because the board keeps the best
 gone. Nothing displays it yet — the board and this are meant to be shown
 side by side later (TODO.md).
 
+### `achievements`
+
+| column | type | notes |
+|---|---|---|
+| `project_id` | INTEGER NOT NULL → projects | PK with `user_id`, `achievement` |
+| `user_id` | INTEGER NOT NULL → users | who earned it |
+| `achievement` | TEXT NOT NULL | the `id` from the game's `config/achievements.js` |
+| `created_at` | TEXT NOT NULL | when they first earned it |
+
+What a player has earned in a game, posted by the *achievements library* from
+inside the running game and served back by the games origin (§6). Like the
+scoreboard it lives here rather than in the working tree — an earned row is not
+a commit, so it spams nothing and never enters an agent's context. Unlike a
+score it is the same kind of thing as a *personal best*: `INSERT OR IGNORE` on
+the composite key, so earning one twice is a no-op, and ⚠️ **permanent** — no
+route deletes a row, no button, no per-row ✕ like the scoreboard has. The
+definitions are **not** here: they are the game's own `config/achievements.js`,
+read from the working tree per request (§6), so removing one from the file
+leaves the rows and simply shows them nowhere until the id comes back. Renaming
+an id orphans everybody's, which is why the *achievements editor* derives an id
+from the name once and never lets it change. `VACUUM INTO` backs it up with the
+chats and accounts; git cannot recover it. `npm run deluser --scores` should
+take these with it when it is built (TODO.md).
+
+⚠️ Forgeable exactly as a *score* is: the rule was met in the browser, which is
+the only witness, and a rule evaluated in game code is one anyone can satisfy
+from devtools. The server never sees a *moment* — only the unlock a rule
+produced — and accepts it for the same reason it accepts a score.
+
 ### `studio_state`
 
 Single row, `id = 1`.
@@ -696,6 +725,7 @@ email addresses to do its job.
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
 | DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
 | DELETE | `/api/projects/:slug/scores` | — | delete them all |
+| GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
 | POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
@@ -1238,6 +1268,35 @@ off-by-four it had (a rank of 11 repeated four rows already shown) was fixed.
 Signed out, the post answers 401 and the screen offers the sign-in link instead
 of a name box (§6).
 
+The **moments library** (`studio/moments.js`) is the fifth, and the smallest.
+`Moments.say("name", value)` validates the name (slug-shaped, ≤ 40) and value
+(a number, text ≤ 100, or nothing, which is `true`) and dispatches one
+`CustomEvent("moment")` on the window; anything outside the shape is one
+console warning per name and is dropped, so saying a moment every frame is
+fine. `Moments.on(name, fn)` is sugar over `addEventListener` filtered by name.
+The DOM event *is* the bus — the *reporter*, injected before any library loads,
+hears every moment without the library existing, and so can anything later
+(§8). Publishing is the game's; nothing in this library knows what an
+*achievement* is.
+
+The **achievements library** (`studio/achievements.js`) is the sixth. On load
+it reads the game's own `ACHIEVEMENTS` (from `config/achievements.js`, loaded
+before it), asks `/_achievements/<slug>` once for what this player already
+holds, and subscribes to every moment a rule names. When a rule is first met —
+or `Achievements.unlock("id")` is called — it posts the unlock and shows a
+toast: DOM like Screens, `achievements-` classes, `body :where()` weighting so
+the game's own css wins, the game's `primary`/`accent` and ⚠️ never its
+`highlight` (gold stays a number). Signed out the toast still shows with a line
+about signing in, and stores nothing; a missing file, an unknown id or a dead
+network is one console warning, never an error. `Achievements.mine()` is the
+`/_achievements` GET for a trophy screen. It **seeds** `config/achievements.js`
+(an empty list with the shape commented) the way input seeds `controls.js`, so
+every game that holds the library holds the file, and the *sweep* gives an
+existing game both new files and the empty seed. ⚠️ The library carries its own
+copy of the shape rules, because a classic script cannot import; a test runs
+that copy and the server's shared `public/achievement-shape.js` over one list
+so the two cannot drift (§16).
+
 **Copied, not shared.** The alternatives were considered and rejected on
 evidence:
 
@@ -1555,6 +1614,20 @@ for a dialog's controls the same way as for the composer.
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
 | POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in |
+| POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool}` when it counts; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
+
+The `/_achievements` routes are the origin's **third write** and sit in the
+scoreboard's posture: a plain 404 for anything that is not a game's, no cookie
+but the player's, every dimension bounded. The definitions are read from the
+game's own `config/achievements.js` on every request — parsed, never run, by
+the client's own `parseConfigFile` (§16) — so a helper's edit is live at once
+and a *fork* carries its achievements with it. The server never sees a
+*moment*, only the unlock a rule produced in the browser. Archived games keep
+handing them out; a chat is a 404. The earned rows have no route on this origin
+— no list, no delete — because earned is forever (§3). The studio side is one
+route, `GET /api/projects/:slug/achievements`, which returns each definition
+with how many players hold it, for the *achievements editor*.
 
 A game whose `scores_on` switch is off answers the same plain 404 on both
 `/_scores` routes: a moderated board is not public in either direction. The
@@ -2010,6 +2083,19 @@ settle. This is the same reason a streaming reply mutates its nodes. The panel
 is rendered whether or not the preview is folded away, because problems from
 before it was folded are still the answer to why the game is broken.
 
+The same reporter also forwards the game's **moments** — what `Moments.say()`
+dispatches on the window (§4, *moments library*). It listens for the `moment`
+event, so it hears every one without knowing the library exists, and posts the
+latest value per name a few times a second, at most fifty names a batch. The
+studio keeps them per game for the session and paints a chip per name under the
+problems panel — **in place, never through `render()`**, for the same reason the
+problems are: a moment said at startup, drawn through a render, would rebuild
+the frame, restart the game and say it again. The point of showing them is the
+*achievements editor*, which offers the names the game has been seen to say. A
+moment reaches the studio page only; it never reaches an agent's context (a
+score is the model — talk about the work, not the work), and the games origin
+never sees one, only the unlock a rule made of it (§3, §6).
+
 Two things the wrapper does not cover. A game that navigates its frame to a
 second page leaves the wrapper behind and stops reporting until it returns. And
 what the studio previews differs from what the public plays by exactly one
@@ -2263,6 +2349,10 @@ everybody else.
   24 chars, best 100 rows kept per game, `?limit=` ≤ 100, body 1 KB; posts
   10 / min / player, in-memory like the lockouts; a post a full board
   already outranks is never written.
+- Achievements: `config/achievements.js` read only up to 64 KB; per entry
+  id ≤ 40 (slug), name ≤ 60, `how` ≤ 200, icon ≤ 32 bytes (the reaction cap),
+  ≤ 50 entries; an entry outside the shape is skipped, not refused. Unlocks
+  20 / min / player, body 1 KB, in-memory like the scoreboard's.
 - Sign-up: 5 / 10 min / IP; name ≤ 100 chars and control-free, password
   6–200 chars, email ≤ 254; body 1 KB, as is `/_login`'s.
 - Player sessions: 90 days, cookie `Max-Age` and row age both.
@@ -2384,9 +2474,13 @@ Tests enforce each of these.
   is the only one, it resolves only `player_sessions`, and neither origin's
   token means anything to the other. It serves nothing but a project's own
   files, the catalog, the wrapper — that project's own `index.html` with a
-  script in front of it — and the scoreboard; its writes are scoreboard,
-  personal-best and waiting-list rows: bounded tables, never a working
-  tree. ⚠️
+  script in front of it — and the scoreboard and achievements; its writes are
+  scoreboard, personal-best, achievement and waiting-list rows: bounded
+  tables, never a working tree. ⚠️
+- An `achievements` row is never deleted by any route, and the definitions
+  behind it live only in the game's `config/achievements.js`, read per request
+  and never in a table: removing a definition hides its rows, it does not drop
+  them. ⚠️
 - A `signups` row is never an account and never deleted: only an admin's
   approval makes the account, with game access only, and a decision is
   columns on the row. ⚠️
@@ -2710,6 +2804,13 @@ server/
     static.js     extension mime table, traversal-safe serve
   reporter.js     the injected script, and the wrapper it goes into (§8)
   runtime.js      what the running game reported, per project
+  scores.js       the scoreboard: top, submit, the shared rate limiter
+  achievements.js the earned rows, and the defs read from config/achievements.js
+                  through public/config-file.js — ⚠️ the first server import from
+                  public/. parseConfigFile is pure (no eval), and the shape it
+                  reads with, public/achievement-shape.js, is the same module the
+                  achievements editor uses, so the games origin and the form
+                  cannot disagree about which entries are valid.
   files/
     paths.js      project-path validation (§4)
     tree.js       recursive listing, caps
@@ -2728,10 +2829,12 @@ public/
                   drawing and history actions, and render()
   dom.js          h(), and the icon buttons
   sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
-  dialogs.js  upload.js
+  dialogs.js  upload.js  achievements-form.js
                   one pane or feature each, importing the core from main.js
   config-file.js  patch.js  pixel-editor.js  sound-maker.js
-                  pure logic, shared with npm test
+  achievements-editor.js  achievement-shape.js  quiz-editor.js  story-editor.js
+                  pure logic, shared with npm test (achievement-shape.js also
+                  imported by the server, above)
   style.css
 bin/
   adduser.js  deluser.js  restoreuser.js  backup.js
