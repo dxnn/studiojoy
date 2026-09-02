@@ -522,7 +522,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // a helper knows what a stray extra key costs them.
   assert.match(system, /"quiz editor"/);
   assert.match(system, /"story editor"/);
-  assert.match(system, /"achievements editor"/);
+  assert.match(system, /"achievements editor", the Achievements tab in/);
   assert.match(system, /config\/story\.js/);
   assert.match(system, /config\/achievements\.js/);
   // Moments are what achievements are written over, so the preamble says where

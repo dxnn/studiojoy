@@ -17,6 +17,8 @@ import {
 } from './main.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
+import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
+import { discardAchievements, saveAchievements } from './achievements-form.js';
 
 /* Render: dialogs -------------------------------------------------------- */
 
@@ -906,6 +908,21 @@ export function dialogFor(d) {
         h('button', {
           class: 'filled', text: 'Keep mine',
           onclick: async () => { close(); await saveStory({ force: true }); },
+        })));
+  }
+
+  // The same two answers for the Achievements tab.
+  if (d.kind === 'achievements-conflict') {
+    return wrap('The achievements changed while you were editing',
+      h('p', { text: `A helper saved ${ACHIEVEMENTS_FILE} after you started. Which list do you want to keep?` }),
+      h('div', { class: 'actions' },
+        h('button', {
+          class: 'quiet', text: 'Keep theirs',
+          onclick: async () => { close(); await discardAchievements(); },
+        }),
+        h('button', {
+          class: 'filled', text: 'Keep mine',
+          onclick: async () => { close(); await saveAchievements({ force: true }); },
         })));
   }
 

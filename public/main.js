@@ -25,8 +25,10 @@ import {
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
 import { isQuizPath, quizModel } from './quiz-editor.js';
-import { isAchievementsPath, achievementsModel } from './achievements-editor.js';
-import { renderAchievementsForm } from './achievements-form.js';
+import { isAchievementsPath, ACHIEVEMENTS_FILE } from './achievements-editor.js';
+import {
+  loadAchievements, parkAchievements, achievementsChanged, renderAchievementsTab,
+} from './achievements-form.js';
 import { renderQuizForm } from './quiz-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
@@ -94,6 +96,10 @@ export const S = {
   // dirty, scene, step, person}, {grown: reason} when the file will not read
   // as a story, or null (story-form.js).
   story: null,
+  // The Achievements tab's state once it has been opened: {text, etag, model,
+  // dirty}, {grown: reason} when the file will not read as achievements, or
+  // null (achievements-form.js).
+  achievements: null,
   files: [],
   // What the game said when it ran, for the version of the files on disk now.
   errors: [],
@@ -424,10 +430,10 @@ const slugFromUrl = () => {
   return match ? match[1] : null;
 };
 
-// Three, not four: the preview the Play tab held is now the top of the rail
-// whatever is open under it. A `?tab=play` link from before falls back to
-// Files, which is where its preview is anyway.
-const RAIL_TABS = ['files', 'versions', 'scoreboard'];
+// No Play tab: the preview it held is now the top of the rail whatever is
+// open under it. A `?tab=play` link from before falls back to Files, which is
+// where its preview is anyway.
+const RAIL_TABS = ['files', 'versions', 'scoreboard', 'achievements'];
 
 // The URL is the view: which game, which tab, which file, which version — so
 // what someone is looking at is always the thing they can send to somebody
@@ -593,6 +599,10 @@ async function applyView({
     // Always refetched: scores change while nobody in the studio does
     // anything, so a cached list would be quietly wrong.
     await loadScores();
+  } else if (S.tab === 'achievements') {
+    // Read once and kept fresh by files.changed; a file that would not read
+    // is asked again, since a helper may have mended it since.
+    if (!S.achievements || S.achievements.grown) await loadAchievements();
   }
   render();
 }
@@ -745,18 +755,20 @@ export async function openProject(slug, { view = null } = {}) {
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
-  // So do unsaved story edits: parked against the game being left, put back
-  // on return while the file is still the one they were made on.
+  // So do unsaved story and achievements edits: parked against the game being
+  // left, put back on return while the file is still the one they were made on.
   parkStory();
+  parkAchievements();
 
   // Colours changed in the editor belong to the game being left, so they go in
   // before the slug does.
   await flushPalette();
 
-  // The centre pane's surface and the story editor's state are the game's;
-  // both are settled again below for the one being opened.
+  // The centre pane's surface and the two editors' state are the game's; all
+  // are settled again below for the one being opened.
   S.editor = null;
   S.story = null;
+  S.achievements = null;
   S.tryScene = null;
   dropStageImages();
 
@@ -1173,6 +1185,7 @@ function onEvent(name, data) {
         tree.then(loadReservedImages).then(render);
       }
       if (hasEditor('story') && data.paths.includes(STORY_FILE)) tree.then(storyChanged);
+      if (S.achievements && data.paths.includes(ACHIEVEMENTS_FILE)) tree.then(achievementsChanged);
       dropStageImages(data.paths);
       // A helper changing the game's colours retints the studio. Not while
       // there are unsaved ones in the editor: re-reading would throw those
@@ -3180,11 +3193,12 @@ function renderFilesTab() {
     // the reader will not touch, or you asked to see the text. Before that,
     // config/questions.js in the quiz shape opens as the quiz editor — the
     // whole game as a form — falling back through the generic form to the
-    // text as the file outgrows each reader. The story is the exception: in a
-    // game with the story editor, its file opens here as plain text and
-    // nothing else — the editor is the Story tab in the middle, and a form
+    // text as the file outgrows each reader. Two files are the exception and
+    // open here as plain text and nothing else: the story, in a game with the
+    // story editor — its editor is the Story tab in the middle — and the
+    // achievements, whose editor is the rail's own Achievements tab. A form
     // here would be a second one writing the same file.
-    const inEditor = isStoryPath(S.open.path) && hasEditor('story');
+    const inEditor = (isStoryPath(S.open.path) && hasEditor('story')) || isAchievementsPath(S.open.path);
     const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)
       : null;
@@ -3192,8 +3206,6 @@ function renderFilesTab() {
       ? quizModel(S.open.content)
       : null;
 
-    const achievements = isAchievementsPath(S.open.path) && S.open.content !== null && !S.open.asText
-      ? achievementsModel(S.open.content) : null;
     if (S.open.content === null) {
       const refused = S.drawRefused ?? S.soundRefused;
       editor.push(h('div', { class: 'editor' }, bar,
@@ -3201,8 +3213,6 @@ function renderFilesTab() {
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
     } else if (quiz?.ok) {
       editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
-    } else if (achievements?.ok) {
-      editor.push(h('div', { class: 'editor' }, bar, ...renderAchievementsForm(achievements)));
     } else if (parsed?.ok && !S.open.asText) {
       const outgrown = quiz && !quiz.ok && quiz.reason;
       editor.push(h('div', { class: 'editor' }, bar,
@@ -3233,7 +3243,12 @@ function renderFilesTab() {
           ? h('div', { class: 'pad hint muted' }, `Showing the text because ${parsed.reason}.`)
           : null,
         inEditor
-          ? h('div', { class: 'pad hint muted', text: 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.' })
+          ? h('div', {
+            class: 'pad hint muted',
+            text: isAchievementsPath(S.open.path)
+              ? 'This is the text behind the Achievements tab. Close it here to go back to editing there.'
+              : 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.',
+          })
           : null,
         /\.svg$/i.test(S.open.path) ? svgPreview(area) : null,
         codeBox(area, S.open.path),
@@ -3508,6 +3523,7 @@ function renderRail() {
         if (id === 'versions' && historyNeedsLoad(null)) await loadHistory(null);
         // Fresh every time: the public posts scores while the studio is idle.
         if (id === 'scoreboard') await loadScores();
+        if (id === 'achievements' && (!S.achievements || S.achievements.grown)) await loadAchievements();
       });
       render();
     },
@@ -3516,6 +3532,7 @@ function renderRail() {
   let body = [];
   if (S.tab === 'versions') body = renderVersionsTab();
   else if (S.tab === 'scoreboard') body = renderScoreboardTab();
+  else if (S.tab === 'achievements') body = renderAchievementsTab();
   else body = renderFilesTab();
 
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
@@ -3527,7 +3544,7 @@ function renderRail() {
       h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
       h('div', { class: 'tabs' },
         tab('files', 'Files'), tab('versions', 'Versions'),
-        tab('scoreboard', 'Scoreboard'))),
+        tab('scoreboard', 'Scoreboard'), tab('achievements', 'Achievements'))),
     ...body);
 }
 

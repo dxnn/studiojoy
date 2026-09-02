@@ -1,39 +1,163 @@
-// How config/achievements.js opens while it keeps the shape: the achievements
-// as a list, one open in its own row — name, how to get it, icon, and the
-// moment and test it waits for — no code in sight. The model reading and file
-// writing is achievements-editor.js; this is the form. Field edits regenerate
-// the file content in place without a render (a render would replace the
-// field under the fingers); opening a row, adding and removing render,
-// because the shape changed.
+// The rail's Achievements tab: config/achievements.js as a list, one open in
+// its own row — name, how to get it, icon, and the moment and test it waits
+// for — no code in sight. The model reading and file writing is
+// achievements-editor.js; this is the form, and the loading, parking and
+// saving around it, the way story-form.js holds the story's. Field edits mark
+// the state dirty in place without a render (a render would replace the field
+// under the fingers); opening a row, adding and removing render, because the
+// shape changed.
 //
 // Two things the form knows that no field can: how many players hold each
 // one, from the studio (GET /api/projects/:slug/achievements), filled in place
 // when the answer comes; and which moments the game has been heard to say
 // this session (momentsFor in main.js), offered where a rule names one.
+//
+// Its state is S.achievements: {text, etag, model, dirty, saving, stale} while
+// the file reads as achievements, {grown: reason} when it does not (missing:
+// true when the game has no such file), or null before the tab has been
+// opened. Under Files the same file opens as plain text and nothing else —
+// this tab is the one surface that writes it.
 
 import {
-  achievementsText, achievementChecks, freshId, TESTS,
+  ACHIEVEMENTS_FILE, achievementsModel, achievementsText, achievementChecks, freshId, TESTS,
 } from './achievements-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, saveOpenFile, frozen, api, momentsFor,
+  S, render, send, say, api, frozen, momentsFor, chooseFile, encodePath, refreshFiles,
+  NO_CONNECTION,
 } from './main.js';
 
-// Which row is open, for which file — a different file opens closed.
-let opened = { path: null, index: null };
-// Holders per id, per game, fetched once a file open and painted in place.
+// Which row is open, for which game — a different game opens closed.
+let opened = { slug: null, index: null };
+// Holders per id, per game, fetched once a tab open and painted in place.
 const counts = new Map(); // slug -> { players: Map(id -> n), at }
 const COUNTS_FRESH_MS = 30 * 1000;
 let countNodes = new Map(); // id -> the span showing the count
+// Unsaved edits, parked per game on the way out and put back on return while
+// the file is still the one they were made on — the story editor's bargain.
+const parked = new Map(); // slug -> { model, etag }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function commit(model) {
-  S.open.content = achievementsText(model);
-  S.open.dirty = true;
-  const save = document.getElementById('save-btn');
+/* Loading and saving --------------------------------------------------------- */
+
+// Read the file off the disk into S.achievements. Run when the tab is first
+// opened and when the file changes underneath.
+export async function loadAchievements() {
+  const slug = S.slug;
+  if (!S.files.some((f) => f.path === ACHIEVEMENTS_FILE)) {
+    S.achievements = { grown: `${ACHIEVEMENTS_FILE} is not in this game`, missing: true };
+    return;
+  }
+  const kept = parked.get(slug);
+  parked.delete(slug);
+  const res = await send(`/api/projects/${slug}/files/${encodePath(ACHIEVEMENTS_FILE)}`);
+  if (S.slug !== slug) return;
+  if (!res.ok) {
+    S.achievements = {
+      grown: res.status === 0 ? NO_CONNECTION : `the studio could not read ${ACHIEVEMENTS_FILE}`,
+    };
+    return;
+  }
+  const text = await res.text();
+  if (S.slug !== slug) return;
+  const etag = res.headers.get('etag');
+  const read = achievementsModel(text);
+  if (!read.ok) {
+    S.achievements = { grown: read.reason };
+    return;
+  }
+  if (kept && kept.etag === etag) {
+    S.achievements = { text, etag, model: kept.model, dirty: true };
+    return;
+  }
+  if (kept) {
+    say(`${ACHIEVEMENTS_FILE} changed since you were last here, so the achievements you had not saved were dropped.`, true);
+  }
+  S.achievements = { text, etag, model: { entries: read.entries }, dirty: false };
+}
+
+// Called on the way out of a game, before the slug moves.
+export function parkAchievements() {
+  const st = S.achievements;
+  if (!S.slug || !st?.model || !st.dirty) return;
+  parked.set(S.slug, { model: st.model, etag: st.etag });
+}
+
+// The file changed on disk — a helper's commit, a version brought back, a save
+// as text under Files. Re-read it, unless there is unsaved work here, in which
+// case the work stays and Save will ask before overwriting. Our own save's
+// commit arrives this way too, usually before the PUT answers: while a save is
+// in flight the answer to it is the truth, so the event is left alone.
+export function achievementsChanged() {
+  const st = S.achievements;
+  if (!st || st.saving) return;
+  if (st.model && st.dirty) {
+    st.stale = true;
+    say(`${ACHIEVEMENTS_FILE} changed while you were working on it. What you have is still here — Save will ask before overwriting.`);
+    render();
+    return;
+  }
+  loadAchievements().then(render);
+}
+
+// True when it landed. A 409 opens the conflict dialog, which comes back here
+// with force or through discardAchievements.
+export async function saveAchievements({ force = false } = {}) {
+  const st = S.achievements;
+  if (!st?.model) return false;
+  const text = achievementsText(st.model);
+  // Typed and typed back: no commit that changes nothing.
+  if (text === st.text && !force) {
+    st.dirty = false;
+    render();
+    return true;
+  }
+  const headers = { 'content-type': 'text/plain' };
+  if (!force && st.etag) headers['if-match'] = st.etag;
+  st.saving = true;
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(ACHIEVEMENTS_FILE)}`, {
+    method: 'PUT', headers, body: text,
+  });
+  const body = await res.json().catch(() => null);
+  st.saving = false;
+  if (res.status === 409) {
+    S.dialog = { kind: 'achievements-conflict' };
+    render();
+    return false;
+  }
+  if (!res.ok) {
+    say(res.status === 0 ? NO_CONNECTION : (body?.error ?? 'Could not save the achievements.'), true);
+    return false;
+  }
+  // Only the tab that asked may finish the job: the commit is a files.changed,
+  // and the game may have changed under it since.
+  if (S.achievements === st) {
+    st.etag = body.etag;
+    st.text = text;
+    st.dirty = false;
+    st.stale = false;
+  }
+  S.previewNonce += 1;
+  await refreshFiles();
+  say(`Saved ${ACHIEVEMENTS_FILE}.`);
+  return true;
+}
+
+// Keep theirs: the unsaved work goes, and the file on disk is read again.
+export async function discardAchievements() {
+  if (S.achievements) S.achievements.dirty = false;
+  await loadAchievements();
+  render();
+}
+
+/* The form ------------------------------------------------------------------- */
+
+function commit(st) {
+  st.dirty = true;
+  const save = document.getElementById('ach-save');
   if (save) save.disabled = false;
-  const status = document.getElementById('cfg-status');
+  const status = document.getElementById('ach-status');
   if (status) status.textContent = 'Not saved yet';
 }
 
@@ -63,12 +187,40 @@ async function loadCounts(slug) {
   paintCounts(slug);
 }
 
-export function renderAchievementsForm(model) {
+// The tab's body: the form, or the reason there is not one.
+export function renderAchievementsTab() {
+  const st = S.achievements;
+  const note = (...nodes) => [h('div', { class: 'pad hint muted' }, ...nodes)];
+  if (!st) return note(h('p', { text: 'Reading the achievements…' }));
+  if (st.grown) {
+    return note(
+      h('p', {
+        text: st.missing
+          ? `${st.grown} — npm run sweep gives it one.`
+          : `${ACHIEVEMENTS_FILE} has grown past the achievements editor — ${st.grown}.`,
+      }),
+      st.missing ? null : h('p', {}, h('button', {
+        class: 'link', text: 'Show the text', onclick: () => chooseFile(ACHIEVEMENTS_FILE),
+      })),
+    );
+  }
+  // One editor for the file at a time: while its text is open under Files,
+  // this one waits rather than saving over what is typed there.
+  if (S.open?.path === ACHIEVEMENTS_FILE) {
+    return note(h('p', {
+      text: `${ACHIEVEMENTS_FILE} is open as text under Files. Close it there to change the achievements here.`,
+    }));
+  }
+  return [h('div', { class: 'editor' }, ...renderAchievementsForm(st))];
+}
+
+function renderAchievementsForm(st) {
+  const { model } = st;
   const { entries } = model;
   const slug = S.slug;
   const heard = momentsFor(slug);
   const checks = achievementChecks(model, heard);
-  if (opened.path !== S.open.path) opened = { path: S.open.path, index: null };
+  if (opened.slug !== slug) opened = { slug, index: null };
   countNodes = new Map();
   loadCounts(slug);
 
@@ -82,20 +234,24 @@ export function renderAchievementsForm(model) {
   // The checks about one row, for its marker.
   const own = (a) => checks.filter((c) => c.includes(a.name ? `“${a.name}”` : 'no name yet'));
 
-  const whenRow = (a, i) => {
+  const whenRow = (a) => {
     const moment = field(a.when?.moment ?? '', 'a moment the game says', (e) => {
       const name = e.currentTarget.value.trim();
+      const had = Boolean(a.when);
       if (!name) a.when = null;
       else if (a.when) a.when.moment = name;
       else a.when = { moment: name, test: 'any', value: undefined };
-      commit(model);
+      commit(st);
+      // A rule appearing or going is a shape change: the test box beside it
+      // wakes or sleeps with it, and only a render does that.
+      if (had !== Boolean(a.when)) render();
     }, { list: 'ach-moments' });
     const test = h('select', {
       disabled: !a.when,
       onchange: (e) => {
         const key = e.currentTarget.value;
         a.when = { moment: a.when.moment, test: key, value: key === 'any' ? undefined : key === 'is' ? '' : 1 };
-        commit(model);
+        commit(st);
         render();
       },
     }, TESTS.map(([key, words]) => {
@@ -118,7 +274,7 @@ export function renderAchievementsForm(model) {
         } else {
           a.when.value = /^-?\d+(\.\d+)?$/.test(raw.trim()) ? Number(raw) : raw;
         }
-        commit(model);
+        commit(st);
       },
     });
     if (value) value.value = String(a.when.value);
@@ -155,18 +311,18 @@ export function renderAchievementsForm(model) {
             a.id = freshId(a.name, entries.filter((x) => x !== a));
             idNode.textContent = `id: ${a.id}`;
           }
-          commit(model);
+          commit(st);
         }, { maxlength: 60 })),
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: 'How to get it' }),
         field(a.how, 'What a player does to earn it, in their words', (e) => {
           a.how = e.currentTarget.value.trim();
-          commit(model);
+          commit(st);
         }, { maxlength: 200 })),
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: 'Icon' }),
-        field(a.icon, '🏆', (e) => { a.icon = e.currentTarget.value.trim(); commit(model); }, { maxlength: 8, class: 'cfg-text ach-icon-field' })),
-      whenRow(a, i),
+        field(a.icon, '🏆', (e) => { a.icon = e.currentTarget.value.trim(); commit(st); }, { maxlength: 8, class: 'cfg-text ach-icon-field' })),
+      whenRow(a),
       h('p', {
         class: 'hint muted',
         text: heard.size
@@ -186,7 +342,7 @@ export function renderAchievementsForm(model) {
               remove: () => {
                 entries.splice(i, 1);
                 opened.index = null;
-                commit(model);
+                commit(st);
               },
             };
             render();
@@ -211,24 +367,28 @@ export function renderAchievementsForm(model) {
         onclick: () => {
           entries.push({ id: '', name: '', how: '', icon: '', when: null });
           opened.index = entries.length - 1;
-          commit(model);
+          commit(st);
           render();
         },
       }),
       ...checks.map((say) => h('p', { class: 'hint warn', text: `⚠ ${say}` }))),
     h('div', { class: 'editor-bar row' },
-      h('span', {
-        class: 'hint muted', id: 'cfg-status', text: S.open.dirty ? 'Not saved yet' : 'Saved',
-      }),
+      h('span', { class: 'hint muted', id: 'ach-status', text: st.dirty ? 'Not saved yet' : 'Saved' }),
+      st.stale ? h('span', { class: 'hint warn', text: 'changed underneath — Save will ask' }) : null,
       h('div', { class: 'spacer' }),
+      // Saves first: the text opening on the Files tab is the file on disk,
+      // and what was typed here must not be a second, unsaved version of it.
       h('button', {
         class: 'link', text: 'Show the text',
-        onclick: () => { S.open.asText = true; render(); },
+        onclick: async () => {
+          if (st.dirty && !(await saveAchievements())) return;
+          await chooseFile(ACHIEVEMENTS_FILE);
+        },
       }),
       h('button', {
-        class: 'filled', id: 'save-btn', text: 'Save',
-        disabled: !S.open.dirty || frozen(),
-        onclick: () => saveOpenFile(),
+        class: 'filled', id: 'ach-save', text: 'Save',
+        disabled: !st.dirty || frozen(),
+        onclick: () => saveAchievements(),
       })),
   ];
 }

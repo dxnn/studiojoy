@@ -1518,6 +1518,10 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
   padding: 9px 11px;
   margin: 8px 0;
   display: grid;
+  /* One column that may be narrower than its content: a grid track's floor is
+     the content's width, and a long rule on the head row was pushing every
+     field under it out past the rail's edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 .ach-card.on { border-color: color-mix(in oklab, var(--primary) 65%, transparent); }
@@ -1526,8 +1530,11 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
   margin: -9px -11px; padding: 9px 11px; border-radius: var(--radius);
 }
 .ach-row:hover { background: color-mix(in oklab, var(--primary) 14%, transparent); }
-.ach-row .aname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ach-row .hint { white-space: nowrap; }
+.ach-row .aname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Squeezed, the rule gives way first and the name after it; the marker and
+   the player count never do. */
+.ach-row .hint { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 4 auto; }
+.ach-row .warn, .ach-row .ach-count { flex-shrink: 0; }
 .ach-open { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
 .ach-open .row { flex-wrap: nowrap; }
 .ach-open .cfg-text { flex: 1; min-width: 4rem; }

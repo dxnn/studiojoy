@@ -229,8 +229,9 @@ specified:
   never written back, so an existing visual novel needs its own `js/story.js`
   brought forward before its story is re-saved (§6).
 - The rail opens a file as coloured text, a config form, a pixel editor, a
-  sound editor or a media player; the centre pane opens a game type's editors
-  beside its chats (§6).
+  sound editor or a media player, and holds the **Achievements** tab — every
+  game's achievements editor, beside Scoreboard; the centre pane opens a game
+  type's editors beside its chats (§6).
 
 Open questions:
 

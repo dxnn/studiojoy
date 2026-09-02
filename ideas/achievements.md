@@ -234,6 +234,17 @@ than one somebody makes as a row.
    that was in the tree when this was decided has landed since (`f2b66d9`),
    so the tree it starts from is clean.
 
+## Where the editor lives
+
+(Dann, 2026-09-02.) The editor is the rail's **Achievements** tab beside
+Scoreboard, not how `config/achievements.js` opens under Files — every game
+has the file after the sweep, and a tab is where a kid finds it. No set-up
+button: the sweep gives a game the libraries and the seed; the `<script>`
+tags in `index.html` and the game's own `Moments.say()` calls stay a helper's
+or a person's job. Under Files the file is plain text, the story editor's
+rule. Rail rather than centre for now — ideas/editors-in-the-centre.md may
+move it later.
+
 ## For the build session
 
 - Read CLAUDE.md, then spec.md §3 (`scores`, `personal_bests` — the shape to

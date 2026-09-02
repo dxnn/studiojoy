@@ -1194,14 +1194,14 @@ database written before this already has the column, and SQLite cannot change a
 default after the fact. Chat projects stay closed — they have no working tree,
 and `open_edit` there is about who may start chats in somebody's conversation.
 
-**The rail is the preview and three tabs.** The preview is not a tab any more —
+**The rail is the preview and four tabs.** The preview is not a tab any more —
 a game is what the rail is about, so it sits at the top of it whatever is open
 underneath, with `Open` and `Hide` on the frame because both act on the running
 game. Folded, it is one row that still plays, remembered per browser. `Reload`
 is gone: a commit already reloads it, which is the sentence printed under it.
 The share URL row is gone too — `Open` opens the address it would have printed.
-What is left is **Files · Versions · Scoreboard**, and a `?tab=play` link from
-before falls back to Files, where its preview now is.
+What is left is **Files · Versions · Scoreboard · Achievements**, and a
+`?tab=play` link from before falls back to Files, where its preview now is.
 
 **A game lends the studio its four colours** — its *look* — while it is open.
 `config/look.js` is read once for both the *palette* and these; the four are
@@ -1515,6 +1515,26 @@ saving the shipped template is byte-identical (tested). A file that outgrows
 the shape — extra declarations, weights, code — falls back to the generic
 form with a reason, then to the text, and a helper can grow it freely from
 there.
+
+The **achievements editor** is the third, and the first that every game has:
+`config/achievements.js` is seeded into every game (§4), so its editor is not
+a template's but the rail's own **Achievements** tab, beside Scoreboard — the
+list of what a player can earn, one open in its own row with its name, how to
+get it, an icon and the *moment* and test it waits for; `+ Add an
+achievement`; `Take it out`, with a confirm that says how many players keep
+what they earned. Like the quiz and the story it regenerates the whole file
+with the seed's comments and is byte-identical on an untouched save; a file
+that outgrows the shape keeps its tab, which says why and offers the text.
+Under Files the file opens as plain text and nothing else — the story editor's
+rule: one surface writes it. It reads two things no field can: how many
+players hold each achievement (`GET /api/projects/:slug/achievements`),
+painted in place, and the moments the *reporter* has heard this game say this
+session (§8), offered where a rule names one and flagged where a rule names
+one never heard. Explicit Save with `if-match` and an `achievements-conflict`
+dialog on a 409; unsaved edits are parked per game the way the story's are.
+`?tab=achievements` is its address. The libraries and the seed reach an
+existing game through the *sweep*; the `<script>` tags in its `index.html`
+and its own `Moments.say()` calls stay a helper's job, as the preamble says.
 
 The **visual novel** is the second, and the one that says what a template is
 for. Its heart is `config/story.js`: `CAST` — who speaks, and their moods —
@@ -1836,7 +1856,7 @@ away, and a message refused by a dead connection stays in the composer.
 Other paths serve from `public/`.
 
 The rest of the view is in the query string, which the server never reads:
-`?tab=versions|scoreboard` — absent means Files, and a `?tab=play` link from
+`?tab=versions|scoreboard|achievements` — absent means Files, and a `?tab=play` link from
 before the Play tab was retired falls back to Files, which is where its
 preview is anyway — `?file=<path>` for the open file under Files or the filter
 under Versions, and `?version=<sha>` for the changes opened

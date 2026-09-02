@@ -85,6 +85,10 @@ open goes.
   belongs beside the version list. `patchFor` narrowing to one file keeps
   working from the open file's bar (`Show changes` opens Versions filtered).
 - **Scoreboard**: it is the rail's, and it moderates the game.
+- **Achievements** (2026-09-02): the achievements editor left the file-open
+  path for a rail tab beside Scoreboard — a list about the game, and every
+  game has one. If the file editors move to the centre, decide then whether
+  this one goes with them; it was put in the rail "for now".
 - **Upload**, **+ New file**, **+ Draw a picture**, **+ Make a sound** stay
   at the top of the tree — they make files; the file then opens in the
   centre.
