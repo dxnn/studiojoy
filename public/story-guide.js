@@ -92,6 +92,11 @@ async function artIndex() {
 // The sizes the example's own art came in: a face and a backdrop.
 const PORTRAIT = [128, 128];
 const BACKDROP = [480, 270];
+// What an uploaded picture is scaled down to fit: twice the size above, so a
+// photo stays sharp at the size the story shows it, and never the 4000 pixels
+// a phone's camera hands over — which as a PNG is tens of megabytes in the
+// game's repository and a minute of the phone's time to encode.
+const UPLOAD_FITS = { portrait: [256, 256], backdrop: [960, 540] };
 
 /* Set aside ----------------------------------------------------------------- */
 
@@ -215,16 +220,23 @@ function svgToPng(svg, width, height) {
   });
 }
 
-// Any picture from this device as a PNG at its own size — the story asks for
-// .png by name, and a JPEG saved under that name would be a lie the browser
-// happens to forgive.
-async function asPng(file) {
+// Any picture from this device as a PNG — the story asks for .png by name,
+// and a JPEG saved under that name would be a lie the browser happens to
+// forgive — scaled down to fit inside `fit` (never up), its shape kept.
+// ⚠️ Never a whole multiple of its height wider: under assets/sprites/ that
+// shape is a *strip* and the face would animate, so a picture that lands on
+// exactly 2:1 or 3:1 is made one pixel narrower.
+async function asPng(file, [maxWidth, maxHeight]) {
   const bitmap = await createImageBitmap(file).catch(() => null);
   if (!bitmap) return null;
+  const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);
+  let width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  if (width > height && width % height === 0) width -= 1;
   const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
   return new Promise((resolve) => { canvas.toBlob(resolve, 'image/png'); });
 }
@@ -426,7 +438,7 @@ function pictureCard(q) {
       const file = e.currentTarget.files[0];
       e.currentTarget.value = '';
       if (!file) return;
-      const png = await asPng(file);
+      const png = await asPng(file, q.who ? UPLOAD_FITS.portrait : UPLOAD_FITS.backdrop);
       if (!png) { say('That one will not open as a picture.', true); return; }
       await putPicture(q, png);
     },
