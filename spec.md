@@ -2894,3 +2894,130 @@ Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, and a
 scripted fake LLM client, so the suite needs no network and no API key. The
 one place a live key is required is a manual smoke script, kept out of
 `npm test`.
+
+## 17. The client
+
+One page, no framework, no build step. `render()` builds the whole tree from
+`S` and replaces it. Everything below follows from that one sentence, and
+every rule here was found by breaking it.
+
+### What a render destroys
+
+A render throws away every node, so anything the browser was keeping on one
+is gone unless it is snapshotted and put back.
+
+- **The caret and the text of whatever is being typed in.** `focusSnapshot`
+  holds the composer, the file editor and the sidebar's filter box; the box
+  loses its second character without that, because every keystroke
+  re-renders the pane it is in.
+- **Every scroller's position.** A `.scroll` container needs a `data-scroll`
+  name or it jumps to the top on the next render.
+- **The open dialog**, which is built once and re-appended as the same node,
+  never rebuilt mid-decision — a background render used to wipe what was
+  being typed into it. ⚠️
+- **The preview iframe**, which is rebuilt and so restarts the game, which
+  reports again. The problems panel and the moments panel are therefore
+  painted in place, never through `render()`, or a report renders a report. ⚠️
+
+Streamed text is painted at most once per animation frame (`paintSoon`),
+never per delta: repainting the box and forcing a reflow ~90 times a second
+grows with the trace and froze the page right at the thinking cap. The trace
+panel sticks to the newest thought unless the reader has scrolled up, and the
+elapsed line (`thinking, 2m 14s`) counts off the deltas themselves, not a
+timer. Checked at 87,000 characters of trace.
+
+### The URL is the view
+
+`?tab=`, `?file=`, `?version=`, `?chat=`, `?edit=` and `?scene=` carry what
+you are looking at, so a link sends it and a reload comes back to it. Written
+by `render()`, read by the same code on load and on Back. The server never
+looks at the query.
+
+Every view is its own entry, so Back closes a file; inside one game it does
+that without refetching the project. Three modes:
+
+| mode | when |
+|---|---|
+| push | the default: a view the reader navigated to |
+| replace | following an address that already exists, and background events — a helper's commit landing is not somewhere anybody went |
+| hold | a decision in progress, and multi-step navigation |
+
+⚠️ **The mode is held only for the duration of an `await`, so every render a
+followed URL causes has to happen inside that await.** A render that lands
+afterwards writes the wrong address as a new entry. Concretely: an `onclick`
+that opens something must return its promise all the way up — `closeOpenFile`
+firing `openFile` without returning it is what made Back toggle between the
+last two files instead of walking back through them, and `pickTab` returns
+its promise to the `onclick` for the same reason.
+
+⚠️ The same rule the other way round: **anything that reaches a view in more
+than one step wraps them in `urlAs('hold', …)`**, or each step leaves an entry
+behind. Three places do it — `All files changed (n)`, the Versions tab, and a
+file chip under a reply — and each ends with `loadDiff(sha, {goTo: true})` so
+the row it opened is the row you are looking at.
+
+The address is also held while a dialog is open: that is what stops a Back
+out of unsaved work from overwriting the entry it was going to. ⚠️ And it is
+never written while signed out, or a deep link would be gone by the time the
+sign-in form was answered.
+
+Remembering a chat needs both halves. `openProject` resolves it — `view.chat`,
+else `prefs('chat-<slug>')`, else the project's front door — and then **names
+it to `applyView`**, which reads a missing chat as "the one the project opens
+on". Without that the game appeared in the conversation you left it in and
+switched itself to `Humans only` a beat later. Back and Forward still reset,
+because there a missing `?chat=` is the address talking. `openProject`'s own
+`applyView` passes `scene: undefined` rather than null, so a sidebar click
+leaves parked story edits where the reader was while a followed address
+resets to the first scene.
+
+### Overlapping work
+
+⚠️ Opening a file is several awaits long — bytes, then for a picture a decode
+and the palette, for a sound a second read — so clicks overlap. `openFile`
+takes a token and every step after an await drops its result if a newer open
+has started; `startDrawing` and `startSound` belong to the open that called
+them. Without that, two clicks in the list left whichever request finished
+last on screen, which is how one picture ended up under another one's name.
+
+### Transport
+
+⚠️ Nothing calls `fetch` directly. `send()` does, and answers with status 0
+instead of throwing when there is no connection, so every `if (!res.ok)`
+already written covers a dead network. A failed request also sets
+`S.connected = false`, which paints a pill at the top of the window until the
+**stream** reopens — the SSE is the only thing holding a connection open, so
+it is what says whether there is one. A banner would have timed out and left
+somebody typing into a studio that could not hear them. Without it a dropped
+connection looked like a picture pane blank with nothing said, a click that
+did nothing, and a message wiped out of the composer.
+
+The composer is emptied on send but the words come back if the send fails —
+into the box if it is still empty and still that game, otherwise into that
+game's draft, never over anything newer. Nothing else in the studio holds
+something git cannot recover.
+
+### Panes
+
+- `MEDIA_KINDS` in `main.js` is the one list to extend when the studio should
+  show a new kind of file.
+- The preview reloads itself: every commit bumps `previewNonce`, which is in
+  the iframe's `src`, so a helper's write, a save or an upload all restart the
+  game. There is no Reload button.
+- ⚠️ The three reserved images are held as object URLs replaced on
+  `files.changed`, never as a `src` pointed at the file routes — those send
+  `no-store`, and a background rebuilt by every render would refetch on every
+  keystroke. `has_icon` on the project list keeps the sidebar from probing
+  every game for an icon it does not have.
+- ⚠️ `spotOf` answers null for a canvas of no size: the arithmetic gives NaN,
+  and `drawLine` walks towards NaN forever — a frozen page rather than a
+  missed stroke. See §6 for the three css rules that keep the canvas open.
+- ⚠️ The syntax overlay is a `<pre>` behind a transparent-ink textarea, so a
+  token style may change `color` only: a bold or italic glyph is a different
+  width and the overlay shears off the text.
+- ⚠️ In the story editor a button's click bubbles to the row it was in *after*
+  the button has already moved the line and rendered, so a row ignores button
+  clicks; fields still select the row in place, because a render would close
+  the select as it opened. And the story on screen stays put while a reload
+  reads the file — nulling it for a fetch let a render write the address
+  without its scene as a new entry, and the reload write it back as another.
