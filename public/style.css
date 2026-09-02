@@ -1727,6 +1727,27 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .guide.ready { flex-direction: row; align-items: center; flex-wrap: wrap; }
 .guide.ready .guide-ask { font-weight: 500; font-size: 13px; color: var(--muted); }
 
+/* The standard set's shelf: one row that scrolls sideways however many
+   pictures the set grows to, rather than a grid that pushes the buttons off
+   the bottom of the card. Empty until the index lands, and empty for good
+   when the set has nothing of this kind — an empty shelf says nothing, so it
+   takes no room. */
+.guide .guide-shelf { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+.guide .guide-shelf:empty { display: none; }
+.guide .guide-shelf .hint { white-space: nowrap; }
+.guide button.art {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-3);
+  cursor: pointer;
+  line-height: 0;
+  overflow: hidden;
+}
+.guide button.art:hover { border-color: var(--look-primary, var(--accent)); }
+.guide button.art img { height: 48px; width: auto; max-width: 96px; object-fit: cover; }
+
 /* On a phone the strip goes over the scene rather than beside it. */
 @media (max-width: 860px) {
   .story-editor { flex-direction: column; }

@@ -214,6 +214,9 @@ specified:
   one request, one answer, nothing kept, through the same two token walls a
   reply goes through and billed to whoever pressed. No message row anywhere
   (§6, §10).
+- The **standard set** (`public/story-art/`) is picked from a shelf on the
+  guide's picture card, one file one commit. Built; what it holds is still
+  only the example story's seven files, which is a TODO line (§6).
 - The rail opens a file as coloured text, a config form, a pixel editor, a
   sound editor or a media player; the centre pane opens a game type's editors
   beside its chats (§6).

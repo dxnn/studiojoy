@@ -1580,13 +1580,40 @@ first. Smaller than it, too — no tools, one request, JSON back.
 The Mila story is the **example**: *Or put in an example story* on the first
 card while the story is still empty copies its seven files in from the
 **standard set** and writes and saves the story, marking its endings as meant.
-The set's home is `public/story-art/` — pictures and sounds an author can put
-into a visual novel without drawing, listed in its `index.json` (file, kind,
-name, who made it, licence) and copied into a game when picked, backgrounds to
-`assets/images/`, portraits to `assets/sprites/`, sounds to `assets/sounds/`,
-keeping the file name. Studio-side rather than in the template tree, which is
-copied whole into every new game. Finding the rest of the set and the picker
-are step 4.
+
+#### The standard set
+
+`public/story-art/` — pictures and sounds an author can put into a visual
+novel without drawing. Studio-side rather than in the template tree, which is
+copied whole into every new game, so a set of any size would bloat every
+repository; one file is copied in when it is picked, one commit, no history
+and no link back, and a game's repository holds exactly the art it uses.
+`index.json` is the whole registry: `art` (file, kind, name, `by`, `licence`,
+and `who`/`mood` on a portrait) and `examples`, whole stories the guide can
+put in, each naming the art it uses.
+
+The **shelf** is how it is picked: the pictures of the kind the guide's
+question wants, in a row across the top of the picture card, before the field
+and the buttons — the cheapest answer and the only one that is somebody's
+actual drawing. ⚠️ Picking copies the bytes to the path the *story* expects,
+not to the set's own landing path, so the set says what a picture looks like
+and the story says what it is called: "Mila, worried" becomes
+`assets/sprites/ben-normal.png` when that is the face being asked for. The
+credit and the licence ride the banner as well as the tooltip. The index is
+read once a session and only a good read is held; the shelf is filled in when
+it lands rather than through `render()`, because the card is one node kept for
+as long as its question stands. A plain `<img src>` is right for these, unlike
+a game's own files, whose routes send `no-store`.
+
+Only the guide picks from it, and only pictures: a sound has `+ Make a sound`,
+which beats a shelf of stock ones, and an example is the only thing that uses
+the set's `sound` kind today. `test/story-art.test.js` is what keeps a growing
+set honest — every entry's file present and in the folder its kind lands from,
+every licence named, a background 480×270 and a portrait square, a portrait's
+file named for its `who` and `mood`, and every example's art listed in `art`
+rather than merely present. Finding more of it — CC0 first, kid-safe, small,
+one or two styles that sit together, portraits with several moods each — is
+the TODO line that outlives this build.
 
 The quiz editor grew the same read, because the authoring bug in a quiz is
 never a typo: four endings of which three are unreachable, or one a single

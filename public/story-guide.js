@@ -41,6 +41,20 @@ const ART = '/story-art';
 const LANDS = { backgrounds: 'assets/images', portraits: 'assets/sprites', sounds: 'assets/sounds' };
 const landing = (file) => `${LANDS[file.split('/')[0]]}/${file.split('/').pop()}`;
 
+// The set's index, read once a session and held: it is a static file shipped
+// with the studio and cannot change while it runs. Only a good read is kept,
+// so a studio that was briefly unreachable is asked again rather than being
+// remembered as having no art at all.
+let heldIndex = null;
+
+async function artIndex() {
+  if (heldIndex) return heldIndex;
+  const res = await send(`${ART}/index.json`);
+  if (!res.ok) return null;
+  heldIndex = await res.json().catch(() => null);
+  return heldIndex;
+}
+
 // The sizes the example's own art came in: a face and a backdrop.
 const PORTRAIT = [128, 128];
 const BACKDROP = [480, 270];
@@ -238,7 +252,7 @@ async function putPicture(q, body, note = null) {
 // Its endings are marked as meant, or the guide would ask about each.
 async function putInExample() {
   const st = S.story;
-  const index = await send(`${ART}/index.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const index = await artIndex();
   const example = index?.examples?.mila;
   if (!example) { say('The example story could not be read.', true); return; }
   say('Putting the example story in…');
@@ -284,6 +298,44 @@ function nameCard(q) {
     h('div', { class: 'guide-row' }, input, h('button', { class: 'filled tiny', text: 'Next', onclick: go })),
     q.later ? h('div', { class: 'row' }, later(q, q.later)) : null,
   ];
+}
+
+// The standard set's pictures of the kind this question wants, offered as a
+// shelf across the top of the card: the cheapest answer, the fastest, and the
+// only one that is somebody's actual drawing rather than a card or a few
+// shapes. Picking copies the bytes to the path the story expects — the set
+// says what a picture looks like and the story says what it is called, so a
+// portrait the set calls "Mila, happy" lands as whatever face was asked for.
+// One file, one commit, no history and no link back, like every other import.
+//
+// Filled in when the index arrives rather than through render(): the card is
+// one node kept for as long as its question stands, so painting into it is
+// safe and a background render cannot wipe it. Plain <img src> too — these
+// are static files the browser may cache, unlike a game's own, whose routes
+// send no-store and need the stage's object-URL cache.
+function artShelf(q) {
+  const want = q.who ? 'portrait' : 'background';
+  const shelf = h('div', { class: 'guide-shelf' });
+  artIndex().then((index) => {
+    const art = (index?.art ?? []).filter((a) => a.kind === want);
+    if (!art.length) return;
+    shelf.append(
+      h('span', { class: 'hint muted', text: 'Ready to use:' }),
+      ...art.map((a) => h('button', {
+        class: 'art',
+        // Who made it and under what, on the picture itself: the set is other
+        // people's work and the licence travels with it, not just with the
+        // index it was listed in.
+        title: `${a.name} — ${a.by}, ${a.licence}`,
+        onclick: async () => {
+          const res = await send(`${ART}/${a.file}`);
+          if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
+          await putPicture(q, await res.blob(), `Added ${q.path} — ${a.name}, by ${a.by} (${a.licence}).`);
+        },
+      }, h('img', { src: `${ART}/${a.file}`, alt: a.name }))),
+    );
+  });
+  return shelf;
 }
 
 function pictureCard(q) {
@@ -347,6 +399,7 @@ function pictureCard(q) {
 
   return [
     h('p', { class: 'hint muted', text: `It will be ${q.path}, ${width} by ${height}.` }),
+    artShelf(q),
     h('div', { class: 'guide-row' }, about),
     h('div', { class: 'row wrap guide-acts' },
       h('button', {

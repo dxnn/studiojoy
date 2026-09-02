@@ -20,10 +20,12 @@ deliberately deferred.
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
   and step 4 (the standard set) is the line below
-- find a standard set of characters and backgrounds for the visual novel:
-  CC0 first, kid-safe, small files, one or two styles that sit together,
-  portraits with several moods each — kept studio-side and copied into a
-  game when picked, never in the template tree (ideas/vn-builder.md §6)
+- find more art for the standard set: CC0 first, kid-safe, small files, one
+  or two styles that sit together, portraits with several moods each. The
+  shelf that picks from it is built and the only entries are the example
+  story's seven, so the guide offers three faces and three places — add to
+  `public/story-art/index.json` and `npm test` checks the shape
+  (ideas/vn-builder.md §6). The last thing that plan is waiting on
 - the spot picker for adventures: drag a box on the open picture, it writes
   the spot into config/scenes.js (ideas/templates.md)
 - networked multiplayer: a turn-based room relay on the games origin — see

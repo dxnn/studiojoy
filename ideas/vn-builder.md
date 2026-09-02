@@ -314,9 +314,10 @@ style or two that sit together, portraits with several moods each.
 
 ## Build order
 
-Steps 1–3 are built and green (the phone-width re-check from step 1 is still
-a TODO line). Step 4 is what is left; spec.md and GLOSSARY.md are the state,
-this file is the argument.
+All four steps are built and green. Two TODO lines outlive the plan: the
+phone-width re-check from step 1, and finding more art for the standard set —
+step 4 built the shelf that picks from it, not the pictures. spec.md and
+GLOSSARY.md are the state; this file is the argument.
 
 1. **Type + the editor tab + the builder.** The column and the backfill;
    `game-types.js`; the editor pill and the centre body; the strip, stage,
