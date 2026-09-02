@@ -23,6 +23,12 @@
     return node;
   };
 
+  // What the game says happened, for achievements in config/achievements.js
+  // (and the studio's own watching). A fact, never a request for a prize —
+  // "scene" on each one reached, "switch" when a choice sets one, "ending"
+  // with the scene the story stopped on.
+  const moment = (name, value) => { if (window.Moments) Moments.say(name, value); };
+
   // The stage is built once and only its contents change: rebuilding it would
   // reload the background picture on every line and make the story flicker.
   const picture = el("img", "picture");
@@ -63,6 +69,7 @@
     at = key;
     line = 0;
     waiting = false;
+    moment("scene", key);
     if (scene().sound && window.Sound) Sound.play(scene().sound);
     show();
   }
@@ -91,7 +98,7 @@
       const button = el("button", "choice", choice.say);
       button.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (choice.set) switches.add(choice.set);
+        if (choice.set) { switches.add(choice.set); moment("switch", choice.set); }
         if (SCENES[choice.go]) enter(choice.go);
         else finish();
       });
@@ -107,6 +114,10 @@
   }
 
   function finish() {
+    // The scene the story stopped on: a scene with no choices and no `go`, or
+    // a choice that led nowhere. An ending is a scene like any other, so the
+    // value is its name — Moments.say("ending", "the-good-one").
+    moment("ending", at);
     if (window.Screens) {
       Screens.title({
         name: WORDS.theEnd,

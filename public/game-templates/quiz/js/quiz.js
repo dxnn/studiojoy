@@ -10,6 +10,10 @@
   let at = -1; // -1 is the start screen
 
   const sound = (name) => { if (window.Sound) Sound.play(name); };
+  // What the game says happened, for achievements in config/achievements.js
+  // (and the studio's own watching). A fact, never a request for a prize —
+  // "answered" every pick, "finished" with the ending the player got.
+  const moment = (name, value) => { if (window.Moments) Moments.say(name, value); };
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -49,6 +53,7 @@
       pick.addEventListener("click", () => {
         tally[answer.result] = (tally[answer.result] || 0) + 1;
         sound("pick");
+        moment("answered", answer.result);
         next();
       });
       card.append(pick);
@@ -65,6 +70,7 @@
     const ending = RESULTS[best]
       || { name: "A Mystery", tell: "This quiz has no endings yet." };
     sound("tada");
+    moment("finished", best);
     const again = el("button", "big", WORDS.again);
     again.addEventListener("click", start);
     show(
