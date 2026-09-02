@@ -122,13 +122,21 @@ test('a game made from a blank page is playable straight away', async (t) => {
   assert.doesNotMatch(markup, /\{\{name\}\}/);
 
   // The page loads every library the game was born holding, the same way the
-  // quiz template's does — so a newborn game is not one tag short of Sound.
+  // quiz template's does — so a newborn game is not one tag short of Sound —
+  // except the input module: a plain page has nothing to steer, and on a
+  // phone it would draw a stick and buttons over "Nothing here yet".
   const index = JSON.parse(
     fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
   );
-  for (const library of Object.values(index.libraries)) {
-    for (const src of library.scripts) assert.ok(markup.includes(src), src);
+  for (const [name, library] of Object.entries(index.libraries)) {
+    for (const src of library.scripts) {
+      const tag = `<script src="${src}">`;
+      if (name === 'input') assert.ok(!markup.includes(tag), `no ${tag} on a blank page`);
+      else assert.ok(markup.includes(tag), tag);
+    }
   }
+  // The seed is still the game's own file, for the day a helper wires it in.
+  assert.ok(fs.existsSync(path.join(app.gamesDir, 'tank', 'config/controls.js')));
 });
 
 // Also against the real public/: templates are starter trees, and this pins

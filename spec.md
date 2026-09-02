@@ -1436,7 +1436,12 @@ page is the one thing under `game-templates/` that is not copied byte for byte
 from `index.json`, because the dialog already offers it as the empty choice.
 Read from `publicDir` like every other scaffold, so a `public/` without it
 writes nothing: that is what keeps the suite's games born empty, and what
-leaves "a game with no page" a state still worth testing.
+leaves "a game with no page" a state still worth testing. It loads every
+library the game holds **except the input module**: a plain page has no
+*control scheme* because it has nothing to steer, and on a phone `input.js`
+drew a stick and buttons over its two lines. The seed `config/controls.js` is
+still written — a game that grows controls adds the two tags, which the
+preamble already tells a helper to.
 
 `index.json` also names each template's **heart**: the file the studio opens
 the new game on, because a template with an editor of its own is made in that

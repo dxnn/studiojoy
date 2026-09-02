@@ -17,8 +17,10 @@
 <body>
 <h1>{{name}}</h1>
 <p>Nothing here yet. Ask a helper what to build.</p>
-<script src="config/controls.js"></script>
-<script src="studio/input.js"></script>
+<!-- Every library the game holds but the input module: a plain page has
+     nothing to steer, and on a phone input.js would draw a stick and buttons
+     over these two lines. A game that grows controls adds the two tags —
+     config/controls.js, then studio/input.js — where the helper is told to. -->
 <script src="studio/sound.js"></script>
 <script src="studio/sprites.js"></script>
 <script src="studio/screens.js"></script>
