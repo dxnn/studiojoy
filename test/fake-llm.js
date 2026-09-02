@@ -51,18 +51,47 @@ export function truncated({ text = '', toolName = 'write_file' } = {}) {
   return events;
 }
 
+// One whole answer, for llm.complete — the studio's own small asks, which
+// stream nothing. `text` is what the model said; the caller does its own
+// parsing, so a test can hand it a fence, a sentence first, or junk.
+export function answers(text, { tokens = 40, prompt = 200 } = {}) {
+  return { text, finish_reason: 'stop', usage: usage(tokens, prompt) };
+}
+
 // `script` is either an array of turns, consumed in order, or a function
 // (opts, turnIndex) => turn, for tests that need to branch on what they were
 // sent. Running past the end of an array yields a silent stop.
-export function createFakeLlm(script = []) {
+//
+// `completions` is the same idea for complete(): an array consumed in order,
+// or a function (opts, index) => answer. An entry that is an Error is thrown,
+// which is how the upstream-failure path is driven. Running past the end
+// answers with empty text, which every caller of complete() treats as
+// nothing usable.
+export function createFakeLlm(script = [], completions = []) {
   const calls_ = [];
+  const asked_ = [];
   let index = 0;
+  let completion = 0;
 
   return {
     // Every set of options the orchestrator passed, for asserting on context.
     calls: calls_,
+    // Every set of options complete() was passed, likewise.
+    asked: asked_,
     lastCall() {
       return calls_[calls_.length - 1];
+    },
+    lastAsked() {
+      return asked_[asked_.length - 1];
+    },
+    async complete(opts) {
+      const at = asked_.length;
+      asked_.push(opts);
+      const answer = typeof completions === 'function'
+        ? completions(opts, at)
+        : completions[completion++] ?? answers('');
+      if (answer instanceof Error) throw answer;
+      return answer;
     },
     stream(opts) {
       const turnIndex = calls_.length;

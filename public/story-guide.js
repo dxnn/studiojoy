@@ -8,12 +8,19 @@
 // steps follow; Save commits, as always. The author can ignore the card and
 // click around, and it asks again from the story as it stands.
 //
-// A picture is a file rather than a line in the model, so the three ways to
+// A picture is a file rather than a line in the model, so the four ways to
 // one commit at once: Draw opens a blank one in the rail, Upload takes any
-// picture from this device and saves it as the PNG the story expects, and a
-// plain card — the stand-in — is drawn here in the game's colours with the
-// name on it. The card costs nothing and never fails, which is what keeps a
-// story from getting stuck on art (ideas/vn-builder.md §4, §5).
+// picture from this device and saves it as the PNG the story expects, *Make
+// one for me* asks the studio to draw a flat one, and a plain card — the
+// stand-in's first rung — is drawn here in the game's colours with the name
+// on it. The card costs nothing and never fails, which is what keeps a story
+// from getting stuck on art, and it is where the asked-for one falls back to
+// (ideas/vn-builder.md §4, §5).
+//
+// Two buttons ask the studio itself: *Fill it in for me* turns a sentence
+// about what happens into lines, and *Make one for me* draws. Neither is a
+// helper — no chat, no message, nothing kept — and the words for both stay
+// the buttons' own: the guide never says "prompt" or "model".
 //
 // The card is built once per question and re-appended by every later render,
 // like a dialog: a background render — a helper's reply landing — must not
@@ -24,7 +31,7 @@ import {
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, prefs, say, send, createPictureAt,
+  S, render, prefs, say, send, api, loadMe, createPictureAt,
 } from './main.js';
 import { writeFiles } from './upload.js';
 import { storyEdited, selectScene, saveStory } from './story-form.js';
@@ -117,6 +124,49 @@ function plainCard({ width, height, label, face }) {
   return new Promise((resolve) => { canvas.toBlob(resolve, 'image/png'); });
 }
 
+/* Asking the studio ------------------------------------------------------------ */
+
+// One small ask, and the card goes quiet while it is out: these cost tokens,
+// and a button that still looks pressable is a button somebody presses twice.
+// The card is one node kept across renders, so disabling in place is safe —
+// nothing rebuilds it underneath. The allowance is re-read afterwards for the
+// same reason a reply re-reads it: it was your own day that was spent.
+// The whole answer comes back, status and all: the two callers want different
+// things from a failure — a refusal is not the same as an answer that turned
+// out not to be a picture — and only one of them can say which.
+async function asked(from, what, body) {
+  const box = from.closest('.guide');
+  const fields = [...box.querySelectorAll('button, input, textarea, select')]
+    .filter((el) => !el.disabled);
+  for (const el of fields) el.disabled = true;
+  const res = await api('POST', `/api/projects/${S.slug}/story/${what}`, body);
+  for (const el of fields) el.disabled = false;
+  if (S.me?.daily_tokens) loadMe();
+  if (!res.ok) say(res.body?.error ?? 'The studio could not do that just now.', true);
+  return res;
+}
+
+// What came back, drawn. An <img> is where an SVG runs no scripts and loads
+// nothing, which is what makes a picture nobody has read safe to draw at all
+// — the same probe the .svg editor paints unsaved text through. ⚠️ The probe
+// is given the size it should be: an SVG carrying only a viewBox has no
+// intrinsic size, and left to itself it draws as nothing. Null for anything
+// that will not load, which is the plain card's cue.
+function svgToPng(svg, width, height) {
+  return new Promise((resolve) => {
+    const probe = new Image(width, height);
+    probe.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(probe, 0, 0, width, height);
+      canvas.toBlob(resolve, 'image/png');
+    };
+    probe.onerror = () => resolve(null);
+    probe.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+}
+
 // Any picture from this device as a PNG at its own size — the story asks for
 // .png by name, and a JPEG saved under that name would be a lie the browser
 // happens to forgive.
@@ -169,11 +219,15 @@ function placed(q) {
   }
 }
 
-async function putPicture(q, body) {
+// `note` replaces the banner when the picture is not simply the one that was
+// asked for — a plain card standing in for a drawing that would not draw. The
+// file did land, so it is not a failure, only a different answer than the one
+// the button promised.
+async function putPicture(q, body, note = null) {
   placed(q);
   const { failure } = await writeFiles([{ path: q.path, body }]);
   if (failure) say(failure, true);
-  else say(`Added ${q.path}.`);
+  else say(note ?? `Added ${q.path}.`);
   render();
 }
 
@@ -236,6 +290,26 @@ function pictureCard(q) {
   const person = q.who ? model().cast.find((p) => p.key === q.who) : null;
   const label = person ? (person.name || person.key) : q.scene;
   const [width, height] = q.who ? PORTRAIT : BACKDROP;
+  const plain = () => plainCard({ width, height, label, face: Boolean(q.who) });
+
+  // Where the description is kept: the `about` key the game never reads,
+  // on the person for a face and on the scene for a place. Resolved on use
+  // rather than held, because a reload replaces the model underneath a card
+  // that outlives it. Typing here is a story edit like any other — Save
+  // commits it — and the fill reads the same line.
+  const holder = () => (q.who
+    ? model().cast.find((p) => p.key === q.who)
+    : sceneOf(q.scene));
+  const about = field('story-guide-about', q.who ? 'What they look like' : 'What it looks like', {
+    oninput: (e) => {
+      const on = holder();
+      if (!on) return;
+      on.about = e.currentTarget.value;
+      storyEdited();
+    },
+  });
+  about.value = holder()?.about ?? '';
+
   const picker = h('input', {
     type: 'file', accept: 'image/*', hidden: true,
     onchange: async (e) => {
@@ -247,8 +321,33 @@ function pictureCard(q) {
       await putPicture(q, png);
     },
   });
+  // Asked for, drawn, and saved as the PNG the story already expects — so the
+  // pixel editor opens it like any other picture and drawing over it is the
+  // next thing, not a fresh start. Anything that will not draw falls back to
+  // the card, which is the whole point of having a rung below this one.
+  const makeOne = async (from) => {
+    const st = S.story;
+    const res = await asked(from, 'picture', {
+      kind: q.who ? 'portrait' : 'background',
+      name: label,
+      about: about.value.trim(),
+      colours: ['primary', 'accent', 'deep'].map((role) => S.look[role]).filter(Boolean),
+    });
+    if (S.story !== st) return;
+    const png = res.ok ? await svgToPng(res.body.svg, res.body.width, res.body.height) : null;
+    if (png) { await putPicture(q, png); return; }
+    // The studio answered and the answer was not a picture — the card stands
+    // in, which is the whole reason there is a rung below this one. A refusal
+    // (not yours to change, out of tokens, no connection) writes nothing: its
+    // banner already says why, and a card nobody asked for would bury it.
+    if (res.ok || res.status === 502) {
+      await putPicture(q, await plain(), 'A plain card for now — what came back would not draw.');
+    }
+  };
+
   return [
     h('p', { class: 'hint muted', text: `It will be ${q.path}, ${width} by ${height}.` }),
+    h('div', { class: 'guide-row' }, about),
     h('div', { class: 'row wrap guide-acts' },
       h('button', {
         class: 'filled tiny', text: 'Draw it', title: 'A blank picture, opened on the right to draw on',
@@ -257,13 +356,16 @@ function pictureCard(q) {
           if (await createPictureAt(q.path, width, height)) render();
         },
       }),
+      h('button', {
+        class: 'quiet tiny', text: 'Make one for me',
+        title: 'The studio draws a simple one from what you said, to change or draw over later',
+        onclick: (e) => makeOne(e.currentTarget),
+      }),
       h('button', { class: 'quiet tiny', text: 'Upload one', onclick: () => picker.click() }),
       h('button', {
         class: 'quiet tiny', text: 'A plain card for now',
         title: 'A card in the game\'s colours with the name on it, until there is a real picture',
-        onclick: async () => putPicture(q, await plainCard({
-          width, height, label, face: Boolean(q.who),
-        })),
+        onclick: async () => putPicture(q, await plain()),
       }),
       later(q),
       picker),
@@ -279,23 +381,61 @@ function linesCard(q) {
     class: 'cfg-text', id: 'story-guide-lines', rows: '3',
     placeholder: 'One line each. Press Enter for the next line.',
   });
-  const add = () => {
-    const said = area.value.split('\n').map((s) => s.trim()).filter(Boolean);
+
+  // A mood belongs to whoever is speaking, and the guide has only ever made
+  // one — a line said in a mood its speaker does not have is a check the
+  // story editor would flag straight back.
+  const moodFor = (key) => (key ? (model().cast.find((p) => p.key === key)?.moods[0] ?? '') : '');
+  const said = (lines) => {
     const scene = sceneOf(q.scene);
-    if (!said.length || !scene) return;
-    const key = who?.value ?? '';
-    const mood = key ? (cast.find((p) => p.key === key)?.moods[0] ?? '') : '';
-    scene.lines.push(...said.map((say) => ({ who: key, mood, say })));
+    if (!lines.length || !scene) return;
+    scene.lines.push(...lines);
     storyEdited();
     selectScene(q.scene, scene.lines.length - 1);
     render();
   };
+
+  const add = () => {
+    const key = who?.value ?? '';
+    const mood = moodFor(key);
+    said(area.value.split('\n').map((s) => s.trim()).filter(Boolean)
+      .map((say) => ({ who: key, mood, say })));
+  };
+
+  // The sentence is about what happens, not what anybody says: it goes into
+  // the ask and nowhere else. What comes back is lines in the story's own
+  // keys, put in where typed ones would go — to change, reorder or delete,
+  // and committed by Save like everything else.
+  const what = field('story-guide-what', 'Or say what happens here, in a few words');
+  const fill = async (from) => {
+    const sentence = what.value.trim();
+    const scene = sceneOf(q.scene);
+    if (!sentence || !scene) return;
+    const st = S.story;
+    const res = await asked(from, 'fill', {
+      sentence,
+      scene: { key: scene.key, about: scene.about },
+      cast: model().cast.map((p) => ({ key: p.key, name: p.name, about: p.about })),
+      lines: scene.lines.map((l) => ({ who: l.who, say: l.say })),
+    });
+    if (!res.ok || S.story !== st) return;
+    said(res.body.lines.map((l) => ({ who: l.who, mood: moodFor(l.who), say: l.say })));
+  };
+  what.addEventListener('keydown', onEnter(() => fill(what)));
+
   return [
     who ? h('div', { class: 'guide-row' }, who) : null,
     area,
     h('div', { class: 'row wrap guide-acts' },
       h('button', { class: 'filled tiny', text: 'Add these lines', onclick: add }),
       later(q)),
+    h('div', { class: 'guide-row' },
+      what,
+      h('button', {
+        class: 'quiet tiny', text: 'Fill it in for me',
+        title: 'The studio writes the lines from what you said, to change or delete',
+        onclick: (e) => fill(e.currentTarget),
+      })),
   ];
 }
 

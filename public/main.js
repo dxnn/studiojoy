@@ -656,7 +656,7 @@ export async function loadAgents() {
 // carries what you may spend in a day and what you have spent of it, so the
 // warning under a reply is drawn from your own row and never from anybody
 // else's — an allowance is not a thing to show the room.
-async function loadMe() {
+export async function loadMe() {
   const res = await api('GET', '/api/me');
   if (res.ok) S.me = res.body;
 }

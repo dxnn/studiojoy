@@ -413,3 +413,78 @@ test('a stalled stream aborts with a legible error', async () => {
     },
   );
 });
+
+/* complete() — the whole answer at once, for the studio's own small asks ----- */
+
+function jsonFetch(payload, { status = 200 } = {}) {
+  const calls = [];
+  const impl = async (url, init) => {
+    calls.push({ url, init, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify(payload), {
+      status, headers: { 'content-type': 'application/json' },
+    });
+  };
+  impl.calls = calls;
+  return impl;
+}
+
+const said = (content, usage = null) => ({
+  choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+  ...(usage ? { usage } : {}),
+});
+
+test('complete asks for one whole answer and hands back its text and usage', async () => {
+  const usage = { prompt_tokens: 200, prompt_cache_miss_tokens: 200, completion_tokens: 40 };
+  const fetchImpl = jsonFetch(said('{"lines": []}', usage));
+  const answer = await createDeepSeek({ apiKey: 'k', fetchImpl }).complete({
+    system: 'be brief',
+    messages: [{ role: 'user', content: 'hello' }],
+    maxTokens: 1024,
+  });
+
+  assert.equal(answer.text, '{"lines": []}');
+  assert.equal(answer.finish_reason, 'stop');
+  assert.equal(tokensCharged(answer.usage), 240);
+
+  const { body } = fetchImpl.calls[0];
+  assert.equal(body.stream, false);
+  assert.equal(body.max_tokens, 1024);
+  // Thinking off by default: these have nothing to show while they wait, and
+  // a trace would be the whole of what they cost (spec.md §14).
+  assert.equal(body.reasoning_effort, 'none');
+  assert.equal('tools' in body, false);
+  assert.equal('stream_options' in body, false);
+  assert.deepEqual(body.messages[0], { role: 'system', content: 'be brief' });
+});
+
+test('complete clamps max_tokens and surfaces an upstream error as an LlmError', async () => {
+  const ok = jsonFetch(said('hi'));
+  await createDeepSeek({ apiKey: 'k', fetchImpl: ok }).complete({
+    messages: [{ role: 'user', content: 'x' }],
+    maxTokens: 999_999,
+  });
+  assert.equal(ok.calls[0].body.max_tokens, MAX_OUTPUT_TOKENS);
+
+  const bad = jsonFetch({ error: { message: 'nope', type: 'invalid_request_error' } }, { status: 400 });
+  await assert.rejects(
+    createDeepSeek({ apiKey: 'k', fetchImpl: bad }).complete({
+      messages: [{ role: 'user', content: 'x' }],
+    }),
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.equal(err.status, 400);
+      assert.match(err.message, /nope/);
+      return true;
+    },
+  );
+});
+
+test('complete answers with empty text rather than throwing on an empty choice', async () => {
+  const fetchImpl = jsonFetch({ choices: [] });
+  const answer = await createDeepSeek({ apiKey: 'k', fetchImpl }).complete({
+    messages: [{ role: 'user', content: 'x' }],
+  });
+  assert.equal(answer.text, '');
+  assert.equal(answer.usage, null);
+  assert.equal(tokensCharged(answer.usage), 0);
+});

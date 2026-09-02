@@ -232,6 +232,10 @@ function studioPreamble({
       'and a picture is asked for by the name the story gives it: a scene\'s is its picture path under',
       'assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played',
       'and css/style.css how it looks; a request about what happens is config/story.js alone.',
+      'The editor walks the person through the story a question at a time, and each question offers',
+      '"Fill it in for me", which writes the lines of a scene from a sentence about what happens, and',
+      '"Make one for me", which draws a simple picture at the name the story expects. So somebody stuck',
+      'for words or for art has a button for it, and neither one needs you.',
     );
   }
   lines.push(

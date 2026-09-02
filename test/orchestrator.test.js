@@ -576,6 +576,10 @@ test('a visual novel tells its helpers what the story file is', async (t) => {
   assert.match(system, /"story editor", the Story tab beside this chat/);
   assert.match(system, /assets\/sprites\/<who>-<mood>\.png/);
   assert.match(system, /a request about what happens is config\/story\.js alone/);
+  // The guide's two buttons, by the words on them: a person stuck for words
+  // or for art has one, and a helper that has not been told cannot offer it.
+  assert.match(system, /"Fill it in for me"/);
+  assert.match(system, /"Make one for me"/);
 });
 
 // DeepSeek re-bills the chain's accumulated reasoning on every continuation

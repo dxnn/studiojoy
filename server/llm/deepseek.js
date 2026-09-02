@@ -101,7 +101,74 @@ export function createDeepSeek({
 }) {
   if (!apiKey) throw new Error('createDeepSeek requires an apiKey');
 
+  // A whole request with a whole answer, for the studio's own small asks —
+  // the fill and the stand-in maker (spec.md §6). No tools, no trace, no
+  // events: they have nothing to show while they wait and nothing to do with
+  // half an answer, so the streaming machinery above would be all cost.
+  // Same key, same errors, same idle guard, and the usage is charged the way
+  // a fire's is.
+  //
+  // ⚠️ JSON is asked for in the prompt and parsed by the caller, not
+  // requested through `response_format`: §14 measured what this API does and
+  // that was never one of the things measured. Asking for it would be a
+  // guess, and a guess that fails open — an unknown parameter is ignored
+  // silently — so the defensive parse would be needed either way.
+  async function complete({
+    model = MODEL_IDS[0],
+    system = null,
+    messages,
+    thinking = 'none',
+    maxTokens = 1024,
+  }) {
+    const body = {
+      model,
+      messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
+      stream: false,
+      max_tokens: Math.min(maxTokens, MAX_OUTPUT_TOKENS),
+    };
+    if (thinking !== 'full') body.reasoning_effort = thinking;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), idleMs);
+    timer.unref?.();
+
+    let res;
+    try {
+      res = await fetchImpl(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      if (controller.signal.aborted) {
+        throw new LlmError(`deepseek did not answer within ${idleMs / 1000}s`);
+      }
+      throw new LlmError(`deepseek request failed: ${err.message}`);
+    }
+
+    try {
+      if (!res.ok) throw await readError(res);
+      const payload = await res.json().catch(() => null);
+      if (!payload) throw new LlmError('deepseek returned no answer');
+      const choice = payload.choices?.[0];
+      return {
+        text: choice?.message?.content ?? '',
+        finish_reason: choice?.finish_reason ?? null,
+        usage: payload.usage ?? null,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   return {
+    complete,
+
     async *stream({
       model = MODEL_IDS[0],
       system = null,
