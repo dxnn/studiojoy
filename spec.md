@@ -151,7 +151,6 @@ account by hand in the panel.
 | `description` | TEXT NOT NULL | system prompt, appended to the studio preamble; ≤ 8 KB |
 | `model` | TEXT NOT NULL DEFAULT `'deepseek-v4-flash'` | `deepseek-v4-flash` or `deepseek-v4-pro` (§14) |
 | `thinking` | TEXT NOT NULL DEFAULT `'low'` | **thinking level**: `full`, `low`, `none` (§14) |
-| `reasoning` | INTEGER NOT NULL DEFAULT 1 | ⚠️ what `thinking` replaced. Written to keep a rollback honest, never read |
 | `file_tools` | INTEGER NOT NULL DEFAULT 1 | may the agent write files |
 | `created_by` | INTEGER NOT NULL → users | display only; confers no ownership |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | soft delete |
@@ -165,6 +164,12 @@ applied to agents as well as projects.
 unlike `new-y`, names are unique, so an `@mention` resolves to exactly one
 agent. Soft delete (rather than hard) because `messages.agent_id` must keep
 resolving so old chat history still renders the agent's name.
+
+`thinking` replaced a `reasoning` boolean, which the migration backfills from
+and then drops. It was kept written-but-unread for a while so a rollback would
+find something true in it; one bit cannot hold three states, so `low` — the
+default, and the level that writes files where full effort writes none (§14) —
+came back as `full`, which is the failure the levels exist to prevent.
 
 `file_tools` is a genuine per-agent switch rather than a model capability
 gate — both DeepSeek models support function calling (§14). An agent with

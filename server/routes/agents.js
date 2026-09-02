@@ -82,17 +82,14 @@ export function agentRoutes(r) {
       .get(name);
     if (clash) throw new HttpError(409, `an agent named '${name}' already exists`);
 
-    // `reasoning` is written and never read: it is the column a build from
-    // before three thinking levels would look at, and keeping it in step is
-    // what makes a rollback land on its feet (see db.js).
     const info = ctx.db
       .prepare(
         `INSERT INTO agents
-           (name, description, model, thinking, reasoning, file_tools, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (name, description, model, thinking, file_tools, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        name, description, model, thinking, thinking === 'none' ? 0 : 1, fileTools ? 1 : 0,
+        name, description, model, thinking, fileTools ? 1 : 0,
         user.id, new Date().toISOString(),
       );
     json(ctx.res, 201, agentPublic(liveAgent(ctx.db, info.lastInsertRowid)));
@@ -127,13 +124,11 @@ export function agentRoutes(r) {
     ctx.db
       .prepare(
         `UPDATE agents
-            SET name = ?, description = ?, model = ?, thinking = ?, reasoning = ?,
-                file_tools = ?
+            SET name = ?, description = ?, model = ?, thinking = ?, file_tools = ?
           WHERE id = ?`,
       )
       .run(
-        next.name, next.description, next.model,
-        next.thinking, next.thinking === 'none' ? 0 : 1,
+        next.name, next.description, next.model, next.thinking,
         next.file_tools ? 1 : 0, agent.id,
       );
     json(ctx.res, 200, agentPublic(liveAgent(ctx.db, agent.id)));

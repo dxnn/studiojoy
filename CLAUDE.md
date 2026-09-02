@@ -223,12 +223,12 @@ specified:
 
 Open questions:
 
-- `agents.reasoning` is still written and never read — the thinking level
-  replaced it. Droppable now that it has stuck.
 - Touch schemes and the story editor are browser-checked at phone width but
   have never been felt on a real phone. Both are TODO lines.
-- spec.md §16 still says signup, reactions and per-user permissions are
-  "absent on purpose". All three shipped.
+- Whether anybody has a `daily_tokens` allowance set has not been checked on
+  the live studio. A measured reply averages ~40 K tokens and the worst seen
+  was 116 K, so the 5 M studio-wide default is ~125 replies a day — an outer
+  wall, and the only one in use if the allowances are all null.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
 - Deferred by choice: spec.md §15. Typing previews are permanently out (§2).

@@ -29,7 +29,6 @@ const MIGRATIONS = [
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     model TEXT NOT NULL DEFAULT 'deepseek-v4-flash',
-    reasoning INTEGER NOT NULL DEFAULT 1,
     thinking TEXT NOT NULL DEFAULT 'low',
     file_tools INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER NOT NULL REFERENCES users,
@@ -315,13 +314,20 @@ export function openDb(dbPath) {
   // somebody chose. New ones start on 'low', which is the column default and
   // the measurement's answer (spec.md §14).
   //
-  // ⚠️ `reasoning` stays and is kept in step with this (see routes/agents.js).
-  // It is written and never read, so a build from before this one still finds
-  // a column that says the right thing. Droppable once this has stuck.
   addColumnIfMissing(db, 'agents', 'thinking', "TEXT NOT NULL DEFAULT 'low'", (d) => {
     d.prepare("UPDATE agents SET thinking = CASE reasoning WHEN 1 THEN 'full' ELSE 'none' END")
       .run();
   });
+  // The boolean `thinking` replaced, gone now that three levels have stuck.
+  // It was kept written-but-never-read so a rollback would find something
+  // true in it, and that never quite worked: one bit cannot hold three
+  // states, so 'low' — the default every new helper gets, and the level that
+  // writes files where full effort writes nothing (spec.md §14) — came back
+  // as 'full'. The net caught 'none' and inverted the case worth catching.
+  //
+  // ⚠️ After the backfill above, never before it: an old database is still
+  // reading this column to learn what its helpers were set to.
+  dropColumnIfPresent(db, 'agents', 'reasoning');
   // What one person's helpers may spend in a day. Null is no allowance of
   // their own — only the studio-wide budget, which is the outer wall either
   // way.
@@ -531,4 +537,13 @@ export function addColumnIfMissing(db, table, column, spec, onAdded) {
   if (cols.some((c) => c.name === column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${spec}`);
   onAdded?.(db);
+}
+
+// The other direction, for a column whose replacement has settled. Only safe
+// for one nothing reads: SQLite rewrites the table, so an index or a
+// constraint naming the column would go with it.
+export function dropColumnIfPresent(db, table, column) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
 }

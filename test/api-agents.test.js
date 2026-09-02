@@ -37,20 +37,6 @@ test('thinking takes the three levels and nothing else', async (t) => {
   }
 });
 
-// The old boolean column is still written so a build from before three levels
-// finds something true in it (db.js).
-test('the old reasoning column is kept in step', async (t) => {
-  const app = await studio(t);
-  const off = await makeAgent(app, { name: 'Quiet', description: 'd', thinking: 'none' });
-  const on = await makeAgent(app, { name: 'Thinker', description: 'd', thinking: 'full' });
-  const read = (id) => app.db.prepare('SELECT reasoning FROM agents WHERE id = ?').get(id).reasoning;
-  assert.equal(read(off.body.id), 0);
-  assert.equal(read(on.body.id), 1);
-
-  await app.client.json('PATCH', `/api/agents/${on.body.id}`, { body: { thinking: 'none' } });
-  assert.equal(read(on.body.id), 0);
-});
-
 test('both canonical models are accepted and nothing else is', async (t) => {
   const app = await studio(t);
   for (const model of ['deepseek-v4-flash', 'deepseek-v4-pro']) {

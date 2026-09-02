@@ -159,6 +159,10 @@ test('an agent from before three thinking levels keeps what it had', () => {
      VALUES ('a@b.c', 'x', 'Dann', ?)`,
   ).run(new Date().toISOString());
   const now = new Date().toISOString();
+  // Put the table back the way a database from before this looked — the old
+  // boolean present, the three levels not — then let the migration run again.
+  db.exec('ALTER TABLE agents DROP COLUMN thinking');
+  db.exec('ALTER TABLE agents ADD COLUMN reasoning INTEGER NOT NULL DEFAULT 1');
   const add = (name, reasoning) => db
     .prepare(
       `INSERT INTO agents (name, description, reasoning, created_by, created_at)
@@ -167,9 +171,6 @@ test('an agent from before three thinking levels keeps what it had', () => {
     .run(name, reasoning, now);
   add('Thinker', 1);
   add('Quiet', 0);
-  // Put the table back the way a database from before this looked, then let
-  // the migration run over it again.
-  db.exec('ALTER TABLE agents DROP COLUMN thinking');
   addColumnIfMissing(db, 'agents', 'thinking', "TEXT NOT NULL DEFAULT 'low'", (d) => {
     d.prepare("UPDATE agents SET thinking = CASE reasoning WHEN 1 THEN 'full' ELSE 'none' END")
       .run();
@@ -178,6 +179,16 @@ test('an agent from before three thinking levels keeps what it had', () => {
     .prepare('SELECT thinking FROM agents WHERE name = ?').get(name).thinking;
   assert.equal(thinking('Thinker'), 'full');
   assert.equal(thinking('Quiet'), 'none');
+  db.close();
+});
+
+// The backfill above is the only reader the old column ever had, so the
+// migration drops it afterwards. A fresh database never has it at all.
+test('the old reasoning column is gone once the migration has run', () => {
+  const db = openDb(':memory:');
+  const cols = db.prepare('PRAGMA table_info(agents)').all().map((c) => c.name);
+  assert.ok(!cols.includes('reasoning'));
+  assert.ok(cols.includes('thinking'));
   db.close();
 });
 
