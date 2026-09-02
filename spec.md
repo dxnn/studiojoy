@@ -632,7 +632,11 @@ followed for serving (`lstat` check).
 Chosen from the extension, not from any client claim:
 
 `.html .css .js .mjs .json .txt .md .csv .svg .png .jpg .jpeg .gif .webp .ico
-.mp3 .ogg .wav .webm .woff .woff2 .ttf`
+.mp3 .ogg .wav .m4a .aac .opus .flac .webm .woff .woff2 .ttf`
+
+The four audio types past `.wav` are what a phone or a tablet exports music
+as. Without them an uploaded track is served as an opaque download and an
+`<audio>` asked to play it gets silence with nothing said about why.
 
 Any other extension is stored normally but served as
 `application/octet-stream` with `Content-Disposition: attachment`.
@@ -869,18 +873,23 @@ gets added. A file no entry matches is described plainly with a link to save it,
 since the server already serves an unknown extension as a download (§4). Three
 choices worth naming:
 
-- **Three folders under `assets/`, by what the file is.** A sound goes to
-  `assets/sounds/`, a *strip* to `assets/sprites/`, any other picture to
-  `assets/images/`, and anything else to `assets/`. The folder is not tidiness:
-  the sound player and the sprites library resolve a plain name inside the
-  first two, so `Sound.play("laser")` and `Sprites.draw(ctx, "hero", x, y)`
-  find a file nobody had to path out — and a picture that does not move is in
+- **Four folders under `assets/`, by what the file is.** A short noise goes to
+  `assets/sounds/`, a whole track to `assets/music/`, a *strip* to
+  `assets/sprites/`, any other picture to `assets/images/`, and anything else
+  to `assets/`. The folder is not tidiness: the sound player and the sprites
+  library resolve a plain name inside the first and the third, so
+  `Sound.play("laser")` and `Sprites.draw(ctx, "hero", x, y)` find a file
+  nobody had to path out — and a picture that does not move is in
   `assets/images/`, drawn by its whole path, because it is not what that call
-  is for. The agent preamble names all three. A dropped picture is decoded
-  before the dialog opens, since only its shape can say which of the two it is;
-  the dialog then shows the path each file will take before anything is sent,
-  and one box overrules every one of them for the drop that belongs somewhere
-  else entirely.
+  is for; music likewise, since a track's ending varies. The agent preamble
+  names all four. A dropped file is **measured** before the dialog opens: a
+  picture's shape says whether it is a strip, and audio's length says whether
+  it is a noise or a tune — over ten seconds is music, which is the same kind
+  of guess as the strip test and wrong for a wav of music or a long sting. The
+  dialog then shows the path each file will take before anything is sent, and
+  one box overrules every one of them for the drop that belongs somewhere else
+  entirely. Anything that will not decode goes where the ones that cannot be
+  measured go.
 - **The filename is tidied, not trusted.** Lowercased, runs of non-alphanumerics
   to one dash, extension kept, and `checkProjectPath` validates the result
   regardless. Two files that tidy to one name are refused rather than one
@@ -1548,6 +1557,43 @@ line about them for the studio and its helpers, which the game never reads
 and the editor shows as one field on the open person or scene — and on the
 picture card, where it doubles as what to draw. Absent keys write nothing, so
 a story without them is byte-identical through a save.
+
+#### Music, and sound as a step
+
+Two ways to be heard, and the difference is whether it belongs to the scene or
+to a moment in it.
+
+**Music** is `music:` on a scene — a whole path under `assets/music/`, like
+`picture:` and unlike `sound:`, because a track arrives as whatever the file
+was and there is no one ending a bare name could be given. The player calls
+`Sound.loop(track, 0.4)` on entering a scene and stops the previous one only
+when it differs, so the same track **carries from one scene into the next
+without restarting** — the sound library already leaves a running loop alone,
+which is why this needed no library change and no sweep. Quieter than a noise,
+because people are talking over it.
+
+**A sound is a step among the lines**: an entry in `lines` that is only
+`{ sound: "page" }`, sitting wherever the noise should happen. It plays the
+moment it is passed and the story carries straight on — waiting for a tap
+would leave the box empty for a beat — and a noise written after the last
+spoken line plays as the scene is left, on the tap or the choice that leaves
+it. `isSoundStep` is the one field that tells the two kinds apart, and they
+live in one list so a noise drags in between two lines and back out again
+with the same `moveLine`.
+
+⚠️ **Scene-level `sound:` is the older shape** and meant "at the start". The
+editor reads it as a sound step in front of the lines and **never writes it
+back**, so opening an old story and saving it moves the sound into the
+timeline where it can be dragged. The template's player still plays the old
+key, so a story nobody has re-saved is unchanged — and because a template is
+the game's own code with no sweep behind it, every existing visual novel needs
+its `js/story.js` brought forward by hand or its sound goes quiet on that
+first save. There was one (`bloop-s-quest-two-the-questening`), and it was.
+
+On the stage a noise has nothing of its own to show, so `stageFor` keeps the
+words that are still on screen and names the sound beside them. The guide
+counts *said* lines (`saidIn`), so a scene holding nothing but a door slam is
+still a scene nobody has written yet.
 
 #### The two small asks
 

@@ -22,7 +22,7 @@
 
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, renameMood,
-  stageFor, leadingTo, moveLine, startAt, addScene, addPerson,
+  stageFor, leadingTo, moveLine, startAt, addScene, addPerson, isSoundStep, soundStep,
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
@@ -34,6 +34,7 @@ export const STORY_FILE = 'config/story.js';
 
 const IMAGE_DIR = 'assets/images';
 const SOUND_DIR = 'assets/sounds';
+const MUSIC_DIR = 'assets/music';
 const SPRITE_DIR = 'assets/sprites';
 
 const portraitPath = (who, mood) => `${SPRITE_DIR}/${who}-${mood}.png`;
@@ -267,13 +268,19 @@ function paintStage() {
   if (!stageNodes) return;
   const st = S.story;
   const view = (st.person ? personView(st) : stageFor(st.model, st.scene, st.step))
-    ?? { picture: '', portrait: '', who: '', say: '', choices: [], go: '', end: false };
+    ?? {
+      picture: '', portrait: '', who: '', say: '', sound: '', choices: [], go: '', end: false,
+    };
   const n = stageNodes;
   setPicture(n.picture, view.picture);
   setPicture(n.portrait, view.portrait);
   n.who.textContent = view.who;
   n.who.hidden = !view.who;
   n.say.textContent = view.say;
+  // A noise is heard, not seen — the words that are still up stay up, and
+  // this says what is playing over them.
+  n.sound.textContent = view.sound ? `♪ ${view.sound}` : '';
+  n.sound.hidden = !view.sound;
   // Through h() rather than replaceChildren, which would write a skipped
   // child as the word "null".
   n.choices.replaceChildren(...h('div', {},
@@ -291,11 +298,13 @@ function buildStage() {
   const who = h('p', { class: 'who' });
   const words = h('p', { class: 'say' });
   const choices = h('div', { class: 'choices' });
+  const sound = h('p', { class: 'heard' });
   stageNodes = {
-    picture, portrait, who, say: words, choices,
+    picture, portrait, who, say: words, sound, choices,
   };
   paintStage();
-  return h('div', { class: 'stage' }, picture, portrait, h('div', { class: 'box' }, who, words, choices));
+  return h('div', { class: 'stage' }, picture, portrait,
+    h('div', { class: 'box' }, who, words, sound, choices));
 }
 
 /* The editor ----------------------------------------------------------------- */
@@ -363,6 +372,15 @@ export function renderStoryEditor() {
     setPicture(img, path);
     return img;
   };
+  // Hear it where it stands, through the same cache the pictures use — the
+  // file routes send no-store, so a fresh <audio src> per render would refetch
+  // the whole track on every keystroke.
+  const play = (path) => h('button', {
+    class: 'icon tiny', text: '▶', title: `Play ${path.split('/').pop()}`,
+    onclick: () => {
+      imageUrl(path).then((url) => { if (url) new Audio(url).play(); });
+    },
+  });
   const go = (key) => { selectScene(key); render(); };
 
   /* The strip ---------------------------------------------------------------- */
@@ -512,40 +530,104 @@ export function renderStoryEditor() {
       scene.picture && !has.has(scene.picture)
         ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
 
-    rows.push(rowOf('sound', 'fixed',
-      h('span', { class: 'glyph', text: '♪' }),
-      h('span', { class: 'label', text: 'Sound' }),
+    // Music belongs to the whole scene the way the picture does — it keeps
+    // playing into the next scene that asks for the same track — so it is a
+    // fixed row. A sound is a moment and lives among the lines instead.
+    rows.push(rowOf('music', 'fixed',
+      h('span', { class: 'glyph', text: '♫' }),
+      h('span', { class: 'label', text: 'Music' }),
       pick(
-        [['', 'none'], ...filesUnder(SOUND_DIR, '.wav')
-          .map((p) => [p.slice(SOUND_DIR.length + 1, -4), p.slice(SOUND_DIR.length + 1)])],
-        scene.sound,
-        (e) => { scene.sound = e.currentTarget.value; touched(); render(); },
+        [['', 'none'], ...filesUnder(MUSIC_DIR).map((p) => [p, p.slice(MUSIC_DIR.length + 1)])],
+        scene.music,
+        (e) => { scene.music = e.currentTarget.value; touched(); render(); },
       ),
-      scene.sound ? h('button', {
-        class: 'icon tiny', text: '▶', title: 'Play it',
-        onclick: () => {
-          imageUrl(`${SOUND_DIR}/${scene.sound}.wav`).then((url) => { if (url) new Audio(url).play(); });
-        },
-      }) : null));
+      scene.music ? play(scene.music) : null,
+      scene.music && !has.has(scene.music)
+        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
 
-    // One row per line. Closed, it reads as the player would hear it; open,
-    // it is who, mood and the words. Rows drag into order by their handle,
-    // and ▲ ▼ are the keyboard's way.
+    // One row per step. Closed, it reads as the player would hear it; open,
+    // it is who, mood and the words — or, for a sound, which noise. Rows drag
+    // into order by their handle, and ▲ ▼ are the keyboard's way. Both kinds
+    // are one list, so a noise drags in between two lines and back out again.
+    const sounds = filesUnder(SOUND_DIR, '.wav')
+      .map((p) => p.slice(SOUND_DIR.length + 1, -4));
     let dragFrom = null;
+
+    const handleFor = (i, what) => h('span', {
+      class: 'handle', text: '≡', title: `Drag to move this ${what}`,
+      draggable: ro ? null : 'true',
+      ondragstart: (e) => {
+        dragFrom = i;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(i));
+      },
+    });
+
+    // ▲ ▼ ✕, the same three whichever kind of step it is.
+    const movesFor = (i, what) => [
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'icon tiny', text: '▲', title: `Move this ${what} up`, disabled: ro || i === 0,
+        onclick: () => { moveLine(scene, i, i - 1); st.step = i - 1; touched(); render(); },
+      }),
+      h('button', {
+        class: 'icon tiny', text: '▼', title: `Move this ${what} down`, disabled: ro || i === scene.lines.length - 1,
+        onclick: () => { moveLine(scene, i, i + 1); st.step = i + 1; touched(); render(); },
+      }),
+      h('button', {
+        class: 'icon tiny', text: '✕', title: `Remove this ${what}`, disabled: ro,
+        onclick: () => { scene.lines.splice(i, 1); st.step = 'scene'; touched(); render(); },
+      }),
+    ];
+
+    // A drop lands wherever the pointer is, so every row takes the wiring
+    // whatever it holds.
+    const draggable = (row, i) => {
+      if (ro) return row;
+      row.addEventListener('dragover', (e) => {
+        if (dragFrom === null) return;
+        e.preventDefault();
+        row.classList.add('drop');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drop'));
+      row.addEventListener('drop', (e) => {
+        if (dragFrom === null) return;
+        e.preventDefault();
+        moveLine(scene, dragFrom, i);
+        st.step = i;
+        dragFrom = null;
+        touched();
+        render();
+      });
+      return row;
+    };
+
+    // A noise, at the moment it happens. It says nothing and nobody speaks
+    // it, so the row is the sound's name and a way to hear it — and the
+    // player carries straight on past it rather than waiting for a tap.
+    const soundRow = (line, i) => {
+      const open = st.step === i;
+      const path = `${SOUND_DIR}/${line.sound}.wav`;
+      return draggable(rowOf(i, `line noise${open ? ' open' : ''}`,
+        handleFor(i, 'sound'),
+        h('span', { class: 'thumb glyph', text: '♪' }),
+        pick(
+          // No "none": a step with no sound is not a step. ✕ removes it.
+          [...new Set([line.sound, ...sounds])].map((s) => [s, s]),
+          line.sound,
+          (e) => { line.sound = e.currentTarget.value; touched(); render(); },
+        ),
+        play(path),
+        has.has(path) ? null : h('span', { class: 'hint warn', text: 'not in this game' }),
+        open ? h('div', { class: 'sub' }, ...movesFor(i, 'sound')) : null), i);
+    };
+
     const lineRow = (line, i) => {
+      if (isSoundStep(line)) return soundRow(line, i);
       const person = cast.find((p) => p.key === line.who);
       const open = st.step === i;
-      const handle = h('span', {
-        class: 'handle', text: '≡', title: 'Drag to move this line',
-        draggable: ro ? null : 'true',
-        ondragstart: (e) => {
-          dragFrom = i;
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', String(i));
-        },
-      });
       const row = rowOf(i, `line${open ? ' open' : ''}`,
-        handle,
+        handleFor(i, 'line'),
         line.who && line.mood ? thumb(portraitPath(line.who, line.mood)) : h('span', { class: 'thumb' }),
         open ? null : h('span', { class: `speaker${person ? '' : ' muted'}`, text: person ? (person.name || person.key) : (line.who || 'the story') }),
         open ? null : h('span', { class: `words${line.say ? '' : ' muted'}`, text: line.say || '…' }),
@@ -567,19 +649,7 @@ export function renderStoryEditor() {
             line.mood,
             (e) => { line.mood = e.currentTarget.value; touched(); render(); },
           ) : null,
-          h('div', { class: 'spacer' }),
-          h('button', {
-            class: 'icon tiny', text: '▲', title: 'Move this line up', disabled: ro || i === 0,
-            onclick: () => { moveLine(scene, i, i - 1); st.step = i - 1; touched(); render(); },
-          }),
-          h('button', {
-            class: 'icon tiny', text: '▼', title: 'Move this line down', disabled: ro || i === scene.lines.length - 1,
-            onclick: () => { moveLine(scene, i, i + 1); st.step = i + 1; touched(); render(); },
-          }),
-          h('button', {
-            class: 'icon tiny', text: '✕', title: 'Remove this line', disabled: ro,
-            onclick: () => { scene.lines.splice(i, 1); st.step = 'scene'; touched(); render(); },
-          })) : null,
+          ...movesFor(i, 'line')) : null,
         open ? h('div', { class: 'sub' }, (() => {
           const area = h('textarea', {
             class: 'cfg-text', id: 'story-say', rows: '2', placeholder: 'What is said', disabled: ro,
@@ -588,35 +658,34 @@ export function renderStoryEditor() {
           area.value = line.say;
           return area;
         })()) : null);
-      if (!ro) {
-        row.addEventListener('dragover', (e) => {
-          if (dragFrom === null) return;
-          e.preventDefault();
-          row.classList.add('drop');
-        });
-        row.addEventListener('dragleave', () => row.classList.remove('drop'));
-        row.addEventListener('drop', (e) => {
-          if (dragFrom === null) return;
-          e.preventDefault();
-          moveLine(scene, dragFrom, i);
-          st.step = i;
-          dragFrom = null;
-          touched();
-          render();
-        });
-      }
-      return row;
+      return draggable(row, i);
     };
     rows.push(...scene.lines.map(lineRow));
-    rows.push(h('button', {
-      class: 'quiet tiny add-line', text: '+ Add a line', disabled: ro,
-      onclick: () => {
-        scene.lines.push({ who: '', mood: '', say: '' });
-        st.step = scene.lines.length - 1;
-        touched();
-        render();
-      },
-    }));
+    rows.push(h('div', { class: 'row wrap add-line' },
+      h('button', {
+        class: 'quiet tiny', text: '+ Add a line', disabled: ro,
+        onclick: () => {
+          scene.lines.push({
+            who: '', mood: '', say: '', sound: '',
+          });
+          st.step = scene.lines.length - 1;
+          touched();
+          render();
+        },
+      }),
+      // Left out rather than disabled when the game has no sounds yet: the
+      // answer is "+ Make a sound" over on the right, and a dead button in
+      // the timeline would not say so.
+      sounds.length ? h('button', {
+        class: 'quiet tiny', text: '+ Add a sound', disabled: ro,
+        title: 'A noise at this point in the scene',
+        onclick: () => {
+          scene.lines.push(soundStep(sounds[0]));
+          st.step = scene.lines.length - 1;
+          touched();
+          render();
+        },
+      }) : null));
 
     // The exit: what happens after the last line. The three are exclusive in
     // the file, so switching empties the other two.

@@ -217,6 +217,11 @@ specified:
 - The **standard set** (`public/story-art/`) is picked from a shelf on the
   guide's picture card, one file one commit. Built; what it holds is still
   only the example story's seven files, which is a TODO line (§6).
+- A scene takes **music** (`assets/music/`, looped, carried into the next
+  scene naming the same track) and a **sound step** — a noise among the lines
+  rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is
+  never written back, so an existing visual novel needs its own `js/story.js`
+  brought forward before its story is re-saved (§6).
 - The rail opens a file as coloured text, a config form, a pixel editor, a
   sound editor or a media player; the centre pane opens a game type's editors
   beside its chats (§6).

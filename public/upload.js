@@ -19,20 +19,47 @@ import {
 // picture lands in and the way it is drawn agree.
 const ASSET_DIR = 'assets';
 export const SOUND_DIR = `${ASSET_DIR}/sounds`;
+export const MUSIC_DIR = `${ASSET_DIR}/music`;
 export const IMAGE_DIR = `${ASSET_DIR}/images`;
 export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
 
-// A dropped picture has to be decoded before its shape can say which of the
-// two folders it belongs in, so this is async and the dialog waits for it.
-// Anything that will not decode is a picture the studio cannot measure, and
-// goes where the ones it cannot animate go.
+// Where audio stops being a noise and becomes a tune. A sound effect longer
+// than this is unusual and a piece of music shorter than it is unusual, so
+// this is the line — and like the strip test below it is a guess the dialog
+// shows before anything is sent, and the folder box overrules.
+const MUSIC_SECONDS = 10;
+
+// How long a file plays, without decoding it: the metadata alone carries the
+// duration. 0 for anything the browser will not open, which sends it to
+// assets/sounds/ — the folder audio went to before there was a choice.
+// Infinity is possible for a stream and counts as music.
+function seconds(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    const done = (value) => { URL.revokeObjectURL(url); resolve(value); };
+    audio.preload = 'metadata';
+    audio.addEventListener('loadedmetadata', () => done(audio.duration || 0));
+    audio.addEventListener('error', () => done(0));
+    audio.src = url;
+  });
+}
+
+// A dropped file has to be measured before its folder can be guessed, so this
+// is async and the dialog waits for it: a picture's shape says whether it is a
+// strip, and audio's length says whether it is music. Anything that will not
+// decode is a file the studio cannot measure, and goes where the ones it
+// cannot animate or time go.
 async function uploadItems(files) {
   return Promise.all(files.map(async (file) => {
     // The three reserved images live at the root, whatever their shape says:
     // hero.png is usually wide, and wide-and-divisible is also what a strip
     // looks like. The folder box in the dialog still overrules this.
     if (RESERVED_IMAGES.includes(assetPath('', file.name))) return { file, folder: '' };
-    if (file.type?.startsWith('audio/')) return { file, folder: SOUND_DIR };
+    if (file.type?.startsWith('audio/')) {
+      const length = await seconds(file);
+      return { file, folder: length > MUSIC_SECONDS ? MUSIC_DIR : SOUND_DIR };
+    }
     if (!file.type?.startsWith('image/')) return { file, folder: ASSET_DIR };
     const bitmap = await createImageBitmap(file).catch(() => null);
     const strip = !!bitmap && bitmap.width > bitmap.height

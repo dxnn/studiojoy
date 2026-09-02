@@ -65,6 +65,35 @@
     else node.removeAttribute("src");
   }
 
+  // The track playing behind the scene, so it is only changed when it has to
+  // be. Sound.loop() leaves a loop that is already going alone, which is what
+  // lets music carry from one scene into the next without restarting; a scene
+  // asking for a different track, or for none, stops the old one first.
+  // Quieter than a sound effect, because people are talking over it.
+  let playing = "";
+
+  function setMusic(track) {
+    const want = track || "";
+    if (want === playing) return;
+    if (playing && window.Sound) Sound.stop(playing);
+    playing = want;
+    if (want && window.Sound) Sound.loop(want, 0.4);
+  }
+
+  // A line that is only { sound: "page" } is a noise rather than something to
+  // read: it plays the moment it is passed and the story carries straight on,
+  // because waiting for a tap would leave the box empty for a beat. Plays
+  // every sound from `from` up to the next thing somebody says, and answers
+  // where the reader lands — which is past the end when only noises are left.
+  function soundsFrom(from) {
+    let i = from;
+    while (i < lines().length && lines()[i].sound) {
+      if (window.Sound) Sound.play(lines()[i].sound);
+      i += 1;
+    }
+    return i;
+  }
+
   function enter(key) {
     at = key;
     line = 0;
@@ -74,7 +103,12 @@
     // End, never a blank stage.
     if (!lines().length && !(scene().choices || []).length && !scene().go) { finish(); return; }
     moment("scene", key);
+    setMusic(scene().music);
+    // The shape before a sound could happen part way through a scene, and it
+    // meant "at the start". Still played, so a story the studio has not
+    // re-saved sounds the way it always did.
     if (scene().sound && window.Sound) Sound.play(scene().sound);
+    line = soundsFrom(0);
     show();
   }
 
@@ -90,7 +124,9 @@
       : "");
 
     // What happens after the last line: choices, straight on, or the end.
-    const last = line >= lines().length - 1;
+    // Nothing left to *say* is what makes it the last one — a noise after the
+    // final line is still to come, and plays as the scene is left.
+    const last = !lines().slice(line + 1).some((l) => !l.sound);
     const offered = last ? (scene().choices || []).filter(
       (c) => !c.need || switches.has(c.need)
     ) : [];
@@ -102,6 +138,9 @@
       const button = el("button", "choice", choice.say);
       button.addEventListener("click", (e) => {
         e.stopPropagation();
+        // Any noise written after the last line happens as the scene is left,
+        // which is here as much as it is on a tap.
+        soundsFrom(line + 1);
         if (choice.set) { switches.add(choice.set); moment("switch", choice.set); }
         if (SCENES[choice.go]) enter(choice.go);
         else finish();
@@ -112,7 +151,10 @@
 
   function next() {
     if (waiting) return;
-    if (line < lines().length - 1) { line += 1; show(); return; }
+    // Where the next tap lands, playing whatever noise sits on the way. Past
+    // the end means there was nothing more to say, so the scene is over.
+    const to = soundsFrom(line + 1);
+    if (to < lines().length) { line = to; show(); return; }
     if (scene().go && SCENES[scene().go]) { enter(scene().go); return; }
     finish();
   }

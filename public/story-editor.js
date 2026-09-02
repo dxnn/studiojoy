@@ -28,6 +28,17 @@ const keysOf = (node) => node.props.map((p) => p.key).sort().join(',');
 
 const propNode = (node, key) => node.props.find((p) => p.key === key)?.node;
 
+// Every entry in a scene's `lines` is one of two things, and one field tells
+// them apart: a **sound step** has `sound` and says nothing, a said line has
+// words and no sound. Held in one list rather than two so the editor can drag
+// a noise in between two lines the way TyranoBuilder does, and so `moveLine`
+// needs to know nothing about either.
+export const isSoundStep = (line) => Boolean(line?.sound);
+
+export const soundStep = (sound) => ({
+  who: '', mood: '', say: '', sound,
+});
+
 /* Reading ------------------------------------------------------------------ */
 
 export function storyModel(text) {
@@ -66,21 +77,33 @@ export function storyModel(text) {
     // The three exits are exclusive: choices branch, go carries straight on,
     // neither is the end. A scene with both is not this shape.
     if (held.includes('choices') && held.includes('go')) return grown;
-    if (held.some((k) => !['about', 'picture', 'sound', 'lines', 'choices', 'go'].includes(k))) return grown;
+    if (held.some((k) => !['about', 'picture', 'music', 'sound', 'lines', 'choices', 'go'].includes(k))) return grown;
 
     const scene = {
       key: prop.key,
       about: str(propNode(prop.node, 'about')) ?? '',
       picture: str(propNode(prop.node, 'picture')) ?? '',
-      sound: str(propNode(prop.node, 'sound')) ?? '',
+      // A whole path, like the picture and unlike a sound: music arrives as
+      // whatever the file was — .mp3, .ogg, .m4a — so there is no one ending
+      // a bare name could be given.
+      music: str(propNode(prop.node, 'music')) ?? '',
       lines: [],
       choices: [],
       go: str(propNode(prop.node, 'go')) ?? '',
     };
+    // ⚠️ Scene-level `sound:` is the shape before a sound could happen part
+    // way through a scene, and it meant "at the start". It is read as exactly
+    // that — a sound step in front of the lines — and never written back, so
+    // opening an old story in the editor and saving it moves the sound into
+    // the timeline where it can be dragged. The template's player still plays
+    // the old key, so a story nobody has re-saved is unchanged.
+    const wasSound = str(propNode(prop.node, 'sound')) ?? '';
+    if (held.includes('sound') && wasSound === '') return grown;
     if (held.includes('about') && scene.about === '') return grown;
     if (held.includes('picture') && scene.picture === '') return grown;
-    if (held.includes('sound') && scene.sound === '') return grown;
+    if (held.includes('music') && scene.music === '') return grown;
     if (held.includes('go') && scene.go === '') return grown;
+    if (wasSound) scene.lines.push(soundStep(wasSound));
 
     const linesNode = propNode(prop.node, 'lines');
     if (linesNode) {
@@ -88,12 +111,22 @@ export function storyModel(text) {
       for (const item of linesNode.items) {
         if (item.kind !== 'object') return grown;
         const keys = keysOf(item);
+        // A sound is a step of its own among the lines, and carries nothing
+        // else: nobody speaks it and it has no mood.
+        if (keys === 'sound') {
+          const sound = str(propNode(item, 'sound'));
+          if (sound === null || sound === '') return grown;
+          scene.lines.push(soundStep(sound));
+          continue;
+        }
         if (!['say', 'mood,say,who', 'say,who'].includes(keys)) return grown;
         const say = str(propNode(item, 'say'));
         const who = str(propNode(item, 'who')) ?? '';
         const mood = str(propNode(item, 'mood')) ?? '';
         if (say === null || (keys !== 'say' && who === '')) return grown;
-        scene.lines.push({ who, mood, say });
+        scene.lines.push({
+          who, mood, say, sound: '',
+        });
       }
     }
 
@@ -134,13 +167,19 @@ const CAST_NOTE = [
 const SCENES_NOTE = [
   '// Every scene. The story starts at the first one listed.',
   '//',
-  '// A scene shows its picture, plays its sound if it has one, and says its',
-  '// lines one at a time. Then one of three things happens:',
+  '// A scene shows its picture, loops its music if it has any, and reads its',
+  '// lines from the top. Then one of three things happens:',
   '//   choices — the player picks one, and it says where to go',
   '//   go      — the story carries straight on to that scene',
   '//   neither — that is the end of the story',
   '//',
-  '// A line with no "who" is the story talking rather than a person.',
+  '// A line with no "who" is the story talking rather than a person, and a line',
+  '// that is only { sound: "page" } is a noise: it plays assets/sounds/page.wav',
+  '// and carries straight on, so put one wherever something should be heard.',
+  '//',
+  '// "music" is a whole path, like the picture. It loops behind the scene and',
+  '// keeps playing into the next scene that asks for the same track.',
+  '//',
   '// A choice can "set" a switch, and a choice that "need"s a switch is only',
   '// offered once something has set it. "about" is a line about the place for',
   '// the studio; the game never reads it.',
@@ -163,10 +202,14 @@ export function storyText({ cast, scenes }) {
     out.push(`  ${scene.key}: {`);
     if (scene.about) out.push(`    about: ${s(scene.about)},`);
     if (scene.picture) out.push(`    picture: ${s(scene.picture)},`);
-    if (scene.sound) out.push(`    sound: ${s(scene.sound)},`);
+    if (scene.music) out.push(`    music: ${s(scene.music)},`);
     if (scene.lines.length) {
       out.push('    lines: [');
       for (const line of scene.lines) {
+        if (isSoundStep(line)) {
+          out.push(`      { sound: ${s(line.sound)} },`);
+          continue;
+        }
         const parts = [];
         if (line.who) parts.push(`who: ${s(line.who)}`);
         if (line.who && line.mood) parts.push(`mood: ${s(line.mood)}`);
@@ -249,7 +292,7 @@ export function addPerson(model, name) {
 export function addScene(model, name) {
   const key = freshKey(name, model.scenes.map((s) => s.key));
   model.scenes.push({
-    key, about: '', picture: '', sound: '', lines: [], choices: [], go: '',
+    key, about: '', picture: '', music: '', lines: [], choices: [], go: '',
   });
   return key;
 }
@@ -265,7 +308,12 @@ export function sceneCalled(model, name) {
 
 // Nothing in it yet: what the template ships, and when the example is offered.
 export const emptyStory = ({ cast, scenes }) => cast.length === 0
-  && scenes.every((s) => !s.picture && !s.lines.length && !s.choices.length && !s.go);
+  && scenes.every((s) => !s.picture && !s.music && !s.lines.length
+    && !s.choices.length && !s.go);
+
+// How many of a scene's steps are somebody talking. A scene holding nothing
+// but a noise has not been written yet, so this is what the guide counts.
+export const saidIn = (scene) => scene.lines.filter((l) => !isSoundStep(l)).length;
 
 /* The guide ---------------------------------------------------------------- */
 
@@ -329,7 +377,9 @@ export function nextQuestion(model, paths = [], skipped = new Set()) {
       });
       if (q) return q;
     }
-    if (scene.lines.length === 0) {
+    // Said lines, not steps: a scene holding nothing but a door slam still
+    // needs somebody to say something.
+    if (saidIn(scene) === 0) {
       const q = ask(`lines:${scene.key}`, {
         kind: 'lines',
         scene: scene.key,
@@ -362,7 +412,7 @@ export function nextQuestion(model, paths = [], skipped = new Set()) {
     }
     // Lines and no way out. An ending looks the same, so this is asked once
     // per scene, and "the story ends here" is the answer that sets it aside.
-    if (scene.lines.length && !scene.choices.length && !scene.go) {
+    if (saidIn(scene) && !scene.choices.length && !scene.go) {
       const q = ask(`exit:${scene.key}`, {
         kind: 'exit',
         scene: scene.key,
@@ -377,17 +427,37 @@ export function nextQuestion(model, paths = [], skipped = new Set()) {
 /* The stage ---------------------------------------------------------------- */
 
 // What the player sees at one step of a scene, for the studio to draw from the
-// unsaved model. A step is 'scene', 'picture' or 'sound' — the picture alone —
+// unsaved model. A step is 'scene', 'picture' or 'music' — the picture alone —
 // a line's index — that line, with its speaker and portrait — or 'exit': the
 // last line still up, and what follows it. Null for a scene that is gone.
+//
+// A sound step has nothing of its own to show: the player is still looking at
+// the words that came before it, so those are what the stage keeps, with
+// `sound` named beside them. Anything else would blank the stage for a noise.
 export function stageFor(model, key, step) {
   const scene = model.scenes.find((s) => s.key === key);
   if (!scene) return null;
   const out = {
-    picture: scene.picture, portrait: '', who: '', say: '', choices: [], go: '', end: false,
+    picture: scene.picture,
+    portrait: '',
+    who: '',
+    say: '',
+    sound: '',
+    choices: [],
+    go: '',
+    end: false,
   };
   const at = step === 'exit' ? scene.lines.length - 1 : step;
-  const line = Number.isInteger(at) ? scene.lines[at] : null;
+  let line = Number.isInteger(at) ? scene.lines[at] : null;
+  if (line && isSoundStep(line)) {
+    out.sound = line.sound;
+    // The last thing actually said before this noise, which is what is still
+    // on screen when it plays.
+    line = null;
+    for (let i = at - 1; i >= 0; i -= 1) {
+      if (!isSoundStep(scene.lines[i])) { line = scene.lines[i]; break; }
+    }
+  }
   if (line) {
     out.say = line.say;
     const person = model.cast.find((p) => p.key === line.who);
@@ -475,10 +545,18 @@ export function storyChecks({ cast, scenes }, paths = []) {
     if (scene.picture && !has.has(scene.picture)) {
       flag(scene.key, `${scene.picture} is not in this game.`);
     }
-    if (scene.sound && !has.has(`assets/sounds/${scene.sound}.wav`)) {
-      flag(scene.key, `assets/sounds/${scene.sound}.wav is not in this game.`);
+    // Music is a whole path, so it is checked as one; a sound is a bare name
+    // under assets/sounds/, the way the sound library resolves it.
+    if (scene.music && !has.has(scene.music)) {
+      flag(scene.key, `${scene.music} is not in this game.`);
     }
     for (const line of scene.lines) {
+      if (isSoundStep(line)) {
+        if (!has.has(`assets/sounds/${line.sound}.wav`)) {
+          flag(scene.key, `assets/sounds/${line.sound}.wav is not in this game.`);
+        }
+        continue;
+      }
       if (!line.who) continue;
       if (!moodsOf.has(line.who)) {
         flag(scene.key, `${line.who} is not in the cast.`);

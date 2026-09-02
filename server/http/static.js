@@ -25,6 +25,13 @@ const MIME = {
   '.mp3': 'audio/mpeg',
   '.ogg': 'audio/ogg',
   '.wav': 'audio/wav',
+  // What a phone or a tablet exports music as. Without these an uploaded
+  // track is served as an opaque download, and a game asking an <audio> to
+  // play it gets silence with nothing said about why.
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.opus': 'audio/ogg',
+  '.flac': 'audio/flac',
   '.webm': 'video/webm',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',

@@ -9,6 +9,7 @@ import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, isStoryPath,
   renameMood, stageFor, leadingTo, moveLine, startAt,
   addPerson, addScene, sceneCalled, emptyStory, nextQuestion, wayInto, DEFAULT_MOOD,
+  isSoundStep, soundStep, saidIn,
 } from '../public/story-editor.js';
 
 const PUBLIC = new URL('../public/', import.meta.url);
@@ -89,8 +90,16 @@ test('edits round-trip, quotes, about and all', () => {
     key: 'ghost', name: 'A Néw One', about: 'Only "there" at night.', moods: [],
   });
   model.scenes.push({
-    key: 'attic', about: '', picture: '', sound: '', lines: [{ who: 'ghost', mood: '', say: 'boo' }],
-    choices: [], go: '',
+    key: 'attic',
+    about: '',
+    picture: '',
+    music: 'assets/music/attic.ogg',
+    lines: [
+      { who: 'ghost', mood: '', say: 'boo', sound: '' },
+      soundStep('page'),
+    ],
+    choices: [],
+    go: '',
   });
   model.scenes[0].choices.push({ say: 'Go up', go: 'attic', set: 'brave', need: 'saw-the-cat' });
   const again = storyModel(storyText(model));
@@ -123,8 +132,15 @@ test('the checks say what one field cannot', () => {
   const model = example();
   // A scene nothing leads to, and a mood nobody drew.
   model.scenes.push({
-    key: 'attic', about: '', picture: 'assets/images/attic.png', sound: '',
-    lines: [{ who: 'mila', mood: 'furious', say: 'Hey.' }], choices: [], go: '',
+    key: 'attic',
+    about: '',
+    picture: 'assets/images/attic.png',
+    music: 'assets/music/nobody-wrote-this.mp3',
+    lines: [{
+      who: 'mila', mood: 'furious', say: 'Hey.', sound: '',
+    }],
+    choices: [],
+    go: '',
   });
   // A choice pointing at a scene that is gone, and a switch nothing sets.
   model.scenes[0].choices[0].go = 'gone';
@@ -135,6 +151,7 @@ test('the checks say what one field cannot', () => {
   assert.ok(said.some((s) => /goes to gone, which is not a scene/.test(s)));
   assert.ok(said.some((s) => /needs the switch never_set/.test(s)));
   assert.ok(said.some((s) => /assets\/images\/attic\.png is not in this game/.test(s)));
+  assert.ok(said.some((s) => /assets\/music\/nobody-wrote-this\.mp3 is not in this game/.test(s)));
   assert.ok(said.some((s) => /mila has no mood called furious/.test(s)));
   // The first scene is where the story starts, so nothing leading to it is
   // not a problem — that one false alarm would fire on every story there is.
@@ -166,23 +183,32 @@ test('renaming a mood renames the picture and every line said in it', () => {
 // exactly what the player would see at each one.
 test('the stage shows what the player sees at each step', () => {
   const model = example();
-  // The scene itself, and its picture and sound rows: the picture alone.
-  for (const step of ['scene', 'picture', 'sound']) {
+  // The scene itself, and its picture and music rows: the picture alone.
+  for (const step of ['scene', 'picture', 'music']) {
     assert.deepEqual(stageFor(model, 'hall', step), {
-      picture: 'assets/images/hall.png', portrait: '', who: '', say: '', choices: [], go: '', end: false,
+      picture: 'assets/images/hall.png',
+      portrait: '',
+      who: '',
+      say: '',
+      sound: '',
+      choices: [],
+      go: '',
+      end: false,
     });
   }
+  // hall opens with a noise, so its said lines are 1 and 2.
   // A line: its words, its speaker's name, and the portrait the file names.
-  assert.deepEqual(stageFor(model, 'hall', 0), {
+  assert.deepEqual(stageFor(model, 'hall', 1), {
     picture: 'assets/images/hall.png',
     portrait: 'assets/sprites/mila-happy.png',
     who: 'Mila',
     say: 'Oh! I thought you had forgotten.',
+    sound: '',
     choices: [], go: '', end: false,
   });
   // Narration has no speaker and no portrait.
-  assert.equal(stageFor(model, 'hall', 1).who, '');
-  assert.equal(stageFor(model, 'hall', 1).portrait, '');
+  assert.equal(stageFor(model, 'hall', 2).who, '');
+  assert.equal(stageFor(model, 'hall', 2).portrait, '');
   // The exit keeps the last line up and adds what follows: a go here …
   const hall = stageFor(model, 'hall', 'exit');
   assert.equal(hall.say, 'The house smells of toast, at eleven o\'clock at night.');
@@ -195,10 +221,81 @@ test('the stage shows what the player sees at each step', () => {
   // … and nothing at all after an ending.
   assert.equal(stageFor(model, 'away', 'exit').end, true);
   // A speaker who is not in the cast is still named, by their key.
-  model.scenes[2].lines[0].who = 'ghost';
-  assert.equal(stageFor(model, 'hall', 0).who, 'ghost');
-  assert.equal(stageFor(model, 'hall', 0).portrait, '');
+  model.scenes[2].lines[1].who = 'ghost';
+  assert.equal(stageFor(model, 'hall', 1).who, 'ghost');
+  assert.equal(stageFor(model, 'hall', 1).portrait, '');
   assert.equal(stageFor(model, 'gone', 0), null);
+});
+
+// A noise has nothing of its own to show, so the stage keeps the words that
+// are still on screen and names the sound beside them.
+test('a sound step keeps the last words up and names itself', () => {
+  const model = example();
+  const first = stageFor(model, 'hall', 0);
+  assert.equal(first.sound, 'page');
+  // Nothing said before it yet, so the box is empty — but the picture is not.
+  assert.equal(first.say, '');
+  assert.equal(first.picture, 'assets/images/hall.png');
+
+  // A noise after two lines keeps the second one up.
+  const hall = model.scenes[2];
+  hall.lines.push(soundStep('page'));
+  const after = stageFor(model, 'hall', hall.lines.length - 1);
+  assert.equal(after.sound, 'page');
+  assert.equal(after.say, 'The house smells of toast, at eleven o\'clock at night.');
+  assert.equal(after.who, '');
+  // And the exit still reads the last thing said, not the noise after it.
+  assert.equal(stageFor(model, 'hall', 'exit').say, after.say);
+});
+
+test('a sound step is a step, not a line anybody says', () => {
+  const model = example();
+  const hall = model.scenes[2];
+  assert.equal(isSoundStep(hall.lines[0]), true);
+  assert.equal(isSoundStep(hall.lines[1]), false);
+  // What the guide counts: a scene of nothing but noise has not been written.
+  assert.equal(saidIn(hall), 2);
+  assert.equal(saidIn({ lines: [soundStep('page')] }), 0);
+  // A noise carries nothing else, and writes as one key.
+  assert.deepEqual(soundStep('page'), {
+    who: '', mood: '', say: '', sound: 'page',
+  });
+  assert.match(storyText(model), /\{ sound: "page" \},/);
+});
+
+// ⚠️ The shape before a sound could happen part way through a scene: read as
+// a noise in front of the lines, and never written back that way, so opening
+// an old story and saving it moves the sound into the timeline.
+test('a scene-level sound is read as a sound step and never written back', () => {
+  const old = [
+    'const CAST = {',
+    '};',
+    '',
+    'const SCENES = {',
+    '  hall: {',
+    '    sound: "page",',
+    '    lines: [',
+    '      { say: "Somebody is in." },',
+    '    ],',
+    '  },',
+    '};',
+    '',
+  ].join('\n');
+  const model = storyModel(old);
+  assert.equal(model.ok, true, model.reason);
+  assert.deepEqual(model.scenes[0].lines, [
+    soundStep('page'),
+    {
+      who: '', mood: '', say: 'Somebody is in.', sound: '',
+    },
+  ]);
+  assert.equal(model.scenes[0].music, '');
+  const written = storyText(model);
+  assert.ok(!/^\s*sound: "page",$/m.test(written), 'the old key is gone');
+  assert.match(written, /\{ sound: "page" \},/);
+  // And reading what was written gives the same thing back.
+  const again = storyModel(written);
+  assert.deepEqual(again.scenes[0].lines, model.scenes[0].lines);
 });
 
 test('leadingTo and wayInto say how a scene is reached', () => {

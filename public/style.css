@@ -1653,6 +1653,9 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 }
 .stage .who { margin: 0 0 3px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--look-accent); }
 .stage .say { margin: 0; max-width: 44rem; font-size: 14px; line-height: 1.4; min-height: 1.4em; }
+/* What is heard rather than read, under the words it plays over. Not gold:
+   a sound's name is not a number. */
+.stage .heard { margin: 6px 0 0; font-size: 12px; color: var(--look-accent); }
 .stage .choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .stage .choices:empty { display: none; }
 .stage .choice {
@@ -1691,6 +1694,10 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .step .speaker { flex: 0 0 auto; font-weight: 600; color: var(--look-accent); }
 .step .speaker.muted { color: var(--muted); font-weight: 500; }
 .step .thumb { flex: 0 0 auto; width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; }
+/* A noise has no portrait, so a ♪ stands where one would be — the rows keep
+   their columns whether they are somebody talking or something heard. */
+.step .thumb.glyph { display: flex; align-items: center; justify-content: center; font-size: 15px; }
+.step.noise select { flex: 0 1 auto; }
 .step .handle { cursor: grab; color: var(--muted); user-select: none; }
 .step.drop { box-shadow: inset 0 2px 0 var(--accent); }
 .step .cfg-text { flex: 1; min-width: 4rem; }
