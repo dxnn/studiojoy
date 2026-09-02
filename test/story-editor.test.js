@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, isStoryPath,
-  renameMood, stageFor, leadingTo, moveLine, startAt,
+  renameMood, stageFor, leadingTo, moveLine, startAt, duplicateScene,
   addPerson, addScene, sceneCalled, emptyStory, nextQuestion, wayInto, DEFAULT_MOOD,
-  isSoundStep, soundStep, saidIn,
+  isSoundStep, soundStep, saidIn, titleWords, withTitleWords, WORDS_FILE,
 } from '../public/story-editor.js';
 
 const PUBLIC = new URL('../public/', import.meta.url);
@@ -331,6 +331,52 @@ test('lines move to where they are told, and a scene can be made the start', () 
   assert.equal(model.scenes[0].key, 'kitchen');
   // The file still round-trips after both.
   assert.equal(storyModel(storyText(model)).ok, true);
+});
+
+// A choice that keeps the player where they are needs a second scene, because
+// the shape has no lines after a choice; Duplicate is how it is made.
+test('a duplicated scene lands right after its original, whole and its own', () => {
+  const m = example();
+  const first = m.scenes[0];
+  const before = m.scenes.length;
+  const key = duplicateScene(m, first.key);
+  assert.equal(key, `${first.key}_2`, 'the next free name, counting up');
+  assert.equal(m.scenes.length, before + 1);
+  assert.equal(m.scenes[1].key, key, 'right after the original');
+  const copy = m.scenes[1];
+  assert.equal(copy.picture, first.picture);
+  assert.deepEqual(copy.lines, first.lines);
+  assert.deepEqual(copy.choices, first.choices);
+  // Its own: a change to the copy never reaches the original.
+  copy.lines[0].say = 'changed';
+  copy.choices[0].say = 'changed';
+  assert.notEqual(first.lines[0].say, 'changed');
+  assert.notEqual(first.choices[0].say, 'changed');
+  // Nothing leads to it yet, which the checks say and a choice fixes.
+  assert.ok(storyChecks(m).some((c) => c.where === key && /Nothing leads here/.test(c.say)));
+  // Twice more counts up, and the text still reads back.
+  duplicateScene(m, first.key);
+  assert.equal(m.scenes[1].key, `${first.key}_3`);
+  assert.equal(storyModel(storyText(m)).ok, true);
+  assert.equal(duplicateScene(m, 'nowhere'), null);
+});
+
+// The title screen's two lines are config/words.js's; the editor reads them
+// the way the config form does and puts them back without touching the rest.
+test('the title and tagline are read off words.js and spliced back in place', () => {
+  const words = read(`game-templates/visual-novel/${WORDS_FILE}`);
+  assert.deepEqual(titleWords(words), { title: 'My Story', tagline: 'A story with choices.', start: 'Begin' });
+  assert.equal(withTitleWords(words, titleWords(words)), words, 'untouched is byte-identical');
+  const changed = withTitleWords(words, { title: 'Mila\'s "Big" Day', tagline: 'One door, two ways.' });
+  assert.deepEqual(titleWords(changed), { title: 'Mila\'s "Big" Day', tagline: 'One door, two ways.', start: 'Begin' });
+  // Everything else in the file is as it was — the comments and the End included.
+  assert.match(changed, /\/\/ the big line on the first screen/);
+  assert.match(changed, /theEnd: "The End"/);
+  assert.equal(changed.split('\n').length, words.split('\n').length);
+  // A file without the two lines shows no title row rather than a wrong one.
+  assert.equal(titleWords('const WORDS = { theEnd: "The End" };'), null);
+  assert.equal(titleWords('const OTHER = 1;'), null);
+  assert.equal(withTitleWords('const WORDS = {};', { title: 'x', tagline: 'y' }), null);
 });
 
 test('a person or a place by name: made once, found after', () => {

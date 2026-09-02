@@ -13,9 +13,45 @@
 // in the game. That is storyChecks, and it is the reason this is an editor
 // rather than a longer form.
 
-import { parseConfigFile } from './config-file.js';
+import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
 
 export const isStoryPath = (p) => p === 'config/story.js';
+
+// The title screen's words — the big line and the one under it — are
+// config/words.js's, not the story's, so the editor reads and writes that file
+// the way the config form does: one value spliced in place, every other word
+// in it (the End, the buttons, how to play) left as it was. The story editor
+// is the authoring surface for story.js alone; here it is a visitor.
+export const WORDS_FILE = 'config/words.js';
+
+const wordNode = (text, key) => {
+  const parsed = parseConfigFile(text);
+  if (!parsed.ok) return null;
+  const decl = parsed.decls.find((d) => d.name === 'WORDS');
+  if (!decl || decl.node.kind !== 'object') return null;
+  const node = decl.node.props.find((p) => p.key === key)?.node;
+  return node?.kind === 'string' ? node : null;
+};
+
+// { title, tagline, start } off the file, or null when it has not got them —
+// a words file a helper has reshaped shows no title row rather than a wrong one.
+export function titleWords(text) {
+  const title = wordNode(text, 'title');
+  const tagline = wordNode(text, 'tagline');
+  if (!title || !tagline) return null;
+  return { title: title.value, tagline: tagline.value, start: wordNode(text, 'start')?.value ?? 'Begin' };
+}
+
+// The file with the two lines put back; byte-identical when neither changed.
+export function withTitleWords(text, { title, tagline }) {
+  let out = text;
+  for (const [key, raw] of [['title', title], ['tagline', tagline]]) {
+    const node = wordNode(out, key);
+    if (!node) return null;
+    out = spliceValue(out, node, literalFor('string', raw));
+  }
+  return out;
+}
 
 // Scene and cast keys are written bare, so they have to be identifiers. A
 // scene's key is its name and is shown; a cast member's is wiring, fixed when
@@ -295,6 +331,25 @@ export function addScene(model, name) {
     key, about: '', picture: '', music: '', lines: [], choices: [], go: '',
   });
   return key;
+}
+
+// A copy of a scene, right after it, under the next free name — the same
+// picture, music, lines and way out, each its own so editing one never edits
+// the other. The shape has no lines after a choice, so a choice that keeps the
+// player where they are ("try the door" — it is locked — still in the hall)
+// is said with a second scene, and this is how the second scene is made.
+export function duplicateScene(model, key) {
+  const at = model.scenes.findIndex((s) => s.key === key);
+  if (at < 0) return null;
+  const scene = model.scenes[at];
+  const copy = {
+    ...scene,
+    key: freshKey(scene.key, model.scenes.map((s) => s.key)),
+    lines: scene.lines.map((l) => ({ ...l })),
+    choices: scene.choices.map((c) => ({ ...c })),
+  };
+  model.scenes.splice(at + 1, 0, copy);
+  return copy.key;
 }
 
 // A place by the name somebody typed: the scene already called that, else a

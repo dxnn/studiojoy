@@ -23,6 +23,7 @@
 import {
   storyModel, storyText, storyChecks, storyShape, freshKey, renameScene, renameMood,
   stageFor, leadingTo, moveLine, startAt, addScene, addPerson, isSoundStep, soundStep,
+  duplicateScene, titleWords, withTitleWords, WORDS_FILE,
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
@@ -103,11 +104,31 @@ export function selectScene(key, step = 'scene') {
   const st = S.story;
   if (!st?.model) return;
   st.person = null;
+  st.title = false;
   st.scene = st.model.scenes.some((s) => s.key === key) ? key : (st.model.scenes[0]?.key ?? null);
   st.step = step;
 }
 
 /* Loading and saving --------------------------------------------------------- */
+
+// The title screen's words, from config/words.js: the file's text and etag
+// for the splice back, and the two lines as they stand here. Null when the
+// game has no such file or a helper has reshaped it past the two lines — then
+// there is no title row, rather than a wrong one. Typed changes are kept over
+// a re-read, because a re-read happens when the file changed underneath and
+// Save has to be asked again.
+async function loadWords(slug, kept = null) {
+  if (!S.files.some((f) => f.path === WORDS_FILE)) return null;
+  const res = await send(`/api/projects/${slug}/files/${encodePath(WORDS_FILE)}`);
+  if (!res.ok || S.slug !== slug) return null;
+  const text = await res.text();
+  const read = titleWords(text);
+  if (!read) return null;
+  return {
+    text, etag: res.headers.get('etag'), ...read,
+    ...(kept?.dirty ? { title: kept.title, tagline: kept.tagline, dirty: true } : { dirty: false }),
+  };
+}
 
 // Read the story off the disk into S.story. Run when the game opens and when
 // the file changes underneath; a reload keeps the reader's place when the
@@ -122,7 +143,15 @@ export async function loadStory() {
     S.story = { grown: `${STORY_FILE} is not in this game`, missing: true };
     return;
   }
-  const res = await send(`/api/projects/${slug}/files/${encodePath(STORY_FILE)}`);
+  // Edits parked on the way out come back while the file is the one they were
+  // made on. Otherwise they are gone, and that is said rather than left to be
+  // discovered.
+  const kept = parked.get(slug);
+  parked.delete(slug);
+  const [res, words] = await Promise.all([
+    send(`/api/projects/${slug}/files/${encodePath(STORY_FILE)}`),
+    loadWords(slug, kept?.words),
+  ]);
   if (S.slug !== slug) return;
   if (!res.ok) {
     S.story = { grown: res.status === 0 ? NO_CONNECTION : `the studio could not read ${STORY_FILE}` };
@@ -137,27 +166,24 @@ export async function loadStory() {
     return;
   }
 
-  // Edits parked on the way out come back while the file is the one they were
-  // made on. Otherwise they are gone, and that is said rather than left to be
-  // discovered.
-  const kept = parked.get(slug);
-  parked.delete(slug);
   if (kept && kept.etag === etag) {
     S.story = {
-      text, etag, model: kept.model, dirty: true, scene: null, step: 'scene', person: null,
+      text, etag, model: kept.model, words, dirty: true, scene: null, step: 'scene', person: null,
     };
     selectScene(kept.scene, kept.step);
     S.story.person = kept.person;
+    S.story.title = kept.title;
     return;
   }
   if (kept) {
     say(`${STORY_FILE} changed since you were last here, so the story edits you had not saved were dropped.`, true);
   }
   S.story = {
-    text, etag, model: { cast: read.cast, scenes: read.scenes }, dirty: false,
+    text, etag, model: { cast: read.cast, scenes: read.scenes }, words, dirty: Boolean(words?.dirty),
     scene: null, step: 'scene', person: null,
   };
   selectScene(was?.scene ?? read.scenes[0]?.key, was?.scene ? was.step : 'scene');
+  S.story.title = Boolean(was?.title);
 }
 
 // Called on the way out of a game, before the slug moves.
@@ -166,6 +192,7 @@ export function parkStory() {
   if (!S.slug || !st?.model || !st.dirty) return;
   parked.set(S.slug, {
     model: st.model, etag: st.etag, scene: st.scene, step: st.step, person: st.person,
+    words: st.words, title: st.title,
   });
 }
 
@@ -191,7 +218,19 @@ export function storyChanged() {
 export async function saveStory({ force = false } = {}) {
   const st = S.story;
   if (!st?.model) return false;
+  // The title screen first, when it changed: its own file, its own commit.
+  // A 409 here is not the story's conflict dialog — the file is re-read with
+  // the typed lines kept over it, and the next Save lands them.
+  if (st.words?.dirty && !(await saveWords(st))) return false;
   const text = storyText(st.model);
+  // Nothing in the story itself changed — a title edit alone — so no commit
+  // that changes nothing.
+  if (text === st.text && !force) {
+    st.dirty = false;
+    S.previewNonce += 1;
+    await refreshFiles();
+    return true;
+  }
   const headers = { 'content-type': 'text/plain' };
   if (!force && st.etag) headers['if-match'] = st.etag;
   st.saving = true;
@@ -220,6 +259,35 @@ export async function saveStory({ force = false } = {}) {
   S.previewNonce += 1;
   await refreshFiles();
   say(`Saved ${STORY_FILE}.`);
+  return true;
+}
+
+async function saveWords(st) {
+  const w = st.words;
+  const text = withTitleWords(w.text, w);
+  if (text === null) { say(`${WORDS_FILE} has changed shape, so the title could not be written.`, true); return false; }
+  st.saving = true;
+  const res = await send(`/api/projects/${S.slug}/files/${encodePath(WORDS_FILE)}`, {
+    method: 'PUT', headers: { 'content-type': 'text/plain', 'if-match': w.etag }, body: text,
+  });
+  const body = await res.json().catch(() => null);
+  st.saving = false;
+  if (res.status === 409) {
+    if (S.story === st) st.words = await loadWords(S.slug, w);
+    say(`${WORDS_FILE} changed underneath — your title is still here, press Save again to keep it.`, true);
+    render();
+    return false;
+  }
+  if (!res.ok) {
+    say(res.status === 0 ? NO_CONNECTION : (body?.error ?? `Could not save ${WORDS_FILE}.`), true);
+    return false;
+  }
+  if (S.story === st) {
+    w.text = text;
+    w.etag = body.etag;
+    w.dirty = false;
+  }
+  say(`Saved ${WORDS_FILE}.`);
   return true;
 }
 
@@ -265,10 +333,18 @@ function personView(st) {
   };
 }
 
+// The title screen as the stage can draw it: the tagline small over the title,
+// and the Begin button as the one choice. Close, not exact — Screens.title()
+// is the real thing, and Save shows it.
+const titleView = ({ words }) => ({
+  picture: '', portrait: '', who: words.tagline, say: words.title || '…', sound: '',
+  choices: [{ say: words.start, need: '' }], go: '', end: false,
+});
+
 function paintStage() {
   if (!stageNodes) return;
   const st = S.story;
-  const view = (st.person ? personView(st) : stageFor(st.model, st.scene, st.step))
+  const view = (st.title && st.words ? titleView(st) : st.person ? personView(st) : stageFor(st.model, st.scene, st.step))
     ?? {
       picture: '', portrait: '', who: '', say: '', sound: '', choices: [], go: '', end: false,
     };
@@ -398,7 +474,7 @@ export function renderStoryEditor() {
   const sceneRow = (scene, at) => {
     const problems = problemsFor(scene.key);
     return h('div', {
-      class: `strip-row${!st.person && st.scene === scene.key ? ' on' : ''}`,
+      class: `strip-row${!st.person && !st.title && st.scene === scene.key ? ' on' : ''}`,
       onclick: () => go(scene.key),
     },
     h('span', { class: 'sname mono', text: scene.key }),
@@ -412,12 +488,26 @@ export function renderStoryEditor() {
 
   const personRow = (person) => h('div', {
     class: `strip-row${st.person === person.key ? ' on' : ''}`,
-    onclick: () => { st.person = person.key; st.step = 0; render(); },
+    onclick: () => { st.person = person.key; st.title = false; st.step = 0; render(); },
   },
   h('span', { class: 'sname', text: person.name || person.key }),
   h('span', { class: 'tail' }, h('span', { class: 'hint muted', text: plural(person.moods.length, 'mood') })));
 
+  // The title screen is the first thing a player sees and the one thing here
+  // that is not a scene: its two lines live in config/words.js, and until this
+  // row the only way to change "My Story" was to find that file on the right.
+  const titleRow = st.words ? [
+    h('div', { class: 'strip-head' }, h('span', { class: 'section-label', text: 'Title screen' })),
+    h('div', {
+      class: `strip-row${st.title ? ' on' : ''}`,
+      onclick: () => { st.title = true; st.person = null; st.step = 'title'; render(); },
+    },
+    h('span', { class: 'sname', text: st.words.title || '…' }),
+    h('span', { class: 'tail' }, h('span', { class: 'hint muted', text: 'what the player sees first' }))),
+  ] : null;
+
   const strip = h('div', { class: 'story-strip scroll', 'data-scroll': 'story-strip' },
+    titleRow,
     h('div', { class: 'strip-head' },
       h('span', { class: 'section-label', text: 'Scenes' }),
       h('span', {
@@ -501,6 +591,13 @@ export function renderStoryEditor() {
           title: 'Make this the scene the story starts at',
           onclick: () => { startAt(model, scene.key); touched(); render(); },
         }),
+      // A copy for a choice that keeps the player here — the shape has no
+      // lines after a choice, so "the door is locked" is a second scene.
+      h('button', {
+        class: 'quiet tiny', text: 'Duplicate', disabled: ro,
+        title: 'A copy of this scene right after it — for a choice that keeps the player here',
+        onclick: () => { const key = duplicateScene(model, scene.key); touched(); go(key); },
+      }),
       h('button', {
         class: 'danger tiny', text: 'Remove',
         title: from.length
@@ -854,11 +951,36 @@ export function renderStoryEditor() {
     return rows;
   };
 
+  /* The title screen ------------------------------------------------------------ */
+
+  // Two fields, spliced back into config/words.js by Save. The rest of that
+  // file — the End, the buttons, how to play — stays the config form's, one
+  // click away on the right.
+  const titleSteps = () => {
+    const w = st.words;
+    const word = (key, id, label, placeholder) => rowOf(key, `fixed${st.step === key ? ' open' : ''}`,
+      h('span', { class: 'glyph', text: key === 'title' ? '▶' : '▸' }),
+      h('span', { class: 'label', text: label }),
+      field(id, w[key], placeholder, {
+        oninput: (e) => { w[key] = e.currentTarget.value; w.dirty = true; touched(); },
+      }));
+    return [
+      word('title', 'story-title', 'Title', 'What the story is called'),
+      word('tagline', 'story-tagline', 'Under it', 'A line under the title'),
+      h('p', { class: 'hint muted problem' },
+        `The End, the buttons and how to play are in ${WORDS_FILE} — `,
+        h('button', { class: 'link tiny', text: 'open it on the right', onclick: () => chooseFile(WORDS_FILE) }),
+        '.'),
+    ];
+  };
+
   /* Put together -------------------------------------------------------------- */
 
-  const scene = st.person ? null : scenes.find((s) => s.key === st.scene);
+  const showTitle = st.title && st.words;
+  const scene = st.person || showTitle ? null : scenes.find((s) => s.key === st.scene);
   const person = st.person ? cast.find((p) => p.key === st.person) : null;
-  if (person) stepsBox.append(...personSteps(person));
+  if (showTitle) stepsBox.append(...titleSteps());
+  else if (person) stepsBox.append(...personSteps(person));
   else if (scene) stepsBox.append(...sceneSteps(scene, scenes.indexOf(scene)));
   else stepsBox.append(h('p', { class: 'muted', text: 'No scenes yet. Add one on the left.' }));
 
