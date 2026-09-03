@@ -2218,6 +2218,9 @@ label.knob {
 .person select { flex: 1 1 10rem; min-width: 8rem; }
 .person .hint { flex: 0 0 auto; }
 .person button.on { color: var(--num); border-color: color-mix(in oklab, var(--num) 50%, transparent); }
+/* What a row's button revealed, on its own line under the row: the new
+   password field and the button that sets it. */
+.person .person-more { flex: 1 0 100%; display: flex; align-items: center; gap: 6px; padding: 2px 0 4px; }
 
 /* Nearly out of tokens for the day, in the same grey line as what the reply
    cost. Gold, because it is a number worth looking at — the one thing that

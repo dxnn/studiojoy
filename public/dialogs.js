@@ -435,6 +435,8 @@ export function dialogFor(d) {
     const box = h('div', { class: 'col' });
 
     const number = (value) => (value === null || value === undefined ? '' : String(value));
+    // Whose row has the new-password field open, if anybody's. One at a time.
+    let passwordFor = null;
 
     const paint = () => {
       const data = S.admin;
@@ -469,6 +471,25 @@ export function dialogFor(d) {
           }).then(paint),
         });
         allowance.value = number(person.daily_tokens);
+        // The one change that is typed and then set rather than a field saving
+        // itself, so it opens in the row — the same button closes it again —
+        // and not in a browser prompt box, which some browsers quietly refuse
+        // and which gave no sign afterwards of having worked. Setting it ends
+        // every session of theirs on both origins (spec.md §6), so the message
+        // says so.
+        const asking = passwordFor === person.id;
+        const secret = asking ? h('input', {
+          placeholder: 'A new password they can remember (6 or more)',
+          'aria-label': `A new password for ${person.display_name}`,
+        }) : null;
+        const setPassword = async () => {
+          const ok = await studioChange('PATCH', `/users/${person.id}`, { password: secret.value });
+          if (!ok) return;
+          passwordFor = null;
+          paint();
+          say(`${person.display_name} has a new password, and is signed out everywhere until they use it.`);
+        };
+        secret?.addEventListener('keydown', (e) => { if (e.key === 'Enter') setPassword(); });
         // ⚠️ Three buttons, and no Remove. Taking somebody out of the studio
         // is `npm run deluser -- <email>` at a terminal and nothing else — a
         // red button beside Password invites the press, and no click can show
@@ -504,13 +525,18 @@ export function dialogFor(d) {
             }).then(paint),
           }),
           h('button', {
-            class: 'quiet tiny', text: 'Password',
-            title: 'Give them a new password',
+            class: `quiet tiny${asking ? ' on' : ''}`,
+            text: asking ? 'Keep it' : 'Password',
+            title: asking ? 'Leave their password as it is' : 'Give them a new password',
             onclick: () => {
-              const next = window.prompt(`A new password for ${person.display_name}`);
-              if (next) studioChange('PATCH', `/users/${person.id}`, { password: next }).then(paint);
+              passwordFor = asking ? null : person.id;
+              paint();
+              list.querySelector('.person-more input')?.focus();
             },
-          }));
+          }),
+          asking ? h('div', { class: 'person-more' },
+            secret,
+            h('button', { class: 'filled tiny', text: 'Set it', onclick: setPassword })) : null);
       }));
       // The waiting list: who asked to join from the games site. The whole
       // section is only there when somebody is — an empty list would be a
