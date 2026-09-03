@@ -1366,8 +1366,12 @@ toast: DOM like Screens, `achievements-` classes, `body :where()` weighting so
 the game's own css wins, the game's `primary`/`accent` and ⚠️ never its
 `highlight` (gold stays a number). Signed out the toast still shows with a line
 about signing in, and stores nothing; a missing file, an unknown id or a dead
-network is one console warning, never an error. `Achievements.mine()` is the
-`/_achievements` GET for a trophy screen. It **seeds** `config/achievements.js`
+network is one console warning, never an error. Each award is also said on the
+window as an `achievement` event (`{ id, name, how, icon }`), kept or not:
+the screens library keeps them from one game over to the next and lists them
+under the score as *Won this run* (`WORDS.won`), a late one landing on the
+screen as it arrives, so the game-over screen agrees with the toasts.
+`Achievements.mine()` is the `/_achievements` GET for a trophy screen. It **seeds** `config/achievements.js`
 (an empty list with the shape commented) the way input seeds `controls.js`, so
 every game that holds the library holds the file, and the *sweep* gives an
 existing game both new files and the empty seed. ⚠️ The library carries its own

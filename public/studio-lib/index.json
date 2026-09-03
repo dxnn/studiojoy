@@ -44,7 +44,7 @@
       "scripts": ["studio/moments.js"]
     },
     "achievements": {
-      "version": 1,
+      "version": 2,
       "what": "What a player can earn in this game, written in config/achievements.js as rules over the game's moments. Earned ones are kept forever by the studio and shown as a toast the moment they are won.",
       "files": ["achievements.js"],
       "seeds": [{ "from": "/templates/achievements.js", "to": "config/achievements.js" }],

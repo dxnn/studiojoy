@@ -103,6 +103,8 @@ function boot({ rules = RULES, look = '', routes = null, pathname = '/rocks/', d
     Moments: sandbox.Moments,
     Achievements: sandbox.Achievements,
     document: sandbox.document,
+    // A listener on the window, the way the screens library or a game has one.
+    listen: (type, fn) => sandbox.addEventListener(type, fn),
     warnings,
     calls: net ? net.calls : [],
     release: net ? net.release : () => {},
@@ -160,6 +162,33 @@ test('a rule with no test is met the first time the moment is said, once', async
   assert.equal(g.calls[0].url, ROCKS, 'what is held is asked first');
   assert.equal(g.calls[1].init.headers['Content-Type'], 'application/json');
   assert.deepEqual(JSON.parse(g.calls[1].init.body), { id: 'first-run' }, 'the id and nothing else');
+});
+
+// The award said on the window, for the screens library's game-over list and
+// for a game that wants to know: the rule's four public parts, once per award,
+// and said whether or not the studio kept it.
+test('an award is said on the window as an "achievement", kept or not', async () => {
+  const g = boot({ routes: nobodyHeld });
+  const said = [];
+  // Spread: the detail was built inside the vm and carries its prototype.
+  g.listen('achievement', (e) => said.push({ ...e.detail }));
+  await settle();
+  g.Moments.say('run-over');
+  g.Moments.say('run-over');
+  g.Moments.say('level', 5);
+  await settle();
+  assert.deepEqual(said, [
+    { id: 'first-run', name: 'First run', how: 'Finish a run', icon: '🚀' },
+    { id: 'halfway', name: 'Halfway there', how: 'Reach level 5', icon: '🪜' },
+  ]);
+
+  const out = boot({ routes: { [ROCKS]: { status: 401, body: {} } } });
+  const unkept = [];
+  out.listen('achievement', (e) => unkept.push(e.detail.id));
+  await settle();
+  out.Moments.say('run-over');
+  await settle();
+  assert.deepEqual(unkept, ['first-run'], 'the player saw the toast, so the screen agrees with it');
 });
 
 test('atLeast and atMost read a number, and never a word', async () => {

@@ -13,7 +13,10 @@
 // nothing the second time. mine() is the list in the file's order, each with
 // `got` — when this player earned it, or null; a trophy screen is that list
 // drawn. Signed out, the toast still shows, with a line saying to sign in on
-// the front page to keep it, and nothing is stored.
+// the front page to keep it, and nothing is stored. Each award is also said on
+// the window as an "achievement" event with { id, name, how, icon } as its
+// detail — how Screens.title() lists what the run won on the game-over
+// screen, and a game can listen the same way.
 //
 // The toast wears achievements- classes (achievements-toast, -icon, -name,
 // -how, -keep) and the game's LOOK colours, and the game's own css wins over
@@ -317,6 +320,17 @@ const Achievements = (function () {
     return true;
   }
 
+  // The award said on the window, the way a moment is: what the screens
+  // library listens for to list a run's wins on the game-over screen, and a
+  // game may too. Said whether or not the studio keeps it — the player saw
+  // the toast, and the screen should agree with it.
+  function tell(rule) {
+    if (typeof CustomEvent !== "function" || typeof window.dispatchEvent !== "function") return;
+    window.dispatchEvent(new CustomEvent("achievement", {
+      detail: { id: rule.id, name: rule.name, how: rule.how, icon: rule.icon },
+    }));
+  }
+
   // One award: once per page, never for something already held, and after
   // the studio has said what is held. The toast does not wait for the save;
   // the sign-in line is added if the save comes back asking for one.
@@ -326,6 +340,7 @@ const Achievements = (function () {
     ready.then(function () {
       if (held.has(rule.id)) return;
       const toast = show(rule);
+      tell(rule);
       save(rule.id).then(function (state) {
         if (state === "signin" && toast) {
           toast.append(el("span", "achievements-keep", "Sign in on the front page to keep it"));

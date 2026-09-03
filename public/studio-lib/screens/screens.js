@@ -433,6 +433,18 @@ const Screens = (function () {
     + "body :where(.screens-start:focus-visible){outline:2px solid var(--screens-text);outline-offset:3px}"
     + "body :where(.screens-hint){margin:20px 0 0;font-size:clamp(13px,3.4vw,15px);color:var(--screens-muted)}"
 
+    // What the run won, under its score and before everybody's board. The
+    // box itself takes no room, so a run that won nothing shows nothing; the
+    // names are in the primary, as the toast has them — ⚠️ never the
+    // highlight, because a name is not a number.
+    + "body :where(.screens-won-title){margin:18px 0 6px;font-size:11px;font-weight:600;letter-spacing:.14em;"
+    + "text-transform:uppercase;color:var(--screens-muted)}"
+    + "body :where(.screens-won-list){list-style:none;margin:0;padding:0;display:flex;"
+    + "flex-direction:column;gap:4px}"
+    + "body :where(.screens-won-row){display:flex;align-items:center;justify-content:center;gap:10px;"
+    + "font-size:15px;font-weight:700;color:var(--screens-primary)}"
+    + "body :where(.screens-won-icon){font-size:20px;line-height:1}"
+
     // The scoreboard snippet. A rank is mono and muted, a name is the reading
     // face, and ⚠️ only the score is gold — the moment that spreads to a rank
     // or a name the colour stops meaning "a number worth looking at".
@@ -700,6 +712,48 @@ const Screens = (function () {
     return node;
   }
 
+  // ---------- what the run won ----------
+
+  // The achievements library says each award on the window as an
+  // "achievement" event ({ id, name, how, icon }). They are kept from one
+  // game over to the next, so the game-over screen can list what this run
+  // won — and land on that screen as they arrive, because an achievement for
+  // the last hit is awarded a beat after the game says the moment, which is
+  // often once the screen is already up.
+  let won = [];
+  let wonBox = null; // the box on the game-over screen that is up
+  let wonList = null;
+
+  function wonRow(a) {
+    const row = el("li", "screens-won-row");
+    row.append(el("span", "screens-won-icon", a.icon ? String(a.icon) : "★"));
+    row.append(el("span", "screens-won-name", String(a.name)));
+    return row;
+  }
+
+  // The heading and the list arrive with the first row, so a run that won
+  // nothing has no empty heading.
+  function showWin(a) {
+    if (!wonBox) return;
+    if (!wonList) {
+      wonList = el("ul", "screens-won-list");
+      wonBox.append(el("p", "screens-won-title", wordsValue("won") || "Won this run"));
+      wonBox.append(wonList);
+    }
+    wonList.append(wonRow(a));
+  }
+
+  function heardWin(event) {
+    const d = event && event.detail;
+    if (!d || typeof d.name !== "string") return;
+    won.push(d);
+    showWin(d);
+  }
+
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("achievement", heardWin);
+  }
+
   // ---------- the screens ----------
 
   // One title screen at a time: a new call replaces the one on screen.
@@ -751,6 +805,15 @@ const Screens = (function () {
     if (name !== "") panel.append(el("h1", "screens-name", name));
     if (tagline !== "") panel.append(el("p", "screens-tagline", tagline));
     if (over) panel.append(el("div", "screens-score", String(o.score)));
+    // The run's own trophies, under its score: the ones already won, and a
+    // place for the ones about to land.
+    const box = over ? el("div", "screens-won") : null;
+    if (box) {
+      wonBox = box;
+      wonList = null;
+      panel.append(box);
+      for (const a of won) showWin(a);
+    }
     const button = el("button", "screens-start", label);
     panel.append(button);
     if (line !== "") panel.append(el("p", "screens-hint", line));
@@ -791,6 +854,14 @@ const Screens = (function () {
         }
         root.remove();
         if (openTitle === null) markBody(false);
+        // A game-over screen going away is the run being done with: what it
+        // won is not the next run's. Only this screen's box, so a stale
+        // handle closed again mid-run takes nothing from that run.
+        if (box && wonBox === box) {
+          won = [];
+          wonBox = null;
+          wonList = null;
+        }
       },
     };
     openTitle = handle;

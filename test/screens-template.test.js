@@ -138,8 +138,10 @@ function boot({ controls = '', words = '', coarse = false, pads = [] } = {}) {
 function bootDom(opts = {}) {
   const dispatched = [];
   // The window's own listeners, so the capture-phase key handler the title
-  // screen puts up can be fired and checked for being taken away again.
+  // screen puts up can be fired and checked for being taken away again, and
+  // an "achievement" can be said the way the achievements library says one.
   const listeners = new Set();
+  const heard = new Map();
   // The page a game is served from, which is where the slug comes from. A
   // test that gives no routes gets no fetch at all — the shape of a game
   // opened straight off the filesystem, where every call here is a no-op.
@@ -152,7 +154,10 @@ function bootDom(opts = {}) {
     location: { pathname: opts.pathname || '/asteriskoids/' },
     Event: function Event(type) { this.type = type; },
     dispatchEvent: (e) => dispatched.push(e.type),
-    addEventListener: (name, fn) => { if (name === 'keydown') listeners.add(fn); },
+    addEventListener: (name, fn) => {
+      if (name === 'keydown') listeners.add(fn);
+      else heard.set(name, [...(heard.get(name) ?? []), fn]);
+    },
     removeEventListener: (name, fn) => { listeners.delete(fn); },
   };
   if (net) sandbox.fetch = net.fetch;
@@ -172,11 +177,15 @@ function bootDom(opts = {}) {
     for (const fn of [...listeners]) fn(event);
     return event;
   };
+  // An event on the window other than a key: what the achievements library
+  // dispatches when it awards one.
+  const fire = (name, detail) => { for (const fn of heard.get(name) ?? []) fn({ type: name, detail }); };
   return {
     Screens: sandbox.window.Screens,
     document: sandbox.document,
     dispatched,
     press,
+    fire,
     keyHandlers: listeners,
     calls: net ? net.calls : [],
   };
@@ -860,7 +869,7 @@ test("extra puts the game's own nodes in the panel, above the board", async () =
   const panel = find(document.body.children[0], 'screens-panel');
   const order = panel.children.map((c) => c.className);
   assert.deepEqual(order, [
-    'screens-name', 'screens-score', 'screens-start',
+    'screens-name', 'screens-score', 'screens-won', 'screens-start',
     'screens-rows', 'my-note', 'screens-board', 'screens-signin',
   ]);
 
@@ -871,6 +880,54 @@ test("extra puts the game's own nodes in the panel, above the board", async () =
   const none = bootDom({});
   none.Screens.title({ extra: null });
   assert.equal(find(none.document.body.children[0], 'screens-rows'), null);
+});
+
+// The run's trophies on the game-over screen: the ones the achievements
+// library awarded since the last game over, under the score — and one awarded
+// while the screen is up lands on it, because the award for the last hit
+// usually arrives a beat after the game says the moment.
+test('the game-over screen lists what the run won, as it lands', async () => {
+  const { Screens, document, fire } = bootDom({});
+  const first = { id: 'first', name: 'First run', how: 'Finish a run', icon: '🚀' };
+  const ten = { id: 'ten', name: 'Ten', how: 'Reach level 10', icon: null };
+
+  // A title screen is not a run over: nothing listed, whatever was won.
+  fire('achievement', first);
+  Screens.title({});
+  assert.equal(find(document.body.children[0], 'screens-won'), null);
+  find(document.body.children[0], 'screens-start').click();
+
+  Screens.title({ score: 12 });
+  const root = document.body.children[0];
+  const box = find(root, 'screens-won');
+  assert.equal(find(box, 'screens-won-title').textContent, 'Won this run');
+  assert.deepEqual(all(box, 'screens-won-row').map(rowOf), [['🚀', 'First run']]);
+  // The box sits under the score, before the button.
+  const panel = root.children[0];
+  const kinds = panel.children.map((c) => c.className);
+  assert.ok(kinds.indexOf('screens-score') < kinds.indexOf('screens-won')
+    && kinds.indexOf('screens-won') < kinds.indexOf('screens-start'));
+
+  fire('achievement', ten);
+  assert.deepEqual(all(box, 'screens-won-row').map(rowOf), [['🚀', 'First run'], ['★', 'Ten']],
+    'a late one lands on the screen, with a star for no icon');
+
+  // Play again: the run is done with, and the next game over starts clean.
+  find(root, 'screens-start').click();
+  Screens.title({ score: 3 });
+  const next = find(document.body.children[0], 'screens-won');
+  assert.equal(next.children.length, 0, 'no heading over nothing');
+  assert.equal(find(next, 'screens-won-title'), null);
+});
+
+test('the run\'s trophies take the game\'s own heading, and nothing without a name', () => {
+  const own = bootDom({ words: 'const WORDS = { won: "You got" };' });
+  own.fire('achievement', { id: 'x', name: 'X' });
+  own.fire('achievement', { id: 'nameless' });
+  own.Screens.title({ score: 1 });
+  const box = find(own.document.body.children[0], 'screens-won');
+  assert.equal(find(box, 'screens-won-title').textContent, 'You got');
+  assert.equal(all(box, 'screens-won-row').length, 1);
 });
 
 test('a screen that was not asked for a board asks the studio for nothing', async () => {
