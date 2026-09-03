@@ -69,9 +69,11 @@ test('a new game is born holding the studio library', async (t) => {
     fs.readFileSync(path.join(dir, 'studio/sprites.js')),
     fs.readFileSync(path.join(publicDir, 'studio-lib/sprites/sprites.js')),
   );
+  // Nobody picked, so the library's own seed wrote it: the null controller,
+  // which draws nothing over a game that has not grown controls yet.
   assert.deepEqual(
     fs.readFileSync(path.join(dir, 'config/controls.js')),
-    fs.readFileSync(path.join(publicDir, 'templates/controls.js')),
+    fs.readFileSync(path.join(publicDir, 'templates/controls-none.js')),
   );
   // Every file each library declares, byte for byte — the screens library
   // carries its own typefaces, and a .woff2 that came through a text read
@@ -122,30 +124,30 @@ test('a game made from a blank page is playable straight away', async (t) => {
   assert.doesNotMatch(markup, /\{\{name\}\}/);
 
   // The page loads every library the game was born holding, the same way the
-  // quiz template's does — so a newborn game is not one tag short of Sound —
-  // except the input module: a plain page has nothing to steer, and on a
-  // phone it would draw a stick and buttons over "Nothing here yet".
+  // quiz template's does — so a newborn game is not one tag short of Sound.
+  // The input module included: it used to be left out, because on a phone it
+  // drew a stick and buttons over "Nothing here yet", and the null
+  // controller is what answers that instead now.
   const index = JSON.parse(
     fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
   );
-  for (const [name, library] of Object.entries(index.libraries)) {
-    for (const src of library.scripts) {
-      const tag = `<script src="${src}">`;
-      if (name === 'input') assert.ok(!markup.includes(tag), `no ${tag} on a blank page`);
-      else assert.ok(markup.includes(tag), tag);
-    }
+  for (const [, library] of Object.entries(index.libraries)) {
+    for (const src of library.scripts) assert.ok(markup.includes(`<script src="${src}">`), src);
   }
-  // The seed is still the game's own file, for the day a helper wires it in.
-  assert.ok(fs.existsSync(path.join(app.gamesDir, 'tank', 'config/controls.js')));
+  // And config/controls.js stands in front of studio/input.js, which is the
+  // order that file is read in.
+  assert.ok(
+    markup.indexOf('config/controls.js') < markup.indexOf('studio/input.js'),
+    'the bindings load before the library that reads them',
+  );
 
   // A brief goes with the page, the way every template ships one. It is the
-  // only place that says which tags this particular page carries, that the
-  // input module is left out of them on purpose, and that the seeded control
-  // scheme is a default rather than a decision.
+  // only place that says which tags this particular page carries, and that
+  // the control scheme is a decision somebody made rather than a default.
   const brief = fs.readFileSync(path.join(app.gamesDir, 'tank', 'BRIEF.md'), 'utf8');
   assert.match(brief, /started from a blank page/);
-  assert.match(brief, /config\/controls\.js and studio\/input\.js/);
-  assert.match(brief, /stick-buttons/);
+  assert.match(brief, /chosen when the game was made/);
+  assert.match(brief, /"none"/);
   assert.match(brief, /"one-button"/);
   // Escaped for the page, never for the brief: the substitution is HTML.
   assert.ok(!brief.includes('&amp;'), 'no html escaping in markdown');
@@ -280,6 +282,69 @@ test("each template's heart is a file in its own tree", () => {
     if (!t.heart) continue;
     assert.ok(fs.existsSync(path.join(root, name, t.heart)), `${name}: ${t.heart} exists`);
   }
+});
+
+// Also against the real public/: how a game is held is picked when it is
+// made, the way its type is — and unlike the type it lands in a file, because
+// input.js reads it inside the running game.
+test('a new game holds the control scheme that was picked', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Twin', slug: 'twin', scheme: 'dual-stick' },
+  });
+  assert.deepEqual(
+    fs.readFileSync(path.join(app.gamesDir, 'twin', 'config/controls.js')),
+    fs.readFileSync(path.join(publicDir, 'templates/controls-dual-stick.js')),
+    'the whole seed, comments and all, not just the word',
+  );
+
+  // A template that fixes its own is never asked, and gets what it says.
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Quizzy', slug: 'quizzy', template: 'quiz' },
+  });
+  assert.match(
+    fs.readFileSync(path.join(app.gamesDir, 'quizzy', 'config/controls.js'), 'utf8'),
+    /const SCHEME = "none";/,
+  );
+
+  // An explicit one still wins over the template's: a quiz you steer is a
+  // stranger game rather than a mistake.
+  await app.client.json('POST', '/api/projects', {
+    body: { name: 'Steered', slug: 'steered', template: 'quiz', scheme: 'buttons' },
+  });
+  assert.match(
+    fs.readFileSync(path.join(app.gamesDir, 'steered', 'config/controls.js'), 'utf8'),
+    /const SCHEME = "buttons";/,
+  );
+});
+
+test('a scheme has to exist, and a chat has none', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  // ⚠️ Checked before anything touches the disk, and by key: the seed path is
+  // the studio's own, so a name shaped like a path is a 400 rather than a
+  // read of some other file.
+  for (const scheme of ['zorp', '../templates/controls.js', 'controls-buttons.js']) {
+    const res = await app.client.json('POST', '/api/projects', {
+      body: { name: 'Nope', slug: 'nope', scheme },
+    });
+    assert.equal(res.status, 400, scheme);
+    assert.match(res.body.error, /no such control scheme/);
+    assert.ok(!fs.existsSync(path.join(app.gamesDir, 'nope')), 'and nothing was made');
+  }
+
+  const chat = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Chatty', kind: 'chat', scheme: 'buttons' },
+  });
+  assert.equal(chat.status, 400);
+  assert.match(chat.body.error, /chat has no controls/);
 });
 
 test('a template has to exist, and a chat cannot start from one', async (t) => {

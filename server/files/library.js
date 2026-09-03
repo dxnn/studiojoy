@@ -16,7 +16,12 @@ import { commitPaths } from './git.js';
 
 // Fill the gaps between what the game holds and what the studio offers.
 // Returns what was written, or null when the game is already current.
-async function installMissing(dir, publicDir) {
+//
+// `seedFrom` is how a choice made at creation picks a different starting file
+// for one seed — the *control scheme* is the only one today. It maps a seed's
+// destination to the studio-origin path it comes from, and the path is the
+// studio's own (server/files/schemes.js), never anything off a request.
+async function installMissing(dir, publicDir, seedFrom = {}) {
   const read = (...parts) => fs.promises.readFile(path.join(publicDir, ...parts));
   const index = JSON.parse(await read('studio-lib', 'index.json'));
 
@@ -51,8 +56,9 @@ async function installMissing(dir, publicDir) {
     // written once and never replaced.
     for (const seed of library.seeds ?? []) {
       if (fs.existsSync(path.join(dir, seed.to))) continue;
+      const from = seedFrom[seed.to] ?? seed.from;
       await writeFileAt(
-        path.join(dir, seed.to), await read(...seed.from.split('/').filter(Boolean)),
+        path.join(dir, seed.to), await read(...from.split('/').filter(Boolean)),
       );
       written.push(seed.to);
     }
@@ -67,8 +73,8 @@ async function installMissing(dir, publicDir) {
   return { written, added, updated };
 }
 
-export async function scaffoldLibraries(dir, publicDir, author) {
-  const result = await installMissing(dir, publicDir);
+export async function scaffoldLibraries(dir, publicDir, author, seedFrom = {}) {
+  const result = await installMissing(dir, publicDir, seedFrom);
   if (!result) return null;
   return commitPaths(dir, result.written, 'set up the studio library', author);
 }

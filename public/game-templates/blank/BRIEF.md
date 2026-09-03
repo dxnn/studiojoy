@@ -10,32 +10,35 @@ What is here now:
 - studio/ — the studio library, six of them, read-only. studio/studio.json
   says which and at what version.
 - config/controls.js — the game's own copy of the controls, seeded by the
-  input library. Nothing reads it yet: index.html deliberately leaves out
-  config/controls.js and studio/input.js, because a page with nothing to
-  steer would still draw a stick and buttons over it on a phone. Add both
-  tags, in that order and ahead of the game's own scripts, the moment the
-  game has controls.
+  input library. See Controls below.
 - config/achievements.js — an empty list, seeded by the achievements library.
   Fill it in once the game says moments worth earning something for.
 
-The other four libraries are loaded already, so a first script can call
+All six libraries are loaded already, so a first script can call Input.held,
 Sound.play, Sprites.draw, Screens.title and Moments.say without touching
 index.html.
 
 ## Controls
 
-config/controls.js ships as **stick-buttons**: an analog stick under the left
-thumb and round buttons under the right. That is a default, not a decision —
-`SCHEME` is one word in that file and the game should wear the one that suits
-it:
+`SCHEME` at the top of config/controls.js says how this game is held — its
+**control scheme**, the shape of the game on a screen. Read it before writing
+any input code: it was chosen when the game was made, so it is a decision
+somebody made rather than a default, and the bindings under it are what a
+phone draws.
 
+- `"none"` — no controller at all: the game's own buttons on the page are the
+  controls, and nothing is drawn over them. What a game of buttons wants — a
+  quiz, a story, a board you press.
 - `"buttons"` — drawn buttons under both thumbs; an arrow pad and fire buttons.
+  A `toggle:` binding latches, so three things can be held at once.
 - `"one-button"` — a tap or a click anywhere is the button. Nothing is drawn.
 - `"swipe-tap"` — four flicks and a tap. Moments, not states: read them with
   `Input.pressed`, never `Input.held`.
 - `"stick-buttons"` — an analog stick beside the drawn buttons.
 - `"dual-stick"` — a second stick to aim with.
 
-Change `SCHEME`, then make the bindings match: the names on the left of
-`CONTROLS` are the game's own words, and the same word is what the code asks
-for with `Input.held("boost")`.
+A person changes it whenever they like, so do not change it yourself unless
+you have been asked to. If you are asked, change `SCHEME` and then make the
+bindings match it: the names
+on the left of `CONTROLS` are the game's own words, and the same word is what
+the code asks for with `Input.held("boost")`.

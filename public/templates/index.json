@@ -1,0 +1,46 @@
+{
+  "_what": "The control schemes: the shape of a game on a screen — what hands do — one per game, declared as SCHEME in the game's own config/controls.js. `seed` is the controls file this scheme starts from, copied in at creation and never replaced; `title` and `what` are the words New game and the Controls panel show. This file doubles as the validation list, the way game-templates/index.json does for templates. The other file in here, achievements.js, is the achievements library's seed and has nothing to choose.",
+  "_offer": "What is offered, in order. An entry naming a family stands for the family: New game offers the family, and the Controls panel offers its manners underneath. A family is an interface grouping and never a word in the file — SCHEME is always one concrete scheme, because a file claiming to be arcade would not say which shape a phone actually gets.",
+  "_default": "What a game is seeded with when nobody picks: the null controller, which draws nothing. ⚠️ It must name the same file as the input library's own seed in studio-lib/index.json, which is what an install with no choice at all writes; test/schemes.test.js holds the two together.",
+  "default": "none",
+  "offer": ["none", "arcade", "one-button", "swipe-tap"],
+  "families": {
+    "arcade": {
+      "title": "Arcade",
+      "what": "Held like a games machine: a stick, or buttons, or both, drawn on the screen for a phone. Which of those is up to you, and you can change it later.",
+      "of": ["stick-buttons", "buttons", "dual-stick"]
+    }
+  },
+  "schemes": {
+    "none": {
+      "title": "Just the game's own buttons",
+      "what": "The buttons on the page are the controls. Nothing is drawn on top, and they work the same for a mouse, a finger and the keyboard. Right for a quiz, a story, or anything you press rather than steer.",
+      "seed": "controls-none.js"
+    },
+    "stick-buttons": {
+      "title": "A stick and buttons",
+      "what": "A stick under one thumb to move, round buttons under the other. What most games want.",
+      "seed": "controls.js"
+    },
+    "buttons": {
+      "title": "Buttons only",
+      "what": "Arrows under one thumb, buttons under the other, nothing analog. A button can latch, so turning, thrusting and firing can all happen at once.",
+      "seed": "controls-buttons.js"
+    },
+    "dual-stick": {
+      "title": "Two sticks",
+      "what": "One stick to move and one to aim, so you can shoot one way while running another.",
+      "seed": "controls-dual-stick.js"
+    },
+    "one-button": {
+      "title": "One button",
+      "what": "The whole screen is the button: a tap or a click anywhere, nothing drawn. For flapping, jumping and games about timing.",
+      "seed": "controls-one-button.js"
+    },
+    "swipe-tap": {
+      "title": "Swipes and taps",
+      "what": "Flick the screen to move, tap it to act. For sliding puzzles, snake and matching games.",
+      "seed": "controls-swipe-tap.js"
+    }
+  }
+}

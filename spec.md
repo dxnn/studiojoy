@@ -1553,6 +1553,48 @@ Two rules make it a library rather than a folder, and both are load-bearing:
 bindings, seeded once from `public/templates/` and never replaced, because it
 holds buttons somebody chose. `seeds` in the index is that distinction.
 
+#### Picking the control scheme
+
+Which `config/controls.js` a game is seeded with is a choice made when the
+game is made, the way its type is: New game asks **How is it played?** beside
+"Start from", and the answer is the game's *control scheme*. The two are
+deliberately unalike after that. A type is `projects.type`, a column, so no
+`write_file` can change which editors somebody sees; a scheme has to be a
+file, because `input.js` reads `SCHEME` inside the running game — which is
+also why it is the one of the two that stays changeable afterwards.
+
+`public/templates/index.json` is the registry: one entry per scheme with the
+words the dialog shows and the seed file it starts from, and it doubles as the
+validation list the way `game-templates/index.json` does for templates. Three
+things it settles:
+
+- **A request names a key, never a path.** `POST /api/projects` takes
+  `scheme`, checked against the registry before anything touches the disk;
+  the seed path comes from the registry and is held against a plain-name
+  pattern. ⚠️ A name shaped like a path is a 400, not a read of another file.
+- **A family is an interface grouping, not a word in the file.** `offer` is
+  what the dialog lists, and an entry naming a family — **Arcade** — stands
+  for the family: it is offered in the family's own words and the game starts
+  as the family's first manner (`stick-buttons`), narrowed to two sticks or
+  buttons-only in the panel afterwards. `SCHEME` is always one concrete
+  shape, because a file claiming to be arcade would not say which shape a
+  phone actually gets, and "explicit is checkable" is the whole reason the
+  declaration exists rather than being inferred from the bindings.
+- **The default is the null controller**, which draws nothing. The registry's
+  `default` and the input library's own `seeds[].from` — what an install with
+  no choice at all writes — must name the same file; `test/schemes.test.js`
+  holds the two together, because they are the only two places that could
+  disagree about it.
+
+A template may fix its own scheme (`scheme` in `game-templates/index.json`):
+the quiz and the visual novel both say `none`, since a game of buttons is
+pressed rather than steered, and the dialog then takes the question away
+rather than offering a choice it would overrule. An explicit scheme still
+wins over a template's — a quiz you steer is a stranger game, not a mistake.
+`scaffoldLibraries` takes the override as a map from a seed's destination to
+where it is copied from, so `npm run sweep` never learns about schemes at
+all: it cannot replace a seed that exists, which is the same rule.
+
 ### Game templates
 
 A **game template** is a starter tree: New game offers "Start from", and the
@@ -1582,17 +1624,17 @@ from `index.json`, because the dialog already offers it as the empty choice.
 Read from `publicDir` like every other scaffold, so a `public/` without it
 writes nothing: that is what keeps the suite's games born empty, and what
 leaves "a game with no page" a state still worth testing. It loads every
-library the game holds **except the input module**: a plain page has no
-*control scheme* because it has nothing to steer, and on a phone `input.js`
-drew a stick and buttons over its two lines. The seed `config/controls.js` is
-still written — a game that grows controls adds the two tags, which the
-preamble already tells a helper to.
+library the game holds, the input module included. That one used to be left
+out — a plain page had no *control scheme* because it had nothing to steer,
+and on a phone `input.js` drew a stick and buttons over its two lines — and
+what answers that now is the shape being a choice: the null controller draws
+nothing, and a game whose maker picked an arcade shape wants the two tags
+from its first minute rather than after a helper has noticed.
 
 A `BRIEF.md` is committed with the page, from the same directory and copied
 byte for byte (§8, Project documents). Every template ships one; a game made
 without a template had none, and nothing else says which tags *this* page
-carries, that the input module is missing from them deliberately, or that
-`SCHEME` is a seeded default rather than a decision anybody made.
+carries, or which `SCHEME` the game was made with and that somebody chose it.
 
 `index.json` also names each template's **heart**: the file the studio opens
 the new game on, because a template with an editor of its own is made in that
@@ -2441,9 +2483,10 @@ setup: which libraries it uses, and, more usefully, which it deliberately does
 not and why, so the shape section above does not get a helper "fixing" a DOM
 quiz onto `Screens.title`. The blank page ships one too, written by
 `scaffoldStart` beside the page: it is the only place that says which script
-tags that page carries, that the input module is left out of them on purpose,
-and that the seeded *control scheme* is a default with five alternatives a word
-away. No `{{name}}` in it — that substitution is HTML-escaped, which is right
+tags that page carries, and that the *control scheme* named in
+`config/controls.js` is one somebody chose when the game was made — so an
+agent reads it before writing input code and changes it only if asked, rather
+than treating it as a default to improve on. No `{{name}}` in it — that substitution is HTML-escaped, which is right
 for the page and wrong for markdown. `SPEC.md` is a template's to ship and
 nobody else's; `TODO.md` is never scaffolded.
 
@@ -3347,6 +3390,8 @@ server/
     mutex.js      per-project serialization
     library.js    the studio library scaffolded into a tree, and the sweep (§4)
     templates.js  a game template's starter tree, copied in at creation (§4)
+    schemes.js    the control scheme registry: validation, and which seed a
+                  chosen scheme is (§4)
   llm/
     deepseek.js   SSE -> {delta|reasoning|tool_use|end} iterator, and
                   complete() for one whole answer with no stream at all
@@ -3372,7 +3417,9 @@ public/
   studio-lib/     the studio library's source: index.json, and a directory per
                   library — copied into a game, never served to one (§4)
   templates/      a library's seeds: config/controls.js per control scheme,
-                  config/achievements.js — written once, never replaced (§4)
+                  config/achievements.js — written once, never replaced (§4).
+                  index.json is the scheme registry: what New game offers,
+                  and which seed each scheme starts from
   game-templates/ a starter tree per template, plus the blank start page (§4)
   story-art/      the standard set the example story copies in (§4)
   style.css

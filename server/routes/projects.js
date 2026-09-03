@@ -11,6 +11,7 @@ import { scaffoldLibraries } from '../files/library.js';
 import {
   listTemplates, scaffoldTemplate, scaffoldStart, typeFromTree,
 } from '../files/templates.js';
+import { listSchemes, defaultScheme, schemeSeed } from '../files/schemes.js';
 import { joinStarter } from '../starter.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
@@ -129,6 +130,28 @@ export function projectRoutes(r) {
       }
     }
 
+    // The control scheme — the shape of the game on a screen — chosen here
+    // the way the type is (spec.md §4). Unlike the type it lands in a file
+    // rather than a column, because input.js reads it inside the running
+    // game; which is also why it is the one of the two that stays changeable.
+    // Named by key: the seed path is the studio's own.
+    const scheme = body.scheme === undefined || body.scheme === ''
+      ? null
+      : String(body.scheme);
+    if (scheme !== null) {
+      if (kind !== 'game') throw new HttpError(400, 'a chat has no controls');
+      if (!listSchemes(ctx.publicDir)[scheme]) {
+        throw new HttpError(400, `no such control scheme: ${scheme}`);
+      }
+    }
+    // A template may fix its own — the quiz and the story are pressed, not
+    // steered — and then New game does not ask. An explicit one still wins,
+    // because "a quiz you steer" is a stranger game rather than a mistake.
+    const fromTemplate = template === null
+      ? null
+      : listTemplates(ctx.publicDir)[template].scheme;
+    const chosen = scheme ?? fromTemplate ?? defaultScheme(ctx.publicDir);
+
     // A chat never touches the disk: no directory, no repo, nothing to serve
     // on the games origin. Everything else about it is a project.
     if (kind === 'game') {
@@ -141,8 +164,11 @@ export function projectRoutes(r) {
         if (!(await isRepo(dir))) {
           await initRepo(dir, { author: authorFor(user), slug });
           // Born holding the studio library (spec.md §4); npm run sweep
-          // keeps it current from then on.
-          await scaffoldLibraries(dir, ctx.publicDir, authorFor(user));
+          // keeps it current from then on. The chosen control scheme is
+          // which config/controls.js the input library seeds.
+          await scaffoldLibraries(
+            dir, ctx.publicDir, authorFor(user), schemeSeed(ctx.publicDir, chosen),
+          );
           // A starter tree, or failing that a page. Either way the game has an
           // index.html from its first minute: a working tree without one is
           // nothing the games origin can serve, and the preview and the play

@@ -17,10 +17,13 @@
 <body>
 <h1>{{name}}</h1>
 <p>Nothing here yet. Ask a helper what to build.</p>
-<!-- Every library the game holds but the input module: a plain page has
-     nothing to steer, and on a phone input.js would draw a stick and buttons
-     over these two lines. A game that grows controls adds the two tags —
-     config/controls.js, then studio/input.js — where the helper is told to. -->
+<!-- Every library the game holds. The input module used to be left out of
+     this page, because on a phone it drew a stick and buttons over these two
+     lines; now the shape is a choice somebody makes when the game is made,
+     and a game whose choice was "just the game's own buttons" draws nothing.
+     config/controls.js comes first: it is what input.js reads. -->
+<script src="config/controls.js"></script>
+<script src="studio/input.js"></script>
 <script src="studio/sound.js"></script>
 <script src="studio/sprites.js"></script>
 <script src="studio/screens.js"></script>

@@ -647,7 +647,11 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   assert.match(system, /there is no\n\s+Screens\.close/, 'the one call it invents');
   assert.match(system, /Screens\.chips\(\{ Score: 12, Lives: 3 \}\)/);
   assert.match(system, /Every frame begins with Input\.update\(\)/);
-  assert.match(system, /SCHEME says what a touchscreen gets/, 'and that picking one is its job');
+  assert.match(system, /SCHEME says what a touchscreen gets/, 'and where the shape is declared');
+  // Picking it is the person's, since New game asks and the choice can be
+  // changed afterwards; an agent that rewrites the word unasked has undone a
+  // decision somebody made.
+  assert.match(system, /Change it only if you are asked to/, 'and whose choice it is');
   assert.match(system, /Moments\.say goes on the line where the thing happens/);
   // Not held is not named: this game has neither sprites nor sound, and a
   // shape line for a library that is not in the tree is a call into nothing.

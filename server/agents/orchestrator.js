@@ -131,8 +131,10 @@ function shapeLines(held) {
   if (held.has('input')) out.push(
     '- Every frame begins with Input.update(), before anything reads it, and the game asks Input.held,',
     '  Input.pressed and Input.axis rather than listening for keys itself. config/controls.js is where the',
-    '  bindings live and where SCHEME says what a touchscreen gets; choosing the scheme that suits this',
-    '  game is a one-word change in that file and it is yours to make.',
+    '  bindings live and where SCHEME says what a touchscreen gets. Read that word before writing any input',
+    '  code: it was picked when the game was made and a person can change it whenever they like, so it is',
+    '  a decision rather than a default. Change it only if you are asked to, and then make the bindings',
+    '  match it.',
   );
   if (held.has('moments')) out.push(
     '- Moments.say goes on the line where the thing happens, not in a batch at the end.',
