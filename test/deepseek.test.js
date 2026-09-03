@@ -472,6 +472,23 @@ test('complete asks for one whole answer and hands back its text and usage', asy
   assert.deepEqual(body.messages[0], { role: 'system', content: 'be brief' });
 });
 
+// Measured 2026-09-03 (spec.md §14): the API accepts response_format and
+// answers valid JSON. A belt over the prompt's own ask — sent only when asked
+// for, since an unknown parameter would be ignored silently.
+test('complete sends response_format only when asked to', async () => {
+  const plain = jsonFetch(said('{"size":"small"}'));
+  await createDeepSeek({ apiKey: 'k', fetchImpl: plain }).complete({
+    messages: [{ role: 'user', content: 'x' }],
+  });
+  assert.equal('response_format' in plain.calls[0].body, false);
+
+  const json = jsonFetch(said('{"size":"small"}'));
+  await createDeepSeek({ apiKey: 'k', fetchImpl: json }).complete({
+    messages: [{ role: 'user', content: 'x' }], responseFormat: 'json_object',
+  });
+  assert.deepEqual(json.calls[0].body.response_format, { type: 'json_object' });
+});
+
 test('complete clamps max_tokens and surfaces an upstream error as an LlmError', async () => {
   const ok = jsonFetch(said('hi'));
   await createDeepSeek({ apiKey: 'k', fetchImpl: ok }).complete({

@@ -1,5 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { nextUtcMidnight } from './util/time.js';
+import { intoBuilderRooms } from './builder.js';
+import { pauseRunningPlans } from './plans.js';
 
 export const PROJECT_KINDS = ['game', 'chat'];
 
@@ -302,6 +304,22 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_collection_kind ON collection_art (kind, id)`,
+
+  // What the builder's sizing call split a big request into, and how far it
+  // has got: one row per plan card, the `messages` row of kind 'plan' the chat
+  // shows as a checklist (server/plans.js, spec.md §8). The pieces are JSON
+  // because a piece is read and written whole and nothing queries inside one.
+  `CREATE TABLE IF NOT EXISTS plans (
+    message_id INTEGER PRIMARY KEY REFERENCES messages,
+    project_id INTEGER NOT NULL REFERENCES projects,
+    chat_id INTEGER NOT NULL REFERENCES chats,
+    request TEXT NOT NULL,
+    pieces TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_plans_chat ON plans (chat_id, status)`,
 ];
 
 export function openDb(dbPath) {
@@ -402,11 +420,16 @@ export function openDb(dbPath) {
   // The studio-wide budget, editable in the admin panel rather than a
   // constant in the source. Null means the built-in default still applies.
   addColumnIfMissing(db, 'studio_state', 'daily_token_budget', 'INTEGER');
-  // The starter helper: who joins every new game's Building chat. Null is
-  // nobody, which is what a fresh studio has and what the studio did before
-  // this existed. Nullable is also what lets the column carry a REFERENCES
-  // through ALTER TABLE with foreign keys on.
+  // The starter helper that used to join every new game's Building chat.
+  // Written and read by nothing since the builder took that room; kept so a
+  // rollback lands on its feet, like agents.reasoning was.
   addColumnIfMissing(db, 'studio_state', 'default_agent_id', 'INTEGER REFERENCES agents');
+  // The builder (server/builder.js): the one `agents` row the studio owns —
+  // never listed for editing, deleting or putting in a chat.
+  addColumnIfMissing(db, 'agents', 'builtin', 'INTEGER NOT NULL DEFAULT 0');
+  // The builder's room, one per game: `bots = 1` and this, and the door
+  // refuses every other helper (chats.js, assertBotsAllowed).
+  addColumnIfMissing(db, 'chats', 'builder', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
   // After the column, not with the other CREATEs: on a database written before
   // chats there is nothing to index until the line above has run.
@@ -422,6 +445,12 @@ export function openDb(dbPath) {
   // After intoChats, never before: that one hands every project both chats,
   // and this takes the second one back off the projects that are only a room.
   intoOneRoom(db);
+  // And after both: every game's Building becomes the builder's, or gets a
+  // fresh one beside it when people's helpers were already in it.
+  intoBuilderRooms(db);
+  // A plan the last process was mid-way through is nobody's now; the next
+  // message in its chat picks up the rest.
+  pauseRunningPlans(db);
   // Every project that predates authorship gets the person who made it, which
   // is the only honest answer available: nothing else in the row says who
   // worked on it.

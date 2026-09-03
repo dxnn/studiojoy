@@ -196,10 +196,15 @@ test('a database from before chats comes forward with its history', (t) => {
   const up = openDb(file);
   const chats = up.prepare('SELECT * FROM chats ORDER BY id').all();
 
-  // The game with a history gets two: the human-only one it now opens on, and
-  // Building, which is where the conversation actually was.
+  // The game with a history gets three: the human-only one it now opens on;
+  // the room the conversation was in, which had a helper of its own in it and
+  // so keeps it under `Building with helpers`; and a fresh Building for the
+  // builder (server/builder.js, intoBuilderRooms).
   const old = chats.filter((c) => c.project_id === 1);
-  assert.deepEqual(old.map((c) => [c.name, c.bots]), [['Humans only', 0], ['Building', 1]]);
+  assert.deepEqual(
+    old.map((c) => [c.name, c.bots, c.builder]),
+    [['Humans only', 0, 0], ['Building with helpers', 1, 0], ['Building', 1, 1]],
+  );
   const building = old[1];
 
   // Every message moved with it, and nothing was left without a home.
@@ -208,9 +213,16 @@ test('a database from before chats comes forward with its history', (t) => {
   assert.deepEqual(moved.map((m) => m.body), ['make it faster', 'done']);
 
   // The helper moved into the same chat, keeping its chatty switch, and the
-  // old table is gone rather than left to disagree with the new one.
-  const joined = up.prepare('SELECT * FROM chat_agents').all();
+  // old table is gone rather than left to disagree with the new one. The
+  // builder sits in the fresh Building, chatty, and nowhere else.
+  const joined = up.prepare('SELECT * FROM chat_agents WHERE agent_id = 1').all();
   assert.deepEqual(joined.map((r) => [r.chat_id, r.agent_id, r.chatty]), [[building.id, 1, 1]]);
+  const builder = up.prepare('SELECT id FROM agents WHERE builtin = 1').get();
+  assert.deepEqual(
+    up.prepare('SELECT chat_id, chatty FROM chat_agents WHERE agent_id = ? ORDER BY chat_id')
+      .all(builder.id).map((r) => [r.chat_id, r.chatty]),
+    [[chats.filter((c) => c.project_id === 2)[1].id, 1], [old[2].id, 1]],
+  );
   assert.equal(
     up.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE name = 'project_agents'").get().c,
     0,
@@ -218,11 +230,10 @@ test('a database from before chats comes forward with its history', (t) => {
   );
 
   // A project nobody ever talked in gets both as well. It has nothing to
-  // carry, but a game with nowhere a helper can be put is a game that cannot
-  // be worked on at all — which is what it used to be left as.
+  // carry, so its empty Building becomes the builder's in place.
   assert.deepEqual(
-    chats.filter((c) => c.project_id === 2).map((c) => [c.name, c.bots]),
-    [['Humans only', 0], ['Building', 1]],
+    chats.filter((c) => c.project_id === 2).map((c) => [c.name, c.bots, c.builder]),
+    [['Humans only', 0, 0], ['Building', 1, 1]],
   );
 
   // Opening it again changes nothing: the upgrade is not a thing that runs

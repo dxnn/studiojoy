@@ -205,13 +205,28 @@ export async function startGames(fixture, opts = {}) {
   };
 }
 
-// The chat helpers can be put in. Every project is born with two — the
-// human-only one it opens on, and this — so a test that wants an agent to
-// answer wants this one.
+// A chat a test's own helper can be put in. A game is born with `Humans only`
+// and `Building`, and Building is the builder's — it takes no other helper —
+// so a test that wants a helper of its own answering gets a room made for it,
+// once. A chat project's one room takes helpers and is what comes back.
 export async function workChat(app, slug = 'tank') {
   const res = await app.client.json('GET', `/api/projects/${slug}`);
-  const chat = res.body.chats?.find((c) => c.bots);
-  if (!chat) throw new Error(`no chat allowing helpers in ${slug}`);
+  const open = res.body.chats?.find((c) => c.bots && !c.builder);
+  if (open) return open.id;
+  const made = await app.client.json('POST', `/api/projects/${slug}/chats`, {
+    body: { name: 'Helpers' },
+  });
+  if (made.status !== 201) {
+    throw new Error(`could not make a chat for helpers in ${slug}: ${made.status}`);
+  }
+  return made.body.id;
+}
+
+// The builder's room in a game: where the studio's own helper answers.
+export async function builderChat(app, slug = 'tank') {
+  const res = await app.client.json('GET', `/api/projects/${slug}`);
+  const chat = res.body.chats?.find((c) => c.builder);
+  if (!chat) throw new Error(`no builder room in ${slug}`);
   return chat.id;
 }
 

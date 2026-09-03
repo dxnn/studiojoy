@@ -60,8 +60,8 @@ test('the mark says which conversation, and reading that one clears it', async (
   assert.equal(before.mentions, 2, 'the game says two');
   assert.deepEqual(
     before.chats.map((c) => c.mentions),
-    [1, 1],
-    'and each conversation says one',
+    [1, 0, 1],
+    'and each conversation says its own — Humans only, Building, and the helpers\' room',
   );
 
   // Reading one clears that one and leaves the other standing.
@@ -70,7 +70,7 @@ test('the mark says which conversation, and reading that one clears it', async (
 
   const after = (await theirs.json('GET', '/api/projects/tank')).body;
   assert.equal(after.mentions, 1);
-  assert.deepEqual(after.chats.map((c) => c.mentions), [1, 0]);
+  assert.deepEqual(after.chats.map((c) => c.mentions), [1, 0, 0]);
 
   // And it is Robin's to clear: Dann reading it changes nothing over there.
   await app.client.json('POST', '/api/projects/tank/chats/1/seen');

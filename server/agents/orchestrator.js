@@ -13,6 +13,13 @@ import {
 import { messagePublic, agentAuthorFor } from '../routes/helpers.js';
 import { parseMentions, agentEligible } from '../mentions.js';
 import { createToolset } from './tools.js';
+import {
+  pausedPlan, createPlan, planFor, setPiece, setPlanStatus, planPublic,
+} from '../plans.js';
+import {
+  sizingAsk, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner,
+  SIZING_MAX_TOKENS,
+} from './sizing.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
 // these caps are about cost and latency rather than capability — roughly
@@ -418,7 +425,11 @@ function libraryLines(files) {
     + 'Use read_file if you need to see inside one.';
 }
 
-async function buildFileBlock(db, chat, dir) {
+// `whole` narrows the block to a piece's fire: only the paths the plan named
+// are sent whole — plus the brief, the spec and config/, which are small and
+// load-bearing — and everything else is listed, reachable with read_file.
+// Null is the ordinary fire, which gets the whole tree under the cap (§8).
+async function buildFileBlock(db, chat, dir, whole = null) {
   const { files } = await listTree(dir);
   // Pins are per conversation: what somebody pointed at in one chat is not
   // what the helper in another one should be looking at.
@@ -439,10 +450,13 @@ async function buildFileBlock(db, chat, dir) {
     ...texts.filter((f) => pinned.has(f.path)).sort(bySize),
     ...texts.filter((f) => !pinned.has(f.path)).sort(bySize),
   ];
+  const wanted = (f) => whole === null
+    || whole.has(f.path)
+    || f.path === BRIEF_FILE || f.path === 'SPEC.md' || f.path.startsWith('config/');
   const included = new Set();
   let used = 0;
   for (const file of byPriority) {
-    if (used + file.size > AMBIENT_BYTES) continue;
+    if (!wanted(file) || used + file.size > AMBIENT_BYTES) continue;
     included.add(file.path);
     used += file.size;
   }
@@ -477,7 +491,9 @@ async function buildFileBlock(db, chat, dir) {
   }
   if (omitted.length > 0) {
     omitted.sort();
-    parts.push(`(left out for size — call read_file if you need them: ${omitted.join(', ')})`);
+    parts.push(whole === null
+      ? `(left out for size — call read_file if you need them: ${omitted.join(', ')})`
+      : `(not sent for this piece — call read_file if you need one: ${omitted.join(', ')})`);
   }
   const library = libraryLines(files);
   if (library) parts.push(library);
@@ -630,12 +646,19 @@ function historyTurns(db, chat, agent, lastFiredMaxId = 0, historyFloor = new Ma
   return { turns: collapsed, trimmed: older };
 }
 
+// `piece` is one piece of a plan (spec.md §8): its transcript is the one
+// `[studio]` turn that names the request, the plan and this piece — never the
+// chat's history — and its file block is narrowed to the files the plan named.
+// A prompt small enough to read whole in the receipt, and a fire that thinks
+// in proportion to the piece rather than to the whole (§14).
 async function buildContext({
   db, project, chat, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
-  historyFloor = new Map(),
+  historyFloor = new Map(), piece = null,
 }) {
-  const { turns, trimmed } = historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
+  const { turns, trimmed } = piece
+    ? { turns: [{ id: 0, role: 'user', text: piece.turn }], trimmed: 0 }
+    : historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
@@ -649,7 +672,7 @@ async function buildContext({
   // changes, the brief and the description rarely do, the files often. Putting
   // the files here rather than on the last message is what turns a 0% cache
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
-  const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir);
+  const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir, piece?.whole ?? null);
   const preamble = isChat ? null : studioPreamble({
     project,
     canEdit: agent.file_tools,
@@ -671,7 +694,8 @@ async function buildContext({
   // Errors and pins stay next to the human's message: both change turn to
   // turn, so in the system prompt they would invalidate the files behind them.
   const errorBlock = isChat ? null : await buildErrorBlock(db, project, dir);
-  const pinNote = fileBlock && fileBlock.pinnedShown.length > 0
+  // A piece has no pins: what it is pointed at is in its one turn already.
+  const pinNote = !piece && fileBlock && fileBlock.pinnedShown.length > 0
     ? `(the user pinned these files: ${fileBlock.pinnedShown.join(', ')})`
     : null;
   if (errorBlock || pinNote) {
@@ -810,13 +834,636 @@ export function createOrchestrator({
     }
   }
 
+  // A `[studio]` note onto the messages a loop is carrying: into the last
+  // message when that is a user turn, as a user turn of its own after a tool
+  // result — the shape the cut and shed notices already take.
+  function noteOnto(messages, note) {
+    const last = messages[messages.length - 1];
+    if (last?.role === 'user' && typeof last.content === 'string') {
+      last.content = `${last.content}\n\n${note}`;
+    } else {
+      messages.push({ role: 'user', content: note });
+    }
+  }
+
+  // One tool loop: the requests, the streaming, the tools, the cap and the
+  // shed. Everything it leaves behind comes back as one outcome, and what to
+  // keep of it is persistReply's — the ordinary fire and a piece's run this
+  // same loop over different prompts.
+  //
+  // `capMode` says what a thinking cap on the *first* turn does. 'retry' asks
+  // the same turn again with thinking off and the trace handed on as notes —
+  // measured (§14): dropped, the retry under-delivers; handed, it follows the
+  // design. 'return' hands the trace back to the caller instead: the builder's
+  // room, where a first turn that thought too long is a request that wanted
+  // sizing. On any later turn the cap always retries. `handoff` starts a loop
+  // already carrying a trace, thinking off — the retry a caller runs itself.
+  async function runLoop({
+    agent, system, messages: initial, toolset, thinking, emit, capMode = 'retry', handoff = null,
+  }) {
+    const messages = initial.map((m) => ({ ...m }));
+    // Everything the loop appends is counted, so a fire cannot grow past
+    // LOOP_GROWTH_BYTES however many files it reads or writes.
+    let grown = 0;
+    const append = (message) => {
+      messages.push(message);
+      grown += JSON.stringify(message).length;
+    };
+    // ⚠️ The one place a trace enters a request: this fire, once, as text.
+    // It never reaches the receipt — the prompt kept there carries a
+    // placeholder for it — and never a later fire (spec.md §8, §12).
+    let handed = null;
+    const hand = (trace) => {
+      handed = handoffNote(trace);
+      noteOnto(messages, handed);
+      grown += handed.length;
+    };
+    // Set once a turn's trace ran past the cap with nothing else produced.
+    // Sticky for the rest of the fire: thinking goes off and stays off, so
+    // the cap cannot trip twice and the retry cannot loop.
+    let thinkingOff = false;
+    let cappedThinking = false;
+    if (handoff !== null) {
+      hand(handoff);
+      thinkingOff = true;
+      cappedThinking = true;
+    }
+    let replyText = '';
+    let charged = 0;
+    let toolCallCount = 0;
+    let turnsUsed = 0;
+    // One entry per request the fire made: what the cache remembered, what
+    // was new, what came out. The other half of the receipt.
+    const requests = [];
+    // The reasoning DeepSeek is carrying for this chain, and where the
+    // appended bytes stood at the last shed — the two sides of the rule.
+    let pile = 0;
+    let shedBase = 0;
+    let sheds = 0;
+    // What the last request actually carried, captured at the moment of
+    // sending: the loop appends tool results it may never send.
+    let sentPrompt = '';
+    // Whether the turn that ended the loop left a cut-off call unanswered.
+    // A cut that a later turn rewrote successfully is not worth reporting.
+    let pendingCut = false;
+    let hitLength = false;
+    let hitLimit = null;
+    let streamFailed = false;
+    // The last turn's split between thinking and everything else. Measured
+    // as this model's ordinary answer to an ambitious open request: the
+    // whole allowance goes to the trace and no tool call is ever reached
+    // (spec.md §14), which is a different failure from a file cut in half
+    // and reads nothing like it.
+    let lastReasoning = 0;
+    let lastOut = 0;
+    const outcome = (extra = {}) => ({
+      replyText, charged, requests, turnsUsed, toolCallCount, grown, sheds, sentPrompt,
+      pendingCut, hitLength, hitLimit, streamFailed, lastReasoning, lastOut, cappedThinking,
+      capped: null, ...extra,
+    });
+
+    for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
+      let text = '';
+      const calls = [];
+      let cutCalls = 0;
+      // This turn's trace, held only until the turn ends: what a cap hands on.
+      let trace = '';
+      turnsUsed = turn + 1;
+      sentPrompt = promptText(system, messages);
+      if (handed !== null) {
+        sentPrompt = sentPrompt.replace(
+          handed, `[studio] (a capped trace was handed on here: ${handed.length} characters, not kept)`,
+        );
+      }
+      try {
+        const stream = llm.stream({
+          model: agent.model,
+          system,
+          messages,
+          tools: toolset ? toolset.definitions : null,
+          thinking: thinkingOff ? 'none' : thinking,
+          maxTokens: DEFAULT_MAX_TOKENS,
+        });
+        for await (const event of stream) {
+          if (event.type === 'reasoning') {
+            // Streamed for the UI, never persisted and never replayed.
+            trace += event.text;
+            emit('agent.stream.reasoning', { delta: event.text });
+          } else if (event.type === 'delta') {
+            text += event.text;
+            emit('agent.stream.chunk', { delta: event.text });
+          } else if (event.type === 'tool_use') {
+            calls.push(event);
+          } else if (event.type === 'tool_use_failed') {
+            cutCalls += 1;
+          } else if (event.type === 'end') {
+            if (event.finish_reason === 'length') hitLength = true;
+            charged += tokensCharged(event.usage);
+            if (event.usage) {
+              requests.push({
+                hit: event.usage.prompt_cache_hit_tokens ?? 0,
+                miss: event.usage.prompt_cache_miss_tokens
+                  ?? event.usage.prompt_tokens ?? 0,
+                out: event.usage.completion_tokens ?? 0,
+              });
+              lastReasoning = event.usage.completion_tokens_details?.reasoning_tokens ?? 0;
+              lastOut = event.usage.completion_tokens ?? 0;
+              pile += lastReasoning;
+            }
+          }
+        }
+      } catch (err) {
+        // Thinking ran away with the turn: nothing was produced and the
+        // trace passed its ceiling, which left to itself ends in an empty
+        // reply nine minutes later (spec.md §14). Not a failure to salvage
+        // — the same turn is asked again with thinking off and the trace in
+        // hand, or handed back to a caller that wanted to size the request.
+        // The abandoned attempt does not count as a turn.
+        //
+        // ⚠️ It is charged, though, from an estimate: no usage frame
+        // arrives for a stream nobody let finish, but the trace was
+        // generated and the key is paying for it. Only the trace — the
+        // prompt behind it was billed too and there is no count to put on
+        // it, so this still undercounts, just by less.
+        if (err.code === 'thinking_cap' && !thinkingOff) {
+          charged += tokensForChars(err.reasoningChars);
+          if (capMode === 'return' && turn === 0) {
+            cappedThinking = true;
+            return outcome({ capped: trace, turnsUsed: 0 });
+          }
+          hand(trace);
+          thinkingOff = true;
+          cappedThinking = true;
+          turn -= 1;
+          continue;
+        }
+        // Salvage rather than discard. Earlier turns' prose and any files
+        // already on disk are finished work; returning here threw them all
+        // away, which is how a ten-minute reply used to vanish without a
+        // trace when the stream died on its last turn.
+        console.error('agent stream failed', err);
+        streamFailed = true;
+        if (text) replyText += replyText ? `\n\n${text}` : text;
+        break;
+      }
+
+      if (text) replyText += replyText ? `\n\n${text}` : text;
+      pendingCut = cutCalls > 0;
+
+      // Nothing to run and nothing cut off: a plain reply, so the turn is
+      // done. A cut call is not "done" — it is a file that never landed,
+      // and the loop keeps going so the model can write it again.
+      if (calls.length === 0 && cutCalls === 0) break;
+
+      if (calls.length > 0) {
+        append({
+          role: 'assistant',
+          content: text || null,
+          tool_calls: calls.map((c) => ({
+            id: c.id,
+            type: 'function',
+            function: { name: c.name, arguments: JSON.stringify(c.input) },
+          })),
+        });
+
+        for (const call of calls) {
+          if (toolCallCount >= maxToolCalls) {
+            hitLimit = 'tool';
+            append({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: 'refused: this turn has reached its tool call limit',
+            });
+            continue;
+          }
+          emit('agent.tool', { tool: call.name, path: call.input?.path ?? null });
+          const result = await toolset.run(call.name, call.input);
+          append({ role: 'tool', tool_call_id: call.id, content: result });
+          toolCallCount += 1;
+        }
+        if (hitLimit) break;
+      } else if (text) {
+        // No valid call to answer, so this turn's prose stands on its own.
+        append({ role: 'assistant', content: text });
+      }
+
+      if (cutCalls > 0) append({ role: 'user', content: CUT_NOTICE });
+      // Stop rather than truncate: dropping an earlier message would orphan
+      // a tool_call_id, and a continuation resumes from a context built
+      // fresh from disk, which is the recovery anyway.
+      if (grown > LOOP_GROWTH_BYTES) hitLimit = 'context';
+      if (turn === maxAssistantTurns - 1 && !hitLimit) hitLimit = 'turn';
+      if (hitLimit) break;
+
+      // Another round is coming: shed the reasoning pile if carrying it is
+      // now dearer than re-paying the visible tail once (spec.md §8, §14).
+      const shedCost = (grown - shedBase) / 4;
+      if (pile >= SHED_FLOOR_TOKENS
+        && (pile / 10) * SHED_HORIZON_ROUNDS > shedCost) {
+        append({ role: 'user', content: SHED_NOTICE });
+        pile = 0;
+        shedBase = grown;
+        sheds += 1;
+      }
+    }
+    return outcome();
+  }
+
+  // What a loop left — prose, files, cost — kept as one message row, one
+  // commit and one receipt, with the events that say so. `body` is the row's
+  // text when it is not the reply itself: a piece with nothing to say still
+  // gets its row. `subject` heads the commit. Answers the row's id — null when
+  // nothing was worth a row — and `nothing` when the loop died with nothing
+  // to show, which is the one end that leaves no word behind.
+  async function persistReply({
+    row, project, chat, agent, dir, asker, context, emit, state, snapshot, toolset, outcome,
+    subject, body = outcome.replyText, kind = null,
+  }) {
+    consumeBudget(db, outcome.charged);
+    chargeUser(db, asker?.id, outcome.charged);
+
+    const changed = toolset ? toolset.changedPaths() : [];
+    if (outcome.streamFailed && !body && changed.length === 0) {
+      // Nothing said and nothing written: an error end and no message row,
+      // same as before there was anything to salvage.
+      emit('agent.stream.end', { error: true });
+      state.live = false;
+      return { messageId: null, commitSha: null, changed, nothing: true };
+    }
+
+    // The reply is written; from here on, anything newer than the snapshot
+    // is something this agent has not seen.
+    lastFired.set(row.id, snapshot);
+    let commitSha = null;
+    if (changed.length > 0) {
+      commitSha = await mutex.run(row.slug, async () => {
+        // Anything a person saved while this fire ran is theirs first.
+        if (pending) await pending.settleLocked(row.slug);
+        return commitPaths(
+          dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
+        );
+      });
+    }
+
+    if (!body && changed.length === 0) {
+      // Neither prose nor files: nothing worth a message row.
+      emit('agent.stream.end');
+      state.live = false;
+      return { messageId: null, commitSha, changed, nothing: false };
+    }
+
+    const now = new Date().toISOString();
+    const messageId = tx(db, () => {
+      const info = db
+        .prepare(
+          `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at, tokens, trimmed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        // Null rather than 0 when nothing was trimmed: the column is a
+        // report of something having happened, not a running total.
+        .run(
+          project.id, chat.id, agent.id, kind, body, now, outcome.charged,
+          context.trimmed || null,
+        );
+      const id = Number(info.lastInsertRowid);
+      // A write of identical bytes produces no commit, so there is
+      // nothing to record and nothing changed to report.
+      if (commitSha) {
+        for (const [filePath, change] of toolset.changes) {
+          db.prepare(
+            `INSERT INTO message_writes (message_id, path, action, bytes, commit_sha)
+             VALUES (?, ?, ?, ?, ?)`,
+          ).run(id, filePath, change.action, change.bytes, commitSha);
+        }
+      }
+      // The receipt. The prompt is a debugging aid, not a record: this
+      // fire's takes the place of whichever reply in the project held it.
+      db.prepare(
+        'UPDATE message_receipts SET prompt = NULL WHERE project_id = ? AND prompt IS NOT NULL',
+      ).run(project.id);
+      db.prepare(
+        `INSERT INTO message_receipts (message_id, project_id, breakdown, prompt)
+         VALUES (?, ?, ?, ?)`,
+      ).run(id, project.id, JSON.stringify({
+        ...context.breakdown,
+        loop: {
+          turns: outcome.turnsUsed,
+          tool_calls: outcome.toolCallCount,
+          appended_bytes: outcome.grown,
+          sheds: outcome.sheds,
+        },
+        requests: outcome.requests,
+      }), outcome.sentPrompt);
+      return id;
+    });
+
+    const stored = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
+    broker.broadcast('message.new', messagePublic(db, stored, row.slug));
+    emit('agent.stream.end', { message_id: messageId });
+    state.live = false;
+    if (commitSha) {
+      broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
+      versionNew(broker, row.slug, commitSha, changed);
+    }
+    return { messageId, commitSha, changed, nothing: false };
+  }
+
+  // The banners: how the reply was produced and how the loop stopped, said
+  // in words a person can act on. `continuation` is whether running out of
+  // room may re-arm the agent; a piece never does, its plan carries on.
+  function reportOutcome({
+    row, project, chat, agent, asker, outcome, changed, continuation,
+  }) {
+    const {
+      cappedThinking, streamFailed, hitLength, replyText, lastReasoning, lastOut,
+      pendingCut, hitLimit,
+    } = outcome;
+    const banner = (body) => postSystemMessage(db, broker, {
+      project, chat, agentId: agent.id, body,
+    });
+
+    // Said on its own rather than as another branch of the chain below:
+    // this is about how the reply was produced, not about how the loop
+    // stopped, and it reads correctly next to whichever of those follows.
+    if (cappedThinking) {
+      banner(`${row.agent_name} was thinking for a very long time, so the studio asked them to stop planning and start working. Ask for one piece at a time if you want them to think it through properly.`);
+    }
+
+    // Explain a missing file rather than leaving it looking like a backend
+    // fault (spec.md §8). Only the final turn's cut matters: an earlier one
+    // the model was told about and rewrote is not a missing file.
+    if (streamFailed) {
+      // First, not another else-if: the limit banners describe how the loop
+      // chose to stop, and this loop did not choose. No continuation either
+      // — a dead upstream retried automatically could loop on the failure.
+      banner(`${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`);
+    } else if (hitLength && !replyText && changed.length === 0
+        && lastReasoning > 0 && lastReasoning >= lastOut * 0.9) {
+      // It never got past thinking. Nothing was cut in half, because
+      // nothing was started: the trace filled the whole output allowance.
+      // Naming that is the difference between "the studio is broken" and
+      // "ask for less at once", and the second one is both true and
+      // something a person can act on.
+      banner(`${row.agent_name} spent the whole reply thinking and never got as far as writing anything. Ask for one piece at a time — one screen, one rule, one file.`);
+    } else if (pendingCut || (hitLength && changed.length === 0)) {
+      banner(`${row.agent_name} ran out of output budget mid-reply; a file may be missing or incomplete.`);
+    } else if (hitLimit === 'tool') {
+      banner(`${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`);
+    } else if (hitLimit === 'turn' || hitLimit === 'context') {
+      // Out of room mid-build: out of turns, or the loop grew past what one
+      // request may carry. Rather than making a human type "keep going",
+      // re-arm the agent and let it pick up where it stopped — a fresh fire
+      // rebuilds its context from disk, which is what clears the weight.
+      // The system message is not decoration: a 'system' row enters the
+      // transcript as a user turn, which is what gives the next fire
+      // something to answer — without it the agent's own reply would be
+      // newest and the fire would no-op.
+      const used = continued.get(row.id) ?? 0;
+      if (continuation && used < maxContinuations
+          && hasBudget(db, studioLimit(db, dailyTokenBudget))
+          && userHasBudget(db, asker)) {
+        continued.set(row.id, used + 1);
+        banner(`${row.agent_name} is not finished yet — carrying on from where they stopped.`);
+        db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?')
+          .run(row.id);
+      } else {
+        banner(hitLimit === 'context'
+          ? `${row.agent_name} had too much to hold in one reply and stopped. Ask them to keep going if you want more.`
+          : `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`);
+      }
+    } else if (!replyText && changed.length === 0) {
+      // Ended cleanly and produced nothing at all: no prose, no files, no
+      // limit reached. The end event has already taken the live entry away,
+      // so without this the row just vanishes and the person is left
+      // wondering whether they were heard.
+      banner(`${row.agent_name} finished without saying anything. Ask again if you were expecting a reply.`);
+    }
+  }
+
+  // The fire every room but the builder's gets: one loop, one reply.
+  async function openFire(fire) {
+    const { row, agent, dir, context, emit } = fire;
+    const toolset = agent.file_tools && dir !== null
+      ? createToolset({ dir, mutex, slug: row.slug, pending })
+      : null;
+    const outcome = await runLoop({
+      agent, system: context.system, messages: context.messages, toolset,
+      thinking: agent.thinking, emit,
+    });
+    const kept = await persistReply({
+      ...fire, toolset, outcome, subject: firstLine(outcome.replyText) || 'update files',
+    });
+    if (kept.nothing) return;
+    reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: true });
+  }
+
+  // The sizing call (spec.md §8, §14; agents/sizing.js): one whole answer,
+  // thinking off, no tools, the fire's own system prompt — small, or big with
+  // the pieces. Fails open to small — today's fire, the cap behind it — on an
+  // answer that will not parse or an upstream that will not answer. Charged to
+  // the asker like the fire it goes ahead of.
+  async function sizeRequest(fire, { paused = null, notes = null } = {}) {
+    const { agent, context, asker } = fire;
+    const messages = context.messages.map((m) => ({ ...m }));
+    const last = messages[messages.length - 1];
+    // Notes ahead of the ask, never after: a long attachment behind the ask
+    // swamps it (§14).
+    last.content = [
+      last.content, notes ? notesForPlanner(notes) : null, sizingAsk({ paused }),
+    ].filter(Boolean).join('\n\n');
+    try {
+      const answer = await llm.complete({
+        model: agent.model,
+        system: context.system,
+        messages,
+        thinking: 'none',
+        maxTokens: SIZING_MAX_TOKENS,
+        responseFormat: 'json_object',
+      });
+      const charged = tokensCharged(answer.usage);
+      consumeBudget(db, charged);
+      chargeUser(db, asker?.id, charged);
+      return parseSizing(answer.text) ?? { size: 'small', resume: true };
+    } catch (err) {
+      console.error('sizing failed', err);
+      return { size: 'small', resume: true };
+    }
+  }
+
+  const announcePlan = (fire, plan) => broker.broadcast('plan.update', {
+    project_slug: fire.row.slug,
+    chat_id: fire.chat.id,
+    message_id: plan.message_id,
+    plan: planPublic(plan),
+  });
+
+  function pausePlan(fire, plan, body) {
+    announcePlan(fire, setPlanStatus(db, plan.message_id, 'paused'));
+    postSystemMessage(db, broker, {
+      project: fire.project, chat: fire.chat, agentId: fire.agent.id, body,
+    });
+  }
+
+  function dropPlan(fire, plan, body = null) {
+    announcePlan(fire, setPlanStatus(db, plan.message_id, 'dropped'));
+    if (body) {
+      postSystemMessage(db, broker, {
+        project: fire.project, chat: fire.chat, agentId: fire.agent.id, body,
+      });
+    }
+  }
+
+  // The builder's room (spec.md §8; ideas/planner.md): size first, then
+  // today's fire for a small ask or one fire per piece for a big one. A plan
+  // an earlier message paused is the sizing's to carry on, set aside or
+  // replace. On a small ask the cap, on a first turn, hands its trace to the
+  // sizing call rather than to a retry — a request that thought that long
+  // wanted splitting — and only if that still says small does the retry run,
+  // with the trace in hand.
+  async function builderFire(fire) {
+    const { row, chat, agent, dir, asker, context, emit } = fire;
+    const paused = pausedPlan(db, chat.id);
+    const request = db
+      .prepare(
+        `SELECT body FROM messages
+          WHERE chat_id = ? AND user_id IS NOT NULL ORDER BY id DESC LIMIT 1`,
+      )
+      .get(chat.id)?.body ?? '';
+
+    let sized = await sizeRequest(fire, { paused });
+    if (sized.size === 'big') {
+      if (paused) dropPlan(fire, paused);
+      await runPlan(fire, { request, pieces: sized.pieces });
+      return;
+    }
+
+    const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
+    let outcome = await runLoop({
+      agent, system: context.system, messages: context.messages, toolset,
+      thinking: agent.thinking, emit, capMode: 'return',
+    });
+    if (outcome.capped !== null) {
+      const abandoned = outcome.charged;
+      sized = await sizeRequest(fire, { paused, notes: outcome.capped });
+      if (sized.size === 'big') {
+        consumeBudget(db, abandoned);
+        chargeUser(db, asker?.id, abandoned);
+        if (paused) dropPlan(fire, paused);
+        await runPlan(fire, { request, pieces: sized.pieces });
+        return;
+      }
+      outcome = await runLoop({
+        agent, system: context.system, messages: context.messages, toolset,
+        thinking: agent.thinking, emit, handoff: outcome.capped,
+      });
+      outcome.charged += abandoned;
+    }
+    const kept = await persistReply({
+      ...fire, toolset, outcome, subject: firstLine(outcome.replyText) || 'update files',
+    });
+    if (kept.nothing) return;
+    reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: true });
+
+    if (!paused) return;
+    if (sized.resume) await runPieces(fire, planFor(db, paused.message_id));
+    else dropPlan(fire, paused, `${row.agent_name} set the plan aside.`);
+  }
+
+  // A plan: the card — a message of kind 'plan', the builder's own words in
+  // the transcript and a checklist on screen — then the pieces.
+  async function runPlan(fire, { request, pieces }) {
+    const { row, project, chat, agent, emit, state, snapshot } = fire;
+    const now = new Date().toISOString();
+    const messageId = tx(db, () => {
+      const info = db
+        .prepare(
+          `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at)
+           VALUES (?, ?, ?, 'plan', ?, ?)`,
+        )
+        .run(project.id, chat.id, agent.id, planBody(pieces), now);
+      const id = Number(info.lastInsertRowid);
+      createPlan(db, {
+        messageId: id, projectId: project.id, chatId: chat.id, request, pieces, now,
+      });
+      return id;
+    });
+    lastFired.set(row.id, snapshot);
+    const stored = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
+    broker.broadcast('message.new', messagePublic(db, stored, row.slug));
+    emit('agent.stream.end', { message_id: messageId });
+    state.live = false;
+    await runPieces(fire, planFor(db, messageId));
+  }
+
+  // The pieces of a plan, one fire each, in order, each a fresh context from
+  // disk narrowed to its own files and thinking off (§14). Stops — paused,
+  // the plan kept — when a message arrives (the dirty bit; the finally
+  // re-fires, and that message's sizing picks the rest up), when a day's
+  // tokens run out, or when a piece's stream dies with nothing to show. A
+  // piece that hit a limit still counts as done: what it wrote is on disk and
+  // the next piece builds on it.
+  async function runPieces(fire, plan) {
+    const {
+      row, project, chat, agent, dir, asker, emit, state,
+    } = fire;
+    const n = plan.pieces.length;
+    let current = setPlanStatus(db, plan.message_id, 'running');
+    announcePlan(fire, current);
+    for (let i = 0; i < n; i += 1) {
+      if (current.pieces[i].status === 'done') continue;
+      const interrupted = db
+        .prepare('SELECT response_pending FROM chat_agents WHERE id = ?')
+        .get(row.id)?.response_pending === 1;
+      if (interrupted) {
+        pausePlan(fire, current, `${row.agent_name} paused after piece ${i} of ${n} to read your message.`);
+        return;
+      }
+      if (!hasBudget(db, studioLimit(db, dailyTokenBudget)) || !userHasBudget(db, asker)) {
+        pausePlan(fire, current, `${row.agent_name} paused the plan: out of tokens for today. Ask them to carry on tomorrow.`);
+        return;
+      }
+      const piece = current.pieces[i];
+      emit('agent.stream.start');
+      state.live = true;
+      const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
+      const context = await buildContext({
+        db, project, chat, dir, agent, maxAssistantTurns, maxToolCalls,
+        piece: {
+          turn: pieceTurn({ request: current.request, pieces: current.pieces, index: i }),
+          whole: new Set(piece.files),
+        },
+      });
+      const outcome = await runLoop({
+        agent, system: context.system, messages: context.messages, toolset,
+        thinking: 'none', emit,
+      });
+      const note = firstLine(outcome.replyText) || `Piece ${i + 1} of ${n}: ${piece.title}`;
+      const kept = await persistReply({
+        ...fire, context, toolset, outcome,
+        subject: `piece ${i + 1} of ${n} — ${piece.title}`,
+        body: outcome.replyText || note,
+      });
+      if (kept.nothing) {
+        pausePlan(fire, current, `${row.agent_name} was cut off during piece ${i + 1} of ${n}, so the plan is paused. Ask them to carry on.`);
+        return;
+      }
+      reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: false });
+      current = setPiece(db, plan.message_id, i, {
+        status: 'done', message_id: kept.messageId, note,
+      });
+      announcePlan(fire, current);
+    }
+    announcePlan(fire, setPlanStatus(db, plan.message_id, 'done'));
+  }
+
   async function fireAgent(chatAgentId) {
     const row = db
       .prepare(
         `SELECT ca.id, ca.chat_id, ca.agent_id, ca.response_pending,
                 c.project_id, c.name AS chat_name,
                 a.name AS agent_name, a.description, a.model, a.thinking,
-                a.file_tools, a.deleted,
+                a.file_tools, a.deleted, a.builtin,
+                c.builder,
                 p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on
            FROM chat_agents ca
            JOIN chats c ON c.id = ca.chat_id
@@ -854,8 +1501,10 @@ export function createOrchestrator({
     // Whether a browser is holding a live entry for this fire: set by the
     // start event, cleared by whichever end event answers it. ⚠️ The catch
     // below reads it, and an error end sent when nothing is live *creates* a
-    // live entry the client will never clear (spec.md §9).
-    let live = false;
+    // live entry the client will never clear (spec.md §9). An object, because
+    // the loop and the persisting are functions of their own now and both
+    // move it.
+    const state = { live: false };
 
     try {
       // Billed to whoever asked: the newest human message in this chat is
@@ -917,364 +1566,16 @@ export function createOrchestrator({
       });
       if (!context) return;
 
-      const toolset = agent.file_tools && dir !== null
-        ? createToolset({ dir, mutex, slug: row.slug, pending })
-        : null;
-
       emit('agent.stream.start');
-      live = true;
+      state.live = true;
 
-      const messages = [...context.messages];
-      // Everything the loop appends is counted, so a fire cannot grow past
-      // LOOP_GROWTH_BYTES however many files it reads or writes.
-      let grown = 0;
-      const append = (message) => {
-        messages.push(message);
-        grown += JSON.stringify(message).length;
+      const fire = {
+        row, project, chat, agent, dir, asker, context, emit, state, snapshot,
       };
-      let replyText = '';
-      let charged = 0;
-      let toolCallCount = 0;
-      let turnsUsed = 0;
-      // One entry per request the fire made: what the cache remembered, what
-      // was new, what came out. The other half of the receipt.
-      const requests = [];
-      // The reasoning DeepSeek is carrying for this chain, and where the
-      // appended bytes stood at the last shed — the two sides of the rule.
-      let pile = 0;
-      let shedBase = 0;
-      let sheds = 0;
-      // What the last request actually carried, captured at the moment of
-      // sending: the loop appends tool results it may never send.
-      let sentPrompt = '';
-      // Whether the turn that ended the loop left a cut-off call unanswered.
-      // A cut that a later turn rewrote successfully is not worth reporting.
-      let pendingCut = false;
-      let hitLength = false;
-      let hitLimit = null;
-      let streamFailed = false;
-      // The last turn's split between thinking and everything else. Measured
-      // as this model's ordinary answer to an ambitious open request: the
-      // whole allowance goes to the trace and no tool call is ever reached
-      // (spec.md §14), which is a different failure from a file cut in half
-      // and reads nothing like it.
-      let lastReasoning = 0;
-      let lastOut = 0;
-      // Set once a turn's trace ran past the cap with nothing else produced.
-      // Sticky for the rest of the fire: thinking goes off and stays off, so
-      // the cap cannot trip twice and the retry cannot loop.
-      let thinkingOff = false;
-      let cappedThinking = false;
-
-      for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
-        let text = '';
-        const calls = [];
-        let cutCalls = 0;
-        turnsUsed = turn + 1;
-        sentPrompt = promptText(context.system, messages);
-        try {
-          const stream = llm.stream({
-            model: agent.model,
-            system: context.system,
-            messages,
-            tools: toolset ? toolset.definitions : null,
-            thinking: thinkingOff ? 'none' : agent.thinking,
-            maxTokens: DEFAULT_MAX_TOKENS,
-          });
-          for await (const event of stream) {
-            if (event.type === 'reasoning') {
-              // Streamed for the UI, never persisted and never replayed.
-              emit('agent.stream.reasoning', { delta: event.text });
-            } else if (event.type === 'delta') {
-              text += event.text;
-              emit('agent.stream.chunk', { delta: event.text });
-            } else if (event.type === 'tool_use') {
-              calls.push(event);
-            } else if (event.type === 'tool_use_failed') {
-              cutCalls += 1;
-            } else if (event.type === 'end') {
-              if (event.finish_reason === 'length') hitLength = true;
-              charged += tokensCharged(event.usage);
-              if (event.usage) {
-                requests.push({
-                  hit: event.usage.prompt_cache_hit_tokens ?? 0,
-                  miss: event.usage.prompt_cache_miss_tokens
-                    ?? event.usage.prompt_tokens ?? 0,
-                  out: event.usage.completion_tokens ?? 0,
-                });
-                lastReasoning = event.usage.completion_tokens_details?.reasoning_tokens ?? 0;
-                lastOut = event.usage.completion_tokens ?? 0;
-                pile += lastReasoning;
-              }
-            }
-          }
-        } catch (err) {
-          // Thinking ran away with the turn: nothing was produced and the
-          // trace passed its ceiling, which left to itself ends in an empty
-          // reply nine minutes later (spec.md §14). Not a failure to salvage
-          // — the same turn is asked again with thinking off, which is the
-          // one setting measured to get files out of it. This attempt does
-          // not count as a turn.
-          //
-          // ⚠️ It is charged, though, from an estimate: no usage frame
-          // arrives for a stream nobody let finish, but the trace was
-          // generated and the key is paying for it. Only the trace — the
-          // prompt behind it was billed too and there is no count to put on
-          // it, so this still undercounts, just by less.
-          if (err.code === 'thinking_cap' && !thinkingOff) {
-            charged += tokensForChars(err.reasoningChars);
-            thinkingOff = true;
-            cappedThinking = true;
-            turn -= 1;
-            continue;
-          }
-          // Salvage rather than discard. Earlier turns' prose and any files
-          // already on disk are finished work; returning here threw them all
-          // away, which is how a ten-minute reply used to vanish without a
-          // trace when the stream died on its last turn.
-          console.error('agent stream failed', err);
-          streamFailed = true;
-          if (text) replyText += replyText ? `\n\n${text}` : text;
-          break;
-        }
-
-        if (text) replyText += replyText ? `\n\n${text}` : text;
-        pendingCut = cutCalls > 0;
-
-        // Nothing to run and nothing cut off: a plain reply, so the turn is
-        // done. A cut call is not "done" — it is a file that never landed,
-        // and the loop keeps going so the model can write it again.
-        if (calls.length === 0 && cutCalls === 0) break;
-
-        if (calls.length > 0) {
-          append({
-            role: 'assistant',
-            content: text || null,
-            tool_calls: calls.map((c) => ({
-              id: c.id,
-              type: 'function',
-              function: { name: c.name, arguments: JSON.stringify(c.input) },
-            })),
-          });
-
-          for (const call of calls) {
-            if (toolCallCount >= maxToolCalls) {
-              hitLimit = 'tool';
-              append({
-                role: 'tool',
-                tool_call_id: call.id,
-                content: 'refused: this turn has reached its tool call limit',
-              });
-              continue;
-            }
-            emit('agent.tool', { tool: call.name, path: call.input?.path ?? null });
-            const result = await toolset.run(call.name, call.input);
-            append({ role: 'tool', tool_call_id: call.id, content: result });
-            toolCallCount += 1;
-          }
-          if (hitLimit) break;
-        } else if (text) {
-          // No valid call to answer, so this turn's prose stands on its own.
-          append({ role: 'assistant', content: text });
-        }
-
-        if (cutCalls > 0) append({ role: 'user', content: CUT_NOTICE });
-        // Stop rather than truncate: dropping an earlier message would orphan
-        // a tool_call_id, and a continuation resumes from a context built
-        // fresh from disk, which is the recovery anyway.
-        if (grown > LOOP_GROWTH_BYTES) hitLimit = 'context';
-        if (turn === maxAssistantTurns - 1 && !hitLimit) hitLimit = 'turn';
-        if (hitLimit) break;
-
-        // Another round is coming: shed the reasoning pile if carrying it is
-        // now dearer than re-paying the visible tail once (spec.md §8, §14).
-        const shedCost = (grown - shedBase) / 4;
-        if (pile >= SHED_FLOOR_TOKENS
-          && (pile / 10) * SHED_HORIZON_ROUNDS > shedCost) {
-          append({ role: 'user', content: SHED_NOTICE });
-          pile = 0;
-          shedBase = grown;
-          sheds += 1;
-        }
-      }
-
-      consumeBudget(db, charged);
-      chargeUser(db, asker?.id, charged);
-
-      const changed = toolset ? toolset.changedPaths() : [];
-      if (streamFailed && !replyText && changed.length === 0) {
-        // Nothing said and nothing written: an error end and no message row,
-        // same as before there was anything to salvage.
-        emit('agent.stream.end', { error: true });
-        live = false;
-        return;
-      }
-
-      // The reply is written; from here on, anything newer than the snapshot
-      // is something this agent has not seen.
-      lastFired.set(row.id, snapshot);
-      let commitSha = null;
-      if (changed.length > 0) {
-        const subject = firstLine(replyText) || 'update files';
-        commitSha = await mutex.run(row.slug, async () => {
-          // Anything a person saved while this fire ran is theirs first.
-          if (pending) await pending.settleLocked(row.slug);
-          return commitPaths(
-            dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
-          );
-        });
-      }
-
-      if (!replyText && changed.length === 0) {
-        // Neither prose nor files: nothing worth a message row.
-        emit('agent.stream.end');
-        live = false;
-      } else {
-        const now = new Date().toISOString();
-        const messageId = tx(db, () => {
-          const info = db
-            .prepare(
-              `INSERT INTO messages (project_id, chat_id, agent_id, body, created_at, tokens, trimmed)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            )
-            // Null rather than 0 when nothing was trimmed: the column is a
-            // report of something having happened, not a running total.
-            .run(project.id, chat.id, agent.id, replyText, now, charged, context.trimmed || null);
-          const id = Number(info.lastInsertRowid);
-          // A write of identical bytes produces no commit, so there is
-          // nothing to record and nothing changed to report.
-          if (commitSha) {
-            for (const [filePath, change] of toolset.changes) {
-              db.prepare(
-                `INSERT INTO message_writes (message_id, path, action, bytes, commit_sha)
-                 VALUES (?, ?, ?, ?, ?)`,
-              ).run(id, filePath, change.action, change.bytes, commitSha);
-            }
-          }
-          // The receipt. The prompt is a debugging aid, not a record: this
-          // fire's takes the place of whichever reply in the project held it.
-          db.prepare(
-            'UPDATE message_receipts SET prompt = NULL WHERE project_id = ? AND prompt IS NOT NULL',
-          ).run(project.id);
-          db.prepare(
-            `INSERT INTO message_receipts (message_id, project_id, breakdown, prompt)
-             VALUES (?, ?, ?, ?)`,
-          ).run(id, project.id, JSON.stringify({
-            ...context.breakdown,
-            loop: {
-              turns: turnsUsed, tool_calls: toolCallCount, appended_bytes: grown, sheds,
-            },
-            requests,
-          }), sentPrompt);
-          return id;
-        });
-
-        const stored = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
-        broker.broadcast('message.new', messagePublic(db, stored, row.slug));
-        emit('agent.stream.end', { message_id: messageId });
-        live = false;
-        if (commitSha) {
-          broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
-          versionNew(broker, row.slug, commitSha, changed);
-        }
-      }
-
-      // Said on its own rather than as another branch of the chain below:
-      // this is about how the reply was produced, not about how the loop
-      // stopped, and it reads correctly next to whichever of those follows.
-      if (cappedThinking) {
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} was thinking for a very long time, so the studio asked them to stop planning and start working. Ask for one piece at a time if you want them to think it through properly.`,
-        });
-      }
-
-      // Explain a missing file rather than leaving it looking like a backend
-      // fault (spec.md §8). Only the final turn's cut matters: an earlier one
-      // the model was told about and rewrote is not a missing file.
-      if (streamFailed) {
-        // First, not another else-if: the limit banners describe how the loop
-        // chose to stop, and this loop did not choose. No continuation either
-        // — a dead upstream retried automatically could loop on the failure.
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`,
-        });
-      } else if (hitLength && !replyText && changed.length === 0
-          && lastReasoning > 0 && lastReasoning >= lastOut * 0.9) {
-        // It never got past thinking. Nothing was cut in half, because
-        // nothing was started: the trace filled the whole output allowance.
-        // Naming that is the difference between "the studio is broken" and
-        // "ask for less at once", and the second one is both true and
-        // something a person can act on.
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} spent the whole reply thinking and never got as far as writing anything. Ask for one piece at a time — one screen, one rule, one file.`,
-        });
-      } else if (pendingCut || (hitLength && changed.length === 0)) {
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} ran out of output budget mid-reply; a file may be missing or incomplete.`,
-        });
-      } else if (hitLimit === 'tool') {
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`,
-        });
-      } else if (hitLimit === 'turn' || hitLimit === 'context') {
-        // Out of room mid-build: out of turns, or the loop grew past what one
-        // request may carry. Rather than making a human type "keep going",
-        // re-arm the agent and let it pick up where it stopped — a fresh fire
-        // rebuilds its context from disk, which is what clears the weight.
-        // The system message is not decoration: a 'system' row enters the
-        // transcript as a user turn, which is what gives the next fire
-        // something to answer — without it the agent's own reply would be
-        // newest and the fire would no-op.
-        const used = continued.get(row.id) ?? 0;
-        if (used < maxContinuations
-            && hasBudget(db, studioLimit(db, dailyTokenBudget))
-            && userHasBudget(db, asker)) {
-          continued.set(row.id, used + 1);
-          postSystemMessage(db, broker, {
-            project,
-            chat,
-            agentId: agent.id,
-            body: `${row.agent_name} is not finished yet — carrying on from where they stopped.`,
-          });
-          db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?')
-            .run(row.id);
-        } else {
-          postSystemMessage(db, broker, {
-            project,
-            chat,
-            agentId: agent.id,
-            body: hitLimit === 'context'
-              ? `${row.agent_name} had too much to hold in one reply and stopped. Ask them to keep going if you want more.`
-              : `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`,
-          });
-        }
-      } else if (!replyText && changed.length === 0) {
-        // Ended cleanly and produced nothing at all: no prose, no files, no
-        // limit reached. The end event has already taken the live entry away,
-        // so without this the row just vanishes and the person is left
-        // wondering whether they were heard.
-        postSystemMessage(db, broker, {
-          project,
-          chat,
-          agentId: agent.id,
-          body: `${row.agent_name} finished without saying anything. Ask again if you were expecting a reply.`,
-        });
-      }
+      // The builder's room sizes first (spec.md §8); everywhere else is the
+      // one fire it always was.
+      if (row.builder === 1 && agent.file_tools && dir !== null) await builderFire(fire);
+      else await openFire(fire);
     } catch (err) {
       // ⚠️ Nothing above this catches. fireAgent is called from a timer, and
       // its caller can only print, so every unexpected fault used to end as a
@@ -1288,9 +1589,9 @@ export function createOrchestrator({
       // broadcast swallows a dead socket, while the database is one of the
       // things that plausibly just broke.
       console.error('agent fire failed', err);
-      if (live) {
+      if (state.live) {
         emit('agent.stream.end', { error: true });
-        live = false;
+        state.live = false;
       }
       try {
         postSystemMessage(db, broker, {

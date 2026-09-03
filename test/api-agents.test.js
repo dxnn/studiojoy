@@ -190,7 +190,10 @@ test('no helper can be put in the chat a project opens on', async (t) => {
   const res = await putInChat(app, 'tank', agent.body.id, { chat_id: home.id });
   assert.equal(res.status, 409);
   assert.match(res.body.error, /just for the humans/);
-  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM chat_agents').get().c, 0);
+  // The builder's own seat in Building is the one row there is.
+  assert.equal(app.db.prepare(
+    'SELECT COUNT(*) c FROM chat_agents ca JOIN agents a ON a.id = ca.agent_id WHERE a.builtin = 0',
+  ).get().c, 0);
 });
 
 test('deleting an agent detaches it everywhere', async (t) => {
@@ -210,7 +213,10 @@ test('deleting an agent detaches it everywhere', async (t) => {
       (await app.client.json('GET', `/api/projects/${slug}?chat=${chats[slug]}`)).body.agents, [],
     );
   }
-  assert.equal(app.db.prepare('SELECT COUNT(*) c FROM chat_agents').get().c, 0);
+  // Only the builder's seats remain, one per game.
+  assert.equal(app.db.prepare(
+    'SELECT COUNT(*) c FROM chat_agents ca JOIN agents a ON a.id = ca.agent_id WHERE a.builtin = 0',
+  ).get().c, 0);
 });
 
 test('a chat holds at most ten helpers', async (t) => {

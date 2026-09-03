@@ -72,7 +72,7 @@ export function callAgentsIn(db, { chatId, body, userId, now }) {
     .all(chatId);
   const room = new Set(already.map((r) => r.agent_id));
   const called = db
-    .prepare('SELECT id, name FROM agents WHERE deleted = 0 ORDER BY name')
+    .prepare('SELECT id, name FROM agents WHERE deleted = 0 AND builtin = 0 ORDER BY name')
     .all()
     .filter((a) => !room.has(a.id) && nameMatches(a.name, mentions));
 

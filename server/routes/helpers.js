@@ -3,6 +3,7 @@ import { HttpError } from '../http/respond.js';
 import { requireSlug } from '../files/paths.js';
 import { requireAuth } from '../auth.js';
 import { canEdit } from '../authors.js';
+import { planFor, planPublic } from '../plans.js';
 
 // Load the project named by :slug. Reads 404 on an unknown slug; writes also
 // 409 on an archived one (spec.md §6). Archiving stops edits, not reads, and
@@ -175,5 +176,8 @@ export function messagePublic(db, row, slug) {
     receipt: db
       .prepare('SELECT 1 FROM message_receipts WHERE message_id = ?')
       .get(row.id) !== undefined,
+    // The checklist behind a plan card — a message of kind 'plan' — and null
+    // on everything else. Updated by `plan.update` as the pieces land (§9).
+    plan: row.kind === 'plan' ? planPublic(planFor(db, row.id)) : null,
   };
 }

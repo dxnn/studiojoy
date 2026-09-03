@@ -193,7 +193,7 @@ test('an agent in a game still gets its file tools', async (t) => {
   const app = await studio(t, { llm });
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
   const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Builder', description: 'You build.', file_tools: true },
+    body: { name: 'Bob', description: 'You build.', file_tools: true },
   });
   const chatId = await workChat(app, 'tank');
   await putInChat(app, 'tank', agent.body.id, { chatty: true, chat_id: chatId });

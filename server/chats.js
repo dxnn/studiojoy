@@ -14,9 +14,14 @@
 // - **A helper belongs to a chat, not to a project.** The line-up, the chatty
 //   switch, the cooldown and the dirty bit are all per chat, because they are
 //   all about one conversation.
+// - **A game's second chat is the builder's.** `Building` holds the studio's
+//   own helper and nobody else's (server/builder.js): the same door that keeps
+//   `Humans only` empty keeps this one to its one seat. Helpers people make go
+//   in the chats people make.
 
 import { HttpError } from './http/respond.js';
 import { HOME_CHAT } from './db.js';
+import { makeBuilderRoom } from './builder.js';
 
 export const MAX_CHATS_PER_PROJECT = 20;
 export const MAX_CHAT_NAME = 60;
@@ -25,11 +30,6 @@ export const MAX_CHAT_NAME = 60;
 // reach the same wall.
 export const MAX_AGENTS_PER_CHAT = 10;
 
-// The chat every game is born with, beside the human-only one. Both, from the
-// start: a new game that could only be talked about by humans would need a
-// second click before anybody could ask for anything.
-const WORK_CHAT = 'Building';
-
 export function createChat(db, projectId, { name, bots = 1, now = new Date().toISOString() }) {
   const info = db
     .prepare('INSERT INTO chats (project_id, name, bots, created_at) VALUES (?, ?, ?, ?)')
@@ -37,10 +37,13 @@ export function createChat(db, projectId, { name, bots = 1, now = new Date().toI
   return db.prepare('SELECT * FROM chats WHERE id = ?').get(info.lastInsertRowid);
 }
 
-// Called once, when a game is made.
-export function startChats(db, projectId, now = new Date().toISOString()) {
+// Called once, when a game is made: the human-only chat it opens on, then
+// Building with the builder already in it — both from the start, so a new game
+// is somewhere you can ask for something the moment it exists. Answers the
+// builder's room, which is the one the studio opens a new game on.
+export function startChats(db, projectId, userId, now = new Date().toISOString()) {
   createChat(db, projectId, { name: HOME_CHAT, bots: 0, now });
-  return createChat(db, projectId, { name: WORK_CHAT, bots: 1, now });
+  return makeBuilderRoom(db, projectId, userId, now);
 }
 
 // Called once, when a chat project is made: the one room it has. Helpers are
@@ -81,10 +84,16 @@ export function assertBotsAllowed(chat) {
   if (chat.bots !== 1) {
     throw new HttpError(409, `${chat.name} is just for the humans — helpers cannot be put in it`);
   }
+  // The builder's room has its one seat and takes no other helper. The same
+  // promise as above, kept at the same door.
+  if (chat.builder === 1) {
+    throw new HttpError(409, `${chat.name} is the Builder's — other helpers go in another chat`);
+  }
 }
 
 export const chatPublic = (row) => ({
   id: row.id,
   name: row.name,
   bots: row.bots === 1,
+  builder: row.builder === 1,
 });

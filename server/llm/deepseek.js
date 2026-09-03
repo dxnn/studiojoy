@@ -122,17 +122,18 @@ export function createDeepSeek({
   // Same key, same errors, same idle guard, and the usage is charged the way
   // a fire's is.
   //
-  // ⚠️ JSON is asked for in the prompt and parsed by the caller, not
-  // requested through `response_format`: §14 measured what this API does and
-  // that was never one of the things measured. Asking for it would be a
-  // guess, and a guess that fails open — an unknown parameter is ignored
-  // silently — so the defensive parse would be needed either way.
+  // JSON is asked for in the prompt and parsed by the caller either way.
+  // `responseFormat: 'json_object'` is a belt on top: measured 2026-09-03
+  // (§14), the API accepts `response_format` and answered valid JSON — but
+  // an unknown parameter is ignored silently, so a caller that relied on it
+  // alone would fail open the day it stopped being one. Parse defensively.
   async function complete({
     model = MODEL_IDS[0],
     system = null,
     messages,
     thinking = 'none',
     maxTokens = 1024,
+    responseFormat = null,
   }) {
     const body = {
       model,
@@ -141,6 +142,7 @@ export function createDeepSeek({
       max_tokens: Math.min(maxTokens, MAX_OUTPUT_TOKENS),
     };
     if (thinking !== 'full') body.reasoning_effort = thinking;
+    if (responseFormat) body.response_format = { type: responseFormat };
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), idleMs);

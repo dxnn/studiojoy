@@ -55,13 +55,25 @@ function liveAgent(db, id) {
   return row;
 }
 
+// The builder is the studio's (server/builder.js): its words are the code's,
+// and there is nothing here for anybody to change or take away.
+function ownAgent(db, id) {
+  const row = liveAgent(db, id);
+  if (row.builtin === 1) {
+    throw new HttpError(403, `${row.name} is the studio's own helper and cannot be changed here`);
+  }
+  return row;
+}
+
 export function agentRoutes(r) {
   // Agents are studio-global: any account may create, edit, delete, or
   // attach any of them (spec.md §3). created_by is provenance, not ownership.
+  // The builder is not among them: it is in every game's Building already and
+  // goes nowhere else, so the Crew tab has nothing to offer about it.
   r.get('/api/agents', (ctx) => {
     requireAuth(ctx);
     const rows = ctx.db
-      .prepare('SELECT * FROM agents WHERE deleted = 0 ORDER BY name')
+      .prepare('SELECT * FROM agents WHERE deleted = 0 AND builtin = 0 ORDER BY name')
       .all();
     json(ctx.res, 200, rows.map(agentPublic));
   });
@@ -97,7 +109,7 @@ export function agentRoutes(r) {
 
   r.patch('/api/agents/:id', async (ctx) => {
     requireAuth(ctx);
-    const agent = liveAgent(ctx.db, ctx.params.id);
+    const agent = ownAgent(ctx.db, ctx.params.id);
     const body = await readJson(ctx.req);
 
     const next = {
@@ -138,7 +150,7 @@ export function agentRoutes(r) {
   // rendering its name. The partial unique index frees the name for reuse.
   r.delete('/api/agents/:id', (ctx) => {
     requireAuth(ctx);
-    const agent = liveAgent(ctx.db, ctx.params.id);
+    const agent = ownAgent(ctx.db, ctx.params.id);
     tx(ctx.db, () => {
       ctx.db.prepare('DELETE FROM chat_agents WHERE agent_id = ?').run(agent.id);
       ctx.db.prepare('UPDATE agents SET deleted = 1 WHERE id = ?').run(agent.id);
@@ -156,6 +168,10 @@ export function agentRoutes(r) {
     assertBotsAllowed(chat);
     const body = await readJson(ctx.req);
     const agent = liveAgent(ctx.db, body.agent_id);
+    // The other half of the builder's room: the builder goes nowhere else.
+    if (agent.builtin === 1) {
+      throw new HttpError(409, `${agent.name} only works in Building and cannot be put in another chat`);
+    }
     const chatty = optionalBool(body.chatty, 'chatty') ?? false;
 
     const attached = ctx.db

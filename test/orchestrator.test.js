@@ -1315,6 +1315,14 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
   assert.equal(llm.calls[0].thinking, 'full');
   assert.equal(llm.calls[1].thinking, 'none');
   assert.equal(llm.calls[2].thinking, 'none');
+  // The retry carries what the runaway turn had worked out, as notes on the
+  // user turn: dropped, it under-delivers; handed, it follows the design
+  // (spec.md §14). Once, in this fire, and never to the next one — the test
+  // below this one holds that line.
+  const handed = llm.calls[1].messages
+    .find((m) => m.role === 'user' && /your notes so far/.test(m.content));
+  assert.ok(handed, 'the trace is handed to the retry');
+  assert.match(handed.content, /and another thing/);
 
   // The file landed, so the retry is the reply rather than a salvage.
   const [head] = await logCommits(dir, { limit: 1 });
@@ -1434,7 +1442,7 @@ test('a message posted mid-fire is picked up afterwards', async (t) => {
     },
   };
 
-  const { app } = await studio(t, { llm });
+  const { app, agentId } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -1444,7 +1452,8 @@ test('a message posted mid-fire is picked up afterwards', async (t) => {
   // Still one fire in flight; the dirty bit is set for the next.
   assert.equal(llm.calls.length, 1);
   assert.equal(
-    app.db.prepare('SELECT response_pending FROM chat_agents LIMIT 1').get().response_pending,
+    app.db.prepare('SELECT response_pending FROM chat_agents WHERE agent_id = ?')
+      .get(agentId).response_pending,
     1,
   );
 

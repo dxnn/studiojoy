@@ -12,7 +12,6 @@ import {
   listTemplates, scaffoldTemplate, scaffoldStart, typeFromTree,
 } from '../files/templates.js';
 import { listSchemes, defaultScheme, schemeSeed } from '../files/schemes.js';
-import { joinStarter } from '../starter.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
@@ -201,31 +200,24 @@ export function projectRoutes(r) {
       )
       .run(slug, name, kind, template, user.id, now, openEdit);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
-    // A game gets two conversations from the start: the human-only one it
-    // opens on, and one where helpers can be put — a game with nowhere to ask
-    // for anything would need a second click before it could be used at all.
-    // A chat project gets the one room it is.
+    // A game gets two conversations from the start: the human-only one, and
+    // Building with the builder already in it — a game with nowhere to ask for
+    // anything would need a second click before it could be used at all. A
+    // chat project gets the one room it is.
     const work = kind === 'chat'
       ? startRoom(ctx.db, row.id, name, now)
-      : startChats(ctx.db, row.id, now);
-    // And somebody in it. A game whose Building chat is empty is a room with
-    // nobody to ask, which is a second trip to the Crew tab before anything
-    // can happen — so the studio's starter helper joins, and the answer says
-    // where to open. Games only: a chat project has no working tree to build.
-    const joined = kind === 'game'
-      ? joinStarter(ctx.db, work, user.id, now, !template)
-      : null;
+      : startChats(ctx.db, row.id, user.id, now);
     // The person who made it is its first author: everything else about
     // authorship starts from somebody being able to say who else is in.
     addAuthor(ctx.db, row.id, user.id, user.id, now);
     // `chats` and `chat` mean here what they mean on the GET: every
-    // conversation, and the one to open. Building when somebody is waiting in
-    // it, the human-only one otherwise.
+    // conversation, and the one to open — Building, where the builder is
+    // waiting, and a chat project's one room.
     const chats = listChats(ctx.db, row.id);
     const payload = {
       ...projectPublic(ctx, row, user),
       chats: chats.map(chatPublic),
-      chat: chatPublic(joined ? work : chats[0]),
+      chat: chatPublic(work),
     };
     ctx.broker.broadcast('project.new', { slug: row.slug, name: row.name, kind: row.kind });
     json(ctx.res, 201, payload);
@@ -248,7 +240,7 @@ export function projectRoutes(r) {
     const agents = ctx.db
       .prepare(
         `SELECT ca.agent_id, ca.chatty, ca.cooldown_until, ca.response_pending,
-                a.name, a.model, a.thinking, a.file_tools
+                a.name, a.model, a.thinking, a.file_tools, a.builtin
            FROM chat_agents ca
            JOIN agents a ON a.id = ca.agent_id
           WHERE ca.chat_id = ? AND a.deleted = 0
@@ -289,6 +281,9 @@ export function projectRoutes(r) {
         file_tools: a.file_tools === 1,
         chatty: a.chatty === 1,
         responding: a.response_pending === 1,
+        // The builder: its chip has no ··· — nothing about it is anybody's to
+        // change, so nothing is offered.
+        builtin: a.builtin === 1,
       })),
       files,
       errors,
@@ -421,28 +416,13 @@ export function projectRoutes(r) {
       // The copy starts with the same two chats every game gets, and a fresh
       // thread in each: a fork is the files and the helpers, not the
       // conversation that produced them.
-      const work = startChats(ctx.db, id, now);
+      const work = startChats(ctx.db, id, user.id, now);
       // A copy is the copier's game. Whoever wrote the original is named in
       // its history, which is where that belongs.
       addAuthor(ctx.db, id, user.id, user.id, now);
-      // The helpers come along, into the chat that allows them; their
-      // cooldowns and pending flags do not. Which chat they were in over there
-      // does not survive, because the chats themselves do not.
-      const attached = ctx.db
-        .prepare(
-          `SELECT DISTINCT ca.agent_id, MAX(ca.chatty) AS chatty
-             FROM chat_agents ca JOIN chats c ON c.id = ca.chat_id
-            WHERE c.project_id = ? GROUP BY ca.agent_id`,
-        )
-        .all(source.id);
-      for (const a of attached) {
-        ctx.db
-          .prepare(
-            `INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
-             VALUES (?, ?, ?, ?, ?)`,
-          )
-          .run(work.id, a.agent_id, a.chatty, user.id, now);
-      }
+      // The builder is in the copy's Building like any game's. The original's
+      // own helpers stay with the original: a fork is the files, and the rooms
+      // they were listening in do not survive it.
       // Says where it came from, in the thread, where a kid will see it.
       ctx.db
         .prepare(

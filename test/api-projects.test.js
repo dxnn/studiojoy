@@ -547,11 +547,11 @@ test("archiving is the originator's alone, and never a published game's", async 
 
 // Zero account complexity: a second account has exactly the same authority
 // over a project it did not create (spec.md §3).
-test('a fork copies the files, their history, and the helpers', async (t) => {
+test('a fork copies the files and their history, and gets the builder', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
   const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Builder', description: 'builds' },
+    body: { name: 'Bob', description: 'builds' },
   });
   await putInChat(app, 'tank', agent.body.id, { chatty: true });
   await app.client.put('/api/projects/tank/files/index.html', {
@@ -577,10 +577,13 @@ test('a fork copies the files, their history, and the helpers', async (t) => {
   assert.ok(commits.length >= 2, 'the original commits are present');
   assert.equal(fs.existsSync(path.join(dir, '.git', 'refs', 'remotes', 'origin')), false);
 
-  // The helper came along, into the copy's own chat that allows one.
-  const forkChat = await workChat(app, 'tank-two');
-  const detail = await app.client.json('GET', `/api/projects/tank-two?chat=${forkChat}`);
+  // The builder is in the copy's Building like any game's; the original's own
+  // helpers stay with the original — a fork is the files, not the rooms.
+  const forked2 = await app.client.json('GET', '/api/projects/tank-two');
+  const building = forked2.body.chats.find((c) => c.builder);
+  const detail = await app.client.json('GET', `/api/projects/tank-two?chat=${building.id}`);
   assert.deepEqual(detail.body.agents.map((a) => a.name), ['Builder']);
+  assert.deepEqual(forked2.body.chats.map((c) => c.name), ['Humans only', 'Building']);
   // A fresh thread, saying where it came from.
   assert.equal(detail.body.messages.length, 1);
   assert.equal(detail.body.messages[0].kind, 'system');
