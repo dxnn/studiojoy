@@ -137,6 +137,18 @@ test('a game made from a blank page is playable straight away', async (t) => {
   }
   // The seed is still the game's own file, for the day a helper wires it in.
   assert.ok(fs.existsSync(path.join(app.gamesDir, 'tank', 'config/controls.js')));
+
+  // A brief goes with the page, the way every template ships one. It is the
+  // only place that says which tags this particular page carries, that the
+  // input module is left out of them on purpose, and that the seeded control
+  // scheme is a default rather than a decision.
+  const brief = fs.readFileSync(path.join(app.gamesDir, 'tank', 'BRIEF.md'), 'utf8');
+  assert.match(brief, /started from a blank page/);
+  assert.match(brief, /config\/controls\.js and studio\/input\.js/);
+  assert.match(brief, /stick-buttons/);
+  assert.match(brief, /"one-button"/);
+  // Escaped for the page, never for the brief: the substitution is HTML.
+  assert.ok(!brief.includes('&amp;'), 'no html escaping in markdown');
 });
 
 // Also against the real public/: templates are starter trees, and this pins

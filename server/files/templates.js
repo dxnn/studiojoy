@@ -12,8 +12,11 @@ import { writeFileAt } from './tree.js';
 import { commitPaths } from './git.js';
 import { escapeHtml } from '../util/html.js';
 
-// The one page a game made without a template starts from.
+// The one page a game made without a template starts from, and the brief that
+// goes with it.
 const BLANK_PAGE = ['game-templates', 'blank', 'index.html'];
+const BLANK_BRIEF = ['game-templates', 'blank', 'BRIEF.md'];
+const BRIEF_FILE = 'BRIEF.md';
 
 export function listTemplates(publicDir) {
   try {
@@ -53,6 +56,14 @@ export function typeFromTree(dir, publicDir) {
 // an agent to write index.html itself — this is a page to replace, not a tree
 // to grow.
 //
+// The brief goes with it. Every other template ships one saying what its own
+// setup is, and a game made without a template had nothing: the preamble says
+// what the studio is, and nothing said which script tags this particular page
+// carries, that the input module is deliberately left out of them, or that the
+// seeded control scheme is a default rather than a decision. No `{{name}}` in
+// it — the substitution is HTML-escaped, which is right for the page and wrong
+// for markdown.
+//
 // ⚠️ Read from publicDir like every other scaffold, so a public/ without it
 // writes nothing: that is what keeps the suite's games born empty (spec.md §4)
 // and what leaves "a game with no page" a state still worth testing.
@@ -66,7 +77,16 @@ export async function scaffoldStart(dir, publicDir, name, author) {
   await writeFileAt(
     path.join(dir, 'index.html'), page.replaceAll('{{name}}', escapeHtml(name)),
   );
-  return commitPaths(dir, ['index.html'], 'a page to start from', author);
+  const written = ['index.html'];
+  // A brief is a nicety where the page is the thing that makes a game
+  // playable, so a public/ missing it costs the brief and not the game.
+  const brief = await fs.promises.readFile(path.join(publicDir, ...BLANK_BRIEF))
+    .catch(() => null);
+  if (brief !== null) {
+    await writeFileAt(path.join(dir, BRIEF_FILE), brief);
+    written.push(BRIEF_FILE);
+  }
+  return commitPaths(dir, written.sort(), 'a page to start from', author);
 }
 
 export async function scaffoldTemplate(dir, publicDir, name, author) {

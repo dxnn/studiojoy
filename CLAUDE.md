@@ -103,7 +103,10 @@ walk into, each paid for once already.
   once and cannot know better; break it and the fix is by hand, game by game.
 - A library is *named* to an agent rather than sent — each one's top comment
   block rides the preamble as its API note, read from the game's own copy.
-  ⚠️ input.js's is ~2.6 KB against a 3 KB cap: condense before adding to it.
+  ⚠️ screens.js's is 3,035 bytes against a 3,072 cap: condense before adding
+  to it. The notes are followed by the **shape of a game**, which is what says
+  a game is expected to *make* those calls rather than merely being able to;
+  every line of it is gated on the manifest, and both halves are tested.
 - The ambient file block lives in the **system prompt**, after the brief and
   the agent description, never on the last user message; the order inside it
   and the history trim boundary hold still between fires. All of it is for the

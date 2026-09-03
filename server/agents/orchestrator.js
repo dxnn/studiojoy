@@ -94,6 +94,58 @@ function firstLine(text) {
     : line;
 }
 
+// The shape a game takes when it holds the libraries for it: the studio's own
+// answer to each problem every game has.
+//
+// The API notes this follows say what each call does. They never say that a
+// game is expected to make those calls, so an agent reading six notes reads
+// six optional conveniences — and hand-rolls a title screen, a game-over
+// banner and a controls hint onto its canvas, which is how the two games in
+// TODO.md ended up with their own menus sitting under the drawn touch
+// controls. The note is the contract; this is the shape.
+//
+// Gated on the manifest, one line at a time: a game that does not hold
+// screens.js must not be told to call Screens.
+function shapeLines(held) {
+  const out = [];
+  if (held.size === 0) return out;
+  out.push(
+    '',
+    "How a game is shaped. Each line below is the studio's answer to something every game needs, and",
+    'each is already in this game\'s tree. Answering one again in the game\'s own code is the most common',
+    'way a game ends up as something nobody else can pick up and change:',
+  );
+  if (held.has('screens')) out.push(
+    '- It opens on a title screen rather than already running: Screens.title({ onStart: start }) puts up',
+    '  the name, the tagline, one Start button and the how-to-play line, and calls start when pressed. A',
+    '  tap on it reaches Input as one frame of "start", so a touchscreen needs nothing extra. A score is',
+    '  what makes the same screen the game-over screen, so a run ends on Screens.title({ score, post: true,',
+    '  board: true, onStart: start }). It returns { close } for taking it away yourself — there is no',
+    '  Screens.close. Do not draw a title, a game-over banner or a play-again prompt of your own: those',
+    '  three are the ones most often rebuilt by hand, and a hand-rolled one sits under the drawn touch',
+    '  controls instead of stepping aside for them.',
+    '- The numbers on screen while it runs are Screens.chips({ Score: 12, Lives: 3 }), a whole strip per',
+    '  call and cheap to call every frame — not text the game draws for itself.',
+  );
+  if (held.has('input')) out.push(
+    '- Every frame begins with Input.update(), before anything reads it, and the game asks Input.held,',
+    '  Input.pressed and Input.axis rather than listening for keys itself. config/controls.js is where the',
+    '  bindings live and where SCHEME says what a touchscreen gets; choosing the scheme that suits this',
+    '  game is a one-word change in that file and it is yours to make.',
+  );
+  if (held.has('moments')) out.push(
+    '- Moments.say goes on the line where the thing happens, not in a batch at the end.',
+  );
+  if (held.has('sprites')) out.push(
+    '- A picture is Sprites.draw, by plain name, and it stays quiet about a file nobody has made yet — so',
+    '  the call goes in before the art does, in the same reply that asks for it.',
+  );
+  if (held.has('sound')) out.push(
+    '- A noise is Sound.play, the same way and for the same reason.',
+  );
+  return out;
+}
+
 // Games only. A chat gets no preamble at all: every sentence here is about a
 // working tree it does not have, and an agent in a chat is whatever its
 // description says it is, with nothing from the studio layered on top.
@@ -180,9 +232,13 @@ function studioPreamble({
     // itself with the note at the top of its file, read from the game's own
     // copy so it matches the version this game actually holds. Adding a
     // library to the studio teaches every helper about it with no edit here.
+    const held = new Set();
     for (const { file, note } of libraryNotes) {
       lines.push('', `How to use ${file} — the note from the top of the file:`, note);
+      held.add(file.slice(LIBRARY_DIR.length + 1, -3));
     }
+    // After the notes, because the shape is what to do with them.
+    lines.push(...shapeLines(held));
     // Only while the switch is on: a helper told about routes that answer 404
     // would happily build a broken board (spec.md §6).
     if (project.scores_on !== 0) lines.push(
@@ -210,6 +266,14 @@ function studioPreamble({
       '  already settled. Update it when a decision changes, not on every turn.',
       'TODO.md — one task per line, and only when the list is long enough to be worth staging. Delete a',
       '  line when it is done. For a small job, skip the file and do the work.',
+      '',
+      'The game runs in a preview beside the chat, and what it throws while somebody plays — a script that',
+      'errored, a file that would not load — comes back to you on your next turn, against the version it',
+      'happened on. Until somebody presses play, nothing you wrote has been tested, so ask them to.',
+      '',
+      'Settle the design before you write, then write each file once. Rewriting a file you wrote a moment',
+      'ago, over and over, is how a reply runs out of turns with the game half-built — and the version that',
+      'ships is then the one nobody has read. When you have finished changing a file, read it back.',
       '',
       `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
       'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',

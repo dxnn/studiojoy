@@ -21,6 +21,18 @@
 
 // The shape of the game on a touchscreen. "stick-buttons" is an analog stick
 // under the left thumb and round buttons under the right.
+//
+// It is the default rather than a decision: this file is seeded into every
+// game before anybody knows what the game is. Change the word to the shape
+// this one actually wants, then make the bindings below match it.
+//
+//   "buttons"        drawn buttons under both thumbs — an arrow pad on one
+//                    side, the touch: names on the other
+//   "one-button"     a tap or a click anywhere is the button; nothing drawn
+//   "swipe-tap"      four flicks and a tap (swipe:left … swipe:tap). Moments,
+//                    not states: read them with pressed(), never held()
+//   "stick-buttons"  an analog stick beside the drawn buttons
+//   "dual-stick"     a second stick to aim with (stick:aim-left …)
 const SCHEME = "stick-buttons";
 
 // What each player can do, and everything that does it.

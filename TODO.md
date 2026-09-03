@@ -3,6 +3,10 @@
 v0 is built and green. `spec.md` is the design-of-record; §15 lists what was
 deliberately deferred.
 
+- ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
+  the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
+  description is a database row, so it does not ride the deploy the way the
+  preamble half of this change does
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - ask a helper to move flip-for-what onto the input module, the way space-racer

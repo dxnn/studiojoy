@@ -496,6 +496,14 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /SPEC\.md — what the game is/);
   assert.match(system, /TODO\.md — one task per line/);
 
+  // How to work, as opposed to what to build. Both were paid for by a fire
+  // that spent twenty-odd turns patching a file it had just written and never
+  // read back, and shipped a game with a doubled line in it.
+  assert.match(system, /comes back to you on your next turn/, 'the error feed is named');
+  assert.match(system, /Until somebody presses play/, 'and that nothing is tested until then');
+  assert.match(system, /Settle the design before you write/);
+  assert.match(system, /read it back/);
+
   // Everything the studio can do that an agent cannot do for itself has to be
   // named here, or it may as well not exist: an agent that does not know a
   // person can draw a sprite in one click writes the game without one.
@@ -507,6 +515,9 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /config\/controls\.js/);
   assert.match(system, /SCHEME/, 'the note teaches the control scheme declaration');
   assert.ok(!system.includes('rather than writing key handling'), 'no fallback when held');
+  // The shape is gated the same way the notes are: this game holds input and
+  // nothing else, so nothing here names a call it does not have.
+  assert.ok(!system.includes('Screens.title'), 'no shape for a library it lacks');
   assert.match(system, /"Add a file"/, 'the one button the four choices live behind');
   assert.match(system, /"\+ Draw a picture"/);
   assert.match(system, /"\+ Make a sound"/);
@@ -604,6 +615,46 @@ test('the preamble names all four asset folders and how music plays', async (t) 
   assert.match(system, /in four folders/);
   assert.match(system, /assets\/music\/ for whole tracks/);
   assert.match(system, /Sound\.loop\("assets\/music\/theme\.mp3", 0\.4\)/);
+});
+
+// The shape a game takes, after the API notes and gated on the manifest. A
+// note says what a call does and never that a game is expected to make it,
+// which is how a helper reads six notes and still hand-rolls a title screen,
+// a game-over banner and a controls hint onto its canvas.
+test('the preamble says how a game is shaped, for the libraries it holds', async (t) => {
+  const llm = createFakeLlm([says('ok')]);
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/studio/studio.json', {
+    rawBody: '{\n  "input": 5,\n  "screens": 11,\n  "moments": 1\n}\n',
+  });
+  for (const name of ['input', 'screens', 'moments']) {
+    await app.client.json('PUT', `/api/projects/tank/files/studio/${name}.js`, {
+      rawBody: fs.readFileSync(path.join('public', 'studio-lib', name, `${name}.js`)),
+    });
+  }
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'build the game');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /How a game is shaped/);
+  // Both screens are the same call, and the score is the difference — a
+  // helper that misses that writes its own game-over overlay.
+  assert.match(system, /Screens\.title\(\{ onStart: start \}\)/);
+  assert.match(system, /Screens\.title\(\{ score, post: true,/);
+  assert.match(system, /there is no\n\s+Screens\.close/, 'the one call it invents');
+  assert.match(system, /Screens\.chips\(\{ Score: 12, Lives: 3 \}\)/);
+  assert.match(system, /Every frame begins with Input\.update\(\)/);
+  assert.match(system, /SCHEME says what a touchscreen gets/, 'and that picking one is its job');
+  assert.match(system, /Moments\.say goes on the line where the thing happens/);
+  // Not held is not named: this game has neither sprites nor sound, and a
+  // shape line for a library that is not in the tree is a call into nothing.
+  // Gated one library at a time, so a game with sound and no sprites is not
+  // told about Sprites on sound's coat-tails.
+  assert.ok(!system.includes('A picture is Sprites.draw'), 'nothing for a library it lacks');
+  assert.ok(!system.includes('A noise is Sound.play'), 'and each is gated on its own');
 });
 
 // DeepSeek re-bills the chain's accumulated reasoning on every continuation

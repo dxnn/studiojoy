@@ -1499,6 +1499,12 @@ drew a stick and buttons over its two lines. The seed `config/controls.js` is
 still written — a game that grows controls adds the two tags, which the
 preamble already tells a helper to.
 
+A `BRIEF.md` is committed with the page, from the same directory and copied
+byte for byte (§8, Project documents). Every template ships one; a game made
+without a template had none, and nothing else says which tags *this* page
+carries, that the input module is missing from them deliberately, or that
+`SCHEME` is a seeded default rather than a decision anybody made.
+
 `index.json` also names each template's **heart**: the file the studio opens
 the new game on, because a template with an editor of its own is made in that
 editor rather than asked for. For the same reason the *starter helper* joins a
@@ -2116,7 +2122,9 @@ what prompt caching pays for (below):
 1. A fixed studio preamble: what this app is, the project slug, the path rules
    from §4, how each tool behaves, a nudge to prefer `patch_file` over
    rewriting whole files, the project documents and file layout it is expected
-   to keep (below), a section for the game's *type* when it has one — a visual
+   to keep (below), each held library's API note followed by the **shape of a
+   game** those notes are for, two paragraphs on **method** (both below), and
+   a section for the game's *type* when it has one — a visual
    novel is told what `config/story.js` is, that the person writes it in the
    "story editor" tab beside the chat, and that a picture is asked for by the
    name the story gives it — and a note that games run on a separate origin so
@@ -2277,6 +2285,31 @@ kept in step, and `test/orchestrator.test.js` asserts each one is present:
 | make or change a picture or a sound | ask for the path by name, and name the button — `Add a file`, and which of its choices: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
 | change a *studio library* | call it, say what needs changing, and load it with its `<script>` tag when writing `index.html` |
 
+Naming a capability is not the same as asking for it to be used, and the
+difference cost a game. Each library's **API note** says what its calls do and
+nothing says a game is *expected* to make them, so an agent reading six notes
+reads six optional conveniences: one on 2026-09-02 read all six and then
+hand-rolled a title screen, a game-over banner, a restart and a controls hint
+onto its canvas, reasoning its way there in the open — *"let me use my own
+lightweight overlay drawing directly on the canvas"* — and the two games in
+`TODO.md` whose own menus sit under the drawn touch controls got there the same
+way. So the notes are followed by the **shape of a game**: the title and
+game-over screen are one call with the score as the difference, the HUD strip
+is `Screens.chips`, a frame begins with `Input.update()`, choosing `SCHEME` is
+the game's job, `Moments.say` goes on the line where the thing happens. ⚠️ Each
+line is gated on the manifest exactly as the notes are — a game without
+`screens.js` is told nothing about `Screens`, because a call into nothing is
+worse than silence — and `test/orchestrator.test.js` asserts both the presence
+and the gating.
+
+Two paragraphs on **method** sit beside the turn budget, and both were paid for
+by the same fire. The preview reports what a game throws back into the next
+turn (below), which an agent had no way to know, so it guessed instead: nothing
+is tested until somebody presses play, and asking them to is part of the job.
+And a design is settled before it is written — that fire spent twenty-odd turns
+patching a file it had written minutes earlier, never read one back, and
+shipped a game with a doubled `function update(dt) {` in it.
+
 One exception is worth stating, because it is easy to get wrong in both
 directions: `.svg` is in the text extensions, so `write_file` and `patch_file`
 do work on it and an agent *can* make that one kind of picture. The preamble
@@ -2298,9 +2331,18 @@ why it is capped and why the preamble asks for it to stay short. `SPEC.md` and
 smallest-first selection always includes them, and pinnable when a human wants
 to point at one.
 
-Nothing scaffolds these files. An agent writes them when the project is worth
-them, which is also the answer to whether a new project should be created with
-a `BRIEF.md`: no.
+Every way of starting a game now scaffolds a `BRIEF.md`, and the earlier answer
+here — that a new project should be created without one — was wrong in the one
+case it was actually tested on. A template's brief describes *that* template's
+setup: which libraries it uses, and, more usefully, which it deliberately does
+not and why, so the shape section above does not get a helper "fixing" a DOM
+quiz onto `Screens.title`. The blank page ships one too, written by
+`scaffoldStart` beside the page: it is the only place that says which script
+tags that page carries, that the input module is left out of them on purpose,
+and that the seeded *control scheme* is a default with four alternatives a word
+away. No `{{name}}` in it — that substitution is HTML-escaped, which is right
+for the page and wrong for markdown. `SPEC.md` is a template's to ship and
+nobody else's; `TODO.md` is never scaffolded.
 
 ### Reasoning traces
 
