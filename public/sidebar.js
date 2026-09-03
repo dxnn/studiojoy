@@ -224,7 +224,8 @@ function crewRows(matches) {
 // dot here means the one on screen.
 function helperRows(matches) {
   const attached = new Set((S.project?.agents ?? []).map((a) => a.agent_id));
-  const canAdd = Boolean(S.project) && !frozen();
+  // Not into the Builder's room: it takes no other helper (spec.md §8).
+  const canAdd = Boolean(S.project) && !frozen() && !S.chat?.builder;
 
   const rows = S.agents.filter((a) => matches(a.name)).map((agent) => {
     const here = attached.has(agent.id);

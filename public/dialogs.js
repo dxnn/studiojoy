@@ -498,7 +498,6 @@ export function dialogFor(d) {
     const list = h('div', { class: 'plan' });
     const waitBox = h('div', { class: 'col' });
     const budget = h('input', { type: 'number', min: '0', class: 'cfg-num' });
-    const starter = h('select', { title: 'Joins the Building chat of every new game' });
     const box = h('div', { class: 'col' });
 
     const number = (value) => (value === null || value === undefined ? '' : String(value));
@@ -509,13 +508,6 @@ export function dialogFor(d) {
       const data = S.admin;
       if (!data) { list.replaceChildren(h('div', { class: 'muted', text: 'Reading…' })); return; }
       budget.value = number(data.budget.limit);
-      // Rebuilt each paint: a helper made or deleted while this is open
-      // should be in the list, and an empty value is a real answer — nobody.
-      starter.replaceChildren(
-        h('option', { value: '', text: 'Nobody' }),
-        ...S.agents.map((a) => h('option', { value: String(a.id), text: a.name })),
-      );
-      starter.value = number(data.starter_agent_id);
       // Every field saves itself the moment it is left — `change`, so a
       // half-typed number is never sent — and the row repaints from the
       // server's answer, so a refused value goes back to what it was. No Save
@@ -649,22 +641,14 @@ export function dialogFor(d) {
           paint();
         },
       })),
-      h('div', { class: 'section-label', text: 'Every new game starts with' }),
-      h('div', { class: 'person' },
-        starter,
-        h('span', { class: 'hint muted', text: 'waiting in the game’s Building chat' })),
       h('div', { class: 'section-label', text: 'The whole studio, in a day' }),
       h('div', { class: 'person' },
         budget,
         h('span', { class: 'hint muted', text: 'tokens a day for everybody together' })),
     );
-    // The two studio-wide settings travel on one route, so either one changing
-    // sends both as they stand.
     const saveStudio = () => studioChange('PATCH', '/studio', {
       daily_token_budget: budget.value === '' ? null : Number(budget.value),
-      starter_agent_id: starter.value === '' ? null : Number(starter.value),
     }).then(paint);
-    starter.addEventListener('change', saveStudio);
     budget.addEventListener('change', saveStudio);
 
     if (!S.admin) loadStudio().then(paint);

@@ -1003,7 +1003,7 @@ const STREAM_EVENTS = [
   'project.new', 'project.updated', 'message.new', 'message.reaction',
   'agent.stream.start', 'agent.stream.reasoning', 'agent.stream.chunk',
   'agent.tool', 'agent.stream.end', 'files.changed', 'version.new', 'game.errors',
-  'collection.changed',
+  'collection.changed', 'plan.update',
 ];
 
 function connectStream() {
@@ -1264,6 +1264,18 @@ function onEvent(name, data) {
         liveMapFor(data.project_slug, data.chat_id).delete(data.agent_id);
       }
       if (here(data)) render();
+      return;
+    }
+
+    case 'plan.update': {
+      // The checklist on a plan card moving along (spec.md §8). The card is an
+      // ordinary message in the rendered tree, so a render is the repaint; a
+      // card in a chat that is not on screen gets its state when that loads.
+      if (!here(data)) return;
+      const msg = S.project?.messages.find((m) => m.id === data.message_id);
+      if (!msg) return;
+      msg.plan = data.plan;
+      render();
       return;
     }
 

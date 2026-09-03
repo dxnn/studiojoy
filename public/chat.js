@@ -283,10 +283,40 @@ function reactionsRow(msg) {
     palette);
 }
 
+// A plan card: what the Builder split a big ask into, as a checklist that
+// ticks as the pieces land (spec.md §8). The words over it are the Builder's
+// own first line — the body is what the transcript keeps — and the list is
+// the plan row, moved along by `plan.update`.
+function renderPlanCard(msg) {
+  const plan = msg.plan;
+  const pieces = plan?.pieces ?? [];
+  const done = pieces.filter((p) => p.status === 'done').length;
+  const state = {
+    done: 'All done — press play and tell me what breaks.',
+    paused: `Paused with ${pieces.length - done} to go. Say “carry on” to keep going.`,
+    dropped: 'Set aside.',
+    running: `Working on piece ${Math.min(done + 1, pieces.length)} of ${pieces.length}`,
+  }[plan?.status] ?? '';
+  return h('div', { class: 'msg from-agent' },
+    h('div', { class: 'from', text: agentName(msg.agent_id) }),
+    h('div', { class: `pieces ${plan?.status ?? ''}` },
+      h('div', { class: 'pieces-head', text: msg.body.split('\n')[0] }),
+      pieces.length ? h('ol', { class: 'pieces-list' }, pieces.map((p) => h('li', { class: `piece ${p.status}` },
+        h('span', { class: 'piece-mark', text: p.status === 'done' ? '✓' : '○' }),
+        h('span', { class: 'piece-title', text: p.title }),
+        p.files?.length ? h('span', { class: 'piece-files muted', text: p.files.join(', ') }) : null))) : null,
+      state ? h('div', {
+        class: `pieces-state${plan.status === 'running' ? ' dots' : ''}`, text: state,
+      }) : null),
+    reactionsRow(msg),
+    footnote(msg));
+}
+
 function renderMessage(msg) {
   if (msg.kind === 'system') {
     return h('div', { class: 'msg system' }, h('div', { class: 'bubble', text: msg.body }));
   }
+  if (msg.kind === 'plan') return renderPlanCard(msg);
   const isAgent = msg.agent_id !== null;
   // Your own messages say "You" — a thread full of your own name reads like
   // somebody else's. Everyone else is called what they are called, and
@@ -510,13 +540,15 @@ function renderChatTabs(p) {
   // Both are a change to the game, so neither is offered on a game that is
   // archived or somebody else's — the server refuses them there, and a chip
   // that answers with a red banner is worse than a chip that stays still.
+  // The Builder's chip has no ··· at all: nothing about it is anybody's.
   const first = (a) => a.name.split(' ')[0];
   const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
     h('span', {
       class: 'hchip-name', text: a.name,
-      title: a.chatty ? `${a.name} answers everything` : `${a.name} waits to be called by @${first(a)}`,
+      title: a.builtin ? `${a.name} — the studio's own helper, always listening here`
+        : a.chatty ? `${a.name} answers everything` : `${a.name} waits to be called by @${first(a)}`,
     }),
-    frozen() ? null : more(`helper:${a.agent_id}`, [
+    frozen() || a.builtin ? null : more(`helper:${a.agent_id}`, [
       a.chatty
         ? { text: 'Wait to be called', title: `Answer only when somebody types @${first(a)}`, onPick: () => toggleChatty(a) }
         : { text: 'Answer everything', title: 'Answer every message in this chat', onPick: () => toggleChatty(a) },
@@ -525,12 +557,16 @@ function renderChatTabs(p) {
   // A chat project is one room: there are no pills to switch between. Who is
   // listening in it is the whole of this row there.
   const rooms = !isChat();
-  const addHelper = !frozen() && S.chat.bots;
+  // Building is the Builder's room and takes no other helper (spec.md §8), so
+  // like Humans only it offers no + and no rename: it is furniture, and the
+  // words the studio uses for it.
+  const addHelper = !frozen() && S.chat.bots && !S.chat.builder;
   if (!rooms && !addHelper && chips.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
     rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
       class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
-      title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
+      title: c.builder ? `${c.name} — the Builder answers here`
+        : c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
     },
     c.bots ? null : h('span', { class: 'hush', text: '·' }),
@@ -540,7 +576,7 @@ function renderChatTabs(p) {
     calledMark(c.mentions)))) : null,
     // The chat you are in. Humans only keeps its name — it is furniture, and
     // the words the studio uses for it — so it has nothing to offer and no ···.
-    rooms && S.chat.bots && !frozen() ? more(`chat:${S.chat.id}`, [
+    rooms && S.chat.bots && !S.chat.builder && !frozen() ? more(`chat:${S.chat.id}`, [
       { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-chat', chat: S.chat }; render(); } },
     ], { label: `More about ${S.chat.name}` }) : null,
     h('div', { class: 'spacer' }),
