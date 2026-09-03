@@ -475,6 +475,10 @@ export function openDb(dbPath) {
     `INSERT OR IGNORE INTO studio_state (id, tokens_used_today, budget_reset_at)
      VALUES (1, 0, ?)`,
   ).run(nextUtcMidnight());
+  // How many times a game's entry file has been served on the games origin —
+  // a running counter, not a log, so it stays bounded without pruning. Used
+  // only to order the catalog; never shown as a number (server/catalog.js).
+  addColumnIfMissing(db, 'projects', 'play_count', 'INTEGER NOT NULL DEFAULT 0');
   return db;
 }
 

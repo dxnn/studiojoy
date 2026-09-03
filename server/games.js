@@ -5,7 +5,7 @@ import { serveFile } from './http/static.js';
 import { HttpError } from './http/respond.js';
 import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
 import { readFileAt } from './files/tree.js';
-import { currentSha } from './files/git.js';
+import { currentSha, logCommits } from './files/git.js';
 import { WRAPPER_PATH, wrapHtml } from './reporter.js';
 import { readJson } from './http/body.js';
 import { json, noContent } from './http/respond.js';
@@ -33,6 +33,10 @@ import { catalogPage, playersPage } from './catalog.js';
 const ENTRY_FILE = 'index.html';
 // Login and sign-up bodies: three short strings.
 const MAX_AUTH_BODY_BYTES = 1024;
+// How recently a game's tree must have been committed to for the catalog to
+// treat it as new, and how many such games lead the page.
+const NEW_GAME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const FEATURED_COUNT = 4;
 
 // ⚠️ The public listener, and the reason the studio is safe (spec.md §7).
 //
@@ -120,7 +124,7 @@ export function createGamesApp({
     const player = currentPlayer(ctx);
     const rows = db
       .prepare(
-        `SELECT p.id, p.slug, p.name,
+        `SELECT p.id, p.slug, p.name, p.play_count,
                 (SELECT MAX(score) FROM scores s WHERE s.project_id = p.id) AS top
            FROM projects p
           WHERE p.published = 1 AND p.kind = 'game' AND p.archived = 0
@@ -145,21 +149,42 @@ export function createGamesApp({
         earned.get(a.project_id).add(a.achievement);
       }
     }
-    const games = [];
+    const entries = [];
     for (const g of rows) {
-      const defined = player ? await definedAchievements(path.join(root, g.slug)) : [];
+      const dir = path.join(root, g.slug);
+      const defined = player ? await definedAchievements(dir) : [];
       const mine = earned.get(g.id) ?? new Set();
-      games.push({
-        slug: g.slug,
-        name: g.name,
-        top: g.top ?? null,
-        hero: fs.existsSync(path.join(root, g.slug, 'hero.png')),
-        best: bests.get(g.id) ?? null,
-        achievements: defined.length
-          ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
-          : null,
+      const [latest] = await logCommits(dir, { limit: 1 });
+      entries.push({
+        card: {
+          slug: g.slug,
+          name: g.name,
+          top: g.top ?? null,
+          hero: fs.existsSync(path.join(dir, 'hero.png')),
+          best: bests.get(g.id) ?? null,
+          achievements: defined.length
+            ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
+            : null,
+        },
+        playCount: g.play_count,
+        fresh: latest ? Date.now() - Date.parse(latest.at) < NEW_GAME_WINDOW_MS : false,
       });
     }
+
+    // A few recently-changed games lead the page, reshuffled on every
+    // request so no one game camps the top slot; everything else follows by
+    // play count — a sort key only, never rendered (card() in catalog.js has
+    // no field for it).
+    const fresh = entries.filter((e) => e.fresh);
+    for (let i = fresh.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [fresh[i], fresh[j]] = [fresh[j], fresh[i]];
+    }
+    const featured = new Set(fresh.slice(0, FEATURED_COUNT));
+    const rest = entries
+      .filter((e) => !featured.has(e))
+      .sort((a, b) => b.playCount - a.playCount);
+    const games = [...featured, ...rest].map((e) => e.card);
 
     return sendPage(ctx, catalogPage({ games, player }));
   });
@@ -404,6 +429,12 @@ export function createGamesApp({
     if (!checked.ok) throw new HttpError(404, 'not found');
     const abs = resolveInside(path.join(root, project.slug), checked.path);
     if (abs === null) throw new HttpError(404, 'not found');
+
+    // A play is a load of the game itself, not each asset it then fetches —
+    // counted here rather than at the catalog, which only ever reads it.
+    if (requested === ENTRY_FILE) {
+      db.prepare('UPDATE projects SET play_count = play_count + 1 WHERE id = ?').run(project.id);
+    }
 
     // no-store so iterating on a game shows fresh bytes on reload, with no
     // cache-busting query strings in the game's own markup.

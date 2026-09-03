@@ -2,7 +2,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { setup, signIn, startGames } from './helpers.js';
+
+const run = promisify(execFile);
+
+// Rewrites a game's tip commit to look like it landed at `when`, so a test
+// can put a game outside the catalog's 7-day "new" window without waiting a
+// week for it. Setup only — production code never rewrites a commit.
+async function backdate(dir, when) {
+  await run('git', [
+    '-C', dir, `--git-dir=${path.join(dir, '.git')}`, `--work-tree=${dir}`,
+    '-c', 'user.name=Test', '-c', 'user.email=test@example.com',
+    'commit', '--amend', '--no-edit', '--allow-empty', '--date', when,
+  ], { env: { ...process.env, GIT_AUTHOR_DATE: when, GIT_COMMITTER_DATE: when } });
+}
 
 // A studio plus its public listener, sharing one db and games directory.
 async function bothOrigins(t) {
@@ -195,6 +210,69 @@ test('a game name cannot inject markup into the catalog', async (t) => {
   const html = await res.text();
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;/);
+});
+
+test('loading a game counts as a play; its other files do not', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+  await put(app, 'js/game.js', 'x');
+
+  for (const url of ['/tank', '/tank/', '/tank/index.html']) {
+    await (await games.client.request('GET', url)).text();
+  }
+  await (await games.client.request('GET', '/tank/js/game.js')).text();
+
+  assert.equal(
+    app.db.prepare("SELECT play_count FROM projects WHERE slug = 'tank'").get().play_count,
+    3,
+  );
+});
+
+test('an old game orders by how much it has been played, and the count itself never shows', async (t) => {
+  const { app, games, dir } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+  await app.client.json('POST', '/api/projects', { body: { name: 'Blob', slug: 'blob' } });
+  await app.client.json('PUT', '/api/projects/blob/files/index.html', { rawBody: '<h1>blob</h1>' });
+
+  // Both games are outside the catalog's 7-day "new" window, so only their
+  // play counts decide the order between them.
+  const longAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+  await backdate(dir, longAgo);
+  await backdate(path.join(app.gamesDir, 'blob'), longAgo);
+
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  await app.client.json('POST', '/api/projects/blob/publish', { body: { published: true } });
+
+  await (await games.client.request('GET', '/tank/')).text();
+  for (let i = 0; i < 3; i += 1) await (await games.client.request('GET', '/blob/')).text();
+
+  const html = await (await games.client.request('GET', '/')).text();
+  assert.ok(
+    html.indexOf('/blob/') < html.indexOf('/tank/'),
+    'the more-played game leads',
+  );
+  assert.doesNotMatch(html, /class="nums"/, 'no score or count is printed on either card');
+});
+
+test('a freshly changed game leads the catalog no matter how little it has been played', async (t) => {
+  const { app, games, dir } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+  await app.client.json('POST', '/api/projects', { body: { name: 'Blob', slug: 'blob' } });
+  await app.client.json('PUT', '/api/projects/blob/files/index.html', { rawBody: '<h1>blob</h1>' });
+
+  // Blob is old and heavily played; Tank was just made, so it stays new.
+  await backdate(path.join(app.gamesDir, 'blob'), new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString());
+
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  await app.client.json('POST', '/api/projects/blob/publish', { body: { published: true } });
+
+  for (let i = 0; i < 5; i += 1) await (await games.client.request('GET', '/blob/')).text();
+
+  const html = await (await games.client.request('GET', '/')).text();
+  assert.ok(
+    html.indexOf('/tank/') < html.indexOf('/blob/'),
+    'the recently-changed game leads even though it has never been played',
+  );
 });
 
 test('an unknown project is 404 even when a directory exists', async (t) => {
