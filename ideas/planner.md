@@ -1,6 +1,7 @@
 # Small asks: a planner, steps, and a standard builder chat
 
-Nothing here is built. Decided 2026-09-03 after four probes against the live
+Built 2026-09-03 (445c3df, 565b9a9); spec.md §8 is now the record and this
+is the reasoning behind it. Decided the same day after four probes against the live
 API (`tmp/probe-lib.mjs` and the four `tmp/probe-*.mjs` beside it); the
 numbers below are theirs and spec.md §14 carries their tables. *Sizing*,
 *builder*, and `Building` as the builder's room were agreed the same day and
@@ -238,7 +239,7 @@ already named its files:
 - Where the wall of text comes from. Not the retry (probe 4). Find one real
   instance in the production studio and read its receipt before assuming.
 
-## Build order (one TODO.md line points here)
+## Build order (done; kept for the shape of it)
 
 1. `complete()` sizing with the fire's system prompt; the JSON shape with
    `response_format` json_object as the belt (and deepseek.js's comment saying

@@ -94,10 +94,17 @@ walk into, each paid for once already.
 - A score, a personal best and an achievement are rows in SQLite, never files:
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache.
-- A reasoning trace is never persisted and never replayed into a later request.
+- A reasoning trace is never persisted and never replayed into a later fire.
+  The one time one enters a request is the thinking cap's hand-on — the same
+  fire, once, as text — and the receipt keeps a placeholder for it (spec.md §8).
 - `Humans only` is enforced where a helper would be *put in*
   (`assertBotsAllowed`), not where one would answer: a room that promises
-  nobody is listening keeps that promise at the door.
+  nobody is listening keeps that promise at the door. `Building` is the
+  **builder**'s room and is refused at the same door: its one seat, no `+`,
+  no rename, and the builder itself goes nowhere else (spec.md §3, §8).
+- ⚠️ The **sizing** ask rides the last user message *after* everything else on
+  it. Ahead of an attachment it was swamped, and anywhere but the last message
+  it would break the cache prefix the fire shares with it (spec.md §8, §14).
 - ⚠️ The preamble in `orchestrator.js` names every capability **by the words on
   the button**, and `orchestrator.test.js` asserts each name — so renaming a
   button without updating the prompt fails a test. A capability an agent is
@@ -213,6 +220,14 @@ specified:
 - Projects are games or chats. A game holds several chats and is born with
   `Humans only` and `Building`; a chat project is one room (§3, §6). Helpers
   belong to a chat, with a chatty switch, a cooldown and a thinking level (§8).
+- **The builder**: the studio's own helper, in every game's `Building` and
+  nowhere else, with nobody else in there. It sizes each message first — one
+  small call, no tools, thinking off — and does a big ask as a **plan** of two
+  to six **pieces**, one fire each at thinking `none`, each a fresh context
+  narrowed to its own files, each its own short row and commit, shown as a
+  checklist that ticks. A message mid-plan pauses it; the next sizing carries
+  on, sets aside or replaces it. Open rooms with people's helpers are
+  unchanged. Measured in §14 on 2026-09-03; designed in ideas/planner.md (§8).
 - Accounts split into **studio access** and players behind a waiting list; one
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).

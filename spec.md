@@ -152,6 +152,7 @@ account by hand in the panel.
 | `model` | TEXT NOT NULL DEFAULT `'deepseek-v4-flash'` | `deepseek-v4-flash` or `deepseek-v4-pro` (§14) |
 | `thinking` | TEXT NOT NULL DEFAULT `'low'` | **thinking level**: `full`, `low`, `none` (§14) |
 | `file_tools` | INTEGER NOT NULL DEFAULT 1 | may the agent write files |
+| `builtin` | INTEGER NOT NULL DEFAULT 0 | 1 = the *builder*, the studio's own (below) |
 | `created_by` | INTEGER NOT NULL → users | display only; confers no ownership |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | soft delete |
 | `created_at` | TEXT NOT NULL | |
@@ -159,6 +160,16 @@ account by hand in the panel.
 Agents are **studio-global**, not per-user: any account may create, edit,
 delete, or attach any agent. This is the "zero account complexity" rule
 applied to agents as well as projects.
+
+The one exception is the **builder** (`server/builder.js`): a reserved row with
+`builtin = 1` whose name, description, model and thinking are the code's,
+written onto the row on every open so an upgraded studio gets the new words.
+`GET /api/agents` leaves it out, `PATCH` and `DELETE` answer 403 for it, no
+attach route and no `@mention` puts it anywhere, and it sits in exactly one
+chat per game — `Building`, which takes nobody else (`chats.builder`). Made
+the first time a game is, since `created_by` has to be somebody; a helper a
+person had already called Builder is renamed `Builder (helper)`, never
+removed. What it does that an ordinary helper does not is §8's.
 
 `CREATE UNIQUE INDEX idx_agents_name ON agents (name) WHERE deleted = 0` —
 unlike `new-y`, names are unique, so an `@mention` resolves to exactly one
@@ -280,12 +291,23 @@ in the studio may change it. It is an author's decision — see §11.
 | `project_id` | INTEGER NOT NULL → projects | |
 | `name` | TEXT NOT NULL | ≤ 60 chars |
 | `bots` | INTEGER NOT NULL DEFAULT 1 | 0 = human only: no *helper* may be put in it at all |
+| `builder` | INTEGER NOT NULL DEFAULT 0 | 1 = the *builder*'s room: its one seat, and no other helper may be put in it |
 | `created_at` | TEXT NOT NULL | |
 
-One conversation inside a project. Every project is born with two:
-`Humans only` (`bots = 0`), which is the one it opens on, and `Building`, where
-helpers can be put. A game may have up to 20. There is no delete: a chat holds
-what people said in it, and nothing else in the studio throws words away.
+One conversation inside a project. Every game is born with two: `Humans only`
+(`bots = 0`), which is the one a bare GET opens on, and `Building`
+(`builder = 1`), the builder's room, with the builder already in it — and the
+one a new game is answered with, so the first thing typed is answered. Helpers
+people make go in chats people make (`Add chat…`). A game may have up to 20.
+There is no delete: a chat holds what people said in it, and nothing else in
+the studio throws words away.
+
+**The upgrade to the builder** (`intoBuilderRooms`): a game's first chat that
+takes helpers is its Building. Empty, it becomes the builder's in place; with
+people's helpers in it, it keeps them and its words under `Building with
+helpers` and a fresh `Building` is made beside it; renamed by the people, it is
+theirs and left alone, and a fresh `Building` is made. Runs on every open and
+does nothing to a game that has a builder room.
 
 ⚠️ Both, unconditionally, and for an upgraded database too. `intoChats` used to
 make `Building` only where there was a thread or a line-up to carry into it,
@@ -293,10 +315,11 @@ which left a game nobody had talked in yet with nowhere a helper could ever be
 put. The condition belongs to what moves, not to whether the chat exists.
 
 ⚠️ `bots = 0` is enforced where a helper would be **put in** (`assertBotsAllowed`
-on the attach route and on the fork's copy), not where one would answer. A room
-that promises nobody is listening has to keep that promise at the door; an
+on the attach route and on a mention's call-in), not where one would answer. A
+room that promises nobody is listening has to keep that promise at the door; an
 eligibility-time check would be one forgotten call away from a helper sitting
-in it silently.
+in it silently. `builder = 1` is refused at the same door, for the same reason:
+the builder's room has its one seat.
 
 Index `idx_chats_project ON chats (project_id, id)`.
 
@@ -329,7 +352,7 @@ isn't needed here.
 | `chat_id` | INTEGER NULL → chats | which conversation. Nullable in the column only so a database from before chats can be upgraded in place; every row written since has one |
 | `user_id` | INTEGER NULL → users | set for human messages; the API adds `user_name` beside it, read at the time it is served rather than stored, so the thread says what somebody is called today. The client has no user list to look one up in — an agent's name it can resolve, a person's it cannot |
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
-| `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner |
+| `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner; `'plan'` = the *builder*'s plan card, with a `plans` row behind it (§8) |
 | `body` | TEXT NOT NULL | utf-8, ≤ 32 KB |
 | `tokens` | INTEGER NULL | what the fire that produced this reply cost; NULL for anything a person or the studio wrote |
 | `trimmed` | INTEGER NULL | how many earlier messages the history budget kept out of this reply's context; NULL when none were, and on anything but an agent reply |
@@ -461,6 +484,30 @@ kept on every reply; the prompt is a debugging aid, held only for the newest
 reply in each project, so the table stays bounded by the message count rather
 than growing by half a megabyte per reply. Never sent with the message list —
 the client fetches it on the click that opens it.
+
+### `plans`
+
+| column | type | notes |
+|---|---|---|
+| `message_id` | INTEGER PK → messages | the plan card: a message of kind `'plan'` by the *builder* |
+| `project_id` | INTEGER NOT NULL → projects | |
+| `chat_id` | INTEGER NOT NULL → chats | |
+| `request` | TEXT NOT NULL | the human message the plan answers, as typed |
+| `pieces` | TEXT NOT NULL | JSON: `[{title, files, what, status, message_id, note}]` |
+| `status` | TEXT NOT NULL | `running`, `paused`, `done`, `dropped` |
+| `created_at`, `updated_at` | TEXT NOT NULL | |
+
+What the builder's **sizing** split a big request into and how far it has got
+(§8). The pieces are JSON because a piece is read and written whole and nothing
+queries inside one; each carries its `status` (`todo`, `done`), the id of the
+message row its fire left, and the one-line `note` that row said, which later
+pieces are told. `messagePublic` puts `plan: {status, pieces}` on the card's
+message, and `plan.update` (§9) carries the same shape as pieces land.
+`paused` is what an interruption leaves — and what opening the database does to
+every `running` plan, since the process that was running it is gone.
+
+Index `idx_plans_chat ON plans (chat_id, status)`, for the one lookup the
+sizing makes: the newest paused plan in the chat.
 
 ### `runtime_errors`
 
@@ -611,22 +658,17 @@ Single row, `id = 1`.
 | `tokens_used_today` | INTEGER NOT NULL DEFAULT 0 | all agents, all projects |
 | `budget_reset_at` | TEXT NOT NULL | advances to next UTC midnight on first use after rollover |
 | `daily_token_budget` | INTEGER NULL | the studio-wide wall; null = the built-in default |
-| `default_agent_id` | INTEGER NULL → agents | the *starter helper*; null = nobody |
+| `default_agent_id` | INTEGER NULL → agents | the former *starter helper*; written and read by nothing now |
 
 One studio-wide daily budget rather than `new-y`'s per-user accounting —
 agents aren't owned by anyone, and the purpose here is narrower: stop a
 runaway tool loop from draining the API key.
 
-The **starter helper** is the one that joins every new game's `Building` chat,
-chatty, at creation — so a new game is somewhere you can ask for something
-rather than a room with nobody in it. A setting rather than a name in the
-source: helpers are rows people make, rename and delete. Null is nobody, and
-that is what a fresh studio has; a soft-deleted agent reads as null too, so a
-helper taken out of the studio quietly stops joining instead of failing every
-creation. Games only — a chat project has no working tree to build. It is read
-and written in Studio settings, beside the budget, and it never reaches
-`Humans only`: `joinStarter` goes through `assertBotsAllowed` like every other
-way a helper is put in a chat.
+`default_agent_id` was the **starter helper**: an admin-picked row that joined
+every new game's `Building` chat so a new game was somewhere you could ask for
+something. The *builder* is that now, for every game and by construction
+(`chats`, §8), so the setting left Studio settings and the routes; the column
+stays so a rollback lands on its feet, the way `agents.reasoning` did.
 
 ## 4. Files on disk
 
@@ -800,7 +842,7 @@ email addresses to do its job.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview; each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
-| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open, `Building` when the *starter helper* joined it |
+| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, and a chat project's one room |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
@@ -817,7 +859,7 @@ email addresses to do its job.
 | POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
 | DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
 | POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
-| POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game, carrying the attached agents but not the thread; games only |
+| POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game — neither the thread nor the original's helpers come along; the copy has the *builder* in its own `Building` like any game; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
 
 ⚠️ The three author and open routes are the exception to **open**: they need
@@ -831,12 +873,12 @@ any account (§11).
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, `starter_agent_id`, and `waiting` — the undecided sign-ups |
+| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, and `waiting` — the undecided sign-ups |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
 | PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
 | POST | `/api/admin/signups/:id/approve` | — | the waiting list's yes: makes the player account, marks the row; 404 once decided |
 | POST | `/api/admin/signups/:id/refuse` | — | the waiting list's no: marks the row and keeps it (§3) |
-| PATCH | `/api/admin/studio` | `{daily_token_budget, starter_agent_id?}` | the wall around everybody, and who joins a new game; the helper is optional here — the panel sends both whenever either changes, and leaving it out changes nothing |
+| PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody. (`starter_agent_id` used to ride here too; the *builder* made it moot, §3) |
 
 The panel has no Save buttons: every field saves itself on `change` — when
 focus leaves it, so a half-typed number is never sent — and the row repaints
@@ -876,11 +918,11 @@ There is no route that deletes a chat.
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/agents` | — | all agents |
+| GET | `/api/agents` | — | every agent people made — never the *builder*, which is in every game's `Building` already and goes nowhere else |
 | POST | `/api/agents` | `{name, description, model?, thinking?, file_tools?}` | create |
-| PATCH | `/api/agents/:id` | any of the above | update |
-| DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects |
-| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat |
+| PATCH | `/api/agents/:id` | any of the above | update; 403 for the builder |
+| DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects; 403 for the builder |
+| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat; 409 for `Humans only`, for the builder's room, and for the builder itself |
 | PATCH | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | `{chatty}` | update |
 | DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out |
 
@@ -1692,10 +1734,9 @@ carries, or which `SCHEME` the game was made with and that somebody chose it.
 
 `index.json` also names each template's **heart**: the file the studio opens
 the new game on, because a template with an editor of its own is made in that
-editor rather than asked for. For the same reason the *starter helper* joins a
-template game **not chatty** — present and callable by name, silent until
-somebody wants it. A game with no template still gets a chatty one: there, the
-first thing typed is the whole point.
+editor rather than asked for. The *builder* is in a template game's `Building`
+like any game's, and answers what is typed there; opening on the heart is what
+keeps it out of the way until somebody wants it.
 
 The **quiz** template is the first, and it comes with its own editor: a quiz
 is a form pretending to be a game. `config/questions.js` holds `QUESTIONS`
@@ -2306,6 +2347,73 @@ in-process `Map`; a restart loses scheduled wakes (accepted).
 7. Broadcast `message.new`, `agent.stream.end`, and `files.changed`.
 8. Unmark firing, set `cooldown_until = now + 5 s`, re-check the pending flag.
 
+The tool loop (step 4) and the persisting (steps 5–7) are functions of their
+own, `runLoop` and `persistReply`, because the builder's room runs them more
+than once per fire.
+
+### The builder's room: sizing and pieces
+
+Everything above is any room's. `Building` — the *builder*'s room, every game's
+(§3) — sizes a message before answering it, because the measurement behind it
+(§14) is that a helper thinks in proportion to the ask: a whole game at once
+thinks until the budget is gone; one piece of it thinks for a second. The
+design is ideas/planner.md; the four probes are §14.
+
+**Sizing.** One `complete()` — the microhelper shape (§6) — with the fire's own
+system prompt, no tools, thinking off, `response_format` json_object as a belt
+and the prompt's own ask as the braces, parsed defensively. The ask rides the
+last user message *after* everything else on it, for two measured reasons: the
+system prompt stays byte-identical to the fire's and so shares its cache
+prefix, and an attachment placed ahead of the ask swamped it. It answers
+`{"size":"small"}` — one change, or a question or a remark — or
+`{"size":"big","pieces":[{title, files, what}]}`, two to six pieces, each a
+job one helper finishes in one sitting leaving the game runnable. An answer
+that will not parse, or an upstream that will not answer, is small: today's
+fire, the cap behind it. Charged to the asker like the fire it goes ahead of.
+
+**Small** is the ordinary fire, at the builder's own thinking level (`low`).
+
+**Big** is a **plan**: a message of kind `'plan'` by the builder — its own words
+in the transcript, *That's a big one — I'll do it in N pieces*, and the list —
+over a `plans` row (§3), shown as a checklist that ticks. Then one fire per
+**piece**, in order:
+
+- A fresh context from disk, **narrowed**: the transcript is the one `[studio]`
+  turn naming the request, the plan, what the earlier pieces said they made,
+  and this piece — *do only this piece, then stop with a one-line note* —
+  never the chat's history; and the file block sends whole only the files the
+  plan named for this piece plus `BRIEF.md`, `SPEC.md` and `config/`, listing
+  the rest for `read_file`. A prompt small enough to read whole in the receipt.
+- Thinking `none`: measured at this scope, 8–9 s and a one-line note every
+  time, against 8–37 s at `low` (§14). A piece is where the plan already did
+  the thinking.
+- Its own message row (the note, or *Piece i of N: title* when it said
+  nothing), its own commit (`Builder: piece i of N — title`), its own receipt,
+  and a `plan.update` (§9) as it lands. A piece that hit a limit still counts
+  as done: what it wrote is on disk and the next piece builds on it.
+
+**Interruptions.** A message arriving mid-plan sets the dirty bit as it always
+did; the running piece finishes, the plan is **paused** with a banner saying
+after which piece, and the fire the message re-arms sizes it with the pieces
+still to do in the ask. Then: `{"size":"small","resume":true}` — a remark or a
+question — is answered and the plan carries on; `resume:false` — *stop* — is
+answered and the plan is set aside; big replaces the plan, the old one marked
+`dropped`, the pieces still to do folded into the new list as the message asks.
+Running out of a day's tokens pauses the same way, and a piece's stream dying
+with nothing to show pauses too. A restart pauses every running plan on open
+(§3): the next message in that chat picks up the rest.
+
+**The cap in this room.** A small ask whose first turn trips the thinking cap
+hands its trace to the sizing call as notes, ahead of the ask; big, and it is a
+plan that keeps the trace's decisions (measured: every plan kept the trace's
+own file layout); still small, and the retry carries the trace as any room's
+does. Either way the abandoned trace is charged.
+
+**What is not in this room.** Other helpers: `assertBotsAllowed` refuses them,
+the `+` and the rename are not offered, and the Crew tab does not add into it.
+The builder's chip has no `···`. Everything else — pins, runtime errors,
+continuations on a small ask, the receipt — is as in any room.
+
 ### Context
 
 DeepSeek's context window is 1,048,576 tokens (§14) — three orders of
@@ -2559,11 +2667,17 @@ Thinking is bounded twice. The level (§14) decides how hard it thinks at all,
 and the **thinking cap** stops a turn whose trace runs past
 `THINKING_CAP_CHARS` (35,000 — near 10 K tokens at 3.5 characters each, about
 90 seconds at the rate measured in §14) with nothing else produced: the stream
-is closed, the same turn is asked again with thinking off, and a `'system'`
-banner says so. The cap is characters rather than tokens because
-`reasoning_tokens` is only reported when the stream ends, by which time the
-whole allowance is spent. It is off once the turn produces content or a tool
-call, since a trace interleaved with real output is a turn that is working.
+is closed, the same turn is asked again with thinking off **and the trace in
+hand** — a `[studio]` note on the user turn saying what it had worked out so
+far and to carry on from there — and a `'system'` banner says so. Measured
+(§14): the retry without the trace acts at once but under-delivers, one file
+where the design had eight; with it, the design is followed. In the builder's
+room a cap on the *first* turn goes to the sizing call instead (below): a
+request that thought that long wanted splitting. The cap is characters rather
+than tokens because `reasoning_tokens` is only reported when the stream ends,
+by which time the whole allowance is spent. It is off once the turn produces
+content or a tool call, since a trace interleaved with real output is a turn
+that is working.
 
 The cap sits above the traces `'low'` actually produces (1,597 and 6,886
 tokens in §14's runs), so what it mostly catches is a helper left on `'full'`.
@@ -2584,9 +2698,12 @@ trace is estimated — the prompt behind it was billed too and there is no count
 to put on it — so the studio still undercounts a capped turn, by less.
 
 It is **never persisted** to `messages.body` and **never sent back** in a
-later request's history. Both rules matter: it would bloat the database and
+later fire's history. Both rules matter: it would bloat the database and
 DeepSeek's own guidance is not to feed traces back as context. What survives a
-turn is the reply text and the file writes.
+turn is the reply text and the file writes. The one time a trace enters a
+request is the hand-on above — the same fire, once, as text — and the receipt's
+prompt carries a placeholder naming its length where it rode, so the trace is
+in no row anywhere.
 
 ### Runtime error feed
 
@@ -2839,7 +2956,8 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes, reactions}` |
+| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes, reactions, plan}` — `plan` is `{status, pieces}` on a card of kind `'plan'`, null otherwise |
+| `plan.update` | `{project_slug, chat_id, message_id, plan: {status, pieces}}` — a *piece* landed, or the plan paused, finished or was set aside; the client puts it on the card and re-renders (§8) |
 | `message.reaction` | `{project_slug, chat_id, message_id, user_id, user_name, emoji, action: 'add'\|'remove'}` — a delta, applied by the same idempotent merge as the reacting tab's own optimistic click |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
@@ -3100,8 +3218,13 @@ Tests enforce each of these.
   that bit, and every rendered name does not, so the removal is undone by
   clearing it. `studio_access` is read on the same access-only line. ⚠️
 - A `messages` row never has both `user_id` and `agent_id` set.
-- No reasoning trace is ever written to `messages.body` or replayed into a
-  later request.
+- No reasoning trace is ever written to `messages.body`, to a receipt, or
+  replayed into a later fire. Within one fire a capped trace is handed on
+  once, as text on a user turn — to the same turn's retry, or to the sizing
+  call — and the receipt's prompt keeps a placeholder where it rode (§8).
+- The builder's room holds the builder and nobody else: `assertBotsAllowed`
+  refuses every other helper there, no route and no mention puts the builder
+  anywhere else, and nothing edits or deletes its row.
 - An agent message never makes an agent eligible to respond.
 - An agent whose `cooldown_until` is in the future cannot post a message.
 - `studio_state.tokens_used_today` is monotone non-decreasing within a UTC day,
@@ -3483,7 +3606,9 @@ server/
   chats.js        a conversation inside a project; requireChat,
                   assertBotsAllowed, and the per-chat caps
   mentions.js     one rule resolves a helper's name and a person's (§8)
-  starter.js      the starter helper that joins a new game's Building chat
+  builder.js      the builder: the studio's own agents row, its room in every
+                  game, and the upgrade that gives existing games one
+  plans.js        a plan's row: pieces, status, the pause on open
   broker.js       SSE fan-out to every tab
   budget.js       studio-wide daily counter
   http/
@@ -3525,7 +3650,9 @@ server/
                   complete() for one whole answer with no stream at all
     tools.js      the four file tools
   agents/
-    orchestrator.js  dirty bit, cooldown, tool loop, context builder
+    orchestrator.js  dirty bit, cooldown, tool loop, context builder, the
+                     builder's sizing and pieces
+    sizing.js        the sizing ask, its parser, and a piece's turn
   routes/         auth, admin, projects, agents, chats, messages, achievements,
                   errors, files, history, story, helpers, stream
 public/

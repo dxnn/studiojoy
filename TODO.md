@@ -106,9 +106,10 @@ deliberately deferred.
 - ! watch the first real fires on the new `low` default and see whether the
   games come out as good — the measurement scored whether files got written,
   not whether they were any good (spec.md §14, the caveat)
-- ! build small asks: a sizing call, one fire per step, and the builder in
-  `Building` with no other helper allowed (ideas/planner.md, build order at
-  the end)
+- ! watch the first real plans in production: whether the pieces the sizing
+  cuts are the right size, whether `none` pieces come out as good as `low`
+  ones, and where the wall of text a helper used to leave actually came from —
+  read one real receipt before assuming (ideas/planner.md, "Still open")
 - hold the other surfaces to the conventions the way Controls is now
   (test/conventions.test.js): the story editor, the achievements editor,
   Pics, Hear, Share and the mode row itself — a `render` call and the same
