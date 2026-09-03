@@ -951,6 +951,9 @@ export async function openProject(slug, { view = null } = {}) {
   setReservedImages({ chat: null, hero: null });
   // An open receipt belongs to a message in the game being left.
   S.receipt = null;
+  // And so does an open verb in Controls, and any question it was asking.
+  S.controlsVerb = null;
+  S.controlsKey = null;
   render();
   // The best score is on the preview now, so it is fetched with the game
   // rather than when the Scoreboard tab is opened. One small request, and the

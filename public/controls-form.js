@@ -220,12 +220,15 @@ export function renderControlsForm(model) {
           onclick: () => {
             if (listening) { S.controlsKey = null; render(); return; }
             S.controlsKey = `${who}/${verb}`;
+            const asked = S.open.path;
             render();
             const heard = (e) => {
               window.removeEventListener('keydown', heard, true);
               // A second click on the button called it off, and a key pressed
-              // afterwards belongs to whatever has the focus.
-              if (S.controlsKey !== `${who}/${verb}`) return;
+              // afterwards belongs to whatever has the focus. The file is
+              // checked too: without it a key pressed after leaving for
+              // another game would be written into that game's own bindings.
+              if (S.controlsKey !== `${who}/${verb}` || S.open?.path !== asked) return;
               e.preventDefault();
               S.controlsKey = null;
               const name = e.key === 'Escape' ? null : keyNameFor(e.key);
