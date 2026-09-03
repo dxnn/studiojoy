@@ -2,9 +2,10 @@
 
 Nothing here is built. Decided 2026-09-03 after four probes against the live
 API (`tmp/probe-lib.mjs` and the four `tmp/probe-*.mjs` beside it); the
-numbers below are theirs and spec.md §14 carries their tables. The names —
-*sizing*, *step*, *builder*, and `Building` as the builder's room — were agreed
-the same day and are in GLOSSARY.md.
+numbers below are theirs and spec.md §14 carries their tables. *Sizing*,
+*builder*, and `Building` as the builder's room were agreed the same day and
+are in GLOSSARY.md. "Step" below is a plain word: the glossary already has
+*step* for a row of a story scene, so a plan's item still needs its name.
 
 ## The problem, as measured
 
@@ -227,7 +228,10 @@ already named its files:
   for the kid, which the card already is, and studio bookkeeping in a game's
   commits is surface.
 - `Building` is the builder's room (above).
-- Names: *sizing*, *step*, *builder*; the room keeps its name. In GLOSSARY.md.
+- Names: *sizing* and *builder*, in GLOSSARY.md; the room keeps its name.
+  *Step* turned out to be taken (a row of a story scene), so the plan's item
+  is unnamed — *piece* is the candidate, from the banners' "ask for one piece
+  at a time".
 
 ## Still open
 
