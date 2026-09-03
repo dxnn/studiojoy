@@ -1414,6 +1414,21 @@ details.thinking .trace {
   border: 1px solid var(--border-soft);
   border-radius: 4px;
 }
+/* Where the picture ends: a transparent pixel and the empty strip beside the
+   picture are the same checkerboard, so without this line the edge is a
+   guess — a sprite drawn to its corner looked like one drawn to nowhere.
+   Fitted like .frame-lines below; the border sits outside the pixels rather
+   than over the outer row of them, and the shadow dims the strip so the
+   picture reads as the paper. */
+.picture-edge {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  box-sizing: content-box;
+  border: 1px solid var(--muted);
+  box-shadow: 0 0 0 100vmax rgba(8, 4, 24, 0.4);
+}
 /* Frame boundaries over a strip: fitted to the picture inside the letterboxed
    canvas by renderDrawing, centred here, one screen pixel at any zoom. */
 .frame-lines {

@@ -2555,23 +2555,29 @@ function renderDrawing() {
   whole.width = picture.width;
   whole.height = picture.height;
 
-  // In the whole-strip view the frame boundaries are an overlay — one screen
-  // pixel at any zoom, never part of what is saved. The canvas letterboxes
-  // the picture (object-fit: contain), so the overlay is fitted with the
-  // same arithmetic spotOf uses, re-run on every resize.
+  // The picture's edge and, in the whole-strip view, the frame boundaries are
+  // overlays — one screen pixel at any zoom, never part of what is saved. The
+  // canvas letterboxes the picture (object-fit: contain), so both are fitted
+  // with the same arithmetic spotOf uses, re-run on every resize. The edge is
+  // there because a transparent pixel and the empty strip beside the picture
+  // are the same checkerboard: without it, where the picture ends is a guess.
+  const edge = h('div', { class: 'picture-edge' });
   let lines = null;
   if (frames > 1 && !frameMode) {
     lines = h('div', { class: 'frame-lines' });
     lines.style.setProperty('--frames', frames);
-    const place = () => {
-      const box = canvas.getBoundingClientRect();
-      if (!box.width || !box.height) return;
-      const scale = Math.min(box.width / picture.width, box.height / picture.height);
-      lines.style.width = `${picture.width * scale}px`;
-      lines.style.height = `${picture.height * scale}px`;
-    };
-    new ResizeObserver(place).observe(canvas);
   }
+  const fit = () => {
+    const box = canvas.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const scale = Math.min(box.width / viewW, box.height / picture.height);
+    for (const overlay of [edge, lines]) {
+      if (!overlay) continue;
+      overlay.style.width = `${viewW * scale}px`;
+      overlay.style.height = `${picture.height * scale}px`;
+    }
+  };
+  new ResizeObserver(fit).observe(canvas);
   const state = h('span', { class: 'hint muted' });
   // The picture and the game's colours are both work in this pane, so one
   // button covers both and the words say which of them is waiting.
@@ -2862,7 +2868,7 @@ function renderDrawing() {
 
   paint();
   return h('div', { class: 'drawing grow' },
-    h('div', { class: 'media grow' }, canvas, lines),
+    h('div', { class: 'media grow' }, canvas, edge, lines),
     h('div', { class: 'pad col' }, frameRow, tools, brushes, swatches),
     h('div', { class: 'editor-bar row' },
       state,
