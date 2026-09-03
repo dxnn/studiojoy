@@ -1560,6 +1560,26 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 /* A binding this shape has not got. Not crimson — nothing is in danger, it
    simply never fires — so it is struck through and stood down instead. */
 .ctl-chip.dead { color: var(--muted); text-decoration: line-through; }
+/* A verb row opens in place, and lights up only where it opens — in a game
+   you may not change it is a list and nothing more. What opens sits under the
+   row it belongs to, one at a time. */
+.ctl-verb.opens { cursor: pointer; }
+.ctl-verb.opens:hover { background: var(--hover); }
+.ctl-verb.on { background: var(--hover); border-bottom: none; }
+.ctl-open { border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent); }
+.ctl-editor {
+  display: grid;
+  gap: 4px;
+  padding: 2px 0 10px 18px;
+  background: var(--hover);
+}
+.ctl-binding { flex-wrap: wrap; }
+.ctl-binding .ctl-name { width: 7rem; flex: 0 0 auto; }
+.ctl-binding label.hint { gap: 4px; white-space: nowrap; }
+.ctl-adds { padding-top: 4px; }
+/* The three ways to add one. A select standing in for a button, so its own
+   label is the first option and it goes back to it after a pick. */
+select.ctl-add { font-size: 12px; padding: 3px 6px; max-width: 14rem; }
 
 /* The quiz editor: a card per question and per ending. The .cfg-text inputs
    inside flex rows need leave to shrink, or a long answer pushes the ✕ out. */

@@ -13,7 +13,9 @@
 // The model reading and file writing is controls-editor.js; this is the form.
 
 import {
-  deadBindings, deadReason, controlsChecks, setScheme, setBindings, CONTROLS_FILE,
+  deadBindings, deadReason, controlsChecks, sayBinding, screenOptions,
+  keyNameFor, PAD_NAMES, hasSide, hasDeadzone,
+  setScheme, setBindings, setKnob, CONTROLS_FILE,
 } from './controls-editor.js';
 import { h } from './dom.js';
 import {
@@ -71,6 +73,22 @@ function words(key) {
 // The row the game already wears is not a button at all, and neither is any
 // of them in a game you may not change: a greyed-out row is a question, and
 // "why can I not press this" has no answer a row can give.
+// A select that is really a button with a list behind it: the label sits in
+// front, picking one does the thing, and it goes back to the label so the
+// next pick reads the same.
+function pickOne(label, options, onPick) {
+  return h('select', {
+    class: 'ctl-add',
+    onchange: (e) => {
+      const { value } = e.currentTarget;
+      e.currentTarget.value = '';
+      if (value) onPick(value);
+    },
+  }, h('option', { value: '', text: label }), options.map(
+    (o) => h('option', { value: o.value, text: o.label }),
+  ));
+}
+
 function shapeRow({ title, what }, { on, indent = false, onPick }) {
   const cls = `ctl-shape${on ? ' on' : ''}${indent ? ' manner' : ''}`;
   const body = [
@@ -119,18 +137,116 @@ export function renderControlsForm(model) {
     rows.unshift(shapeRow(words(shape), { on: true, onPick: pick(shape) }));
   }
 
-  // A verb and everything that does it. Read-only: the words on the left are
-  // the game's own — Input.held("thrust") is somewhere in its code — so a
-  // rename here would be a silent code break. A binding this shape has not
-  // got is struck through here as well as listed below, or the row would show
-  // a control that looks like it works.
-  const verbRow = ({ verb, bindings }) => h('div', { class: 'ctl-verb' },
-    h('span', { class: 'cfg-name mono', text: verb }),
-    h('div', { class: 'row wrap' }, bindings.length === 0
-      ? h('span', { class: 'hint muted', text: 'nothing does this' })
-      : bindings.map((b) => h('span', {
-        class: `ctl-chip mono${deadReason(shape, b) ? ' dead' : ''}`, text: b.raw,
-      }))));
+  // A verb and everything that does it, and open it to change them. The word
+  // on the left is never editable: it is the game's own, and
+  // Input.held("thrust") is somewhere in its code. A binding this shape has
+  // not got is struck through here as well as listed below, or the row would
+  // show a control that looks like it works.
+  const verbRow = (who, { verb, bindings }) => {
+    const key = `${who}/${verb}`;
+    const open = S.controlsVerb === key;
+    const row = h('div', { class: `ctl-verb${open ? ' on' : ''}${ro ? '' : ' opens'}` },
+      h('span', { class: 'cfg-name mono', text: verb }),
+      h('div', { class: 'row wrap' }, bindings.length === 0
+        ? h('span', { class: 'hint muted', text: 'nothing does this' })
+        : bindings.map((b) => h('span', {
+          class: `ctl-chip mono${deadReason(shape, b) ? ' dead' : ''}`, text: b.raw,
+        }))));
+    if (ro) return row;
+    // The whole row opens, because the whole row lights up.
+    row.onclick = () => {
+      S.controlsVerb = open ? null : key;
+      S.controlsKey = null;
+      render();
+    };
+    return open
+      ? h('div', { class: 'ctl-open' }, row, verbEditor(who, verb, bindings))
+      : row;
+  };
+
+  // What is open under a verb: a row per binding with its own ···, then the
+  // three ways to add one. Clicks stop here — the row above opens and closes
+  // on a click, and a press on a field inside it must not close it.
+  const verbEditor = (who, verb, bindings) => {
+    const write = (next) => commit(setBindings(S.open.content, who, verb, next));
+    const raws = bindings.map((b) => b.raw);
+    const swap = (i, raw) => write(raws.map((r, at) => (at === i ? raw : r)));
+
+    const bindingRow = (b, i) => {
+      const drawn = (b.kind === 'touch' || b.kind === 'toggle') && b.name !== 'screen'
+        && !['left', 'right', 'up', 'down'].includes(b.name);
+      const why = deadReason(shape, b);
+      const name = drawn ? h('input', {
+        class: 'cfg-text ctl-name', value: b.name,
+        onchange: (e) => {
+          const typed = e.currentTarget.value.trim().replace(/\s+/g, '-');
+          if (typed) swap(i, `${b.kind}:${typed}`);
+          else e.currentTarget.value = b.name;
+        },
+      }) : null;
+      if (name) name.value = b.name;
+      return h('div', { class: 'ctl-binding row' },
+        h('span', { class: `ctl-chip mono${why ? ' dead' : ''}`, text: b.raw }),
+        name,
+        // A drawn button can latch: tap on, tap off, held in between. Only a
+        // drawn one — a key or a pad button stays momentary, which is what
+        // keeps the desktop feel the same.
+        drawn ? h('label', { class: 'row hint' },
+          h('input', {
+            type: 'checkbox', checked: b.kind === 'toggle',
+            onchange: (e) => swap(i, `${e.currentTarget.checked ? 'toggle' : 'touch'}:${b.name}`),
+          }),
+          h('span', { text: 'it latches' })) : null,
+        h('span', { class: 'hint muted', text: why ?? sayBinding(b) }),
+        h('div', { class: 'spacer' }),
+        more(`binding:${who}:${verb}:${i}`, [{
+          text: 'Take it out',
+          onPick: () => write(raws.filter((_, at) => at !== i)),
+        }], { label: `More about ${b.raw}` }));
+    };
+
+    const listening = S.controlsKey === `${who}/${verb}`;
+    const screen = screenOptions(shape);
+    const editor = h('div', { class: 'ctl-editor' },
+      ...bindings.map(bindingRow),
+      h('div', { class: 'row wrap ctl-adds' },
+        // A key is pressed rather than picked out of a list of a hundred:
+        // pressing the one you mean is the whole question. The listener is
+        // installed by the click and takes itself off with the first key, so
+        // nothing is watching the keyboard the rest of the time.
+        h('button', {
+          class: `quiet tiny${listening ? ' on' : ''}`,
+          text: listening ? 'Press the key now — or Esc' : '+ A key',
+          onclick: () => {
+            if (listening) { S.controlsKey = null; render(); return; }
+            S.controlsKey = `${who}/${verb}`;
+            render();
+            const heard = (e) => {
+              window.removeEventListener('keydown', heard, true);
+              // A second click on the button called it off, and a key pressed
+              // afterwards belongs to whatever has the focus.
+              if (S.controlsKey !== `${who}/${verb}`) return;
+              e.preventDefault();
+              S.controlsKey = null;
+              const name = e.key === 'Escape' ? null : keyNameFor(e.key);
+              if (name) write([...raws, `key:${name}`]);
+              else render();
+            };
+            window.addEventListener('keydown', heard, true);
+          },
+        }),
+        pickOne('+ A controller button', PAD_NAMES.map((n) => ({ value: `pad:${n}`, label: n })),
+          (value) => write([...raws, value])),
+        screen.length === 0
+          ? h('span', { class: 'hint muted', text: 'This shape draws nothing to press.' })
+          : pickOne('+ Something on the screen', screen, (value) => {
+            // A drawn button's name starts as the verb's own word, which is
+            // what a player would expect to read on it.
+            write([...raws, value.endsWith(':') ? `${value}${verb.toUpperCase()}` : value]);
+          })));
+    editor.onclick = (e) => e.stopPropagation();
+    return editor;
+  };
 
   const playerBlock = (player) => h('div', { class: 'cfg-group' },
     h('div', { class: 'cfg-group-head' },
@@ -141,7 +257,41 @@ export function renderControlsForm(model) {
           ? 'the keyboard, the first controller, and the screen'
           : 'the keyboard and the second controller — the screen is player 1\'s',
       })),
-    h('div', { class: 'cfg-group-body' }, player.verbs.map(verbRow)));
+    h('div', { class: 'cfg-group-body' }, player.verbs.map((v) => verbRow(player.who, v))));
+
+  // The two knobs a drawn shape has. Written the first time one is used: a
+  // file seeded for a shape without them never declared them, and input.js
+  // reads "right" and 0.35 for itself until one is there.
+  const knobs = [];
+  if (hasSide(shape)) {
+    knobs.push(h('label', { class: 'cfg-row' },
+      h('span', { class: 'cfg-name mono', text: 'BUTTON_SIDE' }),
+      ro ? h('span', { class: 'mono hint', text: model.side ?? 'right' }) : pickOne(
+        model.side === 'left' ? 'on the left' : 'on the right',
+        [{ value: 'right', label: 'on the right' }, { value: 'left', label: 'on the left' }],
+        (value) => commit(setKnob(S.open.content, 'BUTTON_SIDE', JSON.stringify(value))),
+      ),
+      h('span', { class: 'hint muted', text: 'which thumb the buttons are under; whatever moves the player takes the other' })));
+  }
+  if (hasDeadzone(shape)) {
+    const field = h('input', {
+      type: 'number', step: '0.05', min: '0', max: '0.95', class: 'cfg-num',
+      disabled: ro,
+      onchange: (e) => {
+        const typed = Number(e.currentTarget.value);
+        if (!Number.isFinite(typed) || typed < 0 || typed > 0.95) {
+          e.currentTarget.value = String(model.deadzone ?? 0.35);
+          return;
+        }
+        commit(setKnob(S.open.content, 'STICK_DEADZONE', String(typed)));
+      },
+    });
+    field.value = String(model.deadzone ?? 0.35);
+    knobs.push(h('label', { class: 'cfg-row' },
+      h('span', { class: 'cfg-name mono', text: 'STICK_DEADZONE' }),
+      field,
+      h('span', { class: 'hint muted', text: 'how far a stick leans before it counts as pushed — small drifts on its own, big feels stiff' })));
+  }
 
   const dead = deadBindings(model);
   const deadRow = ({ who, verb, binding, why }, i) => h('div', { class: 'ctl-verb' },
@@ -170,9 +320,10 @@ export function renderControlsForm(model) {
             : 'nothing says yet — pick one and it will be written down',
         })),
       h('div', { class: 'ctl-shapes' }, rows),
+      ...knobs,
       h('div', { class: 'cfg-group-head' },
         h('span', { class: 'cfg-name mono', text: 'What each player does' }),
-        h('span', { class: 'hint muted', text: 'the words on the left are the game\'s own, and its code asks for them by name' })),
+        h('span', { class: 'hint muted', text: 'press one to change what does it — the word on the left is the game\'s own, and its code asks for it by name' })),
       ...model.players.map(playerBlock),
       dead.length === 0 ? null : h('div', { class: 'cfg-group' },
         h('div', { class: 'cfg-group-head' },

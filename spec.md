@@ -1287,9 +1287,28 @@ in its code by name, and ⚠️ not the notes above it either, which still
 describe the shape the game was seeded with (a TODO line).
 
 Then **what each player does**: a row per verb with its bindings as chips,
-the verb read-only for the same reason. Under those, every binding this shape
-has not got — a `stick:` in a swipe game, a drawn button in a `none` one —
-said in words, with *Take it out* in its `···`; the same chips are struck
+the verb read-only for the same reason. A verb **opens in the row it belongs
+to**, one at a time, into a row per binding — the chip, what it is in a
+player's words ("the space bar", "the controller's right stick pushed left"),
+and *Take it out* in its `···` — over the three ways to add one. A key is
+**pressed** rather than picked out of a list of a hundred: the button installs
+one `keydown` listener that takes itself off with the first key, Esc calls it
+off, and the friendly name is what gets written (`key:space`, not a space
+nobody can see). A controller button and something-on-the-screen are selects
+of the shape's own vocabulary, so a shape can only be given what it draws;
+a drawn button's row also carries its **name** — the words on the button,
+starting as the verb's own — and *it latches* (`touch:` ↔ `toggle:`), which
+only a drawn one gets, because a key or a pad button staying momentary is
+what keeps the desktop feel the same.
+
+The shape's two knobs sit under it: `BUTTON_SIDE` where anything is drawn and
+`STICK_DEADZONE` where a thumb works a stick, ⚠️ **written the first time one
+is used** — a file seeded for a shape without them never declared them, and
+`input.js` reads `"right"` and `0.35` for itself until one is there.
+
+Under the verbs, every binding this shape has not got — a `stick:` in a swipe
+game, a drawn button in a `none` one — said in words, and *Take it out* in its
+`···` there too; the same chips are struck
 through in the verb rows above, or a row would show a control that looks like
 it works. And one check over the whole file: a shape that draws something and
 bindings that never name it is a game nobody can play on a phone, which is

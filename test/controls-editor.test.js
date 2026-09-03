@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   controlsModel, deadBindings, deadReason, controlsChecks,
-  setScheme, setBindings, USABLE,
+  screenOptions, keyNameFor, sayBinding, hasSide, hasDeadzone, PAD_NAMES,
+  setScheme, setBindings, setKnob, USABLE,
 } from '../public/controls-editor.js';
 
 const read = (rel) => fs.readFileSync(new URL(`../public/${rel}`, import.meta.url), 'utf8');
@@ -158,6 +159,83 @@ test('taking a binding out rewrites one line and keeps its comment', () => {
   assert.equal(
     next.replace('fire: "key:space pad:a"', 'fire: "key:space pad:a touch:GO"'), SEED,
   );
+});
+
+// ⚠️ The panel offers a controller's buttons and a pressed key by name, and
+// input.js is what reads those names: one it does not know is a binding that
+// never fires, written by the studio itself.
+test('every name the panel offers is one input.js reads', () => {
+  const input = read('studio-lib/input/input.js');
+  const names = (block) => [...new RegExp(`${block}[^]*?\\n  \\};`).exec(input)[0]
+    .matchAll(/"?([a-z0-9-]+)"?:/g)].map((m) => m[1]);
+  const pad = new Set([...names('const PAD_BUTTONS = \\{'), ...names('const PAD_STICKS = \\{')]);
+  for (const name of PAD_NAMES) assert.ok(pad.has(name), `pad:${name}`);
+  assert.equal(PAD_NAMES.length, pad.size, 'and every one it reads is offered');
+
+  // The same for what a shape puts on the screen: the whole binding, checked
+  // against the shape it is offered for.
+  for (const shape of Object.keys(USABLE)) {
+    for (const { value, label } of screenOptions(shape)) {
+      assert.ok(label, `${shape}: ${value} has words`);
+      // "touch:" alone is the drawn button whose name comes from the verb.
+      const raw = value.endsWith(':') ? `${value}FIRE` : value;
+      const at = raw.indexOf(':');
+      const b = { kind: raw.slice(0, at), name: raw.slice(at + 1), raw };
+      assert.equal(deadReason(shape, b), null, `${shape}: ${raw} works there`);
+    }
+  }
+  // A shape that draws nothing offers nothing, rather than something dead.
+  assert.deepEqual(screenOptions('none'), []);
+});
+
+test('a pressed key becomes the name the file writes', () => {
+  assert.equal(keyNameFor(' '), 'space');
+  assert.equal(keyNameFor('ArrowLeft'), 'left');
+  assert.equal(keyNameFor('Escape'), 'esc');
+  assert.equal(keyNameFor('Control'), 'ctrl');
+  assert.equal(keyNameFor('A'), 'a');
+  assert.equal(keyNameFor('Shift'), 'shift');
+  // Nothing that would read as two bindings, or as none.
+  assert.equal(keyNameFor(''), null);
+  assert.equal(keyNameFor('Dead Key'), null);
+  assert.equal(keyNameFor(null), null);
+});
+
+test('a binding says what it is in words a player would use', () => {
+  const say = (raw) => sayBinding({ kind: raw.slice(0, raw.indexOf(':')), name: raw.slice(raw.indexOf(':') + 1), raw });
+  assert.equal(say('key:space'), 'the space bar');
+  assert.equal(say('key:a'), 'the A key');
+  assert.equal(say('key:shift'), 'the shift key');
+  assert.equal(say('pad:a'), "the controller's A button");
+  assert.equal(say('pad:stick2-left'), "the controller's right stick pushed left");
+  assert.equal(say('swipe:tap'), 'a tap');
+  assert.equal(say('stick:aim-up'), 'the aim stick pushed up');
+  assert.equal(say('touch:left'), 'the left arrow, drawn on the screen');
+  assert.equal(say('toggle:FIRE'), 'a drawn button that latches');
+});
+
+test('the knobs belong to the shapes that have them', () => {
+  assert.equal(hasSide('buttons'), true);
+  assert.equal(hasSide('dual-stick'), true);
+  assert.equal(hasSide('none'), false, 'nothing drawn to mirror');
+  assert.equal(hasSide('swipe-tap'), false);
+  assert.equal(hasDeadzone('stick-buttons'), true);
+  assert.equal(hasDeadzone('buttons'), false, 'no stick on the screen');
+});
+
+test('a knob the file never declared is written the first time it is used', () => {
+  // The buttons preset declares the side and no deadzone.
+  const side = setKnob(BUTTONS, 'BUTTON_SIDE', '"left"');
+  assert.match(side, /const BUTTON_SIDE = "left";/);
+  assert.equal(controlsModel(side).side, 'left');
+  assert.equal(side.split('BUTTON_SIDE =').length, 2, 'spliced, not appended twice');
+
+  const zone = setKnob(BUTTONS, 'STICK_DEADZONE', '0.4');
+  assert.equal(controlsModel(zone).deadzone, 0.4);
+  assert.match(zone, /\/\/ How far a stick has to lean[^]*const STICK_DEADZONE = 0\.4;/);
+  assert.ok(zone.startsWith(BUTTONS), 'and the file it was added to is untouched');
+  // A name with no comment to write is refused rather than guessed at.
+  assert.equal(setKnob(BUTTONS, 'SPEED', '3'), null);
 });
 
 test('a file the panel will not open says why, and is not refused for nothing', () => {

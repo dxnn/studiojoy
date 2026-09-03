@@ -58,6 +58,103 @@ const STICKS = {
 // The one touch name the whole-screen shapes answer to.
 const WHOLE_SCREEN = { 'one-button': 'screen' };
 
+// Which knobs a shape has. BUTTON_SIDE mirrors any drawn layout, sticks
+// included; STICK_DEADZONE is read for the controller's sticks in every shape
+// but only worth showing where a thumb works one too.
+export const hasSide = (shape) => (USABLE[shape] ?? USABLE['']).some(
+  (k) => k === 'touch' || k === 'stick',
+);
+export const hasDeadzone = (shape) => (STICKS[shape] ?? []).length > 0;
+
+// A controller in the standard layout, and its sticks: the same names
+// input.js reads, which test/controls-editor.test.js holds it to.
+export const PAD_NAMES = [
+  'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'back', 'start', 'l3', 'r3',
+  'up', 'down', 'left', 'right',
+  'stick-left', 'stick-right', 'stick-up', 'stick-down',
+  'stick2-left', 'stick2-right', 'stick2-up', 'stick2-down',
+];
+
+// A pressed key as config/controls.js writes it: the friendly name where
+// input.js has one, so the file says key:space rather than a space nobody
+// can see. The inverse of that file's KEY_NAMES.
+const KEY_NAMES = {
+  arrowleft: 'left', arrowright: 'right', arrowup: 'up', arrowdown: 'down',
+  ' ': 'space', escape: 'esc', control: 'ctrl',
+};
+
+export function keyNameFor(pressed) {
+  if (typeof pressed !== 'string' || pressed === '') return null;
+  const key = pressed.toLowerCase();
+  const named = KEY_NAMES[key];
+  if (named) return named;
+  // A name with a space in it would read as two bindings; nothing else can.
+  return /\s/.test(key) ? null : key;
+}
+
+// What a shape offers to put on the screen, in the words the panel shows. A
+// drawn button carries a name, so its value is the prefix alone and the name
+// comes from the verb; everything else is the whole binding.
+export function screenOptions(shape) {
+  const usable = USABLE[shape] ?? USABLE[''];
+  const only = WHOLE_SCREEN[shape];
+  if (only !== undefined) return [{ value: `touch:${only}`, label: 'a tap or a click anywhere' }];
+  const out = [];
+  if (usable.includes('swipe')) {
+    for (const way of ['left', 'right', 'up', 'down']) {
+      out.push({ value: `swipe:${way}`, label: `a flick ${way}` });
+    }
+    out.push({ value: 'swipe:tap', label: 'a tap' });
+  }
+  for (const which of STICKS[shape] ?? []) {
+    const prefix = which === 'aim' ? 'aim-' : '';
+    const whose = (STICKS[shape] ?? []).length > 1 ? `the ${which} stick` : 'the stick';
+    for (const way of ['left', 'right', 'up', 'down']) {
+      out.push({ value: `stick:${prefix}${way}`, label: `${whose} pushed ${way}` });
+    }
+    out.push({ value: `stick:${which}`, label: `${whose} pushed at all` });
+  }
+  if (usable.includes('touch')) {
+    for (const way of ['left', 'right', 'up', 'down']) {
+      out.push({ value: `touch:${way}`, label: `the ${way} arrow` });
+    }
+    out.push({ value: 'touch:', label: 'a drawn button with a name on it' });
+  }
+  return out;
+}
+
+const ARROWS = { left: 'left', right: 'right', up: 'up', down: 'down' };
+
+// One binding in plain words, for the row it sits on.
+export function sayBinding(b) {
+  if (b.kind === 'key') {
+    if (b.name === 'space') return 'the space bar';
+    return b.name.length === 1 ? `the ${b.name.toUpperCase()} key` : `the ${b.name} key`;
+  }
+  if (b.kind === 'pad') {
+    if (b.name.startsWith('stick')) {
+      const [stick, way] = b.name.split('-');
+      const whose = stick === 'stick2' ? 'right stick' : 'left stick';
+      return `the controller's ${whose} pushed ${way}`;
+    }
+    if (ARROWS[b.name]) return `the controller's pad, ${b.name}`;
+    return `the controller's ${b.name.toUpperCase()} button`;
+  }
+  if (b.kind === 'swipe') return b.name === 'tap' ? 'a tap' : `a flick ${b.name}`;
+  if (b.kind === 'stick') {
+    const aim = b.name.startsWith('aim');
+    const way = b.name.replace('aim-', '');
+    const whose = aim ? 'the aim stick' : 'the stick';
+    return way === 'move' || way === 'aim' ? `${whose} pushed at all` : `${whose} pushed ${way}`;
+  }
+  if (b.kind === 'touch' || b.kind === 'toggle') {
+    if (b.name === 'screen') return 'a tap or a click anywhere';
+    if (ARROWS[b.name]) return `the ${b.name} arrow, drawn on the screen`;
+    return b.kind === 'toggle' ? 'a drawn button that latches' : 'a drawn button';
+  }
+  return 'nothing reads this';
+}
+
 function binding(raw) {
   const at = raw.indexOf(':');
   const kind = at === -1 ? null : raw.slice(0, at);
@@ -217,6 +314,29 @@ function setValue(text, name, keys, literal) {
 
 export function setBindings(text, who, verb, bindings) {
   return setValue(text, 'CONTROLS', [who, verb], JSON.stringify(bindings.join(' ')));
+}
+
+// A knob the shape has and the file has not: appended with its comment,
+// because a panel offering BUTTON_SIDE on a file that never declared it has
+// to write the declaration the first time it is used.
+const KNOBS = {
+  BUTTON_SIDE: [
+    '// Which corner the drawn buttons sit in: "right" or "left". Whatever',
+    '// moves the player takes the other thumb.',
+  ],
+  STICK_DEADZONE: [
+    "// How far a stick has to lean before it counts as pushed — the controller's",
+    '// and the one on the screen both. A small number here means the game drifts',
+    '// on its own; a big one means the stick feels stiff.',
+  ],
+};
+
+export function setKnob(text, name, literal) {
+  const spliced = setValue(text, name, [], literal);
+  if (spliced !== null) return spliced;
+  if (!KNOBS[name]) return null;
+  const end = text.endsWith('\n') ? text : `${text}\n`;
+  return `${end}\n${KNOBS[name].join('\n')}\nconst ${name} = ${literal};\n`;
 }
 
 // The shape changed. The bindings are left exactly as they are — replacing

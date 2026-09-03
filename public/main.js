@@ -109,6 +109,11 @@ export const S = {
   // for it: what it offers, the families, and the words for each. The
   // studio's own rather than a game's, so it outlives opening another game.
   schemes: null,
+  // Which verb is open in the Controls panel — `player1/fire` — and which,
+  // if any, is waiting for a key to be pressed. One at a time, like a row's
+  // changes in the versions list.
+  controlsVerb: null,
+  controlsKey: null,
   files: [],
   // What the game said when it ran, for the version of the files on disk now.
   errors: [],
