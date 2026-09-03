@@ -23,9 +23,6 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- ! land lazy commits: a write reaches the tree at once and history on idle,
-  on leaving, and always before a fire or a history read — calm shell step 1
-  (ideas/calm-shell.md)
 - ! build the mode row and take the tabs out of the rail: Chat as a mode, the
   game's ··· with Archive behind a confirmation, `npm run unarchive` and no
   Reopen — calm shell step 2 (ideas/calm-shell.md)

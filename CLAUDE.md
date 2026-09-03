@@ -82,6 +82,12 @@ walk into, each paid for once already.
   and `COOP: same-origin` — because a password form now shares an origin with
   LLM-written game code.
 - Write-and-commit is serialised per project through `files/mutex.js`.
+- ⚠️ A save is written at once and committed later, as the project's **pending
+  commit** (`files/pending.js`, spec.md §5). Anything that commits directly, or
+  reads the tree into history — a helper's write, a move, a restore, a fork —
+  lands it first, inside the mutex, or a commit carries somebody else's
+  uncommitted work under the wrong name. The preview follows `files.changed`
+  (the write); Versions follows `version.new` (the commit).
 - A score, a personal best and an achievement are rows in SQLite, never files:
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache.
@@ -207,7 +213,7 @@ specified:
 - The games origin serves the catalog, each game through the wrapper, the
   scoreboard and achievements, and a **players page** per game (§6, §7). The
   catalog says how *you* are doing on each card. The preview reloads itself
-  on every commit — and on nothing else: the frame lives outside the rendered
+  on every write — and on nothing else: the frame lives outside the rendered
   tree (§17) — and reports its own errors and moments back.
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by

@@ -77,9 +77,14 @@ const TOOL_DEFINITIONS = [
 // Every tool returns a string for the model. Failures are returned, never
 // thrown: a confused agent should get a correction it can act on, not a dead
 // turn. That is also why path validation hands back its reason verbatim.
-export function createToolset({ dir, mutex, slug }) {
+//
+// A person's saves still waiting for their commit land before any write here
+// (files/pending.js): a helper's bytes must never ride into history under a
+// person's name, nor a person's under a helper's.
+export function createToolset({ dir, mutex, slug, pending = null }) {
   // path -> {action, bytes}. The orchestrator commits these once per turn.
   const changes = new Map();
+  const settlePending = () => (pending ? pending.settleLocked(slug) : null);
 
   function resolve(input) {
     const checked = checkProjectPath(input);
@@ -123,6 +128,7 @@ export function createToolset({ dir, mutex, slug }) {
       return `refused: ${buffer.length} bytes exceeds the ${MAX_FILE_BYTES} byte limit`;
     }
     return mutex.run(slug, async () => {
+      await settlePending();
       const existed = (await readFileAt(target.abs)) !== null;
       try {
         await assertCapacity(dir, { addingBytes: buffer.length, isNewFile: !existed });
@@ -144,6 +150,7 @@ export function createToolset({ dir, mutex, slug }) {
     if (typeof newText !== 'string') return 'new_text must be a string';
 
     return mutex.run(slug, async () => {
+      await settlePending();
       const buffer = await readFileAt(target.abs);
       if (buffer === null) return `no such file: ${target.rel}`;
       if (!isTextPath(target.rel)) return `${target.rel} is not a text file`;
@@ -190,6 +197,7 @@ export function createToolset({ dir, mutex, slug }) {
     const target = resolveForWrite(p);
     if (target.error) return target.error;
     return mutex.run(slug, async () => {
+      await settlePending();
       if ((await readFileAt(target.abs)) === null) return `no such file: ${target.rel}`;
       await removeFileAt(dir, target.rel);
       record(target.rel, 'delete', 0);

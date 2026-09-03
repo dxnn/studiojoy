@@ -54,7 +54,8 @@ const MAX_AUTH_BODY_BYTES = 1024;
 // catalog as text, never as markup.
 
 export function createGamesApp({
-  db, gamesDir, scoreRate, signupRate, unlockRate, trustProxy = false, secureCookies = false,
+  db, gamesDir, pending = null, scoreRate, signupRate, unlockRate,
+  trustProxy = false, secureCookies = false,
   emailLockout = createLockout(DEFAULT_EMAIL_LOCKOUT),
   ipLockout = createLockout(DEFAULT_IP_LOCKOUT),
 }) {
@@ -296,7 +297,10 @@ export function createGamesApp({
   r.get(`/:slug/${WRAPPER_PATH}`, async (ctx) => {
     const project = gameForSlug(ctx.params.slug);
     const dir = path.join(root, project.slug);
-    const version = await currentSha(dir).catch(() => '');
+    const head = await currentSha(dir).catch(() => '');
+    // HEAD, or the saves on top of it while a pending commit is open, so a
+    // problem is filed against the bytes the game is actually running.
+    const version = head && pending ? pending.stampOf(project.slug, head) : head;
     const html = await readFileAt(path.join(dir, ENTRY_FILE));
     if (html === null) throw new HttpError(404, 'not found');
 

@@ -234,7 +234,11 @@ export function projectRoutes(r) {
     // ones are about code that no longer exists, so they are not sent.
     const errors = isChat
       ? []
-      : listErrors(ctx.db, project.id, await currentSha(dir)).map(errorPublic);
+      // The version the preview is running, saves waiting for their commit
+      // included (files/pending.js), or a reload mid-edit would show no problems.
+      : listErrors(
+        ctx.db, project.id, ctx.pending.stampOf(project.slug, await currentSha(dir)),
+      ).map(errorPublic);
 
     json(ctx.res, 200, {
       ...projectPublic(ctx, project, user),
@@ -366,6 +370,10 @@ export function projectRoutes(r) {
     // mid-clone, and the destination is new but shares the same lock table.
     await ctx.mutex.run(source.slug, async () => {
       if (await isRepo(dstDir)) throw new HttpError(409, 'that directory already exists');
+      // A clone copies history, not the working tree, so a save still waiting
+      // for its commit lands first or the fork would be missing the line typed
+      // a moment ago (files/pending.js).
+      await ctx.pending.settleLocked(source.slug);
       await forkRepo(srcDir, dstDir);
     });
 
@@ -513,6 +521,9 @@ export function projectRoutes(r) {
     if (typeof archived !== 'boolean') {
       throw new HttpError(400, 'archived must be a boolean');
     }
+    // Whatever the game still owes history lands before the door shuts, so
+    // an archived game's Versions is complete the moment it is archived.
+    if (archived) await ctx.pending.settle(project.slug);
     ctx.db.prepare('UPDATE projects SET archived = ? WHERE id = ?')
       .run(archived ? 1 : 0, project.id);
     ctx.broker.broadcast('project.updated', {

@@ -7,6 +7,7 @@ import { openDb } from '../server/db.js';
 import { createApp } from '../server/app.js';
 import { createBroker } from '../server/broker.js';
 import { createMutex } from '../server/files/mutex.js';
+import { createPending } from '../server/files/pending.js';
 import { createUser } from '../server/auth.js';
 
 // Fixtures live in the OS temp directory, not the repo. Two reasons: a test
@@ -136,6 +137,9 @@ export async function setup({
   }
   const broker = createBroker();
   const mutex = createMutex();
+  // The idle timer is the real 45 s: a test that wants a save committed says
+  // so, through the commit route or `app.pending.settle`.
+  const pending = createPending({ mutex, db, broker });
   let orchestrator = null;
   if (llm) {
     const { createOrchestrator } = await import('../server/agents/orchestrator.js');
@@ -143,6 +147,7 @@ export async function setup({
       db,
       broker,
       mutex,
+      pending,
       llm,
       gamesDir,
       cooldownMs,
@@ -153,7 +158,7 @@ export async function setup({
     });
   }
   const handler = createApp({
-    db, broker, mutex, gamesDir, llm, orchestrator, gamesUrl, publicDir,
+    db, broker, mutex, pending, gamesDir, llm, orchestrator, gamesUrl, publicDir,
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -164,6 +169,7 @@ export async function setup({
     gamesDir,
     broker,
     mutex,
+    pending,
     orchestrator,
     base,
     server,
@@ -181,7 +187,9 @@ export async function setup({
 // fixture. Separate server, separate origin — which is the whole point.
 export async function startGames(fixture, opts = {}) {
   const { createGamesApp } = await import('../server/games.js');
-  const handler = createGamesApp({ db: fixture.db, gamesDir: fixture.gamesDir, ...opts });
+  const handler = createGamesApp({
+    db: fixture.db, gamesDir: fixture.gamesDir, pending: fixture.pending, ...opts,
+  });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;

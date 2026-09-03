@@ -6,6 +6,7 @@ import { gamesUrlFrom } from './http/origin.js';
 import { resolveInside } from './files/paths.js';
 import { createBroker } from './broker.js';
 import { createMutex } from './files/mutex.js';
+import { createPending } from './files/pending.js';
 import { createLockout, DEFAULT_EMAIL_LOCKOUT, DEFAULT_IP_LOCKOUT } from './auth.js';
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
@@ -40,6 +41,9 @@ export function createApp({
   publicDir = DEFAULT_PUBLIC_DIR,
   emailLockout = createLockout(DEFAULT_EMAIL_LOCKOUT),
   ipLockout = createLockout(DEFAULT_IP_LOCKOUT),
+  // Shared with the orchestrator and the games listener when there are any:
+  // one window per project, whoever asks about it.
+  pending = createPending({ mutex, db, broker }),
 }) {
   if (!db) throw new Error('createApp requires a db');
 
@@ -89,7 +93,7 @@ export function createApp({
   });
 
   const base = {
-    db, broker, mutex, gamesDir, llm, orchestrator, publicDir,
+    db, broker, mutex, pending, gamesDir, llm, orchestrator, publicDir,
     secureCookies, trustProxy, emailLockout, ipLockout,
   };
 

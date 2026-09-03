@@ -136,11 +136,12 @@ const REPORTER_JS = `(function () {
   });
 }());`;
 
-// Hex only, and never longer than a sha. The value lands inside a script tag
-// in a document served to the public, so it is not trusted to be what the
-// caller says it is.
+// Hex and the one colon a pending commit's stamp carries (files/pending.js),
+// and never longer than one. The value lands inside a script tag in a
+// document served to the public, so it is not trusted to be what the caller
+// says it is.
 function safeVersion(version) {
-  return String(version ?? '').replace(/[^0-9a-f]/g, '').slice(0, 40);
+  return String(version ?? '').replace(/[^0-9a-f:]/g, '').slice(0, 49);
 }
 
 function reporterScript(version) {

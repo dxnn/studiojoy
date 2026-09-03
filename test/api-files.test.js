@@ -14,28 +14,48 @@ async function project(t, { slug = 'tank' } = {}) {
   return { app, dir: path.join(app.gamesDir, slug) };
 }
 
-const put = (app, p, body, headers) =>
+// A save is written at once and committed later (files/pending.js) — when the
+// person is idle, or says they are leaving. `save` is the route as it is;
+// `put` says "leaving" straight after and hands back the sha the way the
+// response used to, because most of what is tested here is not the waiting.
+const save = (app, p, body, headers) =>
   app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body, headers });
+const put = async (app, p, body, headers) => {
+  const res = await save(app, p, body, headers);
+  if (!res.body?.pending) return res;
+  const landed = await app.client.json('POST', '/api/projects/tank/commit');
+  return { ...res, body: { ...res.body, commit: landed.body.commit } };
+};
 
-test('a PUT creates the file, commits it, and announces the change', async (t) => {
+test('a PUT writes the file, announces the change, and owes a commit', async (t) => {
   const { app, dir } = await project(t);
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
-  const res = await put(app, 'index.html', '<h1>Tank</h1>');
+  const res = await save(app, 'index.html', '<h1>Tank</h1>');
   assert.equal(res.status, 201);
   assert.equal(res.body.path, 'index.html');
   assert.equal(res.body.size, 13);
-  assert.match(res.body.commit, /^[0-9a-f]{40}$/);
-
+  assert.equal(res.body.pending, true);
   assert.equal(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), '<h1>Tank</h1>');
-  const commits = await logCommits(dir);
-  assert.equal(commits[0].subject, 'create index.html');
-  assert.equal(commits[0].author, 'Dann');
+  // The tree has it; history does not, yet.
+  assert.equal((await logCommits(dir))[0].subject, 'init tank');
 
   const event = await stream.waitFor((e) => e.event === 'files.changed');
   assert.equal(event.data.project_slug, 'tank');
   assert.deepEqual(event.data.paths, ['index.html']);
+
+  const landed = await app.client.json('POST', '/api/projects/tank/commit');
+  assert.match(landed.body.commit, /^[0-9a-f]{40}$/);
+  const commits = await logCommits(dir);
+  assert.equal(commits[0].subject, 'create index.html');
+  assert.equal(commits[0].author, 'Dann');
+  const version = await stream.waitFor((e) => e.event === 'version.new');
+  assert.equal(version.data.sha, landed.body.commit);
+  assert.deepEqual(version.data.paths, ['index.html']);
+
+  // Nothing owed now.
+  assert.equal((await app.client.json('POST', '/api/projects/tank/commit')).body.commit, null);
 });
 
 test('a second PUT updates, and identical bytes are a no-op', async (t) => {
@@ -47,10 +67,11 @@ test('a second PUT updates, and identical bytes are a no-op', async (t) => {
   assert.match(update.body.commit, /^[0-9a-f]{40}$/);
   assert.equal((await logCommits(dir))[0].subject, 'update game.js');
 
-  // Rewriting the same bytes must not manufacture an empty commit.
-  const noop = await put(app, 'game.js', 'let a = 2;');
+  // Rewriting the same bytes owes nothing and must not manufacture a commit.
+  const noop = await save(app, 'game.js', 'let a = 2;');
   assert.equal(noop.status, 200);
-  assert.equal(noop.body.commit, null);
+  assert.equal(noop.body.pending, false);
+  assert.equal((await app.client.json('POST', '/api/projects/tank/commit')).body.commit, null);
   assert.equal((await logCommits(dir)).length, 3);
 });
 
@@ -373,18 +394,25 @@ test('file routes on an unknown project are 404', async (t) => {
 
 test('concurrent writes to one project all land', async (t) => {
   const { app, dir } = await project(t);
-  // Ten simultaneous writes serialise through the project mutex; every one
-  // must produce a commit and none may lose another's file.
+  // Ten simultaneous writes serialise through the project mutex; none may
+  // lose another's file.
   await Promise.all(
-    Array.from({ length: 10 }, (_, i) => put(app, `f${i}.txt`, `body ${i}`)),
+    Array.from({ length: 10 }, (_, i) => save(app, `f${i}.txt`, `body ${i}`)),
   );
   const listing = await app.client.json('GET', '/api/projects/tank/files');
   assert.equal(listing.body.count, 10);
   for (let i = 0; i < 10; i += 1) {
     assert.equal(fs.readFileSync(path.join(dir, `f${i}.txt`), 'utf8'), `body ${i}`);
   }
-  // One initial commit plus ten writes.
-  assert.equal((await logCommits(dir, { limit: 100 })).length, 11);
+  // One run of saves by one person is one version: the initial commit plus
+  // one holding all ten.
+  await app.client.json('POST', '/api/projects/tank/commit');
+  const commits = await logCommits(dir, { limit: 100 });
+  assert.equal(commits.length, 2);
+  assert.equal(commits[0].subject, 'create 10 files');
+  assert.deepEqual(
+    commits[0].paths.sort(), Array.from({ length: 10 }, (_, i) => `f${i}.txt`).sort(),
+  );
 });
 
 // Copy/paste between games: the bytes, and nothing else — no history, no link

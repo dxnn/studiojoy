@@ -252,6 +252,18 @@ in the same commit.
    `npm run unarchive`'s sibling if any. Client: the story editor loses
    `Save` and gains the whisper; `previewNonce` on write. spec.md §5, §17;
    `files.test.js`, `orchestrator.test.js`.
+
+   *Landed 2026-09-02* (`server/files/pending.js`, spec.md §5), with two
+   things decided on the way. **Reads never land the window**: the versions
+   list and the diff are read as they stand, because the file bar counts
+   versions after every save and a flush there would have been a commit per
+   save again — `version.new` on the stream refreshes them when the commit
+   comes. And **the preview needed a name for uncommitted bytes**: the
+   reporter's version is `<sha>:<n>` while a window is open, re-keyed to the
+   commit when it lands (spec.md §8), or every problem a preview reported
+   against a run of saves would have vanished the moment they became a
+   version. The story editor's `Save` is gone; the other editors keep theirs
+   until step 3 and 4 move them.
 2. **The mode row and the rail without tabs.** Chat as a mode; Files into
    Code, Versions · Scoreboard · Achievements into Share; the game's `···`
    with Archive, the confirmation, the one-way route and `bin/unarchive.js`;

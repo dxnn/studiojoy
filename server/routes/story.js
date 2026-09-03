@@ -11,9 +11,10 @@ import { fillLines, drawPicture } from '../story.js';
 // story to ask about.
 //
 // The answers are handed back rather than saved. The fill's lines land in the
-// unsaved model where the author can change or delete them, and the picture's
-// SVG is drawn and saved by the browser as the PNG the story expects — so
-// Save stays the only thing that commits.
+// editor's model where the author can change or delete them before its
+// autosave writes them, and the picture's SVG is drawn and saved by the
+// browser as the PNG the story expects — so the editor's own saves stay the
+// only thing that writes.
 export function storyRoutes(r) {
   r.post('/api/projects/:slug/story/fill', async (ctx) => {
     const user = requireAuth(ctx);

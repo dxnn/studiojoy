@@ -690,8 +690,33 @@ One git repository per project, at the project directory root.
 
 - On create: `git init -q`, then an empty initial commit, so `git log` never
   fails on a fresh project.
-- Every mutation commits before the HTTP response returns. There is no
-  uncommitted state visible to the API.
+- Every mutation is on disk before the HTTP response returns, and every one
+  but a **save** is committed by then too. A save — `PUT /files/*path`, which
+  is what every editor's autosave and every upload is — opens or joins the
+  project's **pending commit** instead: one window per project holding whose
+  saves and which paths, landing as one commit when the writer has been quiet
+  for 45 s, when their client says it is leaving (`POST /commit`: another
+  game, another scene, the tab closing), and ⚠️ always before anybody else
+  writes to the tree, before a helper fires, and before anything that reads
+  the tree into history or rewrites it — a move, a delete, a duplicate, a
+  copy in, a restore, a rollback, a fork, an archive. So a run of saves is one
+  version, Versions never shows a person's work under a helper's name, and a
+  fork never misses the line typed a moment ago. Reads never land it: a
+  version count after every save would be a commit after every save. A
+  response says `pending: true` when it opened or joined the window and
+  `false` when the bytes were identical and nothing is owed.
+- Why: a commit costs a Versions row, a preview restart, and a prompt-cache
+  miss for every helper from that file onward (§8), and an editor that saves
+  itself would pay all three per line typed. Scores went into SQLite for the
+  same reason (§3).
+- The pending commit is in memory. A crash inside the window loses the
+  *attribution* of one person's last 45 s, never the bytes: the tree still
+  holds them, and the next commit to name those paths picks them up. A clean
+  shutdown lands every window first.
+- A person and a helper writing the same file in the same window is the same
+  logical lost update two agents can make (below): the helper's write lands
+  the person's window first, so what the tree held is history under the right
+  name, and what was overwritten in between is not. Accepted.
 - Committer identity is passed per invocation — `git -c user.name=… -c
   user.email=… commit …` — so the app never depends on, or writes to, the
   operator's global git config. Humans commit as their display name and email;
@@ -705,8 +730,9 @@ One git repository per project, at the project directory root.
   is read from the filesystem. A studio used by kids will have those names, and
   the versions list compares the two.
 - One commit per agent turn, covering every file that turn wrote — history
-  reads as one entry per exchange rather than one per tool call. Human editor
-  saves are one commit each.
+  reads as one entry per exchange rather than one per tool call. A person's
+  saves are one commit per run of them (above): `create a.txt`, `update 3
+  files`.
 - Restore never rewrites history: read the old blob, write it to the working
   tree, commit as a new commit.
 - **Rollback** is restore one scope up: every file goes back to how it was at
@@ -880,8 +906,9 @@ change to it, so neither authorship nor archiving stands in the way.
 |---|---|---|
 | GET | `/api/projects/:slug/files` | recursive listing: `[{path, size, mime, modified_at}]`, sorted |
 | GET | `/api/projects/:slug/files/*path` | raw bytes, `ETag: "<sha256>"` |
-| PUT | `/api/projects/:slug/files/*path` | raw request body is the content; honours `If-Match`; creates or updates; commits |
-| DELETE | `/api/projects/:slug/files/*path` | commits |
+| PUT | `/api/projects/:slug/files/*path` | raw request body is the content; honours `If-Match`; creates or updates; written at once, committed with the project's *pending commit* (§5) — answers `{path, size, etag, pending}` |
+| POST | `/api/projects/:slug/commit` | land the pending commit now: the client saying it is leaving. `{commit}`, null when nothing was owed |
+| DELETE | `/api/projects/:slug/files/*path` | commits, the pending commit first |
 | POST | `/api/projects/:slug/files/move` | `{from, to}` — `git mv`, commits |
 | POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
 | POST | `/api/projects/:slug/files/import` | `{from_slug, from_path, to_path?}` — copies a file **in from another game**, commits; 409 if `to_path` exists |
@@ -1589,9 +1616,13 @@ Like the quiz editor it regenerates the whole file and is byte-identical on
 an untouched save. It still says the five things no single field can: a scene
 nothing leads to, a way out pointing at a scene that is gone, a switch nothing
 sets, a picture or portrait the game does not have, and a mood the cast does
-not have. Explicit **Save**, like every editor here — a save is a commit and a
-preview reload, so autosave would be a commit a keystroke — with `if-match`
-and a `story-conflict` dialog on a 409. *Show the text* saves first and opens
+not have. **No Save button**: the story saves itself two seconds after the
+last edit and sooner on the way out of a field, a scene, the editor or the
+game, with `if-match` and a `story-conflict` dialog on a 409; a save is a
+write and a preview reload, and its commit is the project's *pending commit*
+(§5), which is what made an editor that saves itself affordable — the other
+editors keep their Save until they move (ideas/calm-shell.md). The bar's
+whisper says *Saved* or *Saving…*. *Show the text* saves first and opens
 the file as plain text in the rail, where it is now text and nothing else —
 the editor is in the middle, and a form there too would be a second surface
 writing the same file — while the tab's body says so and waits. *Try this
@@ -1640,8 +1671,8 @@ read, so the guide needs no state of its own beyond what the author set aside
 new story, a half-built one and one hand-edited for a week. An ending looks
 like a scene without a way out, so *Then what?* is asked once per such scene
 and *The story ends here* is the answer that sets it aside. Every answer is an
-edit to the model and selects what it changed; Save commits, as always. The
-card is built once per question and re-appended by later renders, like a
+edit to the model and selects what it changed; the autosave writes it, as
+always. The card is built once per question and re-appended by later renders, like a
 dialog, so a helper's reply landing does not wipe what is being typed.
 
 A picture is a file, so the guide's four ways to one commit at once: **Draw
@@ -1717,8 +1748,8 @@ parameter fails open there, so the defensive parse would be needed anyway.
 
 ⚠️ **The story comes up from the browser, not off the disk.** The guide works
 on the unsaved model — the scene it is asking about is usually one made a
-moment ago and Save is a commit — so a disk read would be asking about a scene
-that is not there yet. It is the author's own words going into a prompt billed
+moment ago and the save may not have gone in yet — so a disk read would be
+asking about a scene that is not there yet. It is the author's own words going into a prompt billed
 to them, so the trust is theirs either way; what matters is that it is
 bounded, and every field is cut to a cap rather than refused (§10). A `who`
 the cast does not hold comes back as the story narrating, so a fill cannot
@@ -2416,15 +2447,25 @@ only when framed, never throws, and sends each distinct problem once per page
 load, capped at 20 — a game that throws inside its animation loop would
 otherwise report sixty times a second.
 
-Each report carries the **commit the wrapper was built from**. That is what
+Each report carries the **version the wrapper was built from**. That is what
 files a problem against the code that actually caused it rather than against
 whatever HEAD happens to be when the report lands, and it is why a fixed error
 cannot come back as a current one: `POST /errors` drops any report whose
-version is not HEAD, because the preview is already reloading and anything
-still broken will say so again. The wrapper reads HEAD *before* reading
-`index.html`, so a commit landing in between makes the version older than the
-bytes — losing a report, which is safe, rather than mislabelling one, which is
-not.
+version is not the current one, because the preview is already reloading and
+anything still broken will say so again. The wrapper reads HEAD *before*
+reading `index.html`, so a commit landing in between makes the version older
+than the bytes — losing a report, which is safe, rather than mislabelling one,
+which is not.
+
+The version is HEAD's sha — or, while the project's *pending commit* is open
+(§5), `<sha>:<n>` for the n-th save on top of it, so the bytes a preview is
+running always have a name whether or not they are committed yet, and each
+save is a new version the way each commit used to be. When the window lands,
+the rows filed under its last stamp are re-keyed to the commit they became,
+and a report still carrying that stamp is taken as HEAD's until the next save
+opens a new window. ⚠️ Without this, the moment a run of saves landed every
+problem the preview had reported against them would have belonged to a version
+that no longer existed.
 
 The studio page checks the sender's origin against the games origin and the
 message's slug against the open project, batches for 500 ms, and posts. The
@@ -2637,7 +2678,8 @@ broker entirely.
 | `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator |
 | `agent.stream.end` | `{project_slug, agent_id, message_id?, error?}` |
 | `chats.changed` | `{project_slug}` — a chat was added or renamed; the client refetches the list rather than being sent it |
-| `files.changed` | `{project_slug, paths: string[]}` — client refreshes the tree and reloads the preview iframe |
+| `files.changed` | `{project_slug, paths: string[]}` — the tree changed: client refreshes the tree and reloads the preview iframe. Fires on the write, which for a save is before its commit (§5) |
+| `version.new` | `{project_slug, sha, paths: string[]}` — a commit landed, from whichever route or turn made it: the *pending commit* on its timer, a helper's turn, a restore. Client refreshes Versions and the open file's count; never the preview |
 | `game.errors` | `{project_slug, errors: [{id, message, location, times, at}]}` — the whole current list, not a delta |
 | `collection.changed` | `{}` — the *studio collection* gained or lost a picture. The only event with no `project_slug`, because the collection belongs to no game: every tab drops its copy of the *shelf*'s index and repaints |
 
@@ -2647,7 +2689,9 @@ without a line in that array is dead code that looks alive — which is exactly
 how `collection.changed` shipped inert the first time.
 
 `files.changed` is what makes the studio feel live: an agent writes a file and
-the game in your preview pane reloads.
+the game in your preview pane reloads. It stopped meaning "a version landed"
+when saves stopped committing at once; `version.new` says that now, and the
+two arrive together for every commit but a save's.
 
 A streaming reply exists nowhere but the tabs watching the stream until the
 fire ends, so the client buffers it **per game** and never clears a buffer on
@@ -2863,8 +2907,13 @@ Tests enforce each of these.
 - A `signups` row is never an account and never deleted: only an admin's
   approval makes the account, with game access only, and a decision is
   columns on the row. ⚠️
-- No HTTP response reports a successful file mutation before its git commit
-  has landed.
+- No HTTP response reports a successful file mutation before its bytes are on
+  disk, and none but a save's before its git commit has landed. A save's
+  commit is the project's *pending commit* (§5): it lands on the idle timer,
+  on the client leaving, and always before any other author's commit, any
+  helper's fire, and any move, restore, rollback, fork or archive — so no
+  commit ever carries another person's uncommitted work, and no history read
+  that writes misses one.
 - At most one write+commit runs at a time per project.
 - Taking somebody out of the studio deletes no row. Their sessions go — both
   kinds — and `users.deleted` is set; every path that grants access minds
@@ -3373,11 +3422,14 @@ something git cannot recover.
 
 - `MEDIA_KINDS` in `main.js` is the one list to extend when the studio should
   show a new kind of file.
-- The preview reloads itself: every commit bumps `previewNonce`, which is in
-  the iframe's `src`, so a helper's write, a save or an upload all restart the
-  game. There is no Reload button. Nothing else restarts it: the `src` is set
-  only when that address changes (`showPreview`), and the frame never leaves
-  the document (above).
+- The preview reloads itself: every `files.changed` bumps `previewNonce`, which
+  is in the iframe's `src`, so a helper's write, a save or an upload all
+  restart the game — on the write, not on the commit, which for a save comes
+  later (§5). There is no Reload button. Nothing else restarts it: the `src`
+  is set only when that address changes (`showPreview`), and the frame never
+  leaves the document (above). `version.new` is the other half — a commit
+  landed — and it refreshes Versions and the open file's count, never the
+  frame.
 - ⚠️ The three reserved images are held as object URLs replaced on
   `files.changed`, never as a `src` pointed at the file routes — those send
   `no-store`, and a background rebuilt by every render would refetch on every

@@ -3,6 +3,7 @@ import { tx } from '../db.js';
 import { listTree, readFileAt } from '../files/tree.js';
 import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
+import { versionNew } from '../files/pending.js';
 import { hasErrors, listErrors } from '../runtime.js';
 import { tokensCharged, tokensForChars, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
 import {
@@ -732,6 +733,7 @@ export function createOrchestrator({
   broker,
   mutex,
   llm,
+  pending = null,
   gamesDir = 'games',
   dailyTokenBudget = DEFAULT_DAILY_TOKEN_BUDGET,
   cooldownMs = DEFAULT_COOLDOWN_MS,
@@ -901,6 +903,11 @@ export function createOrchestrator({
       const snapshot = db
         .prepare('SELECT COALESCE(MAX(id), 0) AS n FROM messages WHERE chat_id = ?')
         .get(chat.id).n;
+      // A person's saves still waiting for their commit land now, as theirs:
+      // the helper reads a tree that is history, its own commit cannot
+      // swallow them, and the problems the preview filed against those saves
+      // are HEAD's by the time the context reads them (files/pending.js).
+      if (dir !== null && pending) await pending.settle(row.slug);
       const context = await buildContext({
         db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
         maxAssistantTurns, maxToolCalls, historyFloor,
@@ -908,7 +915,7 @@ export function createOrchestrator({
       if (!context) return;
 
       const toolset = agent.file_tools && dir !== null
-        ? createToolset({ dir, mutex, slug: row.slug })
+        ? createToolset({ dir, mutex, slug: row.slug, pending })
         : null;
 
       emit('agent.stream.start');
@@ -1106,9 +1113,13 @@ export function createOrchestrator({
       let commitSha = null;
       if (changed.length > 0) {
         const subject = firstLine(replyText) || 'update files';
-        commitSha = await mutex.run(row.slug, () => commitPaths(
-          dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
-        ));
+        commitSha = await mutex.run(row.slug, async () => {
+          // Anything a person saved while this fire ran is theirs first.
+          if (pending) await pending.settleLocked(row.slug);
+          return commitPaths(
+            dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
+          );
+        });
       }
 
       if (!replyText && changed.length === 0) {
@@ -1161,6 +1172,7 @@ export function createOrchestrator({
         live = false;
         if (commitSha) {
           broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
+          versionNew(broker, row.slug, commitSha, changed);
         }
       }
 

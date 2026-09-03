@@ -13,8 +13,15 @@ async function project(t) {
   return { app, dir: path.join(app.gamesDir, 'tank') };
 }
 
-const put = (app, p, body) =>
-  app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body });
+// A save waits for its commit (files/pending.js); history is about commits,
+// so every save here says "leaving" straight after and carries the sha back
+// the way the response used to.
+const put = async (app, p, body) => {
+  const res = await app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body });
+  if (!res.body?.pending) return res;
+  const landed = await app.client.json('POST', '/api/projects/tank/commit');
+  return { ...res, body: { ...res.body, commit: landed.body.commit } };
+};
 
 test('history lists commits newest first', async (t) => {
   const { app } = await project(t);

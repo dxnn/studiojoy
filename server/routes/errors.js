@@ -1,7 +1,8 @@
 import { json, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
-import { currentSha, isSha } from '../files/git.js';
+import { currentSha } from '../files/git.js';
+import { isStamp } from '../files/pending.js';
 import {
   recordErrors, listErrors, errorPublic, MAX_ERRORS_PER_PROJECT,
 } from '../runtime.js';
@@ -23,19 +24,29 @@ export function errorRoutes(r) {
     if (!Array.isArray(body.errors)) throw new HttpError(400, 'errors must be an array');
 
     const head = await currentSha(projectDirFor(ctx, project));
-    // The reporter carries the commit its own bytes came from. A report from a
-    // version that has since been replaced is dropped rather than filed
+    // What the preview is running: HEAD, or HEAD plus the saves on top of it
+    // while a pending commit is open (files/pending.js).
+    const now = ctx.pending.stampOf(project.slug, head);
+    // The reporter carries the version its own bytes came from. A report from
+    // a version that has since been replaced is dropped rather than filed
     // against the new one: the preview is already reloading, and anything
     // still broken will say so again. This is what keeps a fixed problem from
-    // reappearing as a current one.
-    const version = body.version === undefined ? head : body.version;
-    if (!isSha(version) || version !== head) {
-      json(ctx.res, 200, { errors: listErrors(ctx.db, project.id, head).map(errorPublic) });
+    // reappearing as a current one. The one older version still taken is the
+    // saves that have just landed as HEAD: a preview running them is running
+    // HEAD, and keeps reporting under it until the next save.
+    const version = body.version === undefined ? now : body.version;
+    const last = ctx.pending.landedFor(project.slug);
+    const filedAs = !isStamp(version) ? null
+      : version === now ? now
+        : last && version === last.stamp && now === head && last.sha === head ? head
+          : null;
+    if (filedAs === null) {
+      json(ctx.res, 200, { errors: listErrors(ctx.db, project.id, now).map(errorPublic) });
       return;
     }
 
     const rows = recordErrors(
-      ctx.db, project.id, head, body.errors.slice(0, MAX_ERRORS_PER_PROJECT),
+      ctx.db, project.id, filedAs, body.errors.slice(0, MAX_ERRORS_PER_PROJECT),
     );
     const errors = rows.map(errorPublic);
 

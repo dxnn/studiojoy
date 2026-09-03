@@ -11,6 +11,7 @@ import {
   logCommits, countCommits, showFile, diffCommit, commitPaths, commitPathsTouched,
   treeAtCommit, restoreTree, GitError, isSha,
 } from '../files/git.js';
+import { versionNew } from '../files/pending.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
 
 const DEFAULT_LIMIT = 50;
@@ -116,6 +117,10 @@ export function historyRoutes(r) {
     const { rel, abs } = resolveProjectPath(dir, body.path);
 
     await ctx.mutex.run(project.slug, async () => {
+      // A save still waiting for its commit is a version too, and it lands
+      // before history is added to (files/pending.js) — so the restore is
+      // itself undoable back to what was typed a moment ago.
+      await ctx.pending.settleLocked(project.slug);
       let buffer;
       try {
         buffer = await showFile(dir, sha, rel);
@@ -131,6 +136,7 @@ export function historyRoutes(r) {
       ctx.broker.broadcast('files.changed', {
         project_slug: project.slug, paths: [rel],
       });
+      versionNew(ctx.broker, project.slug, commit, [rel]);
       json(ctx.res, 200, {
         path: rel, size: buffer.length, restored_from: sha, commit,
       });
@@ -153,6 +159,7 @@ export function historyRoutes(r) {
     const sha = requireShaParam(body.sha);
 
     await ctx.mutex.run(project.slug, async () => {
+      await ctx.pending.settleLocked(project.slug);
       let entries;
       try {
         entries = await treeAtCommit(dir, sha);
@@ -185,6 +192,7 @@ export function historyRoutes(r) {
         ctx.broker.broadcast('files.changed', {
           project_slug: project.slug, paths: touched,
         });
+        versionNew(ctx.broker, project.slug, commit, touched);
       }
       json(ctx.res, 200, {
         restored_from: sha,

@@ -8,6 +8,7 @@ import {
   etagMatches, MAX_FILE_BYTES,
 } from '../files/tree.js';
 import { commitPaths, movePath } from '../files/git.js';
+import { versionNew } from '../files/pending.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
 
 // Describe the current state of a path for a conflict response, so the editor
@@ -42,6 +43,9 @@ export function fileRoutes(r) {
     if (from.rel === to.rel) throw new HttpError(400, 'from and to are the same path');
 
     await ctx.mutex.run(project.slug, async () => {
+      // Every direct commit lands the pending one first (files/pending.js):
+      // here because `git mv` cannot move a file history has not seen yet.
+      await ctx.pending.settleLocked(project.slug);
       if ((await readFileAt(from.abs)) === null) {
         throw new HttpError(404, `no such file: ${from.rel}`);
       }
@@ -54,6 +58,7 @@ export function fileRoutes(r) {
       ctx.broker.broadcast('files.changed', {
         project_slug: project.slug, paths: [from.rel, to.rel],
       });
+      versionNew(ctx.broker, project.slug, sha, [from.rel, to.rel]);
       json(ctx.res, 200, { from: from.rel, to: to.rel, commit: sha });
     });
   });
@@ -82,6 +87,7 @@ export function fileRoutes(r) {
 
     const dir = projectDirFor(ctx, project);
     const sha = await ctx.mutex.run(project.slug, async () => {
+      await ctx.pending.settleLocked(project.slug);
       await assertCapacity(dir, { addingBytes: bytes.length, isNewFile: true });
       await writeFileAt(to.abs, bytes);
       return commitPaths(dir, [to.rel], `copy ${to.rel} from ${source.slug}`, authorFor(user));
@@ -89,6 +95,7 @@ export function fileRoutes(r) {
     ctx.broker.broadcast('files.changed', {
       project_slug: project.slug, paths: [to.rel],
     });
+    versionNew(ctx.broker, project.slug, sha, [to.rel]);
     json(ctx.res, 201, {
       path: to.rel, size: bytes.length, etag: etagFor(bytes), commit: sha, from: from.rel,
     });
@@ -107,6 +114,7 @@ export function fileRoutes(r) {
     if (from.rel === to.rel) throw new HttpError(400, 'from and to are the same path');
 
     await ctx.mutex.run(project.slug, async () => {
+      await ctx.pending.settleLocked(project.slug);
       const buffer = await readFileAt(from.abs);
       if (buffer === null) throw new HttpError(404, `no such file: ${from.rel}`);
       if ((await readFileAt(to.abs)) !== null) {
@@ -121,6 +129,7 @@ export function fileRoutes(r) {
       ctx.broker.broadcast('files.changed', {
         project_slug: project.slug, paths: [to.rel],
       });
+      versionNew(ctx.broker, project.slug, sha, [to.rel]);
       json(ctx.res, 201, { from: from.rel, to: to.rel, commit: sha });
     });
   });
@@ -181,21 +190,46 @@ export function fileRoutes(r) {
       await assertCapacity(dir, {
         addingBytes: buffer.length, isNewFile: existing === null,
       });
+      const answer = (pending) => json(ctx.res, existing === null ? 201 : 200, {
+        path: rel,
+        size: buffer.length,
+        etag: etagFor(buffer),
+        // Whether this save is now waiting for its commit (files/pending.js).
+        // False when the bytes were identical: nothing written, nothing owed.
+        pending,
+      });
+      if (existing !== null && existing.equals(buffer)) {
+        answer(false);
+        return;
+      }
+
+      // A save is the one write that does not commit at once. Somebody else's
+      // window lands first, so their work is never in this person's commit;
+      // this person's own stays open and this save joins it.
+      const author = authorFor(user);
+      await ctx.pending.settleLocked(project.slug, { unless: author });
       await writeFileAt(abs, buffer);
-      const action = existing === null ? 'create' : 'update';
-      const sha = await commitPaths(dir, [rel], `${action} ${rel}`, authorFor(user));
+      await ctx.pending.note(project.slug, dir, {
+        projectId: project.id,
+        path: rel,
+        action: existing === null ? 'create' : 'update',
+        author,
+      });
 
       ctx.broker.broadcast('files.changed', {
         project_slug: project.slug, paths: [rel],
       });
-      json(ctx.res, existing === null ? 201 : 200, {
-        path: rel,
-        size: buffer.length,
-        etag: etagFor(buffer),
-        // null when the bytes were identical: a no-op write, not a commit.
-        commit: sha,
-      });
+      answer(true);
     });
+  });
+
+  // The client saying it is leaving — another game, another scene, the tab
+  // closing: whatever this game owes history lands now rather than when the
+  // idle timer says so. Nothing pending is a quiet null.
+  r.post('/api/projects/:slug/commit', async (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    json(ctx.res, 200, { commit: await ctx.pending.settle(project.slug) });
   });
 
   r.delete('/api/projects/:slug/files/*path', async (ctx) => {
@@ -205,12 +239,14 @@ export function fileRoutes(r) {
     const { rel, abs } = resolveProjectPath(dir, ctx.params.path);
 
     await ctx.mutex.run(project.slug, async () => {
+      await ctx.pending.settleLocked(project.slug);
       if ((await readFileAt(abs)) === null) throw new HttpError(404, 'no such file');
       await removeFileAt(dir, rel);
       const sha = await commitPaths(dir, [rel], `delete ${rel}`, authorFor(user));
       ctx.broker.broadcast('files.changed', {
         project_slug: project.slug, paths: [rel],
       });
+      versionNew(ctx.broker, project.slug, sha, [rel]);
       json(ctx.res, 200, { path: rel, deleted: true, commit: sha });
     });
   });

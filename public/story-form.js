@@ -27,7 +27,7 @@ import {
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, NO_CONNECTION,
+  S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, commitNow, NO_CONNECTION,
 } from './main.js';
 import { renderGuide, artShelf, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
@@ -103,10 +103,15 @@ function setPicture(img, path) {
 export function selectScene(key, step = 'scene') {
   const st = S.story;
   if (!st?.model) return;
+  const has = st.model.scenes.some((s) => s.key === key);
+  // Leaving a scene is where a version belongs (spec.md §5): what was typed
+  // here lands as one commit rather than riding on with the next scene's.
+  const leaving = has && st.scene !== null && st.scene !== key;
   st.person = null;
   st.title = false;
-  st.scene = st.model.scenes.some((s) => s.key === key) ? key : (st.model.scenes[0]?.key ?? null);
+  st.scene = has ? key : (st.model.scenes[0]?.key ?? null);
   st.step = step;
+  if (leaving) (st.dirty ? saveStory() : Promise.resolve()).then(() => commitNow());
 }
 
 /* Loading and saving --------------------------------------------------------- */
@@ -198,15 +203,15 @@ export function parkStory() {
 
 // The file changed on disk — a helper's commit, a save in the rail, a version
 // brought back. Re-read it, unless there is unsaved work here, in which case
-// the work stays and Save will ask before overwriting. Our own save's commit
-// arrives this way too, usually before the PUT answers: while a save is in
-// flight the answer to it is the truth, so the event is left alone.
+// the work stays and the next save asks before overwriting. Our own save's
+// write arrives this way too, usually before the PUT answers: while a save is
+// in flight the answer to it is the truth, so the event is left alone.
 export function storyChanged() {
   const st = S.story;
   if (st?.saving) return;
   if (st?.model && st.dirty) {
     st.stale = true;
-    say(`${STORY_FILE} changed while you were working on it. What you have is still here — Save will ask before overwriting.`);
+    say(`${STORY_FILE} changed while you were working on it. What you have is still here — the studio will ask which to keep when it saves.`);
     render();
     return;
   }
@@ -214,10 +219,14 @@ export function storyChanged() {
 }
 
 // True when it landed. A 409 opens the conflict dialog, which comes back here
-// with force or through discardStory.
-export async function saveStory({ force = false } = {}) {
+// with force or through discardStory. The save is a write, not yet a version:
+// the commit follows on its own (spec.md §5). `keepalive` for the tab closing.
+export async function saveStory({ force = false, keepalive = false } = {}) {
   const st = S.story;
   if (!st?.model) return false;
+  // This is the save the timer was waiting to make.
+  clearTimeout(saveTimer);
+  saveTimer = null;
   // The title screen first, when it changed: its own file, its own commit.
   // A 409 here is not the story's conflict dialog — the file is re-read with
   // the typed lines kept over it, and the next Save lands them.
@@ -235,7 +244,7 @@ export async function saveStory({ force = false } = {}) {
   if (!force && st.etag) headers['if-match'] = st.etag;
   st.saving = true;
   const res = await send(`/api/projects/${S.slug}/files/${encodePath(STORY_FILE)}`, {
-    method: 'PUT', headers, body: text,
+    method: 'PUT', headers, body: text, keepalive,
   });
   const body = await res.json().catch(() => null);
   st.saving = false;
@@ -253,8 +262,11 @@ export async function saveStory({ force = false } = {}) {
   if (S.story === st) {
     st.etag = body.etag;
     st.text = text;
-    st.dirty = false;
+    // Typed during the save: the model is ahead of what landed, so it is
+    // still dirty and goes in at the next quiet moment.
+    st.dirty = storyText(st.model) !== text;
     st.stale = false;
+    if (st.dirty) saveSoon();
   }
   S.previewNonce += 1;
   await refreshFiles();
@@ -305,18 +317,31 @@ export async function discardStory() {
 let stageNodes = null;
 
 // Every edit comes through here: the model changed, the file will be
-// different, the stage and the status say so at once. The guide's answers
-// come through it too, as storyEdited.
+// different, the stage and the status say so at once, and the save follows on
+// its own — two seconds after the last edit, or sooner on the way out of a
+// field, a scene, the editor or the game (spec.md §5). There is no Save
+// button. The guide's answers come through it too, as storyEdited.
 export { touched as storyEdited };
+
+const AUTOSAVE_MS = 2000;
+let saveTimer = null;
 
 function touched() {
   const st = S.story;
   st.dirty = true;
   const status = document.getElementById('story-status');
-  if (status) status.textContent = 'Not saved yet';
-  const save = document.getElementById('story-save');
-  if (save) save.disabled = frozen();
+  if (status) status.textContent = 'Saving…';
   paintStage();
+  saveSoon();
+}
+
+// A save after `delay` of quiet; another edit pushes it back.
+export function saveSoon(delay = AUTOSAVE_MS) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    if (S.story?.dirty && !frozen()) saveStory();
+  }, delay);
 }
 
 // A person on the stage: their portrait at the selected mood, and their name.
@@ -984,9 +1009,10 @@ export function renderStoryEditor() {
   else if (scene) stepsBox.append(...sceneSteps(scene, scenes.indexOf(scene)));
   else stepsBox.append(h('p', { class: 'muted', text: 'No scenes yet. Add one on the left.' }));
 
+  // No Save: the story saves itself (touched, above). The whisper is the
+  // only sign, and it says "Saved" nearly all the time.
   const bar = h('div', { class: 'editor-bar row' },
-    h('span', { class: 'hint muted', id: 'story-status', text: st.dirty ? 'Not saved yet' : 'Saved' }),
-    st.stale ? h('span', { class: 'hint warn', text: 'changed underneath — Save will ask' }) : null,
+    h('span', { class: 'hint muted', id: 'story-status', text: st.dirty ? 'Saving…' : 'Saved' }),
     h('div', { class: 'spacer' }),
     h('button', {
       class: 'link', text: 'Show the text', title: `Open ${STORY_FILE} as text on the right`,
@@ -1004,14 +1030,13 @@ export function renderStoryEditor() {
         S.previewNonce += 1;
         render();
       },
-    }) : null,
-    h('button', {
-      class: 'filled', id: 'story-save', text: 'Save',
-      disabled: !st.dirty || ro,
-      onclick: () => saveStory(),
-    }));
+    }) : null);
 
-  return h('div', { class: 'story-editor' },
+  // Leaving a field saves what was typed in it without waiting out the quiet.
+  return h('div', {
+    class: 'story-editor',
+    onfocusout: () => { if (S.story?.dirty) saveSoon(0); },
+  },
     strip,
     h('div', { class: 'story-main' },
       // The guide's one question, when it has one, over everything else.

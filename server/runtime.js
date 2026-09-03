@@ -53,6 +53,13 @@ export function listErrors(db, projectId, sha) {
     .all(projectId, sha);
 }
 
+// A pending commit landed (files/pending.js): the problems filed against the
+// saves it covered were about the bytes that have just become this commit.
+export function retagErrors(db, projectId, fromStamp, toSha) {
+  db.prepare('UPDATE runtime_errors SET commit_sha = ? WHERE project_id = ? AND commit_sha = ?')
+    .run(toSha, projectId, fromStamp);
+}
+
 // Record a batch and return the project's current list. Identical problems
 // collapse into one row with a count: a game that throws inside its animation
 // loop would otherwise fill the table in a second and say nothing extra.

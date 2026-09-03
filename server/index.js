@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { createGamesApp } from './games.js';
 import { createBroker } from './broker.js';
 import { createMutex } from './files/mutex.js';
+import { createPending } from './files/pending.js';
 import { createDeepSeek, DEFAULT_BASE_URL } from './llm/deepseek.js';
 import { createOrchestrator } from './agents/orchestrator.js';
 import { DEFAULT_DAILY_TOKEN_BUDGET } from './budget.js';
@@ -35,12 +36,16 @@ fs.mkdirSync(gamesDir, { recursive: true });
 const db = openDb(dbPath);
 const broker = createBroker();
 const mutex = createMutex();
+// One set of pending commits for the whole process: the studio's routes open
+// them, the orchestrator settles them before a fire, and the games listener
+// reads them to stamp the preview (spec.md §5).
+const pending = createPending({ mutex, db, broker });
 const llm = createDeepSeek({
   apiKey,
   baseUrl: process.env.DEEPSEEK_BASE_URL ?? DEFAULT_BASE_URL,
 });
 const orchestrator = createOrchestrator({
-  db, broker, mutex, llm, gamesDir, dailyTokenBudget,
+  db, broker, mutex, pending, llm, gamesDir, dailyTokenBudget,
 });
 
 // Two listeners, one process, deliberately separate origins (spec.md §7):
@@ -49,6 +54,7 @@ const studio = http.createServer(createApp({
   db,
   broker,
   mutex,
+  pending,
   gamesDir,
   llm,
   orchestrator,
@@ -60,6 +66,7 @@ const studio = http.createServer(createApp({
 const games = http.createServer(createGamesApp({
   db,
   gamesDir,
+  pending,
   trustProxy: process.env.TRUST_PROXY === '1',
   secureCookies: process.env.NODE_ENV === 'production',
 }));
@@ -105,12 +112,16 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     console.log('\nshutting down');
     studio.closeAllConnections();
     games.closeAllConnections();
-    let pending = 2;
+    let open = 2;
     const done = () => {
-      pending -= 1;
-      if (pending > 0) return;
-      db.close();
-      process.exit(0);
+      open -= 1;
+      if (open > 0) return;
+      // Whatever any game still owes history lands before the door shuts;
+      // a save is never lost to a restart, only its commit deferred to here.
+      pending.settleAll().finally(() => {
+        db.close();
+        process.exit(0);
+      });
     };
     studio.close(done);
     games.close(done);

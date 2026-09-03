@@ -32,7 +32,7 @@ import {
 import { renderQuizForm } from './quiz-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
-  STORY_FILE, loadStory, parkStory, storyChanged, dropStageImages, selectScene,
+  STORY_FILE, loadStory, parkStory, saveStory, storyChanged, dropStageImages, selectScene,
 } from './story-form.js';
 import { dropArtIndex } from './story-guide.js';
 import { editorsFor } from './game-types.js';
@@ -456,8 +456,26 @@ const hasEditor = (id) => editorOf(id) === id;
 // a chat, chosen — different from nothing remembered, which lets a game with
 // a type open on its editor the first time.
 function showEditor(id) {
+  if (S.editor && S.editor !== id) leaveEditor();
   S.editor = id;
   if (S.slug) prefs.set(`edit-${S.slug}`, id ?? '');
+}
+
+// Leaving an editor is where a version belongs: the last lines typed go in,
+// and then the game's pending commit lands (spec.md §5). Not awaited — the
+// surface changes now, and the timer lands it if this did not.
+function leaveEditor() {
+  (S.story?.dirty ? saveStory() : Promise.resolve()).then(() => commitNow());
+}
+
+// The game owes history whatever has been saved since its last version
+// (spec.md §5). Said on the way out — of the game, the editor, a scene, the
+// tab — so a version is where the work stopped rather than 45 seconds later.
+// `keepalive` is for the tab closing, where a plain fetch is cancelled.
+export function commitNow(slug = S.slug, { keepalive = false } = {}) {
+  if (!slug) return Promise.resolve();
+  return send(`/api/projects/${slug}/commit`, { method: 'POST', keepalive })
+    .catch(() => { /* the idle timer lands it if this did not */ });
 }
 
 export function openEditor(id) {
@@ -755,14 +773,18 @@ export async function openProject(slug, { view = null } = {}) {
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
-  // So do unsaved story and achievements edits: parked against the game being
-  // left, put back on return while the file is still the one they were made on.
+  // Story lines typed in the last two seconds go in now — the autosave is
+  // that far behind the typing — and are parked against the game being left
+  // only if that failed. Achievements edits are parked as they always were,
+  // put back on return while the file is still the one they were made on.
+  if (S.story?.dirty) await saveStory();
   parkStory();
   parkAchievements();
 
   // Colours changed in the editor belong to the game being left, so they go in
-  // before the slug does.
+  // before the slug does — and then the game's version lands, with them in it.
   await flushPalette();
+  await commitNow(S.slug);
 
   // The centre pane's surface and the two editors' state are the game's; all
   // are settled again below for the one being opened.
@@ -886,7 +908,7 @@ window.addEventListener('popstate', followUrl);
 const STREAM_EVENTS = [
   'project.new', 'project.updated', 'message.new', 'message.reaction',
   'agent.stream.start', 'agent.stream.reasoning', 'agent.stream.chunk',
-  'agent.tool', 'agent.stream.end', 'files.changed', 'game.errors',
+  'agent.tool', 'agent.stream.end', 'files.changed', 'version.new', 'game.errors',
   'collection.changed',
 ];
 
@@ -1191,30 +1213,37 @@ function onEvent(name, data) {
       // there are unsaved ones in the editor: re-reading would throw those
       // away, and they are on their way into this same file.
       if (data.paths.includes(LOOK_FILE) && !S.palette?.dirty) loadPalette().then(render);
-      // An agent just rewrote the game; show the new version.
+      // Somebody just rewrote the game; show the new bytes. A save's own write
+      // arrives this way too, before its commit does, so the preview follows
+      // the tree and not history (spec.md §5).
       S.previewNonce += 1;
-      // Those problems belonged to the version that was just replaced. The
+      // Those problems belonged to the bytes that were just replaced. The
       // reload below re-runs the game, and anything still broken says so
       // again.
       S.errors = [];
-      // A commit landed, so the versions list is now behind. Reload it if it
-      // is on screen; otherwise let opening the tab do it. In replace mode:
-      // a helper finishing its turn is not somewhere the reader navigated to,
-      // and every turn would otherwise leave an entry behind.
-      S.historyStale = true;
-      if (S.tab === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
       if (S.open && data.paths.includes(S.open.path)) {
         if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
-          // The file on screen is untouched, but it has one more version than
-          // it had a moment ago — including when this is the commit our own
-          // save just made and the event beat the answer to it.
-          countVersions();
         } else {
           openFile(S.open.path);
         }
       }
       render();
+      return;
+    }
+
+    case 'version.new': {
+      if (!mine(data)) return;
+      // A commit landed — a run of saves after its quiet, a helper's turn, a
+      // restore — so the versions list is behind. Reload it if it is on
+      // screen; otherwise let opening the tab do it. In replace mode: a commit
+      // landing is not somewhere the reader navigated to, and every one would
+      // otherwise leave an entry behind.
+      S.historyStale = true;
+      if (S.tab === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
+      // The open file has one more version than it had a moment ago —
+      // including when this is the commit our own saves just became.
+      if (S.open && data.paths.includes(S.open.path)) countVersions();
       return;
     }
 
@@ -1973,15 +2002,21 @@ function stepDrawing(back) {
 }
 
 // Closing the tab is not a switch and nothing else would catch it, so the last
-// chance to keep the colours is here. `keepalive` is what lets a request outlive
-// the page — a plain fetch is cancelled on unload, and sendBeacon cannot PUT.
+// chance to keep the colours and the last story lines is here, and then to
+// land the game's version. `keepalive` is what lets a request outlive the
+// page — a plain fetch is cancelled on unload, and sendBeacon cannot PUT.
 window.addEventListener('pagehide', () => {
-  if (!S.palette?.dirty || !S.slug) return;
-  const text = lookFileWith(S.palette.colours);
-  if (text === null) return;
-  send(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`, {
-    method: 'PUT', body: text, keepalive: true,
-  }).catch(() => { /* the page is going away regardless */ });
+  if (!S.slug) return;
+  if (S.palette?.dirty) {
+    const text = lookFileWith(S.palette.colours);
+    if (text !== null) {
+      send(`/api/projects/${S.slug}/files/${encodePath(LOOK_FILE)}`, {
+        method: 'PUT', body: text, keepalive: true,
+      }).catch(() => { /* the page is going away regardless */ });
+    }
+  }
+  if (S.story?.dirty) saveStory({ keepalive: true });
+  commitNow(S.slug, { keepalive: true });
 });
 
 // A drawing is the one place in the studio where ⌘Z means something, so the

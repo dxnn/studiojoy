@@ -34,8 +34,14 @@ async function report(app, errors, { slug = 'tank', version } = {}) {
   });
 }
 
-const put = (app, p, body) =>
-  app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body });
+// Committed at once: these tests are about versions, and a save on its own is
+// not one yet (files/pending.js — test/pending.test.js covers the stamp a
+// preview wears while a save waits).
+const put = async (app, p, body) => {
+  const res = await app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body });
+  await app.client.json('POST', '/api/projects/tank/commit');
+  return res;
+};
 
 /* The reporter, on the games origin ---------------------------------------- */
 
