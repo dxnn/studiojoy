@@ -1,0 +1,94 @@
+/* The file tree, and the rail's tabs -------------------------------------- */
+
+/* Tabs are filled pills, not underlines: the rail's background is busy enough
+   that a 2px line under one word disappeared. */
+.tabs { display: flex; gap: 4px; }
+.tabs button {
+  flex: 1;
+  justify-content: center;
+  text-align: center;
+  border-color: transparent;
+  background: none;
+  color: color-mix(in oklab, var(--look-accent) 40%, white);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+.tabs button:hover:not(:disabled) { background: oklch(0.3 0.07 300 / 0.5); color: #fff; }
+.tabs button.on {
+  background: color-mix(in oklab, var(--look-primary) 45%, transparent);
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  color: #fdf4f6;
+  font-weight: 700;
+}
+
+/* A studio library: in the game, served by it, not written by it. */
+.file.library .fname { color: var(--muted); }
+.file.library .fname::after { content: ' · library'; font-family: var(--mono); font-size: 10.5px; }
+
+.tree { padding: 6px 6px; }
+/* With a file open the list keeps about five rows and the editor below it gets
+   the rest of the pane. */
+.tree.short {
+  flex: 0 0 auto;
+  max-height: 160px;
+  border-bottom: 1px solid var(--border);
+}
+.grow { flex: 1; }
+.file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 1px 4px;
+  padding: 5.5px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+/* Lit and clickable are the same thing: the row that highlights is the row
+   that opens. An unreachable one can do neither, so it does neither. */
+.file:not(.unreachable):hover { background: oklch(0.3 0.07 300 / 0.45); }
+.file .fname {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 400;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: #cfc4e8;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file .fname:hover { background: none; color: #fff; }
+.file .fsize { font-family: var(--mono); font-size: 10.5px; color: color-mix(in oklab, var(--muted) 85%, transparent); }
+/* The open file is the one lit surface in the tree. */
+.file.open { background: oklch(0.98 0.01 300 / 0.08); }
+.file.open .fname { color: #fff; font-weight: 700; }
+/* A folder's own row: lights up like a file row because it, too, opens on a
+   click. Its files sit a step to the right. */
+.file.dir .fname { color: var(--muted); font-weight: 700; }
+.file.inset { padding-left: 30px; }
+.file.unreachable { cursor: default; }
+.file.unreachable .fname { color: var(--muted); text-decoration: line-through; cursor: default; }
+/* Every row carries a dot: round for a file, square for a folder. The colour
+   is the file's kind, so the tree is scannable without reading it. */
+.file .fdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.file.dir .fdot { border-radius: 2px; background: oklch(0.75 0.09 85); }
+/* Dragging a picture over the list. Inset outline rather than a border, so the
+   rows below don't shift by two pixels as the highlight comes and goes. */
+.tree.dropping {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+}

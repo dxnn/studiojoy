@@ -1,0 +1,201 @@
+/* Unbridled Joy — the 6a direction.
+
+   One dark palette with four named roles: primary (cyan) is the studio's own
+   voice — New game, the open tab, the active row; accent (pink) is anything a
+   helper says; highlight (gold) only ever means score, version or "look at
+   this"; deep is the panel wash the other three sit on. Crimson is danger and
+   nothing else.
+
+   Two things carry the direction and cost the JS nothing: the rainbow hairline
+   across the top of the shell (.app::before) and the halftone washes on the
+   panes.
+
+   Per-game theming: look.js can set --g1/--g2/--g3 on .app as an inline style
+   and the chat pane, its Play/Send buttons and the rail follow. Unset, they
+   fall back to crimson/pink/gold, which is Asteriskoids. */
+
+/* One file per surface, all of them under public/css/ and linked in order from
+   index.html. Two of those links are placed rather than merely present: this
+   one is first, because it sets the custom properties every other file reads,
+   and narrow.css is last, because its media queries override rules of the same
+   specificity from the files above. Everything between them is ordered for
+   reading and could be shuffled. */
+
+/* The two typefaces are linked from index.html rather than imported here: an
+   @import blocks the first paint on a request to another host. Both stacks
+   below fall back to the system's own, so a studio that cannot reach the font
+   host is plainer and nothing else. */
+
+:root {
+  /* deep */
+  --bg: #15112b;
+  --panel: #1a1436;
+  --panel-2: #191033;
+  --panel-3: #0d0a1c;
+  --border: #2f2757;
+  --border-soft: #3a3168;
+
+  --text: #f2effe;
+  --muted: #9a8fd0;
+
+  /* primary */
+  --accent: oklch(0.82 0.13 195);
+  --accent-hi: oklch(0.88 0.12 195);
+  --accent-ink: #0e1424;
+
+  /* accent — the helpers */
+  --agent: oklch(0.78 0.15 350);
+  --agent-soft: oklch(0.32 0.09 350 / 0.55);
+
+  /* highlight */
+  --num: oklch(0.85 0.15 95);
+
+  --danger: oklch(0.72 0.19 20);
+  --ok: oklch(0.78 0.14 155);
+
+  --system-soft: oklch(0.32 0.07 300 / 0.45);
+  --code-bg: oklch(0.22 0.05 295 / 0.75);
+  --hover: oklch(0.32 0.08 290 / 0.45);
+  --active-bg: oklch(0.36 0.1 290 / 0.6);
+
+  /* The four names look.js uses, spelled the same here. Every game defines
+     them; the studio sets them on .app when a game is opened and everything
+     below follows. These values are the fallback for a game that has not been
+     given a look yet. */
+  --look-primary: oklch(0.72 0.19 20);
+  --look-accent: oklch(0.78 0.15 350);
+  --look-highlight: oklch(0.85 0.15 95);
+  --look-deep: #191033;
+
+  --radius: 9px;
+  --radius-lg: 11px;
+  --mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ui: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* the two washes, named so a pane can ask for one in a line */
+  --halftone:
+    radial-gradient(oklch(0.75 0.15 350 / 0.22) 1px, transparent 1px),
+    radial-gradient(oklch(0.82 0.13 195 / 0.18) 1px, transparent 1px),
+    linear-gradient(165deg, oklch(0.5 0.14 195 / 0.16), transparent 55%, oklch(0.5 0.16 340 / 0.18));
+  --halftone-size: 10px 10px, 10px 10px, 100% 100%;
+  --halftone-pos: 0 0, 5px 5px, 0 0;
+}
+
+/* The studio is dark, on purpose and always: the games are dark, the previews
+   are dark, and a light shell around a dark canvas made every screenshot look
+   like two apps. There is no light theme to fall back to. */
+:root { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow-x: hidden;
+  font: 15px/1.55 var(--ui);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: var(--ui);
+  font-weight: 600;
+}
+button:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: default; }
+/* The filled one is the studio's own: a primary gradient with a glow under it,
+   because on this background a flat fill reads as a disabled block. */
+button.filled {
+  background: linear-gradient(100deg, var(--accent), oklch(0.78 0.14 240));
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 0 22px color-mix(in oklab, var(--accent) 32%, transparent);
+}
+button.filled:hover:not(:disabled) { filter: brightness(1.1); }
+/* The green one: "this saves and moves on". Restating the background because
+   the general hover would otherwise put the primary gradient back. */
+button.filled.ok {
+  background: linear-gradient(100deg, var(--ok), oklch(0.76 0.13 185));
+  box-shadow: 0 0 20px color-mix(in oklab, var(--ok) 28%, transparent);
+}
+button.filled.ok:hover:not(:disabled) { background: linear-gradient(100deg, var(--ok), oklch(0.76 0.13 185)); }
+button.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 60%, transparent); }
+button.danger:hover:not(:disabled) { background: var(--danger); color: #1c0810; border-color: var(--danger); }
+button.quiet {
+  color: var(--muted);
+  border-color: var(--border);
+  background: oklch(0.26 0.06 290 / 0.6);
+  font-weight: 600;
+}
+button.quiet:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+button.link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* The general hover swaps the ink to accent-ink — the colour of text sitting
+   *on* the primary. On a borderless link that is invisible against the pane
+   either way, so the colour has to be restated, not just the background. */
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--accent-hi);
+  filter: none;
+}
+button.tiny { padding: 2px 8px; font-size: 13px; }
+/* Borderless until hovered: the pencils, the ✕s, the pane toggles, where a
+   full outline would be noise. */
+button.icon {
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  padding: 2px 7px;
+  line-height: 1.2;
+  font-weight: 500;
+}
+button.icon:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+input, textarea, select {
+  background: oklch(0.24 0.05 295 / 0.7);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  width: 100%;
+}
+input::placeholder, textarea::placeholder { color: color-mix(in oklab, var(--muted) 80%, transparent); }
+input[type='checkbox'] { width: auto; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* The studio has almost no real links — a button.link looks at something
+   in-place. This is for the few that genuinely leave. */
+a { color: var(--accent); }
+a:hover { color: var(--accent-hi); }
+
+.mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--muted); }
+.error { color: var(--danger); }

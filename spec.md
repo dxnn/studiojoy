@@ -1458,7 +1458,7 @@ because they come from the game's own `config/look.js`. Where `LOOK` names
 nothing the default stands and a game can set it from css instead.
 
 **Its default is the studio's form in the game's colour.** The four `LOOK`
-names carry the colour; the shapes are the ones `public/style.css` and the
+names carry the colour; the shapes are the ones `public/css/` and the
 catalog use — the halftone dots, a hairline across the top, a panel card, a
 pill button with a glow under it, and every number in a mono face with tabular
 figures. The fallbacks are the studio's own four rather than white-on-black,
@@ -3551,7 +3551,12 @@ public/
                   and which seed each scheme starts from
   game-templates/ a starter tree per template, plus the blank start page (§4)
   story-art/      the standard set the example story copies in (§4)
-  style.css
+  css/            the stylesheet, one file per surface, linked in order from
+                  index.html: base.css first (it sets the custom properties
+                  the rest read), narrow.css last (its media queries override
+                  rules of their own specificity). ⚠️ A file here that
+                  index.html does not link is served and never loaded, which
+                  is what test/style.test.js catches
 bin/
   adduser.js  deluser.js  restoreuser.js  backup.js  sweep.js  smoke.js
   prompt.js

@@ -1,0 +1,85 @@
+/* The mode row, and the chat pills --------------------------------------- */
+
+/* The conversations in one game, over the thread. The human-only one wears a
+   dot rather than the open chat's colour: it is the room where nobody is
+   listening, which is worth seeing before you type in it.
+
+   This row is everything about the room rather than the game: Add chat pinned
+   at the left, the pills, and the helpers listening at the right with the +
+   that calls another one in. ⚠️ The pills
+   and the chips each scroll sideways inside their own box, so a studio's worth
+   of chats and a crowd of helpers give way to each other instead of one
+   pushing the other off the end. Both need min-width: 0 to be allowed to
+   shrink at all. */
+.chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  flex: 0 0 auto;
+}
+.chat-tabs .pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 1px;
+}
+/* flex-shrink: 0 and nowrap together: inside a scroller a pill keeps its own
+   width and its words on one line, and the row scrolls instead of squeezing
+   "Sound effects" into three lines of two letters. */
+.chat-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border-soft) 80%, transparent);
+  background: none;
+  color: var(--muted);
+}
+.chat-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.chat-tab.on {
+  color: #fff;
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 28%, transparent);
+}
+.chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
+/* Never squeezed and never scrolled away: when it is there at all it is in
+   the same place in every game. */
+.chat-tab.add { flex: 0 0 auto; padding: 5px 11px; color: var(--accent); }
+/* The mode row (spec.md §6): one pill per surface the centre can show. The
+   chat's own pills sit under it, smaller, because a room is not a surface. */
+.modes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  flex: 0 0 auto;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.modes .mode {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border-soft) 80%, transparent);
+  background: none;
+  color: var(--muted);
+}
+.modes .mode:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.modes .mode.on {
+  color: #fff;
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
+}
+.modes .mode .called { margin-left: 6px; }

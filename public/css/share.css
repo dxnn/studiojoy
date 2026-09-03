@@ -1,0 +1,73 @@
+/* Share, and the versions in it ------------------------------------------- */
+
+/* Share is one page of sections. Each keeps the rendering it had as a rail
+   tab, minus the scroller: the page scrolls, its parts do not. */
+.share .scroll { flex: none; overflow: visible; }
+.share .section-label { padding-top: 18px; }
+.share .link-card .play-link { display: inline-block; color: var(--accent); word-break: break-all; font-size: 13px; }
+.share .link-card .play-link:hover { color: var(--accent-hi); text-decoration: underline; }
+.share .link-card .hint { margin: 8px 0 10px; }
+
+/* Versions ---------------------------------------------------------------- */
+
+.commit { padding: 10px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent); }
+.commit .subject { font-size: 13px; overflow-wrap: anywhere; }
+.commit .meta { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.commit .meta .sha { color: color-mix(in oklab, var(--num) 80%, var(--muted)); }
+/* The open one is tinted so a long diff still reads as belonging to the row
+   above it rather than to the list. */
+.commit.open { background: oklch(0.98 0.01 300 / 0.07); }
+.commit .drawer { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+/* Where "Bring this file back" sits on every other row. Sized like the buttons
+   it stands in for, so the row does not change height at the top of the list. */
+.commit .current { font-size: 13px; color: var(--muted); }
+
+/* Pictures a version changed, shown in the row without being asked for. */
+.shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.shot {
+  padding: 3px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  line-height: 0;
+  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 10px 10px;
+}
+/* Keeping the checkerboard on hover, because the button rule above would
+   otherwise paint the whole tile primary and hide the picture that is the
+   entire point of it. */
+.shot:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 10px 10px;
+}
+.shot img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
+
+/* Shown as big as the pane allows rather than at its own size: a 16-square
+   sprite at its own size is a smudge, which is the opposite of what opening
+   the details is for. A fixed box with `contain` keeps every shape right — a
+   definite width with a capped height squashes it, the same trap as the
+   editor's own canvas. */
+.shot-big { display: flex; flex-direction: column; gap: 3px; }
+.shot-big img {
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 14px 14px;
+}
+
+pre.diff {
+  margin: 0;
+  padding: 11px 13px;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  color: #cfc4e8;
+}
+pre.diff .add { color: var(--ok); }
+pre.diff .del { color: oklch(0.86 0.14 25); }
+pre.diff .hunk { color: var(--accent); }

@@ -1,0 +1,68 @@
+/* The guide, and its shelf ------------------------------------------------ */
+
+/* The guide: one question at the top of the scene column, each answer an edit
+   to the story. Not a dialog — the author can ignore it and click around, and
+   it asks again from the story as it stands. */
+.guide {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--look-primary) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.guide .guide-ask { font-weight: 600; font-size: 14.5px; }
+.guide .guide-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.guide .guide-row .cfg-text { flex: 1 1 8rem; min-width: 6rem; }
+.guide .guide-row .hint { white-space: nowrap; }
+.guide textarea.cfg-text { width: 100%; font: inherit; resize: vertical; }
+.guide .guide-acts { gap: 6px; }
+.guide .hint { font-size: 12px; margin: 0; }
+.guide > button.link { align-self: flex-start; }
+.guide.ready { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.guide.ready .guide-ask { font-weight: 500; font-size: 13px; color: var(--muted); }
+
+/* The standard set's shelf: one row that scrolls sideways however many
+   pictures the set grows to, rather than a grid that pushes the buttons off
+   the bottom of the card. Empty until the index lands, and empty for good
+   when the set has nothing of this kind — an empty shelf says nothing, so it
+   takes no room. */
+.guide .guide-shelf { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+.guide .guide-shelf:empty { display: none; }
+.guide .guide-shelf .hint { white-space: nowrap; }
+.guide button.art {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-3);
+  cursor: pointer;
+  line-height: 0;
+  overflow: hidden;
+}
+.guide button.art:hover { border-color: var(--look-primary, var(--accent)); }
+.guide button.art img { height: 48px; width: auto; max-width: 96px; object-fit: cover; }
+/* A picture you put in the collection yourself, with the way back out in its
+   corner. Hidden until the pointer or the keyboard is on it, because a shelf
+   of thirty faces wearing thirty ✕ is a shelf of buttons rather than art. */
+.guide .art-mine { position: relative; display: inline-flex; flex: 0 0 auto; }
+.guide .art-out {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.guide .art-mine:hover .art-out,
+.guide .art-out:focus-visible { opacity: 1; }
+.guide .art-out:hover { color: var(--danger); border-color: var(--danger); }

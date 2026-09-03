@@ -1,0 +1,17 @@
+/* The quiz editor -------------------------------------------------------- */
+
+/* The quiz editor: a card per question and per ending. The .cfg-text inputs
+   inside flex rows need leave to shrink, or a long answer pushes the ✕ out. */
+.quiz-q {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: oklch(0.22 0.05 295 / 0.5);
+  padding: 9px 11px;
+  margin: 8px 0;
+  display: grid;
+  gap: 6px;
+}
+.quiz-q .row { flex-wrap: nowrap; }
+.quiz-q .cfg-text { flex: 1; min-width: 4rem; }
+.quiz-answer { padding-left: 16px; }
+.quiz-answer select { max-width: 9rem; }

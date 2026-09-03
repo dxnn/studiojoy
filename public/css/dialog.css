@@ -1,0 +1,122 @@
+/* Dialog ------------------------------------------------------------------ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0.12 0.04 290 / 0.72);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+.dialog {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 22px 54px rgba(8, 4, 24, 0.55);
+}
+.dialog h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.dialog label { display: block; margin: 8px 0 3px; font-size: 13px; color: var(--muted); }
+.dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+/* A hint that has nothing to say yet — the one under a select, before
+   anything has been chosen — takes no room. New game has two of them now and
+   the pair of gaps was pushing its buttons past the fold. */
+.dialog p.hint:empty { display: none; }
+
+/* A dialog that asks which of several things you meant: one wide row each,
+   the name over what it does. Whole-row buttons, because the sentence under
+   the name is as much a part of the choice as the name is. */
+.choices { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+.choices .choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+}
+.choices .choice:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  color: inherit;
+}
+.choices .cname { font-size: 14px; font-weight: 700; }
+.choices .choice:hover .cname { color: var(--accent); }
+.choices .cwhat { font-size: 12.5px; color: var(--muted); }
+.dialog.wide { max-width: 560px; }
+
+/* A file's name in pieces: the folder and the ending shown but fixed either
+   side of the box, so the name is all there is to type. The link under it
+   opens the whole path up, and flips its label to close it again. */
+.dialog .name-row { display: flex; align-items: center; gap: 4px; }
+.dialog .name-row input { flex: 1; min-width: 0; }
+.dialog .name-row .fixed { color: var(--muted); white-space: nowrap; }
+.dialog .name-row .fixed:empty { display: none; }
+.dialog > button.link { align-self: flex-start; }
+
+/* What an upload is about to do, one row per file, before anything is sent. */
+.plan { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
+.plan-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.plan-row.skip .mono { color: var(--muted); text-decoration: line-through; }
+/* The open switch, in the Editors dialog rather than the bar: same shape as
+   the rest, with the lock's meaning spelled out beside it. */
+.plan-row.switch { align-items: center; gap: 10px; margin-bottom: 8px; }
+/* The switch keeps its words on one line — .act is a fixed height, and two
+   lines of label push straight out of it. The sentence beside it wraps. */
+.plan-row.switch .act { flex: 0 0 auto; white-space: nowrap; }
+
+/* The shelf as a dialog: a grid behind a filter. */
+.dialog .shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.dialog .shelf-grid .art-mine { position: relative; display: block; }
+.dialog .shelf-grid button.art {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dialog .shelf-grid button.art:hover { border-color: var(--look-primary, var(--accent)); }
+.dialog .shelf-grid button.art img { width: 100%; height: 64px; object-fit: contain; image-rendering: pixelated; }
+.dialog .shelf-grid .art-name {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.dialog .shelf-grid .art-out {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.dialog .shelf-grid .art-out:hover { color: var(--danger); border-color: var(--danger); }

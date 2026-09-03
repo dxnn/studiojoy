@@ -115,7 +115,7 @@ deliberately deferred.
   four assertions each. ⚠️ Two of the four rules still have nothing checking
   them: every `.scroll` has a `data-scroll` name, and an `onclick` that opens
   something returns its promise (callable, so assertable)
-- keep style.css honest on its own: a rule for a class nothing renders any
+- keep the stylesheet honest on its own: a rule for a class nothing renders any
   more. ⚠️ Two ways to get this wrong, both met on 2026-09-03: a substring
   match hides a dead class behind a live *id* (`story-choice` inside
   `story-choice-0`, so nine rules read as seven), and splitting `class:`
@@ -133,7 +133,6 @@ deliberately deferred.
   one read. ⚠️ A big diff across everything, so it wants a quiet week of its
   own. `start()` is the shell's call already, so a split piece can be tested
   as it comes out
-- split style.css (91 KB) the same way, a section at a time
 - split spec.md (3,400 lines): every addition has to be woven into prose
   rather than appended, so each one costs a read of its neighbourhood first.
   §-per-file with the numbers kept, because everything cites them

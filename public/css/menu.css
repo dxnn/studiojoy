@@ -1,0 +1,50 @@
+/* The ··· and its menu ---------------------------------------------------- */
+
+/* The ··· beside the game's name, and the menu under it. Everything you can
+   do to the whole game is in here; the bar itself holds only state. */
+.more { position: relative; flex: 0 0 auto; }
+/* Not `.dots`: that is the thinking indicator's class, and its animated
+   ::after put a fourth dot on the button. */
+.bar .more-dots { font-weight: 700; letter-spacing: 0.1em; }
+.bar .more-dots.on { color: var(--text); background: var(--hover); }
+.menu {
+  /* Fixed and placed by placeMenu (main.js) once it is on screen; until then
+     it is nowhere rather than at the corner of the window. */
+  position: fixed;
+  top: 0;
+  right: 0;
+  visibility: hidden;
+  z-index: 60;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 14px 34px oklch(0 0 0 / 0.5);
+}
+.menu.placed { visibility: visible; }
+.menu-item {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.menu-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.menu-item.danger { color: var(--danger); }
+.menu-item.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 22%, transparent); }
+
+/* A ··· on a row sits at its right-hand end and opens its menu under
+   itself; the row lights up and opens on a click anywhere else in it. */
+.step > .more, .file > .more, .strip-row > .more, .commit .more { margin-left: auto; }
+.strip-row { position: relative; }
+.strip-row > .more { position: absolute; right: 4px; top: 3px; }
+.file > .more { margin-left: 4px; }
+.more-dots.tiny { padding: 1px 6px; font-size: 13px; }

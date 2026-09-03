@@ -1,0 +1,330 @@
+/* Shell ------------------------------------------------------------------- */
+
+/* The three panes, the hairline over them, the wordmark, the bar at the top of
+   each pane and the handful of layout utilities everything else leans on. The
+   width media queries that fold this down to one pane at a time are in
+   narrow.css, which loads last. */
+
+/* Both side columns are adjustable: the left one collapses to nothing, the
+   right one is dragged by its grip and remembered in localStorage. */
+.app {
+  display: grid;
+  grid-template-columns: var(--side, 258px) minmax(0, 1fr) var(--rail, 372px);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  position: relative;
+  background: var(--bg);
+}
+/* The hairline: all four named colours in the order they matter, across the
+   whole shell. It is the only place they appear together. */
+.app::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  z-index: 30;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    oklch(0.82 0.13 195), oklch(0.75 0.15 350), oklch(0.68 0.2 20), oklch(0.85 0.15 95));
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel);
+}
+.pane + .pane { border-left: 1px solid var(--border); }
+.pane.rail { position: relative; }
+
+/* The left pane wears the halftone; the chat pane and the rail wear the
+   game's own colours, so they are painted further down. */
+.pane.side {
+  background-color: var(--panel);
+  background-image: var(--halftone);
+  background-size: var(--halftone-size);
+  background-position: var(--halftone-pos);
+}
+
+.pane.chat {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(760px 420px at 92% -12%, color-mix(in oklab, var(--look-primary) 40%, transparent), transparent 68%),
+    radial-gradient(620px 460px at -8% 108%, color-mix(in oklab, var(--look-accent) 30%, transparent), transparent 68%),
+    radial-gradient(color-mix(in oklab, var(--look-primary) 9%, transparent) 1px, transparent 1px);
+  background-size: auto, auto, 15px 15px;
+}
+
+/* The rail is the loudest surface in the studio — the game's three colours
+   blown out behind a big halftone — because it is where the game itself is. */
+.pane.rail {
+  background-color: var(--look-deep);
+  background-image:
+    radial-gradient(oklch(0.12 0.03 300 / 0.34) 9px, transparent 9.5px),
+    radial-gradient(oklch(0.12 0.03 300 / 0.22) 3.5px, transparent 4px),
+    linear-gradient(180deg, oklch(0.16 0.04 300 / 0.1), oklch(0.16 0.04 300 / 0.42)),
+    radial-gradient(520px 400px at 14% 6%, color-mix(in oklab, var(--look-primary) 62%, transparent), transparent 62%),
+    radial-gradient(440px 540px at 96% 30%, color-mix(in oklab, var(--look-accent) 56%, transparent), transparent 60%),
+    radial-gradient(620px 460px at 24% 88%, oklch(0.46 0.14 320 / 0.45), transparent 66%),
+    radial-gradient(300px 320px at 78% 66%, color-mix(in oklab, var(--look-highlight) 22%, transparent), transparent 70%);
+  background-size: 18px 18px, 18px 18px, auto, auto, auto, auto, auto;
+  background-position: 0 0, 9px 9px, 0 0, 0 0, 0 0, 0 0, 0 0;
+}
+.pane.chat, .pane.rail { border-left-color: color-mix(in oklab, var(--look-primary) 40%, transparent); }
+
+.rail-grip {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+.rail-grip:hover, .rail-grip:active { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+
+.bar {
+  min-height: 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+/* The brand bar is no longer a block of colour: on the halftone the wordmark
+   carries itself, and the accent block was fighting the hairline above it. */
+.bar.brand-bar {
+  background: none;
+  border-bottom-color: transparent;
+  color: var(--text);
+  min-height: 62px;
+  padding: 18px 12px 8px;
+}
+/* UNBRIDLED / JOY. Two spans and a mark between them; with no spans the whole
+   wordmark simply comes out primary, which is a fine fallback. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--accent-hi);
+  white-space: nowrap;
+}
+.brand .b2 { color: oklch(0.76 0.19 22); }
+/* The mark between the two words: a grey micro-controller lying at the angle a
+   slash would sit at, its d-pad primary and its four buttons in four of the
+   studio's colours. Three empty spans and no image — every measurement is in
+   em, so it scales with whatever size the wordmark is set at. Written against
+   `.mark` rather than `.brand .mark` because the sign-in screen wears the same
+   wordmark at four times the size, and only the em sizing differs.
+
+   The body is rotated, so its visual footprint is wider and much taller than
+   the box it reserves in the line. That is deliberate: the letters tuck in
+   against it, and the bar above has the padding to let it overhang. */
+.mark {
+  width: 1.34em;
+  height: 0.84em;
+  flex-shrink: 0;
+  margin: 0 0.03em;
+  border-radius: 0.29em;
+  background: linear-gradient(160deg, #9a93ab, #6c6683);
+  border: 1px solid #b4adc4;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.4);
+  transform: rotate(-60deg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.11em;
+}
+/* The d-pad: two bars crossing, which is one span and its two pseudo-elements.
+   Named .dpad, not .pad: the studio already uses .pad as a padding utility, and
+   inheriting 12px of it inflates the cross past the body it sits in. The
+   explicit zero keeps any future utility off it too. */
+.mark .dpad {
+  position: relative;
+  width: 0.43em;
+  height: 0.43em;
+  padding: 0;
+  flex-shrink: 0;
+}
+.mark .dpad::before,
+.mark .dpad::after {
+  content: '';
+  position: absolute;
+  border-radius: 0.04em;
+  background: oklch(0.82 0.13 195);
+}
+.mark .dpad::before { top: 0.148em; left: 0; width: 0.43em; height: 0.135em; }
+.mark .dpad::after { top: 0; left: 0.148em; width: 0.135em; height: 0.43em; }
+/* The four buttons: four radial gradients on one span, so they cost no markup.
+   Gold and crimson on top, pink and violet under. */
+.mark .abxy {
+  width: 0.375em;
+  padding: 0;
+  height: 0.375em;
+  flex-shrink: 0;
+  background-image:
+    radial-gradient(circle at 22% 22%, oklch(0.85 0.15 95) 0.082em, transparent 0.086em),
+    radial-gradient(circle at 78% 22%, oklch(0.72 0.19 22) 0.082em, transparent 0.086em),
+    radial-gradient(circle at 22% 78%, oklch(0.78 0.15 350) 0.082em, transparent 0.086em),
+    radial-gradient(circle at 78% 78%, oklch(0.72 0.16 265) 0.082em, transparent 0.086em);
+}
+.bar.brand-bar .icon { color: var(--muted); }
+.bar.brand-bar .icon:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: transparent;
+}
+.spacer { flex: 1; }
+.bar .title {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  min-width: 5ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A closed game wears a padlock in front of its name — a status and not a
+   control, so it does not light up and it does not click. Open is what a game
+   starts as, which is what makes the lock worth drawing. */
+.bar .lock {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.75;
+}
+/* State beside the name, not a control. */
+.bar .whisper {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The chat pane's own top bar takes the game's colour, so the title sits in
+   the game rather than in the studio.
+
+   ⚠️ It wraps, and the name keeps a floor. Everything else in this bar is a
+   button at its natural width, so on a phone the only thing that could give
+   way was the name — which vanished to nothing and left a row of buttons
+   belonging to a game you could no longer read the name of. Wrapped, the
+   actions drop to a second line and everything stays reachable. */
+.pane.chat > .bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  min-height: 64px;
+  border-bottom-color: color-mix(in oklab, var(--look-primary) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--look-primary) 30%, transparent), transparent);
+}
+/* hero.png, when the game has one (a *reserved image*): the bar wears it
+   under a wash of the game's own deep colour, dark enough that the name
+   stays readable. It replaces the look tint above rather than stacking on
+   it — two gradients over a photograph made mud. */
+.pane.chat > .bar.has-hero-image {
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--look-deep) 55%, transparent),
+      color-mix(in oklab, var(--look-deep) 75%, transparent)),
+    var(--hero-image) center / cover no-repeat;
+}
+.scroll { flex: 1; min-height: 0; overflow-y: auto; }
+/* chat.png, when the game has one: tiled behind the thread under the same
+   deep wash, heavier — this sits behind reading. On the scroller, whose own
+   background does not travel with its content, so the tiles stay put while
+   the messages move. A two-stop gradient tiles invisibly, which is what lets
+   one background-image line carry both layers. */
+.pane.chat > .scroll.has-chat-image {
+  background-image:
+    linear-gradient(
+      color-mix(in oklab, var(--look-deep) 82%, transparent),
+      color-mix(in oklab, var(--look-deep) 82%, transparent)),
+    var(--chat-image);
+}
+.section-label {
+  padding: 12px 16px 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pad { padding: 12px 16px; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.wrap { flex-wrap: wrap; row-gap: 6px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+
+/* The middle pane's actions ------------------------------------------------ */
+
+/* Fork, publish and Editors: what you do to a whole game rather than to this
+   conversation. They sit at the right-hand end of the game's own bar. They
+   were a drawer under the title before that and the foot of the Play tab
+   before that; three buttons never needed a place to hide, and the words that
+   went with them ("in the games list", "by Dann", "authors only") are gone —
+   the padlock and the publish button say their own state now.
+
+   A button.act each, .act.on for the state that is currently true, and an
+   optional .act .dot for publish's light. */
+button.act {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: oklch(0.26 0.06 300 / 0.65);
+  border: 1px solid color-mix(in oklab, var(--look-accent) 45%, transparent);
+  border-radius: var(--radius);
+}
+button.act:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--look-accent) 28%, transparent);
+  border-color: var(--look-accent);
+  color: #fff;
+}
+/* Published: the state is on, so the button is on. The dot is the light. */
+/* On: published, or open to the whole studio. Green rather than the gold it
+   wore before — ⚠️ gold is a number worth looking at and nothing else, and a
+   published game is not a number. */
+button.act.on {
+  color: oklch(0.88 0.1 155);
+  border-color: color-mix(in oklab, var(--ok) 55%, transparent);
+  background: color-mix(in oklab, var(--ok) 14%, transparent);
+}
+button.act.on:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ok) 22%, transparent);
+  border-color: var(--ok);
+  color: oklch(0.92 0.11 155);
+}
+button.act .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+button.act.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+/* Fork gets the mark, because copying a game is the one action here that
+   makes a new thing rather than changing this one. */
+button.act.fork { border-color: color-mix(in oklab, var(--accent) 50%, transparent); color: var(--accent-hi); }
+button.act.fork:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+button.act.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 55%, transparent); background: none; }
+button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c0810; border-color: var(--danger); }
+/* The open switch wears .act too, in the Editors dialog rather than the bar —
+   it is a .plan-row, so it is with the rest of them in dialog.css. */

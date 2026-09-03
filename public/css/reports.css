@@ -1,0 +1,106 @@
+/* What the running game and the helper report ------------------------------ */
+
+/* Three things that appear inside the thread but are nobody's message: the
+   problems the game reported, the moments it said happened, and the reasoning
+   trace behind a reply. Plus the working dots, which is the studio saying a
+   helper is still going. */
+
+/* Problems the running game reported. Stated plainly and not dressed up as an
+   alarm: a game breaking while you build it is normal. */
+.problems {
+  border: 1px solid color-mix(in oklab, var(--danger) 65%, transparent);
+  border-radius: var(--radius);
+  background: oklch(0.28 0.08 20 / 0.4);
+  padding: 10px 12px;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+/* An explicit display would otherwise beat the browser's rule for [hidden]. */
+.problems[hidden] { display: none; }
+.problem-list { display: grid; gap: 5px; }
+.problems-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.problem { overflow-wrap: anywhere; }
+.problem .where {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
+/* What the running game said happened — its moments — as a chip per name with
+   the latest value. The studio's own voice, so the head is cyan; a value is a
+   number the game said, not a score, so it is not gold. */
+.moments {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.moments[hidden] { display: none; }
+.moments-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.moment-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.moment {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.moment .mvalue { color: var(--text); }
+
+/* The reasoning trace: present, clearly secondary, and collapsed. */
+details.thinking { font-size: 13px; }
+details.thinking summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  list-style: none;
+}
+details.thinking summary:hover { color: var(--agent); }
+details.thinking summary::-webkit-details-marker { display: none; }
+details.thinking summary::before { content: '▸ '; }
+details.thinking[open] summary::before { content: '▾ '; }
+details.thinking .trace {
+  margin-top: 6px;
+  padding: 9px 12px;
+  border-left: 2px solid color-mix(in oklab, var(--agent) 40%, transparent);
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.working { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--agent); }
+.dots::after {
+  content: '';
+  animation: dots 1.2s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}

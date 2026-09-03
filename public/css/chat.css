@@ -1,0 +1,315 @@
+/* Chat -------------------------------------------------------------------- */
+
+/* The thread and everything hanging off a message: the helper chips over it,
+   the two message shapes, the file chips, the emoji, the token note and its
+   receipt, and the composer at the foot. What the *running game* reports back
+   into the thread — problems, moments, the reasoning trace — is reports.css. */
+
+/* One chip per helper in this game. The name toggles how they answer, the ✕
+   takes them out; the strip scrolls sideways rather than growing the bar. */
+.hchips {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.hchip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: oklch(0.26 0.06 300 / 0.6);
+  white-space: nowrap;
+}
+.hchip.on {
+  border-color: color-mix(in oklab, var(--agent) 65%, transparent);
+  background: var(--agent-soft);
+}
+.hchip button { border: none; background: none; font-size: 13.5px; border-radius: var(--radius); }
+.hchip button:hover:not(:disabled) { background: none; }
+.hchip .hchip-name { color: var(--muted); font-weight: 600; padding: 5px 4px 5px 11px; }
+.hchip .hchip-name:hover:not(:disabled) { color: var(--accent); }
+.hchip.on .hchip-name { color: oklch(0.9 0.08 350); }
+/* The lit dot beside a helper who is in the game. */
+.hchip.on .hchip-name::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: var(--agent);
+  box-shadow: 0 0 9px var(--agent);
+}
+/* The chip's ··· sits where its ✕ was. */
+.hchip .more-dots { padding: 3px 7px 3px 2px; }
+/* Calls another helper in. Beside the chips and outside their scroller, so it
+   is in the same place whether the row holds nobody or nine. */
+.hchip-add {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 10px;
+}
+.hchip-add:hover { background: var(--hover); }
+
+.messages { padding: 24px; display: flex; flex-direction: column; gap: 22px; }
+
+/* Two shapes, not one. What you said is a bubble in the game's colours, over
+   on your side. What a helper said is not a bubble at all — it is the pane's
+   own text under a small name, because it is the longest thing on the screen
+   and a box around it made the pane unreadable. */
+.msg { display: flex; flex-direction: column; gap: 7px; max-width: 62ch; }
+.msg .from {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--look-primary) 75%, white);
+}
+.msg .bubble {
+  background: linear-gradient(135deg,
+    color-mix(in oklab, var(--look-primary) 55%, transparent),
+    color-mix(in oklab, var(--look-accent) 52%, transparent));
+  border: 1px solid color-mix(in oklab, var(--look-primary) 60%, transparent);
+  border-radius: var(--radius-lg) var(--radius-lg) 3px var(--radius-lg);
+  padding: 12px 15px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #fdeff2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Yours sits on the right. :not() rather than a new class, so nothing in the
+   JS has to change for this to happen. */
+.msg:not(.from-agent):not(.system) { align-self: flex-end; align-items: flex-end; }
+
+.msg.from-agent { max-width: 670px; }
+.msg.from-agent .from { color: oklch(0.84 0.13 350); }
+.msg.from-agent .bubble {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: #e4d9de;
+}
+.msg.system {
+  max-width: none;
+  align-items: center;
+}
+.msg.system .bubble {
+  background: var(--system-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* The files a reply touched. Monospace pills, and the one that was deleted is
+   crimson with its minus, because that is the one you check twice. */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 1px solid color-mix(in oklab, var(--look-accent) 40%, transparent);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: oklch(0.26 0.06 350 / 0.8);
+  color: #e4d9de;
+  cursor: pointer;
+  font-weight: 400;
+}
+.chip:hover:not(:disabled) {
+  border-color: var(--look-accent);
+  color: #fff;
+  background: color-mix(in oklab, var(--look-accent) 22%, transparent);
+}
+.chip.create { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.chip.delete {
+  color: oklch(0.86 0.14 25);
+  border-color: oklch(0.54 0.16 25);
+  background: oklch(0.32 0.11 25 / 0.6);
+}
+.chip.pin { cursor: default; }
+
+/* Emoji on a message: one pill per emoji with a headcount, + for your own.
+   Yours wears the game's primary. The count stays muted, never gold — it is
+   a headcount, not a score — and who reacted is on the chip's title. */
+.reactions { display: flex; flex-wrap: wrap; gap: 6px; position: relative; }
+.reaction {
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: oklch(0.24 0.05 320 / 0.55);
+  cursor: pointer;
+}
+.reaction:hover:not(:disabled) { border-color: var(--look-accent); background: oklch(0.28 0.06 320 / 0.7); }
+.reaction .count { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.reaction.mine {
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 18%, transparent);
+}
+.reaction.add { color: var(--muted); font-weight: 700; padding: 4px 11px; }
+.reaction.add:hover:not(:disabled) { color: var(--text); }
+
+/* The fixed palette, above the row it belongs to. */
+.reaction-palette {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
+}
+/* Your own messages sit on the right, so their palette hangs right too rather
+   than running off the pane. */
+.msg:not(.from-agent):not(.system) .reaction-palette { left: auto; right: 0; }
+.reaction-palette button {
+  border: none;
+  background: none;
+  font-size: 17px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.reaction-palette button:hover:not(:disabled) { background: var(--hover); }
+
+/* What a reply cost. Present and checkable, never competing with the reply. */
+.tokens { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+.tokens button.link { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--muted); font-weight: 400; }
+.tokens button.link:hover:not(:disabled) { color: var(--num); }
+/* Nearly out of tokens for the day, in the same grey line as what the reply
+   cost. Gold, because it is a number worth looking at — the one thing that
+   colour means here. */
+.tokens .low { color: var(--num); font-weight: 700; }
+
+/* The receipt: what one reply was given and what it cost, opened from the
+   token note and painted in the reply's own row. */
+.receipt {
+  margin-top: 4px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in oklab, var(--look-primary) 30%, transparent);
+  border-radius: var(--radius);
+  background: oklch(0.2 0.05 350 / 0.55);
+  font-size: 12px;
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+}
+.receipt .rhead {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--look-primary) 70%, white);
+}
+.receipt .rhead:not(:first-child) { margin-top: 7px; }
+.receipt .rrow {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-self: stretch;
+}
+.receipt .rval { text-align: right; font-family: var(--mono); color: #e4d9de; }
+.receipt button.link { font-size: 12px; margin-top: 5px; }
+
+/* The scoreboard tab: rank, name, score, when — and a ✕ that asks first. The
+   score is the only number on the screen in highlight. */
+.score-list { display: grid; gap: 2px; padding: 0 14px 12px; }
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 7px;
+}
+.score-row:hover { background: oklch(0.3 0.07 300 / 0.4); }
+.score-row .rank { font-family: var(--mono); color: var(--muted); font-size: 10.5px; min-width: 28px; }
+.score-row .sname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.score-row .sval { font-family: var(--mono); font-weight: 700; color: var(--num); }
+.score-row .swhen { font-family: var(--mono); color: var(--muted); font-size: 10.5px; }
+
+/* The whole prompt, in its dialog. Monospace and wrapped: a prompt line can
+   be a whole file. */
+.prompt-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 9px 11px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* The composer is a card in the game's colours, sat on the pane rather than
+   welded to the bottom of it. */
+.composer {
+  border-top: 1px solid color-mix(in oklab, var(--look-primary) 40%, transparent);
+  padding: 14px 24px 20px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: none;
+}
+/* The box and Send on one line, Send as tall as the box and flush with it top
+   and bottom — a short button beside a tall box read as a stray control rather
+   than the other half of the composer. It follows the box when that is dragged
+   taller, which is the point of matching it. */
+.composer .say { display: flex; gap: 10px; align-items: stretch; }
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  min-height: 68px;
+  border: 1px solid color-mix(in oklab, var(--look-primary) 45%, transparent);
+  border-radius: var(--radius-lg);
+  background: oklch(0.19 0.04 350 / 0.75);
+  padding: 13px 15px;
+  font-size: 14.5px;
+}
+.composer textarea:focus-visible { outline-offset: -2px; }
+.composer .hint { font-size: 12.5px; color: var(--muted); }
+/* What is pinned, over the box — said only when something is. */
+.composer .hint.pins { padding: 0 2px 7px; }
+.composer .say button.filled { flex: 0 0 auto; padding: 11px 20px; }
+/* Send takes the game's colours, not the studio's: it is a message to this
+   game's crew. */
+.composer button.filled {
+  background: linear-gradient(100deg, var(--look-primary), var(--look-accent));
+  color: #1c0810;
+  box-shadow: 0 0 22px color-mix(in oklab, var(--look-primary) 30%, transparent);
+}

@@ -1,0 +1,224 @@
+/* Sidebar ----------------------------------------------------------------- */
+
+/* Games, Chats and Crew are three lists of the same kind of thing — things you
+   open — so they are three tabs over one list rather than three stacked
+   sections competing for the pane's height. The underline is the studio's
+   primary; the pane is the one place in the app that is the studio's rather
+   than any one game's. */
+.side-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 14px;
+  margin: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.side-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  padding: 7px 0 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.side-tabs button:hover:not(:disabled) { background: none; color: var(--text); }
+.side-tabs button.on {
+  color: var(--text);
+  font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+/* The collapse control sits in the tab row rather than the brand bar, where it
+   was the only thing keeping the wordmark off-centre. Set at the tab labels'
+   own size, because at 11px it read as a decoration rather than a button. */
+.side-tabs .collapse {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 4px 7px;
+  margin-left: 2px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.side-tabs .collapse:hover:not(:disabled) { background: none; color: var(--accent); }
+
+.side-search { padding: 0 14px 12px; flex: 0 0 auto; }
+.side-search input {
+  height: 36px;
+  border-radius: var(--radius);
+  background: oklch(0.26 0.06 290 / 0.7);
+  border-color: var(--border-soft);
+  font-size: 13.5px;
+}
+
+.who {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+.who .name { flex: 1; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* One initial in a pink-to-crimson tile: the same shape the game tiles use, so
+   "you" reads as one more thing in the list rather than a control. */
+.who .avatar {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  background: linear-gradient(140deg, oklch(0.75 0.15 350), oklch(0.68 0.2 20));
+  color: #1c0812;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* A game is a card, not a table row: rounded, inset from the pane, and lit
+   from the left edge when it is the open one. The inset is padding on the list
+   rather than margins on the row — .item is a <button>, and a form control
+   sizes to its content under width:auto, which sends a long game name off the
+   side of the pane instead of ellipsising it. */
+.pane.side .scroll { padding: 0 10px; }
+.item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  border: none;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  margin: 2px 0;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 400;
+}
+.item:hover:not(:disabled) { background: var(--hover); color: inherit; }
+/* The open game is the loudest row in the pane: primary edges down both sides,
+   a surface solid enough to sit forward of the list, a hairline all the way
+   round and a glow off it. In a list of twelve near-identical cards, "slightly
+   bluer" was not enough. */
+.item.active {
+  background: oklch(0.98 0.01 300 / 0.17);
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
+  border-left-width: 4px;
+  border-right-width: 4px;
+  padding-left: 9px;
+  padding-right: 9px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 26%, transparent),
+    0 0 16px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+/* Name on the left, the mark for being called by name on the right. The name
+   ellipsises inside its own span: a flex container clips its children, so
+   without one a long game name pushes the mark off the side of the card. */
+.item .item-name {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.item .item-name .iname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* icon.png, when the game has one: a small square in front of the name. It
+   never shrinks — the name is the part that already knows how to give way. */
+.item .item-name .item-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  object-fit: cover;
+}
+.item.active .item-name { font-weight: 700; }
+.item .item-sub {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item.active .item-name { color: #fff; }
+.item.active .item-sub { color: color-mix(in oklab, var(--accent) 45%, white); }
+.item.archived .item-name { color: var(--muted); font-style: italic; }
+
+.srow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 1px 0;
+  padding: 1px 6px;
+  border-radius: 7px;
+}
+.srow:hover { background: var(--hover); }
+.srow.sel { background: var(--active-bg); }
+.srow.sel .hname { color: var(--accent); font-weight: 700; }
+.srow .hname {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  color: inherit;
+  font-weight: 500;
+  padding: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.srow .hname:hover:not(:disabled) { background: none; color: var(--accent); }
+/* Being in the game is the good state, so it must not read as disabled. */
+.srow .hname:disabled { opacity: 1; cursor: default; }
+.srow.here .hname { color: var(--agent); font-weight: 700; }
+.srow .dot { font-size: 9px; margin-right: 5px; vertical-align: middle; color: var(--agent); }
+
+/* Somebody called you by name in here and you have not read it. The studio's
+   own cyan — this is the studio talking to you, not the game — and never gold,
+   which is a score or a version and nothing else. Small, filled and legible on
+   the open row as well as the quiet ones. */
+.called {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #06222b;
+}
+.chat-tab .called { margin-left: 6px; }
+
+.tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+  color: var(--accent-hi);
+  white-space: nowrap;
+}
+.tag.agent { border-color: color-mix(in oklab, var(--agent) 50%, transparent); color: var(--agent); }
+.tag.on { background: var(--agent); border-color: var(--agent); color: #1c0812; }
+/* A version number is a highlight thing, always. */
+.tag.version { border-color: color-mix(in oklab, var(--num) 50%, transparent); color: var(--num); }

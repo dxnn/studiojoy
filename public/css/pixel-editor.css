@@ -1,0 +1,113 @@
+/* The pixel editor -------------------------------------------------------- */
+
+/* Drawing on one. The canvas keeps the picture's own pixels and is scaled up
+   without smoothing, so a 32-square sprite stays 32 squares however big the
+   pane is.
+
+   The element fills its box and `contain` fits the picture inside it. Letting
+   width and height do the fitting instead does not work: a canvas has an
+   intrinsic size, so a definite width with a capped height squashes it rather
+   than shrinking it, which is a 16-square sprite drawn as 16 by 7. The empty
+   strip that `contain` leaves is what the pointer maths corrects for. */
+.drawing { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.pixels {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+  touch-action: none;
+  cursor: crosshair;
+}
+/* Blocky is right for a sprite blown up and wrong for a photograph, so the
+   pane picks per picture rather than once for all of them. */
+.pixels.smooth { image-rendering: auto; }
+
+/* ⚠️ The canvas is the only thing in its pane that can give, and it once gave
+   all the way to nothing: everything stacked above it and under it — the bar,
+   the tools, the brushes, the palette — is fixed height, and in a short window
+   they added up to more than the window, so the canvas came out 0 pixels high,
+   which is not a small canvas but no canvas at all, since a pointer has to
+   land on it for a stroke to happen. So the canvas keeps a floor, and in a
+   short window the tools scroll instead. (It lived in the rail when this was
+   found; under Pics and Code it has the centre, and the same rule holds.) */
+/* A floor of 150, or a quarter of the window where a quarter is less than
+   that — a phone held sideways is 390 tall, and a canvas taking 150 of it
+   leaves the tools nothing. */
+.drawing .media { min-height: min(150px, 25vh); }
+.drawing > .pad { min-height: 0; overflow-y: auto; }
+/* The strip looping beside the frame buttons while it is edited. */
+.strip-preview {
+  height: 40px;
+  image-rendering: pixelated;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+}
+/* Where the picture ends: a transparent pixel and the empty strip beside the
+   picture are the same checkerboard, so without this line the edge is a
+   guess — a sprite drawn to its corner looked like one drawn to nowhere.
+   Fitted like .frame-lines below; the border sits outside the pixels rather
+   than over the outer row of them, and the shadow dims the strip so the
+   picture reads as the paper. */
+.picture-edge {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  box-sizing: content-box;
+  border: 1px solid var(--muted);
+  box-shadow: 0 0 0 100vmax rgba(8, 4, 24, 0.4);
+}
+/* Frame boundaries over a strip: fitted to the picture inside the letterboxed
+   canvas by renderDrawing, centred here, one screen pixel at any zoom. */
+.frame-lines {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+  background-image: linear-gradient(to left, var(--accent) 1px, transparent 1px);
+  background-size: calc(100% / var(--frames)) 100%;
+  opacity: 0.5;
+}
+/* A square button holding one icon. The words live on its title and its
+   aria-label, so nothing here is only a picture. */
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: oklch(0.26 0.06 290 / 0.6);
+  border-color: var(--border);
+}
+button.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+button.icon-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Two rows of sixteen, sized by the pane rather than fixed, so a narrow rail
+   still shows the whole palette instead of wrapping it into a third row. */
+.swatches { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
+.swatch {
+  width: auto;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid oklch(0.4 0.05 295);
+  border-radius: 5px;
+}
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 35%, transparent); }
+input[type="color"] {
+  width: 32px; height: 26px; padding: 0;
+  border: 1px solid var(--border-soft); border-radius: 6px; background: none;
+}
+button.quiet.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

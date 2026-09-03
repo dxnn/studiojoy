@@ -10,7 +10,39 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/style.css" />
+    <!-- One stylesheet per surface. Two of these are placed rather than merely
+         present: base.css is first, because it sets the custom properties the
+         rest read, and narrow.css is last, because its media queries override
+         rules of the same specificity above it. Everything between is ordered
+         for reading. A file under public/css/ that is missing from this list
+         is served and never loaded, so test/style.test.js checks that the two
+         lists match. -->
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/auth.css" />
+    <link rel="stylesheet" href="/css/shell.css" />
+    <link rel="stylesheet" href="/css/sidebar.css" />
+    <link rel="stylesheet" href="/css/chat.css" />
+    <link rel="stylesheet" href="/css/reports.css" />
+    <link rel="stylesheet" href="/css/code-tree.css" />
+    <link rel="stylesheet" href="/css/code-editor.css" />
+    <link rel="stylesheet" href="/css/pixel-editor.css" />
+    <link rel="stylesheet" href="/css/config-form.css" />
+    <link rel="stylesheet" href="/css/controls-editor.css" />
+    <link rel="stylesheet" href="/css/quiz-editor.css" />
+    <link rel="stylesheet" href="/css/achievements-editor.css" />
+    <link rel="stylesheet" href="/css/story-editor.css" />
+    <link rel="stylesheet" href="/css/guide.css" />
+    <link rel="stylesheet" href="/css/preview.css" />
+    <link rel="stylesheet" href="/css/share.css" />
+    <link rel="stylesheet" href="/css/notices.css" />
+    <link rel="stylesheet" href="/css/dialog.css" />
+    <link rel="stylesheet" href="/css/sound-editor.css" />
+    <link rel="stylesheet" href="/css/modes.css" />
+    <link rel="stylesheet" href="/css/menu.css" />
+    <link rel="stylesheet" href="/css/inspector.css" />
+    <link rel="stylesheet" href="/css/pics-hear.css" />
+    <link rel="stylesheet" href="/css/people.css" />
+    <link rel="stylesheet" href="/css/narrow.css" />
   </head>
   <body>
     <div id="root">Loading…</div>

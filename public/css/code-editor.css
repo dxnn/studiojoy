@@ -1,0 +1,85 @@
+/* The text editor, and what stands in for it ------------------------------ */
+
+/* An open file: the textarea and its highlighted copy, the token colours, and
+   the checkerboard pane a picture, sound or video gets instead. */
+
+.editor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+/* ⚠️ The open file's bar wraps, because unwrapped it ran off the right edge of
+   the rail and took Delete and ✕ with it — and a file that cannot be closed is
+   a file you are stuck in. The rail goes down to 280 and opens at 360, so this
+   is the ordinary width rather than a narrow-screen one. */
+.editor > .bar { flex-wrap: wrap; }
+.editor textarea {
+  flex: 1;
+  min-height: 120px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  background: var(--panel-3);
+}
+.editor .editor-bar { padding: 9px 14px; border-top: 1px solid var(--border); }
+
+/* The editor's colours: a highlighted copy of the text on a <pre> underneath,
+   the textarea above it with transparent ink. The two must wear identical
+   metrics — font, padding, border thickness, wrapping — or the colours shear
+   off the characters. Same reason tokens only ever change color: a bold or
+   italic glyph is a different width. */
+.editor .code { flex: 1; display: grid; min-height: 0; }
+.editor .code > * { grid-area: 1 / 1; }
+.editor .code textarea {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+}
+/* Semi-transparent on purpose: an opaque selection box would sit over the
+   <pre> and hide the very characters being selected. */
+.editor .code textarea::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.editor .code-hl {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-left: none;
+  border-right: none;
+  background: var(--panel-3);
+  color: #d9d0ee;
+}
+.editor .code textarea, .editor .code-hl {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.tok-com { color: color-mix(in oklab, var(--muted) 85%, transparent); font-style: normal; }
+.tok-str { color: var(--ok); }
+.tok-num { color: var(--num); }
+.tok-kw { color: var(--accent); }
+.tok-tag { color: var(--agent); }
+.tok-attr { color: oklch(0.85 0.12 95); }
+
+/* A picture, sound or video where the text editor would be. The checkerboard
+   is so a transparent sprite reads as transparent rather than as black. */
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+  position: relative;
+  background:
+    repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 16px 16px;
+}
+.media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.media audio { width: 100%; }
+
+/* The live preview above an open .svg: the same checkerboard, held to a band
+   so a tall drawing never squeezes the code out of the pane. */
+.editor .svg-live { flex: 0 0 auto; border-bottom: 1px solid var(--border); }
+.editor .svg-live img { max-height: min(240px, 30vh); }
