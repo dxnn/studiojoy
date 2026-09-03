@@ -2,14 +2,14 @@
 
 **Built, 2026-09-02.** Dann answered the licence question with *no licence,
 the kid keeps their copyright*, which is what the code does — there is no
-`licence` column and nothing prints one. spec.md §3 and §6 are the state now;
+`licence` column and nothing prints one. spec/ §3 and §6 are the state now;
 this file is the argument, and the two "also unsettled" items at the end that
 were settled by choosing defaults are marked below. TODO.md carries the line
 to revisit the licence if the studio ever grows.
 
 Dann, 2026-09-02: *"I want kids to be able to add their art to this studio
 collection also."* Said while the *standard set* was being filled with CC0
-packs. Nothing here is built. The set itself is built and full (spec.md §6):
+packs. Nothing here is built. The set itself is built and full (spec/ §6):
 33 portraits, 9 backgrounds, picked from the *shelf*.
 
 ## Why this is not a small change
@@ -126,6 +126,6 @@ Dann's to decide, and the schema above is deliberately silent on it.
 2. `Put this in the studio's collection` on the open file's bar, and the
    dialog behind it (name, kind, optional mood).
 3. Removal, with the confirm that says it is the only copy.
-4. Docs: spec.md §3 (the table), §6 (the routes and the collection), §10
+4. Docs: spec/ §3 (the table), §6 (the routes and the collection), §10
    (the caps), GLOSSARY (*studio collection*), and whichever licence answer
    came back.

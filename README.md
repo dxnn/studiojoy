@@ -8,7 +8,7 @@ Agents see the project's files, can be handed specific ones to look at, and
 edit them with tools. Every edit is a git commit, so nothing is unrecoverable.
 Finished games are publicly playable; everything else needs a login.
 
-See [spec.md](./spec.md) for the design of record — data model, routes, SSE
+See [spec/](./spec/README.md) for the design of record — data model, routes, SSE
 events, limits, invariants, and the accepted tradeoffs. §14 records DeepSeek's
 API behaviour as measured against the live service.
 
@@ -46,7 +46,7 @@ sandbox would have cost them.
 On two ports of one hostname the browser still *carries* the cookie to the
 games origin: cookies aren't port-scoped, and same-host counts as same-site.
 So a game can reach the studio API blindly even though it can't read the
-answer. Separate hostnames close that, and spec.md §7 and §11 spell out what
+answer. Separate hostnames close that, and spec/ §7 and §11 spell out what
 it costs until then.
 
 Play and preview links follow whatever hostname you reached the studio by, on

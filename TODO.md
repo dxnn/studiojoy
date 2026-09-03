@@ -1,6 +1,6 @@
 # TODO
 
-v0 is built and green. `spec.md` is the design-of-record; §15 lists what was
+v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
@@ -33,7 +33,7 @@ deliberately deferred.
   asking again if the studio ever grows, if a published game's art needs to
   say where it came from, or if anybody wants to take art out of here and use
   it elsewhere — because "no licence" also means nobody has been given
-  permission (spec.md §3, ideas/studio-collection.md)
+  permission (spec/ §3, ideas/studio-collection.md)
 - moderation of the studio collection is "an admin can take anything out" and
   no queue, which suits a few trusted people and would not suit more. Same
   trigger as the line above
@@ -41,7 +41,7 @@ deliberately deferred.
   each, so a cast member cannot look happy and then worried. More CC0 faces
   with several moods, or the same animals redrawn — `npm test` checks the
   shape, and ⚠️ a portrait must never measure a whole multiple of its height
-  or the sprites library animates it (spec.md §6)
+  or the sprites library animates it (spec/ §6)
 - the shipped backgrounds are pixel art at 65×36 to 256×150, and the visual
   novel's `.picture` has no `image-rendering`, so they upscale softly.
   `image-rendering: pixelated` in the template's `css/style.css` is the fix
@@ -101,11 +101,11 @@ deliberately deferred.
   reactions build; new-y has none to copy, so the map is ours to write)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
-  after it (spec.md §9). The other half: a tab that reconnects refetches only
+  after it (spec/ §9). The other half: a tab that reconnects refetches only
   the file tree, so a live row whose fire ended while it was away never clears
 - ! watch the first real fires on the new `low` default and see whether the
   games come out as good — the measurement scored whether files got written,
-  not whether they were any good (spec.md §14, the caveat)
+  not whether they were any good (spec/ §14, the caveat)
 - ! watch the first real plans in production: whether the pieces the sizing
   cuts are the right size, whether `none` pieces come out as good as `low`
   ones, and where the wall of text a helper used to leave actually came from —
@@ -134,11 +134,8 @@ deliberately deferred.
   one read. ⚠️ A big diff across everything, so it wants a quiet week of its
   own. `start()` is the shell's call already, so a split piece can be tested
   as it comes out
-- split spec.md (3,400 lines): every addition has to be woven into prose
-  rather than appended, so each one costs a read of its neighbourhood first.
-  §-per-file with the numbers kept, because everything cites them
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
-  in spec.md §11: no CSRF token (bounded to logout now), in-memory lockouts,
+  in spec/ §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate

@@ -225,7 +225,7 @@ Both are the studio's own small requests to the model: no helper row, no chat,
 no tools, no transcript, no file block — a **tiny prompt** built from the
 story. Server-side, because the key never reaches a browser, and through the
 same two walls every reply goes through: the studio budget and the author's
-allowance (spec.md §10). Billed to whoever pressed the button.
+allowance (spec/ §10). Billed to whoever pressed the button.
 
 **Fill**: `POST /api/projects/:slug/story/fill` with the scene key and the
 author's sentence. The prompt is the cast (names, a line about each), the
@@ -316,7 +316,7 @@ style or two that sit together, portraits with several moods each.
 
 All four steps are built and green. Two TODO lines outlive the plan: the
 phone-width re-check from step 1, and finding more art for the standard set —
-step 4 built the shelf that picks from it, not the pictures. spec.md and
+step 4 built the shelf that picks from it, not the pictures. spec/ and
 GLOSSARY.md are the state; this file is the argument.
 
 1. **Type + the editor tab + the builder.** The column and the backfill;
@@ -355,7 +355,7 @@ GLOSSARY.md are the state; this file is the argument.
 
 ## For the build session
 
-- Read CLAUDE.md, then spec.md §3 (`projects`), §4 (templates and the
+- Read CLAUDE.md, then spec/ §3 (`projects`), §4 (templates and the
   heart), §6 (the shell, the game templates section, the view and the URL),
   §8 (the preamble), then this file. The code to know before touching
   anything: `public/main.js` (`S`, `openProject`, `applyView`/`urlNow`,
@@ -377,7 +377,7 @@ GLOSSARY.md are the state; this file is the argument.
   keys write nothing.
 - Every button the preamble gains is asserted in `orchestrator.test.js`, like
   the two editors before it.
-- Docs are part of each step, not after it: spec.md §3 (the column), §6 (the
+- Docs are part of each step, not after it: spec/ §3 (the column), §6 (the
   shell and templates sections — the centre's tabs, the editor, the URL's
   `?edit=`/`?scene=`), §8 (the type section of the preamble), §10 and §16 for
   step 3; GLOSSARY.md per the terms above; CLAUDE.md's current state; and the

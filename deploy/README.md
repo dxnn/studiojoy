@@ -7,7 +7,7 @@ and a bare repo taking pushes.
 
 `server/index.js` binds both listeners itself: the studio on `PORT` and the
 public games origin on `GAMES_PORT`, in one process, deliberately separate
-origins (spec.md §7). So there is **one bare repo, one remote, one pm2 app**.
+origins (spec/ §7). So there is **one bare repo, one remote, one pm2 app**.
 A deployment guide written for a single-listener service will tell you to make
 two of each; don't.
 
@@ -247,7 +247,7 @@ name, and anything else — `ecosystem.cjs` included — is run as a script and
 comes up under the wrong name doing nothing. Nothing is exported to the shell, to other pm2 apps, or to
 anything else sharing the box.
 
-`deploy/studio.env.example` documents every variable; spec.md §13 is the full
+`deploy/studio.env.example` documents every variable; spec/ §13 is the full
 table. The two that only matter once there is a proxy in front:
 
 - ⚠️ **`GAMES_URL`** — the games origin exactly: scheme, no trailing slash.

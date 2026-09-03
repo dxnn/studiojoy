@@ -1,9 +1,9 @@
 # Small asks: a planner, steps, and a standard builder chat
 
-Built 2026-09-03 (445c3df, 565b9a9); spec.md §8 is now the record and this
+Built 2026-09-03 (445c3df, 565b9a9); spec/ §8 is now the record and this
 is the reasoning behind it. Decided the same day after four probes against the live
 API (`tmp/probe-lib.mjs` and the four `tmp/probe-*.mjs` beside it); the
-numbers below are theirs and spec.md §14 carries their tables. *Sizing*,
+numbers below are theirs and spec/ §14 carries their tables. *Sizing*,
 *builder*, and `Building` as the builder's room were agreed the same day and
 are in GLOSSARY.md. "Step" below is a plain word: the glossary already has
 *step* for a row of a story scene, so a plan's item still needs its name.
@@ -250,5 +250,5 @@ already named its files:
 4. The plan card in the client.
 5. Per-step context narrowing.
 6. The cap hands its trace to the planner.
-7. spec.md §8 and the GLOSSARY entries losing their "Planned"; `npm test`
+7. spec/ §8 and the GLOSSARY entries losing their "Planned"; `npm test`
    green at every step. §14 already carries the measurements.

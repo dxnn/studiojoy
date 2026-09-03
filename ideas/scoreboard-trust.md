@@ -3,7 +3,7 @@
 (Dann, 2026-08-31; brought up to date 2026-09-01, the day rungs 0 and 1
 landed.) v0 accepted "forgeable by design": the client is the only witness,
 and signing scores would need a secret inside LLM-written game code, which is
-no secret (spec.md §3, ideas/next-five.md). Dann did not accept that as the
+no secret (spec/ §3, ideas/next-five.md). Dann did not accept that as the
 last word — weaken the constraints, with player accounts and maybe a small
 payment, and for at least some games the board could be *true* rather than
 merely bounded. This was the ladder from here to there.
@@ -44,7 +44,7 @@ Built 2026-09-01: `server/util/text.js`, `clientIp`, `submitScore`.
 
 ## Rung 1 — player accounts ✔
 
-Built 2026-09-01, the sign-in build (spec.md §3, §6, §7, §11). Three of the
+Built 2026-09-01, the sign-in build (spec/ §3, §6, §7, §11). Three of the
 four bullets landed in a different shape than sketched, and the shape is
 better:
 
@@ -59,7 +59,7 @@ better:
   game A can `POST /_scores/game-b` with the cookie attached, or could just as
   well have asked for a slug-B token itself. A rogue game can put its player
   on another game's board; the row then names the player, not the game's
-  author. Accepted (spec.md §7) — the only real scoping is an origin per
+  author. Accepted (spec/ §7) — the only real scoping is an origin per
   game, a deployment change, and moderation covers the rest.
 - **Rate limits are per account** for score posts — every post has one
   behind it, and a household shares an address, so siblings on one wifi were

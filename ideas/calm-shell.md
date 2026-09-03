@@ -153,7 +153,7 @@ chat, Archive…. Fork is everybody's; Rename, Editors, Publish and Add chat are
 an editor's; Archive is the originator's (below). The padlock and the publish
 whisper stay as *state* next to the name; nothing about them is a button
 outside the menu. This reverses a recorded decision — "three buttons and their
-own state do not need hiding" (spec.md §6) — because the reason is no longer
+own state do not need hiding" (spec/ §6) — because the reason is no longer
 local: every thing in the studio has one `···`, and the game is a thing.
 
 ### Archive
@@ -165,7 +165,7 @@ terminal, not behind a button):
 - **Archive is in the game's `···`, with a confirmation dialog** that says
   what archiving does: no more edits, still playable, still in the catalog's
   history, and only somebody at the terminal brings it back.
-- **Only the originator may archive** — `projects.created_by`, which spec.md
+- **Only the originator may archive** — `projects.created_by`, which spec/
   §3 calls "display only" today and which becomes load-bearing. Not
   authors, not an open game's whole studio: taking a game out is about the
   game, not about editing it. An originator who has been *removed* leaves a
@@ -250,24 +250,24 @@ in the same commit.
 1. **Lazy commits.** Server: a pending commit per project inside the mutex,
    the commit-first rule before a fire and before history reads,
    `npm run unarchive`'s sibling if any. Client: the story editor loses
-   `Save` and gains the whisper; `previewNonce` on write. spec.md §5, §17;
+   `Save` and gains the whisper; `previewNonce` on write. spec/ §5, §17;
    `files.test.js`, `orchestrator.test.js`.
 
-   *Landed 2026-09-02* (`server/files/pending.js`, spec.md §5), with two
+   *Landed 2026-09-02* (`server/files/pending.js`, spec/ §5), with two
    things decided on the way. **Reads never land the window**: the versions
    list and the diff are read as they stand, because the file bar counts
    versions after every save and a flush there would have been a commit per
    save again — `version.new` on the stream refreshes them when the commit
    comes. And **the preview needed a name for uncommitted bytes**: the
    reporter's version is `<sha>:<n>` while a window is open, re-keyed to the
-   commit when it lands (spec.md §8), or every problem a preview reported
+   commit when it lands (spec/ §8), or every problem a preview reported
    against a run of saves would have vanished the moment they became a
    version. The story editor's `Save` is gone; the other editors keep theirs
    until step 3 and 4 move them.
 2. **The mode row and the rail without tabs.** Chat as a mode; Files into
    Code, Versions · Scoreboard · Achievements into Share; the game's `···`
    with Archive, the confirmation, the one-way route and `bin/unarchive.js`;
-   `Reopen` gone; `?mode=`. Surfaces move, none is redesigned. spec.md §3, §6
+   `Reopen` gone; `?mode=`. Surfaces move, none is redesigned. spec/ §3, §6
    "The shell", §11, §12; GLOSSARY *mode*, *editor*, *game actions*, *view*.
 
    *Landed 2026-09-02.* Modes are Chat · Write · Code · Share for a visual
@@ -278,7 +278,7 @@ in the same commit.
 3. **`···` on every thing, and the inspector.** The file bar, the scene and
    line and choice buttons, the version rows; the scene's picture and music
    into the inspector; the shelf as a dialog with a filter. The preamble's
-   button names. spec.md §6; GLOSSARY *shelf*, *game actions* pruned.
+   button names. spec/ §6; GLOSSARY *shelf*, *game actions* pruned.
 
    *Landed 2026-09-02.* The `···` sits on the thing's **row** — a scene, a
    line, a choice, a mood, a file, a version, a helper chip, the chat you are
@@ -292,7 +292,7 @@ in the same commit.
 4. **Pics and Hear.** The by-kind views; Characters and Places; the pixel
    editor and the text editor opening in the centre; the `:has(.drawing)`
    preview rule and the rail-width workarounds dropped. ideas/
-   editors-in-the-centre.md moves to tmp/ with this step. spec.md §6, §17
+   editors-in-the-centre.md moves to tmp/ with this step. spec/ §6, §17
    "Panes"; GLOSSARY *pixel editor*, *sound editor*, *cast*.
 
    *Landed 2026-09-02.* Pics is cards by kind — Characters and Places for a

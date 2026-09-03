@@ -18,7 +18,7 @@ what only it can see: the whole structure at once (ideas/templates.md, "What
 the visual novel added"). For a quiz that was answers wired to endings; for a
 story it was scenes nothing leads to. For a racer it is **the track**: a
 closed loop that has to actually close, be wide enough to drive, and not
-cross itself. A helper cannot see a picture (spec.md §14), so a track drawn as
+cross itself. A helper cannot see a picture (spec/ §14), so a track drawn as
 coordinates is exactly the kind of thing a person authors and a helper only
 tunes — the same constraint that shaped the adventure's spots, resolved the
 same way: the studio draws, the config holds numbers.
