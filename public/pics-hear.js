@@ -112,8 +112,13 @@ export function renderPicsMode() {
   return [
     h('div', { class: 'pad row wrap' },
       frozen() ? null : h('button', {
-        class: 'quiet tiny', text: 'Add a picture',
-        title: 'Draw one, or upload one from this device',
+        class: 'quiet tiny', text: 'Draw a picture',
+        title: 'A blank canvas, ready to draw on',
+        onclick: () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); },
+      }),
+      frozen() ? null : h('button', {
+        class: 'quiet tiny', text: 'Upload a picture',
+        title: 'A picture from this device',
         onclick: () => { S.dialog = { kind: 'add-file', only: 'picture' }; render(); },
       })),
     h('div', { class: 'pics scroll', 'data-scroll': 'pics' },
