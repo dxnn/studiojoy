@@ -3362,14 +3362,14 @@ function renderFilesTab() {
 }
 
 // What can be done to a file, on its row under Code or its card under Pics
-// or Hear (spec.md §6). Copy is not gated on frozen(): copying out of a game
-// takes nothing from it, and the rights that matter are the destination's,
-// which the dialog minds.
+// or Hear (spec.md §6). Duplicate is not gated on frozen(): its dialog can
+// send the copy to another game instead, and copying out of a game takes
+// nothing from it — the rights that matter are the destination's, which the
+// dialog minds.
 function fileMore(path) {
   return more(`file:${path}`, [
     !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path }; render(); } },
-    !frozen() && { text: 'Duplicate…', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
-    { text: 'Copy…', title: 'Into another game, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'copy', path }; render(); } },
+    { text: 'Duplicate…', title: 'In this game, into another one, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
     !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path }; render(); } },
   ], { label: `More about ${path}` });
 }
@@ -3398,9 +3398,9 @@ export function renderOpenFile() {
           : 'Versions',
         onclick: () => { showMode('share'); return loadHistory(S.open.path); },
       }),
-      // Rename, Duplicate, Copy and Delete are the file's ··· on its row or
-      // card (spec.md §6); the bar is the file's name, its versions, and the
-      // way out — except under Questions and Controls, where the file is the
+      // Rename, Duplicate and Delete are the file's ··· on its row or card
+      // (spec.md §6); the bar is the file's name, its versions, and the way
+      // out — except under Questions and Controls, where the file is the
       // mode and there is nowhere to close it to.
       S.mode === 'quiz' || S.mode === 'controls' ? null : h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',

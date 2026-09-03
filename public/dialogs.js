@@ -328,29 +328,148 @@ export function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, rename));
   }
 
+  // Duplicate, to one of three places (spec.md §6): this game (the default),
+  // another game, or — for a picture — the studio's collection, where every
+  // game's shelf can pick it. `Where to?` picks between them; `Another game`
+  // opens a second select for which one. ⚠️ The collection half says whose
+  // the picture stays: nothing here asks for a licence and nothing records
+  // one, because the studio does not need a grant to show somebody their own
+  // drawing (ideas/studio-collection.md).
   if (d.kind === 'duplicate-file') {
+    const picture = /\.png$/i.test(d.path);
+    const games = S.projects.filter((p) => p.kind !== 'chat' && p.slug !== S.slug && p.can_edit);
+
+    const where = h('select', {},
+      h('option', { value: 'here', text: 'This game' }),
+      games.length ? h('option', { value: 'game', text: 'Another game' }) : null,
+      picture ? h('option', { value: 'studio', text: 'The studio\'s collection — for every game to pick from' }) : null);
+
+    const gameSelect = h('select', {}, games.map((p) => h('option', { value: p.slug, text: p.name })));
+    const gameRow = h('div', {}, h('label', { text: 'Which game?' }), gameSelect);
+
+    // The name, in the Rename dialog's own style: just the stem to begin
+    // with, folder and ending fixed, until "Change the folder or the ending
+    // too" opens the whole path.
+    let parts = splitName(d.path);
+    let whole = false;
     const path = h('input', { 'aria-label': 'Name for the duplicate' });
-    path.value = duplicateName(d.path);
+    const before = h('span', { class: 'fixed mono' });
+    const after = h('span', { class: 'fixed mono' });
+    const nameLabel = h('label');
     const note = h('div', { class: 'hint muted' });
+    const more = h('button', { class: 'link tiny' });
     const make = h('button', { class: 'filled', text: 'Duplicate it' });
-    const check = () => {
-      const to = path.value.trim();
-      note.textContent = duplicateNote(d.path, to);
-      make.disabled = !to || to === d.path;
-    };
-    path.addEventListener('input', check);
-    make.addEventListener('click', async () => {
-      const to = path.value.trim();
-      close();
-      await duplicateFile(d.path, to);
-    });
-    check();
     // The copy is made from the disk, so words still only in the editor are
     // named here rather than quietly left out of it.
     const dirty = S.open?.path === d.path && (S.open.dirty || S.draw?.dirty);
+
+    const target = () => {
+      const typed = path.value.trim();
+      if (whole || !typed) return typed;
+      const { dir, ext } = parts;
+      const stem = ext && typed.length > ext.length && typed.toLowerCase().endsWith(ext.toLowerCase())
+        ? typed.slice(0, -ext.length)
+        : typed;
+      return dir + stem + ext;
+    };
+    const check = () => {
+      const to = target();
+      if (where.value === 'game') {
+        note.textContent = to
+          ? 'The bytes are copied as they are now. The two games stay strangers — this one keeps its file, and neither one hears about the other again.'
+          : 'Type the name you want.';
+        make.disabled = !to;
+      } else {
+        note.textContent = duplicateNote(d.path, to);
+        make.disabled = !to || to === d.path;
+      }
+    };
+    const show = () => {
+      nameLabel.textContent = whole ? 'Name it (use / for folders)' : 'Call it';
+      before.textContent = whole ? '' : parts.dir;
+      after.textContent = whole ? '' : parts.ext;
+      more.textContent = whole ? 'Just the name' : 'Change the folder or the ending too';
+      check();
+    };
+    // The name carries across: opened up, the box shows the whole of it as
+    // it stands; closed again, the same name back in pieces.
+    more.addEventListener('click', () => {
+      const to = target() || d.path;
+      whole = !whole;
+      if (whole) path.value = to;
+      else { parts = splitName(to); path.value = parts.stem; }
+      show();
+      path.focus();
+    });
+    path.addEventListener('input', check);
+    // Switching destination gives the name field its own default again: the
+    // free `-copy` name here, the file's own name unchanged into another game.
+    const setName = (to) => {
+      parts = splitName(to);
+      whole = false;
+      path.value = parts.stem;
+      show();
+    };
+
+    const nameRow = h('div', {},
+      nameLabel, h('div', { class: 'name-row' }, before, path, after), note, more,
+      dirty ? h('p', { class: 'hint muted', text: 'Your unsaved changes stay here — the duplicate is of the last save.' }) : null);
+
+    // Into the collection: what it is called there, what kind, and for a
+    // face whose — which only suggests the file name it lands under when
+    // picked, the way the shipped set's faces do. Left empty it is still
+    // offered.
+    const label = h('input');
+    label.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
+    const kind = h('select', {},
+      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
+      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
+    const who = h('input');
+    who.placeholder = 'optional';
+    const whoRow = h('div', {},
+      h('label', { text: 'Who is it, in one word?' }), who,
+      h('p', { class: 'hint muted', text: 'Only used to suggest a file name — "dragon" makes dragon-normal.png.' }));
+    const studioFields = h('div', {},
+      h('label', { text: 'What is it called?' }), label,
+      h('label', { text: 'What kind of picture?' }), kind,
+      whoRow,
+      h('p', { class: 'hint muted', text: 'Every game in the studio can pick it from the shelf, and it will say you made it. It stays yours — the studio is not asking for it, and you can take it out again whenever you like.' }));
+    const err = h('p', { class: 'error' });
+
+    const sync = () => {
+      gameRow.hidden = where.value !== 'game';
+      nameRow.hidden = where.value === 'studio';
+      studioFields.hidden = where.value !== 'studio';
+      whoRow.hidden = kind.value !== 'portrait';
+      if (where.value === 'studio') make.disabled = false;
+      else check();
+    };
+    where.addEventListener('change', () => {
+      setName(where.value === 'here' ? duplicateName(d.path) : d.path);
+      sync();
+    });
+    kind.addEventListener('change', sync);
+    setName(duplicateName(d.path));
+    sync();
+
+    make.addEventListener('click', async () => {
+      if (where.value === 'studio') {
+        const called = label.value.trim();
+        if (!called) { err.textContent = 'Give it a name.'; return; }
+        close();
+        await shareArt(d.path, { kind: kind.value, name: called, who: who.value.trim() });
+        return;
+      }
+      const to = target();
+      if (!to) { err.textContent = 'Give it a name.'; return; }
+      close();
+      if (where.value === 'game') await copyFileTo(gameSelect.value, d.path, to);
+      else await duplicateFile(d.path, to);
+    });
+
     return wrap('Duplicate this file',
-      h('label', { text: 'Name for the duplicate (use / for folders)' }), path, note,
-      dirty ? h('p', { class: 'hint muted', text: 'Your unsaved changes stay here — the duplicate is of the last save.' }) : null,
+      h('label', { text: 'Where to?' }), where,
+      gameRow, nameRow, studioFields, err,
       h('div', { class: 'actions' }, cancel, make));
   }
 
@@ -802,80 +921,6 @@ export function dialogFor(d) {
       list,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
-  }
-
-  // A file into another game. The list is the games you may change: copying
-  // out of this one takes nothing from it, so what decides is where it lands.
-  // One Copy… for the two places a file can go (spec.md §6): another game,
-  // or — for a picture — the studio's collection, where every game's shelf
-  // can pick it. Two routes behind it, one word in front of them. ⚠️ The
-  // collection half says whose the picture stays: nothing here asks for a
-  // licence and nothing records one, because the studio does not need a
-  // grant to show somebody their own drawing (ideas/studio-collection.md).
-  if (d.kind === 'copy') {
-    const picture = /\.png$/i.test(d.path);
-    const games = S.projects.filter((p) => p.kind !== 'chat' && p.slug !== S.slug && p.can_edit);
-    if (games.length === 0 && !picture) {
-      return wrap('Copy this file somewhere',
-        h('p', { text: 'There is no other game you can change. A game you are an editor of, or one that is open to everyone, can take a copy.' }),
-        h('div', { class: 'actions' }, h('button', { class: 'filled', text: 'Close', onclick: close })));
-    }
-    const where = h('select', {},
-      games.map((p) => h('option', { value: p.slug, text: p.name })),
-      picture ? h('option', { value: 'studio', text: 'The studio\'s collection — for every game to pick from' }) : null);
-    // Into a game: what to call it there.
-    const name = h('input');
-    name.value = d.path;
-    const gameFields = h('div', {},
-      h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'The bytes are copied as they are now. The two games stay strangers — this one keeps its file, and neither one hears about the other again.' }));
-    // Into the collection: what it is called there, what kind, and for a face
-    // whose — which only suggests the file name it lands under when picked,
-    // the way the shipped set's faces do. Left empty it is still offered.
-    const label = h('input');
-    label.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
-    const kind = h('select', {},
-      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
-      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
-    const who = h('input');
-    who.placeholder = 'optional';
-    const whoRow = h('div', {},
-      h('label', { text: 'Who is it, in one word?' }), who,
-      h('p', { class: 'hint muted', text: 'Only used to suggest a file name — "dragon" makes dragon-normal.png.' }));
-    const studioFields = h('div', {},
-      h('label', { text: 'What is it called?' }), label,
-      h('label', { text: 'What kind of picture?' }), kind,
-      whoRow,
-      h('p', { class: 'hint muted', text: 'Every game in the studio can pick it from the shelf, and it will say you made it. It stays yours — the studio is not asking for it, and you can take it out again whenever you like.' }));
-    const err = h('p', { class: 'error' });
-    const sync = () => {
-      const studio = where.value === 'studio';
-      gameFields.hidden = studio;
-      studioFields.hidden = !studio;
-      whoRow.hidden = kind.value !== 'portrait';
-    };
-    where.addEventListener('change', sync);
-    kind.addEventListener('change', sync);
-    sync();
-    return wrap(`Copy ${d.path.split('/').pop()}`,
-      h('label', { text: 'Where to?' }), where,
-      gameFields, studioFields, err,
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Copy it',
-        onclick: async () => {
-          if (where.value === 'studio') {
-            const called = label.value.trim();
-            if (!called) { err.textContent = 'Give it a name.'; return; }
-            close();
-            await shareArt(d.path, { kind: kind.value, name: called, who: who.value.trim() });
-            return;
-          }
-          const to = name.value.trim();
-          if (!to) { err.textContent = 'Give it a name.'; return; }
-          close();
-          await copyFileTo(where.value, d.path, to);
-        },
-      })));
   }
 
   // The shelf, as a dialog with a filter: the story editor's way to a

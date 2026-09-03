@@ -1244,17 +1244,18 @@ the studio has one `···` (ideas/calm-shell.md), and the game is a thing.
 **Every thing has one `···`, on its row, and nothing else that changes it.**
 A scene, a line, a choice, a mood, a file, a version, a helper in a chat, the
 chat you are in: each row ends in a `···` holding what can be done to that
-thing, in one order — Rename, Duplicate, Copy, then what is its own (Start
-here, Move up, Move down, Bring back), Delete last in crimson — and holding
+thing, in one order — Rename, Duplicate, then what is its own (Start here,
+Move up, Move down, Bring back), Delete last in crimson — and holding
 nothing the reader may not press: an item that would be refused is absent,
 and a thing with nothing to offer has no `···`. What *looks* at a thing stays
 a link on the row (`Show changes`, `All files changed`, a scene's *comes
 from*); what makes a new one stays a bordered button where it lands (`Add a
-file`, `+ Add a scene`). One `Copy…` covers the two places a file can go —
-another game, or a picture into the *studio collection* — with the dialog
-asking where (formerly `Copy to…` and `Share to studio…`). `more()` in
-`main.js` is the one implementation; `S.menu` holds which is open, keyed by
-the thing, so a render keeps it, and a click anywhere else closes it.
+file`, `+ Add a scene`). One `Duplicate…` covers the three places a file can
+go — this game, another, or a picture into the *studio collection* — with
+the dialog asking where (formerly a `Copy…` beside it, before that `Copy
+to…` and `Share to studio…`). `more()` in `main.js` is the one
+implementation; `S.menu` holds which is open, keyed by the thing, so a
+render keeps it, and a click anywhere else closes it.
 
 **The inspector** (a working name, ideas/calm-shell.md) is the rail under the
 preview, holding the selected thing's fields when the mode has one: in the
@@ -2060,21 +2061,29 @@ no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
 *Renamed from* when the reader is standing on the destination, rather than as an
 empty drawer.
 
-`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`,
-`Copy…` and `Delete…`, and takes the whole path, so it also moves:
-`sprite.png` to `art/hero.png` is the same one commit. The dialog says
-what the new name will mean before it happens, and ⚠️ crossing into or out of
-`studio/` gets its own sentence, because that is the one move that changes who
-may edit the file rather than only where it lives. It is allowed either way —
-the library is refused to *agents*, not to people (§4) — but not silently.
+`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`
+and `Delete…`, and takes the whole path, so it also moves: `sprite.png` to
+`art/hero.png` is the same one commit. The dialog says what the new name
+will mean before it happens, and ⚠️ crossing into or out of `studio/` gets
+its own sentence, because that is the one move that changes who may edit the
+file rather than only where it lives. It is allowed either way — the
+library is refused to *agents*, not to people (§4) — but not silently.
 
-`Duplicate` sits beside it and copies instead of moving: one new file, one
-commit, the original untouched. The copy is made server-side from the bytes on
-disk — so a picture duplicates without a round trip through the browser, and
-unsaved editor text stays where it is, which the dialog says when it applies.
-The route refuses an occupied name rather than overwriting, the dialog opens
-already holding a free one (`-copy` before the extension, counting up), and a
-duplicate landing in `studio/` gets the same sentence a rename there gets.
+`Duplicate…` sits beside it and copies instead of moving, to one of three
+places its own `Where to?` picks between: **this game** (the default), one
+new file, one commit, the original untouched; **another game**, which opens
+a second select for which one and calls `files/import` instead, the two
+trees staying strangers to each other; or, for a picture, the **studio
+collection** (§3), which calls `POST /api/collection` instead of either. The
+name field for the first two is the *rename* dialog's own shape — just the
+stem to begin with, the folder and ending fixed until "Change the folder or
+the ending too" opens the whole path — pre-filled with a free `-copy` name
+for this game, and the file's own name unchanged into another one, since
+that tree has never heard of it. Landing in `studio/` gets the same sentence
+a rename there gets. The within-game copy is made server-side from the bytes
+on disk — so a picture duplicates without a round trip through the browser,
+and unsaved editor text stays where it is, which the dialog says when it
+applies — and its route refuses an occupied name rather than overwriting.
 
 The reason is that the two halves have to agree. Git's pathspec filters the
 *names* along with the commits, so a log scoped to one file used to report
