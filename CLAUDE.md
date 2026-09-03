@@ -275,8 +275,17 @@ Workflow:
 
 - Commit after each meaningful change passes its tests. One logical change
   per commit.
-- Stage only the files relevant to the change. Use `git add <paths>`, not
-  `git add .` or `git add -A`. Do not sweep up unrelated edits.
+- Stage only the files relevant to the change. ⚠️ Somebody else may be
+  working in this checkout, so `git add <path>` on a shared file — spec.md,
+  GLOSSARY.md, TODO.md — sweeps their unstaged edits into your commit.
+  Read `git diff <path>` first and stage the hunks that are yours:
+  `git diff -- <paths> | git apply --cached -`, verify with
+  `git diff --staged`, commit, leave nothing staged. Never `git add .`.
+- **A feature's docs ride its last commit, not each one.** spec.md,
+  GLOSSARY.md and the TODO line land together in the commit that finishes the
+  job — which is what the global "same commit, no exceptions" rule asks for
+  anyway. Editing spec.md four times across four commits costs four reads of
+  its neighbourhood and buys nothing.
 - Before committing, run `git diff --staged` and verify the diff is exactly
   what you intend. If something unintended is staged, `git restore --staged
   <path>` to unstage.

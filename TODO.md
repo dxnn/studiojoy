@@ -109,6 +109,27 @@ deliberately deferred.
 - ! build small asks: a sizing call, one fire per step, and the builder in
   `Building` with no other helper allowed (ideas/planner.md, build order at
   the end)
+- move main.js's import-time work into a `start()` the shell calls — the
+  `getElementById` on line 48 and eight module-scope listeners — so a render
+  function can be imported under `npm test` at all. Every `public/*-form.js`
+  imports main.js, so today none of them can be. First step of the two lines
+  below
+- ! the studio's own taste as tests: a row that highlights opens on a click,
+  nothing in a bar is greyed out, one thing open at a time, gold only on a
+  number. ⚠️ Zero dependencies still: a hand-rolled DOM stand-in like the one
+  in `test/screens-template.test.js`, never jsdom or playwright inside
+  `npm test`. Playwright stays the interactive check for paint and feel and
+  could be an `npm run ui` of its own, outside the suite. Every one of these
+  was found by eye in a browser this week, which is the expensive way
+- split main.js — 4,100 lines that are the state, the transport, the URL, the
+  render dispatch, the file actions and the loaders at once, along its own
+  section comments. The file every change has to touch and none can hold in
+  one read. ⚠️ A big diff across everything, so it wants a quiet week and the
+  `start()` line above first
+- split style.css (91 KB) the same way, a section at a time
+- split spec.md (3,400 lines): every addition has to be woven into prose
+  rather than appended, so each one costs a read of its neighbourhood first.
+  §-per-file with the numbers kept, because everything cites them
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
