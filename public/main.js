@@ -35,7 +35,7 @@ import {
   STORY_FILE, loadStory, parkStory, saveStory, storyChanged, dropStageImages, selectScene,
 } from './story-form.js';
 import { dropArtIndex } from './story-guide.js';
-import { editorsFor } from './game-types.js';
+import { editorsFor, modesFor } from './game-types.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat, applyReactionDelta } from './chat.js';
@@ -87,16 +87,18 @@ export const S = {
   // can be put — and can have as many as it wants (spec.md §3).
   chat: null,
   chats: [],
-  // What the centre pane shows under the game's bar: a chat, or an editor a
-  // game type brings (public/game-types.js) — null for the chat, else the
-  // editor's id. S.chat is untouched by it: the chat behind an editor is
-  // still the chat, filling and marking while the editor is up.
-  editor: null,
+  // Which mode the centre pane is in (public/game-types.js, spec.md §6):
+  // 'chat', an editor's id, 'code' or 'share'. S.chat is untouched by it: the
+  // chat behind another mode is still the chat, filling and marking while
+  // that mode is up.
+  mode: 'chat',
+  // Which ··· is open, if any: 'game' for the one beside the game's name.
+  menu: null,
   // The story editor's state while the open game has one: {text, etag, model,
   // dirty, scene, step, person}, {grown: reason} when the file will not read
   // as a story, or null (story-form.js).
   story: null,
-  // The Achievements tab's state once it has been opened: {text, etag, model,
+  // The achievements editor's state once Share has been opened: {text, etag, model,
   // dirty}, {grown: reason} when the file will not read as achievements, or
   // null (achievements-form.js).
   achievements: null,
@@ -104,7 +106,6 @@ export const S = {
   // What the game said when it ran, for the version of the files on disk now.
   errors: [],
   pinned: new Set(),
-  tab: 'files',
   open: null, // {path, content, etag, dirty, conflict}
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
@@ -430,42 +431,56 @@ const slugFromUrl = () => {
   return match ? match[1] : null;
 };
 
-// No Play tab: the preview it held is now the top of the rail whatever is
-// open under it. A `?tab=play` link from before falls back to Files, which is
-// where its preview is anyway.
-const RAIL_TABS = ['files', 'versions', 'scoreboard', 'achievements'];
+// Addresses from before the mode row (spec.md §6): `?edit=` named an editor
+// and `?tab=` a rail tab. Still read, never written; `?tab=play` and any
+// other stranger fall back to the game's own default.
+const modeFromOld = (edit, tab) => edit ?? (tab === 'files' ? 'code'
+  : ['versions', 'scoreboard', 'achievements'].includes(tab) ? 'share' : null);
 
-// The URL is the view: which game, which tab, which file, which version — so
+// The URL is the view: which game, which mode, which file, which version — so
 // what someone is looking at is always the thing they can send to somebody
-// else. `file` is whichever file the rail is about: the open one under Files,
-// the filter under Versions. One name because it is one idea.
+// else. `file` is whichever file the mode is about: the open one under Code,
+// the filter on Share's versions. One name because it is one idea.
 const viewFromUrl = () => {
   const q = new URLSearchParams(location.search);
   return {
-    tab: q.get('tab'), file: q.get('file'), version: q.get('version'),
-    chat: q.get('chat'), edit: q.get('edit'), scene: q.get('scene'),
+    mode: q.get('mode') ?? modeFromOld(q.get('edit'), q.get('tab')),
+    file: q.get('file'), version: q.get('version'),
+    chat: q.get('chat'), scene: q.get('scene'),
   };
 };
 
-// An editor id the open game's type actually brings, or null. An unknown id
-// in an address falls back to the chat rather than to an empty pane.
+// An editor id the open game's type actually brings, or null.
 const editorOf = (id) => (editorsFor(S.project?.type).some((e) => e.id === id) ? id : null);
 const hasEditor = (id) => editorOf(id) === id;
+// A mode the open project has, or null. An unknown one in an address falls
+// back to the chat rather than to an empty pane.
+const modeOf = (id) => (modesFor(S.project).some((m) => m.id === id) ? id : null);
+// The editor the centre is showing, when the mode is one.
+export const editorShowing = () => editorsFor(S.project?.type).find((e) => e.id === S.mode) ?? null;
 
-// Which surface the centre shows, remembered per game beside the chat. '' is
-// a chat, chosen — different from nothing remembered, which lets a game with
-// a type open on its editor the first time.
-function showEditor(id) {
-  if (S.editor && S.editor !== id) leaveEditor();
-  S.editor = id;
-  if (S.slug) prefs.set(`edit-${S.slug}`, id ?? '');
+// Which mode the centre is in, remembered per game. Leaving one is where a
+// version belongs: the last lines typed go in, and then the game's pending
+// commit lands (spec.md §5). Not awaited — the surface changes now, and the
+// timer lands it if this did not.
+export function showMode(id) {
+  const mode = modeOf(id) ?? 'chat';
+  if (S.slug && S.mode !== mode) {
+    (S.story?.dirty ? saveStory() : Promise.resolve()).then(() => commitNow());
+  }
+  S.mode = mode;
+  S.menu = null;
+  if (S.slug) prefs.set(`mode-${S.slug}`, mode);
 }
 
-// Leaving an editor is where a version belongs: the last lines typed go in,
-// and then the game's pending commit lands (spec.md §5). Not awaited — the
-// surface changes now, and the timer lands it if this did not.
-function leaveEditor() {
-  (S.story?.dirty ? saveStory() : Promise.resolve()).then(() => commitNow());
+// Share shows what history and the public hold, so arriving there reads them:
+// all the versions — a list filtered to one file is somewhere you come from
+// that file, not a state the mode keeps — the scores, fresh every time because
+// the public posts while the studio idles, and the achievements.
+export async function loadShare() {
+  if (historyNeedsLoad(null)) await loadHistory(null);
+  await loadScores();
+  if (!S.achievements || S.achievements.grown) await loadAchievements();
 }
 
 // The game owes history whatever has been saved since its last version
@@ -473,13 +488,20 @@ function leaveEditor() {
 // tab — so a version is where the work stopped rather than 45 seconds later.
 // `keepalive` is for the tab closing, where a plain fetch is cancelled.
 export function commitNow(slug = S.slug, { keepalive = false } = {}) {
-  if (!slug) return Promise.resolve();
+  // An archived game owes nothing — archiving landed it — and refuses the ask.
+  if (!slug || S.project?.archived) return Promise.resolve();
   return send(`/api/projects/${slug}/commit`, { method: 'POST', keepalive })
     .catch(() => { /* the idle timer lands it if this did not */ });
 }
 
-export function openEditor(id) {
-  showEditor(editorOf(id));
+// A pill pressed. Held and awaited: Share reads before it shows, and a render
+// on the way there would write the mode's address without what it is about.
+// ⚠️ The promise goes all the way up to the onclick (see syncUrl).
+export async function openMode(id) {
+  await urlAs('hold', async () => {
+    showMode(id);
+    if (S.mode === 'share') await loadShare();
+  });
   render();
 }
 
@@ -488,25 +510,25 @@ export function openEditor(id) {
 function urlNow() {
   if (!S.slug) return '/';
   const q = new URLSearchParams();
-  // What the centre shows. An editor, and the scene it is on when that is not
-  // the first; or which conversation, unless it is the one the project opens
-  // on — a link to a game means its front door, and a chat is a place inside
-  // it. Never both: an editor stands in front of whichever chat was open, so
-  // Back to the chat is the address without ?edit=.
-  if (S.editor) {
-    q.set('edit', S.editor);
-    const first = S.story?.model?.scenes[0]?.key;
-    if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
-  } else if (S.chat && S.chats.length > 1 && S.chat.id !== S.chats[0].id) {
-    q.set('chat', String(S.chat.id));
-  }
-  if (!isChat()) {
-    if (S.tab !== 'files') q.set('tab', S.tab);
-    if (S.tab === 'files' && S.open) q.set('file', S.open.path);
-    if (S.tab === 'versions') {
+  // What the centre shows. A mode other than the chat, and what it is about —
+  // the story's scene when it is not the first, Code's open file, Share's
+  // filter and version; or which conversation, unless it is the one the
+  // project opens on — a link to a game means its front door, and a chat is a
+  // place inside it. Never both: a mode stands in front of whichever chat was
+  // open, so Back to the chat is the address without ?mode=.
+  if (S.mode !== 'chat') {
+    q.set('mode', S.mode);
+    if (S.mode === 'story') {
+      const first = S.story?.model?.scenes[0]?.key;
+      if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
+    }
+    if (S.mode === 'code' && S.open) q.set('file', S.open.path);
+    if (S.mode === 'share') {
       if (S.historyPath) q.set('file', S.historyPath);
       if (S.diff) q.set('version', S.diff.sha);
     }
+  } else if (S.chat && S.chats.length > 1 && S.chat.id !== S.chats[0].id) {
+    q.set('chat', String(S.chat.id));
   }
   const query = q.toString();
   return `/p/${S.slug}${query ? `?${query}` : ''}`;
@@ -570,57 +592,50 @@ export const historyNeedsLoad = (path) => path !== S.historyPath
   || S.history.length === 0
   || S.historyStale;
 
-// Put the rail where a URL says, and take away what it does not say — Back out
-// of a file has to close it. Every part is optional, and a part that is no
-// longer there — a deleted file, a commit off the end of the list — simply
+// Put the centre where a URL says, and take away what it does not say — Back
+// out of a file has to close it. Every part is optional, and a part that is
+// no longer there — a deleted file, a commit off the end of the list — simply
 // does not open; the rest of the view still arrives.
 async function applyView({
-  tab, file, version, chat, edit, scene,
+  mode, file, version, chat, scene,
 }) {
-  // The centre first: it is the only part of the view a chat-kind project
-  // has, and switching it replaces the thread the rest of this is arranged
-  // around. An editor stands in front of whichever chat is open and leaves it
-  // alone; without one the chat is the address's, else the one the project
-  // opens on.
-  const editor = editorOf(edit);
-  if (!editor) {
+  // The mode first: it is the only part of the view a chat-kind project has,
+  // and switching it replaces the thread the rest of this is arranged around.
+  // A mode other than the chat stands in front of whichever chat is open and
+  // leaves it alone; the chat mode's chat is the address's, else the one the
+  // project opens on.
+  const want = modeOf(mode) ?? 'chat';
+  if (want === 'chat') {
     const wanted = chat === null || chat === undefined ? S.chats[0]?.id : Number(chat);
     if (wanted && wanted !== S.chat?.id) await openChat(wanted);
   }
-  showEditor(editor);
+  showMode(want);
   // The scene the address names, else the first: a missing ?scene= is the
   // address talking, the same as a missing ?file=. Undefined is no address at
   // all — a game opened from the sidebar — and leaves the reader where the
   // story was loaded, parked edits and their place included.
-  if (editor === 'story' && scene !== undefined) {
+  if (want === 'story' && scene !== undefined) {
     selectScene(scene ?? S.story?.model?.scenes[0]?.key);
   }
   if (isChat()) return;
-  S.tab = RAIL_TABS.includes(tab) ? tab : 'files';
-  const want = file ?? null;
-  if (S.tab === 'versions') {
-    if (historyNeedsLoad(want)) await loadHistory(want);
+  const path = file ?? null;
+  if (want === 'share') {
+    if (historyNeedsLoad(path)) await loadHistory(path);
     if (version !== (S.diff?.sha ?? null)) {
       // Arriving at a version is arriving at its row, which a link can drop
       // you thirty rows above.
       if (version) await loadDiff(version, { goTo: true });
       else S.diff = null;
     }
-  } else if (S.tab === 'files') {
+    await loadScores();
+    if (!S.achievements || S.achievements.grown) await loadAchievements();
+  } else if (want === 'code') {
     // Back is a way out of a file as much as into one, and either way it goes
     // through the same question the ✕ asks when there is unsaved work. Answer
     // that no and the file stays open, so the next render puts its own address
     // back — a duplicate entry is a smaller price than losing what was typed.
-    if (want && want !== S.open?.path) await chooseFile(want);
-    else if (!want && S.open) closeOpenFile();
-  } else if (S.tab === 'scoreboard') {
-    // Always refetched: scores change while nobody in the studio does
-    // anything, so a cached list would be quietly wrong.
-    await loadScores();
-  } else if (S.tab === 'achievements') {
-    // Read once and kept fresh by files.changed; a file that would not read
-    // is asked again, since a helper may have mended it since.
-    if (!S.achievements || S.achievements.grown) await loadAchievements();
+    if (path && path !== S.open?.path) await chooseFile(path);
+    else if (!path && S.open) closeOpenFile();
   }
   render();
 }
@@ -786,9 +801,10 @@ export async function openProject(slug, { view = null } = {}) {
   await flushPalette();
   await commitNow(S.slug);
 
-  // The centre pane's surface and the two editors' state are the game's; all
-  // are settled again below for the one being opened.
-  S.editor = null;
+  // The centre pane's mode and the two editors' state are the game's; all are
+  // settled again below for the one being opened.
+  S.mode = 'chat';
+  S.menu = null;
   S.story = null;
   S.achievements = null;
   S.tryScene = null;
@@ -828,16 +844,16 @@ export async function openProject(slug, { view = null } = {}) {
   S.chats = res.body.chats ?? [];
   S.chat = res.body.chat ?? null;
   if (S.chat) prefs.set(`chat-${slug}`, S.chat.id);
-  // Which surface the centre opens on: the address if it says — an editor by
-  // name, or a chat, which is no editor — else what is remembered for this
-  // game, else the type's first editor for a game that has one and the chat
-  // for a game that does not. Settled before the first paint, so the address
-  // written then is the one that stays rather than one entry on the way to it.
-  const remembered = prefs.get(`edit-${slug}`, null);
-  const edit = view?.edit ?? (view?.chat !== null && view?.chat !== undefined
-    ? null
-    : (remembered ?? editorsFor(res.body.type)[0]?.id ?? null));
-  S.editor = editorOf(edit);
+  // Which mode the centre opens in: the address if it says — a mode by name,
+  // or a chat, which is the chat mode — else what is remembered for this game,
+  // else the type's first editor for a game that has one and the chat for a
+  // game that does not. Settled before the first paint, so the address written
+  // then is the one that stays rather than one entry on the way to it.
+  const remembered = prefs.get(`mode-${slug}`, null);
+  const mode = view?.mode ?? (view?.chat !== null && view?.chat !== undefined
+    ? 'chat'
+    : (remembered ?? editorsFor(res.body.type)[0]?.id ?? 'chat'));
+  S.mode = modeOf(mode) ?? 'chat';
   S.files = res.body.files;
   S.errors = res.body.errors ?? [];
   S.pinned = new Set();
@@ -856,9 +872,9 @@ export async function openProject(slug, { view = null } = {}) {
   // survive the switch the same way.
   S.live = liveMapFor(slug, S.chat?.id);
   S.autoscroll = true;
-  // Opening the chat is reading it. Behind an editor it is not on screen, so
-  // its marks wait for the pill to be pressed.
-  if (!S.editor) readMentions();
+  // Opening the chat is reading it. Behind another mode it is not on screen,
+  // so its marks wait for the pill to be pressed.
+  if (S.mode === 'chat') readMentions();
   S.palette = null;
   // Off with the last game's dressing before the first paint, like the
   // palette: this game's own arrives with its colours below.
@@ -881,19 +897,18 @@ export async function openProject(slug, { view = null } = {}) {
     if (hasEditor('story')) await loadStory();
     render();
   }
-  // The rail keeps whichever tab you were on unless a URL says otherwise, so
-  // arriving at a game with Versions already open has to fetch now. Waiting
-  // for the next click on the tab is what made the list look empty until you
-  // left it and came back.
+  // A game remembered on Share has to fetch what Share shows now. Waiting for
+  // the next click is what made the list look empty until you left it and
+  // came back.
   // ⚠️ The chat is named explicitly, whatever the view says: it was settled
   // above, and applyView reads a missing chat as "the one the project opens
   // on". Left out, this call undid the remembered chat a beat after opening
   // it — the game appeared in the conversation you left it in and then
   // switched itself to Humans only. Back and Forward still reset, because
-  // there the missing chat is the address talking. The editor is named for
-  // the same reason.
+  // there the missing chat is the address talking. The mode is named for the
+  // same reason.
   await applyView({
-    ...(view ?? { tab: S.tab }), chat: S.chat?.id, edit: S.editor, scene: view?.scene,
+    ...(view ?? {}), chat: S.chat?.id, mode: S.mode, scene: view?.scene,
   });
 }
 
@@ -1068,7 +1083,7 @@ function onEvent(name, data) {
       // anywhere else — the chat behind an editor included — it leaves a mark
       // on that game, and on that chat's pill, until you go and look.
       if (data.mentions?.includes(S.me?.id)) {
-        if (here(data) && S.editor === null) {
+        if (here(data) && S.mode === 'chat') {
           api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
         } else {
           const row = S.projects.find((p) => p.slug === data.project_slug);
@@ -1240,7 +1255,7 @@ function onEvent(name, data) {
       // landing is not somewhere the reader navigated to, and every one would
       // otherwise leave an entry behind.
       S.historyStale = true;
-      if (S.tab === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
+      if (S.mode === 'share') urlAs('replace', () => loadHistory(S.historyPath));
       // The open file has one more version than it had a moment ago —
       // including when this is the commit our own saves just became.
       if (S.open && data.paths.includes(S.open.path)) countVersions();
@@ -1504,7 +1519,8 @@ export async function openFile(path) {
   S.drawRefused = null;
   S.sound = null;
   S.soundRefused = null;
-  S.tab = 'files';
+  // A file opens under Code, wherever it was asked for.
+  showMode('code');
   render();
   // A picture opens as a picture you can draw on. There was a second way to
   // look at one and it showed it at exactly the same size, so it was a control
@@ -2393,8 +2409,8 @@ export async function openChat(id) {
   // A chat pill pressed while an editor is up brings the chat forward — the
   // one already behind the editor included, which is why the early return
   // below still paints.
-  const fromEditor = S.editor !== null;
-  showEditor(null);
+  const fromEditor = S.mode !== 'chat';
+  showMode('chat');
   if (!S.project || id === S.chat?.id) {
     // Coming out from behind the editor is opening the chat: what called you
     // there while it was hidden has now been seen.
@@ -3188,7 +3204,7 @@ function renderFilesTab() {
         text: S.open.versions
           ? `${S.open.versions} version${S.open.versions === 1 ? '' : 's'}`
           : 'Versions',
-        onclick: () => { S.tab = 'versions'; loadHistory(S.open.path); },
+        onclick: () => { showMode('share'); return loadHistory(S.open.path); },
       }),
       h('button', {
         class: 'quiet tiny', text: 'Rename',
@@ -3287,8 +3303,8 @@ function renderFilesTab() {
           ? h('div', {
             class: 'pad hint muted',
             text: isAchievementsPath(S.open.path)
-              ? 'This is the text behind the Achievements tab. Close it here to go back to editing there.'
-              : 'This is the text behind the Story tab in the middle. Close it here to go back to editing there.',
+              ? 'This is the text behind the achievements under Share. Close it here to go back to editing there.'
+              : 'This is the text behind Write. Close it here to go back to editing there.',
           })
           : null,
         /\.svg$/i.test(S.open.path) ? svgPreview(area) : null,
@@ -3466,7 +3482,7 @@ function renderPreview() {
   // opens straight into that scene, and one that does not ignores it. Held
   // while the editor is up, so a save from it lands back in the scene being
   // worked on; cleared with the game.
-  const scene = S.editor && S.tryScene ? S.tryScene : null;
+  const scene = editorShowing() && S.tryScene ? S.tryScene : null;
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
     + (scene ? `&scene=${encodeURIComponent(scene)}` : '');
   // Folded, the frame is unloaded rather than hidden: a collapsed preview is
@@ -3548,45 +3564,58 @@ function railGrip() {
   return grip;
 }
 
+// The rail is the running game and nothing else (spec.md §6): the preview,
+// and under it what the game reported. The four tabs that used to sit here —
+// Files, Versions, Scoreboard, Achievements — are modes of the centre now.
 function renderRail() {
   if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
-
-  const tab = (id, label) => h('button', {
-    class: `tiny${S.tab === id ? ' on' : ''}`,
-    text: label,
-    onclick: async () => {
-      // Clicking Versions means all of them, the same as Show all. A list
-      // filtered to one file is somewhere you arrive from that file, not a
-      // state the tab should hold on to. Held and awaited, or the render below
-      // would write the filter's address on the way to dropping it.
-      await urlAs('hold', async () => {
-        S.tab = id;
-        if (id === 'versions' && historyNeedsLoad(null)) await loadHistory(null);
-        // Fresh every time: the public posts scores while the studio is idle.
-        if (id === 'scoreboard') await loadScores();
-        if (id === 'achievements' && (!S.achievements || S.achievements.grown)) await loadAchievements();
-      });
-      render();
-    },
-  });
-
-  let body = [];
-  if (S.tab === 'versions') body = renderVersionsTab();
-  else if (S.tab === 'scoreboard') body = renderScoreboardTab();
-  else if (S.tab === 'achievements') body = renderAchievementsTab();
-  else body = renderFilesTab();
-
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
     railGrip(),
-    // Above the tabs and outside them: the game is what the rail is about, and
-    // it used to be a tab you had to leave the files to see.
-    renderPreview(),
-    h('div', { class: 'pad row' },
-      h('button', { class: 'quiet only-narrow', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } }),
-      h('div', { class: 'tabs' },
-        tab('files', 'Files'), tab('versions', 'Versions'),
-        tab('scoreboard', 'Scoreboard'), tab('achievements', 'Achievements'))),
-    ...body);
+    // On a phone the rail is a pane of its own, and this is the way back.
+    h('div', { class: 'pad row only-narrow' },
+      h('button', { class: 'quiet', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } })),
+    renderPreview());
+}
+
+// The centre's body for every mode but the chat, whose thread and composer
+// are chat.js's. An editor is its type's; Code is the file list with the open
+// file's editor under it, as the rail's Files tab was; Share is a page.
+export function renderModeBody() {
+  const editor = editorShowing();
+  if (editor) return editor.render();
+  if (S.mode === 'code') return renderFilesTab();
+  if (S.mode === 'share') return renderShareMode();
+  return null;
+}
+
+// Share: the game's public face and its history — the address and whether it
+// is in the games list, then the versions, the scoreboard and the
+// achievements (spec.md §6). Each was a tab of the rail; here they are
+// sections of one page in one scroller, each keeping the rendering it had.
+function renderShareMode() {
+  const p = S.project;
+  const section = (label) => h('div', { class: 'section-label', text: label });
+  return h('div', { class: 'share scroll', 'data-scroll': 'share' },
+    section('The link'),
+    h('div', { class: 'pad link-card' },
+      // A link looks at something: the game, where the public plays it.
+      h('a', {
+        class: 'play-link mono', href: p.play_url, target: '_blank', rel: 'noopener', text: p.play_url,
+      }),
+      h('p', {
+        class: 'hint muted',
+        text: p.published
+          ? 'It is on the games page, where everybody sees it. Anyone with the link can play it.'
+          : 'Anyone with the link can play it. It is not on the games page.',
+      }),
+      p.mine && !p.archived ? h('button', {
+        class: 'quiet tiny',
+        text: p.published ? 'Take it out of the games list' : 'Put it in the games list',
+        onclick: () => { S.dialog = { kind: 'publish' }; render(); },
+      }) : null),
+    section('Versions'), renderVersionsTab(),
+    section('Scoreboard'), renderScoreboardTab(),
+    section('Achievements'), renderAchievementsTab());
 }
 
 /* Render ------------------------------------------------------------------ */
@@ -3690,5 +3719,16 @@ export function render() {
 for (const type of ['dragover', 'drop']) {
   window.addEventListener(type, (e) => { if (isFileDrag(e)) e.preventDefault(); });
 }
+
+// An open ··· closes when anything outside it is pressed, and on Escape. Its
+// own items close it themselves on the way to their dialog. ⚠️ On click, not
+// mousedown: a render between the two replaces the node under the pointer,
+// and the click that was meant for a pill never fires.
+document.addEventListener('click', (e) => {
+  if (S.menu && !e.target.closest?.('.more')) { S.menu = null; render(); }
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && S.menu) { S.menu = null; render(); }
+});
 
 start();

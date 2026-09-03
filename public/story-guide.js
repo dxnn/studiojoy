@@ -476,7 +476,7 @@ function pictureCard(q) {
     h('div', { class: 'guide-row' }, about),
     h('div', { class: 'row wrap guide-acts' },
       h('button', {
-        class: 'filled tiny', text: 'Draw it', title: 'A blank picture, opened on the right to draw on',
+        class: 'filled tiny', text: 'Draw it', title: 'A blank picture, opened under Code to draw on',
         onclick: async () => {
           placed(q);
           if (await createPictureAt(q.path, width, height)) render();

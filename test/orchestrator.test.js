@@ -533,7 +533,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // a helper knows what a stray extra key costs them.
   assert.match(system, /"quiz editor"/);
   assert.match(system, /"story editor"/);
-  assert.match(system, /"achievements editor", the Achievements tab in/);
+  assert.match(system, /"achievements editor", the Achievements part of/);
   assert.match(system, /config\/story\.js/);
   assert.match(system, /config\/achievements\.js/);
   // Moments are what achievements are written over, so the preamble says where
@@ -585,7 +585,7 @@ test('a visual novel tells its helpers what the story file is', async (t) => {
 
   const { system } = llm.lastCall();
   assert.match(system, /This game is a visual novel/);
-  assert.match(system, /"story editor", the Story tab beside this chat/);
+  assert.match(system, /"story editor" — Write, in the row of modes over this chat/);
   assert.match(system, /assets\/sprites\/<who>-<mood>\.png/);
   assert.match(system, /a request about what happens is config\/story\.js alone/);
   // The guide's two buttons, by the words on them: a person stuck for words

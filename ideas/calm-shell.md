@@ -269,6 +269,12 @@ in the same commit.
    with Archive, the confirmation, the one-way route and `bin/unarchive.js`;
    `Reopen` gone; `?mode=`. Surfaces move, none is redesigned. spec.md §3, §6
    "The shell", §11, §12; GLOSSARY *mode*, *editor*, *game actions*, *view*.
+
+   *Landed 2026-09-02.* Modes are Chat · Write · Code · Share for a visual
+   novel and Chat · Code · Share for everything else until step 4 brings
+   Pics and Hear. Two small choices: an archived game keeps `Editors…` in
+   its `···` and loses everything else, and on a phone the bar's way to the
+   rail says *Preview*, since the rail is only the preview now.
 3. **`···` on every thing, and the inspector.** The file bar, the scene and
    line and choice buttons, the version rows; the scene's picture and music
    into the inspector; the shelf as a dialog with a filter. The preamble's

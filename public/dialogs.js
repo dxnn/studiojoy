@@ -144,15 +144,15 @@ export function dialogFor(d) {
           // front door with nobody in the room.
           //
           // A template also opens where the game is made: a type with an
-          // editor opens on it, in the middle — its heart stays in the rail's
-          // list rather than opening there too, because two surfaces for one
-          // file is one too many — and a template with a heart and no editor
-          // opens the heart in the rail, the quiz's form. Both steps under one
-          // hold, or arriving would leave two entries behind and Back would
-          // land in the empty half of it.
+          // editor opens in that mode — its heart stays in Code's list rather
+          // than opening there too, because two surfaces for one file is one
+          // too many — and a template with a heart and no editor opens the
+          // heart under Code, the quiz's form. Both steps under one hold, or
+          // arriving would leave two entries behind and Back would land in
+          // the empty half of it.
           const editor = editorsFor(res.body.type)[0]?.id ?? null;
           await urlAs('hold', async () => {
-            await openProject(res.body.slug, { view: { chat: res.body.chat?.id, edit: editor } });
+            await openProject(res.body.slug, { view: { chat: res.body.chat?.id, mode: editor } });
             if (heart && !editor) await openFile(heart);
           });
           render();
@@ -181,16 +181,33 @@ export function dialogFor(d) {
 
   // Only reachable for a game that is already archived: nothing in the
   // interface archives one any more.
+  // One way, and said so (spec.md §11): the route refuses everybody but the
+  // person who made the game, and refuses a game that is in the games list —
+  // the ··· offers this only when both hold, so the refusals here are for a
+  // game that changed under the menu. Coming back is `npm run unarchive`.
   if (d.kind === 'archive') {
-    return wrap('Work on this again?',
-      h('p', { text: 'You will be able to change files and talk to helpers again.' }),
+    const chat = S.project.kind === 'chat';
+    return wrap(chat ? 'Archive this chat?' : 'Archive this game?',
+      h('p', {
+        text: chat
+          ? 'Nobody will be able to talk in it any more; what was said stays readable.'
+          : 'Nobody will be able to change it or talk in it any more. People can still play it at its address, and its scores stay.',
+      }),
+      h('p', { class: 'hint muted', text: 'This cannot be undone from the studio — only whoever runs it can bring it back, from the terminal.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Reopen it',
+        class: 'danger', text: 'Archive it',
         onclick: async () => {
-          await api('POST', `/api/projects/${S.slug}/archive`, { archived: false });
+          const res = await api('POST', `/api/projects/${S.slug}/archive`);
           close();
-          // Reopening the game you are already in is not somewhere new to go
-          // Back from, even though it does clear the rail.
+          if (!res.ok) {
+            say(res.body?.error ?? 'Could not archive it.', true);
+            return;
+          }
+          // Said now rather than learnt from the refetch: the way out of a
+          // game lands its pending commit, and an archived game refuses that.
+          S.project.archived = true;
+          // Archiving the game you are already in is not somewhere new to go
+          // Back from, even though it changes what the bar offers.
           await urlAs('replace', () => openProject(S.slug));
         },
       })));

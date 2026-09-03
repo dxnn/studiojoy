@@ -187,7 +187,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
 | `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
 | `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |
-| `created_by` | INTEGER NOT NULL → users | display only |
+| `created_by` | INTEGER NOT NULL → users | the **originator**: the one account that may archive the game (§11). Display otherwise |
 | `created_at` | TEXT NOT NULL | |
 
 The slug is immutable in v0 — renaming it would move the directory and break
@@ -813,7 +813,7 @@ email addresses to do its job.
 | DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
-| POST | `/api/projects/:slug/archive` | `{archived: bool}` | archive or unarchive |
+| POST | `/api/projects/:slug/archive` | — | archive, one way: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first. Unarchiving is `npm run unarchive` |
 | POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
 | DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
 | POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
@@ -1177,39 +1177,46 @@ to the rail width; the filter is not, because a filter still in force tomorrow
 is a list with things missing from it. The button above the tabs makes whatever
 the open tab holds, so `+ New chat` is never a click away from the chats.
 
-**The whole-game actions are three buttons at the end of the game's own bar** —
-`Fork`, the publish status, `Editors`. Fork is everybody's; the other two are
-an editor's, and are absent rather than disabled for anybody else, because a
-button you may not press is a question you cannot answer. Renaming is not among
-them — the pencil beside the name is. They were at the foot of the Play tab
-first, then a drawer under the name; a drawer is somewhere to hide things, and
-three buttons and their own state do not need hiding. The words that went with
-them are gone with it: the padlock says whether the game is closed and the
-publish button says whether it is listed, so "in the games list", "by Dann" and
-"authors only" were three labels restating two buttons.
+**Everything you can do to the whole game is behind one `···` beside its
+name** — Rename, Fork, Editors, the games list, Add chat, Archive — each an
+item that opens its dialog, and each absent rather than greyed for anybody who
+may not press it: Fork is everybody's; Rename, Editors, the games list and Add
+chat are an editor's; Archive is the *originator*'s, and only while the game
+is out of the games list (§11). Nothing to offer means no `···`. The bar
+itself holds state and nothing else: the padlock, the `archived` tag, and a
+whisper saying whether the game is in the games list. This reverses an
+earlier decision — three buttons at the end of the bar, and a drawer under
+the name before that — for a reason that is no longer local: every thing in
+the studio has one `···` (ideas/calm-shell.md), and the game is a thing.
 
-**The row under it is the conversation's**: `+chat` pinned at the left, the
-chat pills, and the helpers listening in this chat at the right. ⚠️ The pills
-and the helper chips are each their own horizontal scroller, so a studio's
-worth of chats and a crowd of helpers give way to each other rather than one
-pushing the other off the end.
+**The row under it is the mode row**: one pill per surface the centre can
+show, in the order the type gives (`modesFor` in `public/game-types.js`) —
+**Chat**, then the type's editors (**Write** for a visual novel), then
+**Code** and **Share**. A chat project is one room and has no row. Which is
+showing is the centre's one piece of state (`S.mode`), in the address as
+`?mode=`, remembered per game; a game opens on what the address says, else
+what this browser remembers, else its type's first editor, else Chat. There
+is no Play: the preview lives in the rail and only there, so the
+ask-commit-reload-play loop stays one pane away whatever mode is up. Leaving
+a mode lands the game's *pending commit* (§5).
 
-**The body of the centre pane is a chat or an editor.** An **editor** is a
-surface a *game type* brings — `public/game-types.js` maps `projects.type` to
-its editors, one entry each, and that file is the whole registry — and it is
-one more pill in the row over the conversation, before the chats with a
-hairline between the two kinds, taking the whole pane the way a chat does: no
-narrow chat beside it, no drawer, the sidebar and the rail as they are. Which
-is showing is the centre's one piece of state (`S.editor`); `S.chat` is
-untouched by it, so the chat behind an editor keeps filling, a mention lands
-as a mark on its pill rather than being read, and pressing the pill paints
-what arrived. On an editor's tab the right-hand end of the row is empty — the
-chips and the `+` are the open chat's. A game opens on the address if it says
-(`?edit=`, or `?chat=`, which is no editor), else what this browser remembers
-for the game, else the type's first editor for a game that has one and the
-chat for a game that does not; so a new visual novel opens on its story
-editor, and a free-form game is exactly as it was. The *story editor* is the
-first (below); a type may bring several.
+**The body of the centre pane is the mode's.** Chat is the chat's own row —
+its pills, the helpers listening in the one showing and the `+` that calls
+another in (⚠️ each its own horizontal scroller, so a studio's worth of chats
+and a crowd of helpers give way to each other rather than one pushing the
+other off the end) — over the thread and the composer. An **editor** is a
+surface a *game type* brings, one mode each — `public/game-types.js` maps
+`projects.type` to its editors, one entry each, and that file is the whole
+registry — taking the whole pane the way the chat does. Code is the file list
+with the open file's editor under it, as the rail's Files tab was; Share is
+one page — the game's address and whether it is in the games list, then the
+versions, the scoreboard and the achievements, each keeping the rendering it
+had as a rail tab, in one scroller. `S.chat` is untouched by the mode, so the
+chat behind another mode keeps filling, a mention lands as a mark on the Chat
+pill rather than being read, and pressing the pill paints what arrived. The
+*story editor* is the first editor (below); a type may bring several. Old
+addresses still read: `?edit=` is a mode, `?tab=files` is Code, the other
+tabs are Share.
 
 **A game a person makes is open** — the whole studio may change it — and an
 editor closes it in the `Editors` dialog, which puts a padlock in front of its
@@ -1221,14 +1228,13 @@ database written before this already has the column, and SQLite cannot change a
 default after the fact. Chat projects stay closed — they have no working tree,
 and `open_edit` there is about who may start chats in somebody's conversation.
 
-**The rail is the preview and four tabs.** The preview is not a tab any more —
-a game is what the rail is about, so it sits at the top of it whatever is open
-underneath, with `Open` and `Hide` on the frame because both act on the running
-game. Folded, it is one row that still plays, remembered per browser. `Reload`
-is gone: a commit already reloads it, which is the sentence printed under it.
-The share URL row is gone too — `Open` opens the address it would have printed.
-What is left is **Files · Versions · Scoreboard · Achievements**, and a
-`?tab=play` link from before falls back to Files, where its preview now is.
+**The rail is the running game and nothing else**: the preview, with `Open`
+and `Hide` on the frame because both act on the game, and under it the
+problems and the moments the game reported. Folded, it is one row that still
+plays, remembered per browser. `Reload` is gone: a save already reloads it.
+The four tabs that used to sit under it — Files, Versions, Scoreboard,
+Achievements — are modes of the centre now (above), and the file editors
+that opened under Files open under Code.
 
 **A game lends the studio its four colours** — its *look* — while it is open.
 `config/look.js` is read once for both the *palette* and these; the four are
@@ -1555,7 +1561,7 @@ there.
 
 The **achievements editor** is the third, and the first that every game has:
 `config/achievements.js` is seeded into every game (§4), so its editor is not
-a template's but the rail's own **Achievements** tab, beside Scoreboard — the
+a template's but the studio's own, the **Achievements** part of Share — the
 list of what a player can earn, one open in its own row with its name, how to
 get it, an icon and the *moment* and test it waits for; `+ Add an
 achievement`; `Take it out`, with a confirm that says how many players keep
@@ -1569,7 +1575,7 @@ painted in place, and the moments the *reporter* has heard this game say this
 session (§8), offered where a rule names one and flagged where a rule names
 one never heard. Explicit Save with `if-match` and an `achievements-conflict`
 dialog on a 409; unsaved edits are parked per game the way the story's are.
-`?tab=achievements` is its address. The libraries and the seed reach an
+`?mode=share` is its address. The libraries and the seed reach an
 existing game through the *sweep*; the `<script>` tags in its `index.html`
 and its own `Moments.say()` calls stay a helper's job, as the preamble says.
 
@@ -1677,7 +1683,7 @@ dialog, so a helper's reply landing does not wipe what is being typed.
 
 A picture is a file, so the guide's four ways to one commit at once: **Draw
 it** writes a blank PNG at the path the story expects and opens it in the
-rail's pixel editor; **Upload one** takes any picture from this device and
+pixel editor under Code; **Upload one** takes any picture from this device and
 saves it as a PNG at that path; **Make one for me** asks the studio to draw
 one (below); and **A plain card for now** is the **plain stand-in** — a flat
 card in the game's *look*, the deep colour, a primary border, a round face for
@@ -1897,15 +1903,15 @@ away, and a message refused by a dead connection stays in the composer.
 Other paths serve from `public/`.
 
 The rest of the view is in the query string, which the server never reads:
-`?tab=versions|scoreboard|achievements` — absent means Files, and a `?tab=play` link from
-before the Play tab was retired falls back to Files, which is where its
-preview is anyway — `?file=<path>` for the open file under Files or the filter
-under Versions, and `?version=<sha>` for the changes opened
-in the Versions list. The centre pane's surface is there too: `?chat=<id>`
-for a conversation other than the one the project opens on, or `?edit=<id>`
-for an *editor* with `?scene=<key>` for the story editor's selected scene when
-it is not the first — never both, because an editor stands in front of
-whichever chat was open, so Back to the chat is the address without `?edit=`.
+`?mode=<id>` for the centre's *mode* when it is not the chat — an editor's
+id, `code` or `share` — with `?scene=<key>` for the story editor's selected
+scene when it is not the first, `?file=<path>` for the open file under Code
+or the filter on Share's versions, and `?version=<sha>` for the changes opened
+there; or `?chat=<id>` for a conversation other than the one the project
+opens on — never both, because a mode stands in front of whichever chat was
+open, so Back to the chat is the address without `?mode=`. Addresses from
+before are still read: `?edit=<id>` is a mode, `?tab=files` is Code, the
+other tabs are Share, and `?tab=play` is nothing at all.
 Switching tab or scene is a navigation and its own entry; selecting a step
 inside a scene is not. The client writes it from its own state on every render
 rather than at each click, so no control can forget to, and every view is an
@@ -1963,7 +1969,7 @@ A game whose `scores_on` switch is off answers the same plain 404 on both
 `/_scores` routes: a moderated board is not public in either direction. The
 rows are kept — the switch, the admin's list, and per-row deletion all live
 on the studio origin under `/api`, because moderation is running the studio.
-The studio shows it as the rail's Scoreboard tab.
+The studio shows it as the Scoreboard part of Share.
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.
@@ -2069,7 +2075,7 @@ the studio's but expiring (§11).
 origin, so game A can post to game B's board as its player — and no credential
 kept in the browser could have been scoped either, since game A could as well
 have asked for game B's token. The row names the player, not the game's
-author; per-row deletion in the Scoreboard tab is the answer, and the only
+author; per-row deletion under Share is the answer, and the only
 real scoping would be an origin per game, a deployment change nobody has
 needed (ideas/scoreboard-trust.md).
 
@@ -2852,6 +2858,17 @@ Two exceptions, both on purpose:
 who can read a game can copy it; the copy belongs to whoever made it, and is
 not open even if the original was.
 
+**Archiving is the originator's alone, and one way.** `projects.created_by` —
+the person who made the game, display-only until now — is the one account
+`POST /archive` accepts, whoever else may edit and however open the game is:
+taking a game out is about the game, not about editing it. A published game
+cannot be archived; it comes out of the games list first, in the same menu.
+And nothing over the wire unarchives: `npm run unarchive -- <slug>` is the
+way back, at a terminal, the way `restoreuser` is for an account — rare,
+deliberate, and never a button somebody is tempted to press. An originator
+who has been *removed* leaves a game nobody can archive from the studio; the
+terminal still can, by hand.
+
 The client mirrors the rule rather than enforcing it: `frozen()` in `main.js`
 is `archived || !can_edit`, and every control that was disabled for an
 archived game is disabled for somebody else's. The server is what refuses.
@@ -2928,7 +2945,8 @@ Tests enforce each of these.
   and `budget_reset_at` is always strictly in the future of the value used to
   compute it.
 - An archived project rejects every write with 409, while its game stays
-  publicly served.
+  publicly served. Only its originator can archive it, never while it is
+  published, and no route unarchives it.
 - A project's git repository has at least one commit from the moment the
   project exists.
 - A chat has nothing on disk: no directory is created for it, every route that
@@ -3349,8 +3367,8 @@ timer. Checked at 87,000 characters of trace.
 
 ### The URL is the view
 
-`?tab=`, `?file=`, `?version=`, `?chat=`, `?edit=` and `?scene=` carry what
-you are looking at, so a link sends it and a reload comes back to it. Written
+`?mode=`, `?file=`, `?version=`, `?chat=` and `?scene=` carry what you are
+looking at, so a link sends it and a reload comes back to it. Written
 by `render()`, read by the same code on load and on Back. The server never
 looks at the query.
 
@@ -3373,7 +3391,7 @@ its promise to the `onclick` for the same reason.
 
 ⚠️ The same rule the other way round: **anything that reaches a view in more
 than one step wraps them in `urlAs('hold', …)`**, or each step leaves an entry
-behind. Three places do it — `All files changed (n)`, the Versions tab, and a
+behind. Three places do it — `All files changed (n)`, the Share pill, and a
 file chip under a reply — and each ends with `loadDiff(sha, {goTo: true})` so
 the row it opened is the row you are looking at.
 

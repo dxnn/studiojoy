@@ -73,6 +73,9 @@ function projectPublic(ctx, row, user = null) {
     open_edit: row.open_edit === 1,
     authors: listAuthors(db, row.id),
     mine: user ? isAuthor(db, row.id, user.id) : false,
+    // Whether you made it. The one thing that is the originator's alone is
+    // archiving (§11), and the ··· needs to know before offering it.
+    originator: user ? row.created_by === user.id : false,
     can_edit: user ? canEdit(db, row, user) : false,
     created_by: row.created_by,
     created_at: row.created_at,
@@ -502,33 +505,33 @@ export function projectRoutes(r) {
     json(ctx.res, 200, { slug: project.slug, published });
   });
 
-  // Archiving is reversible and never affects the public game, so it takes a
-  // boolean rather than being a one-way door.
+  // One way (spec.md §11). Archiving is the *originator's* — the person who
+  // made the game, `created_by`, not its editors and not an open game's whole
+  // studio: taking a game out is about the game, not about editing it. And
+  // never a published game's: a game people can find in the games list is
+  // not one to quietly stop, so it comes out of the list first, in the same
+  // menu. Coming back is `npm run unarchive`, a terminal's job — rare and
+  // deliberate, like putting an account back. Nothing in the body is read.
   r.post('/api/projects/:slug/archive', async (ctx) => {
     const user = requireAuth(ctx);
     const slug = requireSlug(ctx.params.slug);
     const project = ctx.db.prepare('SELECT * FROM projects WHERE slug = ?').get(slug);
     if (!project) throw new HttpError(404, 'no such project');
-    // Not requireProject({write:true}): this route is the one that reopens an
-    // archived game, and that check refuses an archived one on principle. The
-    // authorship half of it still applies.
-    if (!canEdit(ctx.db, project, user)) {
-      throw new HttpError(403, `${project.name} is not yours to change — ask one of its editors`);
+    if (project.created_by !== user.id) {
+      throw new HttpError(403, `${project.name} is not yours to archive — only whoever made it can`);
+    }
+    if (project.archived) throw new HttpError(409, 'project is archived');
+    if (project.published) {
+      throw new HttpError(409, `${project.name} is in the games list — take it out first`);
     }
 
-    const body = await readJson(ctx.req);
-    const archived = body.archived === undefined ? true : body.archived;
-    if (typeof archived !== 'boolean') {
-      throw new HttpError(400, 'archived must be a boolean');
-    }
     // Whatever the game still owes history lands before the door shuts, so
     // an archived game's Versions is complete the moment it is archived.
-    if (archived) await ctx.pending.settle(project.slug);
-    ctx.db.prepare('UPDATE projects SET archived = ? WHERE id = ?')
-      .run(archived ? 1 : 0, project.id);
+    await ctx.pending.settle(project.slug);
+    ctx.db.prepare('UPDATE projects SET archived = 1 WHERE id = ?').run(project.id);
     ctx.broker.broadcast('project.updated', {
-      slug: project.slug, name: project.name, archived,
+      slug: project.slug, name: project.name, archived: true,
     });
-    json(ctx.res, 200, { slug: project.slug, archived });
+    json(ctx.res, 200, { slug: project.slug, archived: true });
   });
 }

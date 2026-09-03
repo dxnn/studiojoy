@@ -36,6 +36,10 @@ holds plans and sketches. Completed work is git history, not this file.
   no route, no button. A soft delete: `users.deleted = 1` and their sessions,
   never a DELETE. `npm run restoreuser -- <email>` is the undo; with no email
   it lists who is out.
+- `npm run unarchive -- <slug>` — ⚠️ the *only* way an archived game comes
+  back: archiving is one way from the studio, the originator's alone, and
+  never a published game's (spec.md §11). With no slug it lists what is
+  archived.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
@@ -195,7 +199,7 @@ active row) and stays cyan whatever game is open; **pink is a helper**; **gold
 is a number worth looking at** — a score, a version — and nothing else;
 **crimson is danger** and nothing else. A game's own four (`primary`, `accent`,
 `highlight`, `deep` in its `config/look.js`) colour that game's surfaces only:
-the chat pane, the composer, the game's actions, the rail. ⚠️ Gold is the one
+the chat pane, the composer, the mode row, the rail. ⚠️ Gold is the one
 to police — the moment it appears on something that is not a number, the
 direction stops working.
 
@@ -237,10 +241,12 @@ specified:
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is
   never written back, so an existing visual novel needs its own `js/story.js`
   brought forward before its story is re-saved (§6).
-- The rail opens a file as coloured text, a config form, a pixel editor, a
-  sound editor or a media player, and holds the **Achievements** tab — every
-  game's achievements editor, beside Scoreboard; the centre pane opens a game
-  type's editors beside its chats (§6).
+- The centre pane is one **mode** at a time — Chat, a game type's editors,
+  Code, Share — in a row of pills over it; the rail is the preview and
+  nothing else. Code opens a file as coloured text, a config form, a pixel
+  editor, a sound editor or a media player; Share is the link, the versions,
+  the scoreboard and the achievements editor as one page. Everything done to
+  the whole game is behind one `···` beside its name (§6, ideas/calm-shell.md).
 
 Open questions:
 

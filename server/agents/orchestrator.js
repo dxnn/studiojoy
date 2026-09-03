@@ -208,8 +208,8 @@ function studioPreamble({
       '  comments when you do. Use patch_file for a single value so the rest of the file stays untouched.',
       '- ⚠️ Three of them open as an editor for the whole game rather than a list of fields, and only while',
       '  they keep their exact shape: config/questions.js as the "quiz editor", config/story.js as the',
-      '  "story editor", and config/achievements.js as the "achievements editor", the Achievements tab in',
-      '  the rail (each entry is id, name, how, icon, when). Adding a key those do not know — a weight on an',
+      '  "story editor", and config/achievements.js as the "achievements editor", the Achievements part of',
+      '  Share (each entry is id, name, how, icon, when). Adding a key those do not know — a weight on an',
       '  answer, a field on a scene, a second test on a rule — costs the person the editor and drops them',
       '  back to a form or to the code.',
       '  Do not reshape one to add a feature unless you have been asked for that feature and told the trade;',
@@ -290,13 +290,13 @@ function studioPreamble({
   // What this game is, when the studio knows (projects.type). A type brings
   // an editor the person works in, and a helper that has not been told sees
   // the story as a file to rewrite from the wrong end. Named by the words on
-  // the tab, like every other button; orchestrator.test.js asserts them.
+  // the pill, like every other button; orchestrator.test.js asserts them.
   if (project.type === 'visual-novel') {
     lines.push(
       '',
       'This game is a visual novel. The whole story is config/story.js — CAST, who speaks and their moods,',
       'and SCENES, each a picture, music, lines read from the top, then choices, a go, or the end — and',
-      'the person writes it in the "story editor", the Story tab beside this chat, which shows it as scenes',
+      'the person writes it in the "story editor" — Write, in the row of modes over this chat — which shows it as scenes',
       'and lines rather than as code. So the story is changed by changing that file inside its shape,',
       'and a picture is asked for by the name the story gives it: a scene\'s is its picture path under',
       'assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played',

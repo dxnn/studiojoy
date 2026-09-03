@@ -422,7 +422,7 @@ test('renaming changes the name and never the slug', async (t) => {
   assert.equal(fs.existsSync(path.join(app.gamesDir, 'tank')), true);
 });
 
-test('archiving blocks writes, reads keep working, and it reverses', async (t) => {
+test('archiving blocks writes, reads keep working, and it is one way', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
 
@@ -442,29 +442,41 @@ test('archiving blocks writes, reads keep working, and it reverses', async (t) =
   assert.equal(write.status, 409);
   assert.match(write.body.error, /archived/);
 
-  // And it is not a one-way door.
-  const restored = await app.client.json('POST', '/api/projects/tank/archive', {
+  // No unarchiving over the wire, whatever the body says: that is
+  // `npm run unarchive`, at a terminal (spec.md §11).
+  const again = await app.client.json('POST', '/api/projects/tank/archive', {
     body: { archived: false },
   });
-  assert.equal(restored.body.archived, false);
-  assert.equal(
-    (await app.client.json('PATCH', '/api/projects/tank', { body: { name: 'Yes' } })).status,
-    200,
-  );
-});
-
-test('archive requires a boolean and an existing project', async (t) => {
-  const app = await studio(t);
-  await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
-  assert.equal(
-    (await app.client.json('POST', '/api/projects/tank/archive', {
-      body: { archived: 'yes' },
-    })).status,
-    400,
-  );
+  assert.equal(again.status, 409);
+  assert.equal((await app.client.json('GET', '/api/projects/tank')).body.archived, true);
   assert.equal(
     (await app.client.json('POST', '/api/projects/nope/archive', { body: {} })).status,
     404,
+  );
+});
+
+test("archiving is the originator's alone, and never a published game's", async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
+  // A new game is open, so a second account may change it — and still may not
+  // put it away.
+  const other = app.newClient();
+  await signIn(app, { email: 'qiby@example.com', displayName: 'Qiby', client: other });
+  const theirs = await other.json('POST', '/api/projects/tank/archive', { body: {} });
+  assert.equal(theirs.status, 403);
+  assert.match(theirs.body.error, /only whoever made it/);
+  // The payload says who may, so the ··· can leave Archive out for everybody else.
+  assert.equal((await app.client.json('GET', '/api/projects/tank')).body.originator, true);
+  assert.equal((await other.json('GET', '/api/projects/tank')).body.originator, false);
+
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  const listed = await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
+  assert.equal(listed.status, 409);
+  assert.match(listed.body.error, /games list/);
+
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: false } });
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/tank/archive', { body: {} })).status, 200,
   );
 });
 

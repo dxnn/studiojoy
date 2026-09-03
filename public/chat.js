@@ -6,11 +6,11 @@
 import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, toolLabel, thinkingFor, urlAs,
-  loadHistory, loadDiff, historyNeedsLoad, toggleChatty, detachAgent,
+  loadDiff, toggleChatty, detachAgent,
   composerBox, sendComposer, send, api, say, sizeText,
-  openChat, openEditor, frozen, canTalk, nearQuota, calledMark,
+  openChat, openMode, showMode, loadShare, renderModeBody, frozen, canTalk, nearQuota, calledMark,
 } from './main.js';
-import { editorsFor } from './game-types.js';
+import { modesFor } from './game-types.js';
 
 /* Render: chat ------------------------------------------------------------ */
 
@@ -310,9 +310,9 @@ function renderMessage(msg) {
       // entry in the history and it ends on the row it opened.
       onclick: async () => {
         await urlAs('hold', async () => {
-          S.tab = 'versions';
+          showMode('share');
           render();
-          if (historyNeedsLoad(null)) await loadHistory(null);
+          await loadShare();
         });
         await loadDiff(w.commit_sha, { goTo: true });
       },
@@ -438,64 +438,82 @@ function helperGap() {
     }), '.');
 }
 
-// What you can do to the whole game, at the right-hand end of its own bar.
-// There used to be a drawer under the name holding these and a row of words
-// about the game's state; the words are gone — the lock says whether it is
-// closed and the publish button says its own state — and three buttons need
-// no drawer to hide in.
+// Everything you can do to the whole game, behind one ··· beside its name
+// (spec.md §6). One menu per thing, in one order, and anything you may not
+// press left out rather than greyed: Fork is everybody's; Rename, Editors, the
+// games list and Add chat are an editor's; Archive is the originator's, and
+// only while the game is out of the games list. Nothing to offer, no ···.
+// Every item asks in a dialog, so every item ends in an ellipsis.
 //
-// Fork is everybody's: copying a game takes nothing from anybody. The other
-// two are an editor's, and absent rather than disabled for anybody else,
-// because a button you may not press is a question you cannot answer.
-function renderActs(p) {
-  const listed = Boolean(p.published);
+// Three of these were buttons at the end of the bar, and a drawer under the
+// name before that. The rule that put them here is not the one that made the
+// drawer — three buttons never needed hiding — but that every thing in the
+// studio has one ···, and the game is a thing.
+function renderMore(p) {
   const yours = Boolean(p.mine);
-  return [
-    h('button', {
-      class: 'act fork',
-      text: 'Fork',
+  const rooms = !isChat();
+  const item = (text, kind, { danger = false, title = null } = {}) => h('button', {
+    class: `menu-item${danger ? ' danger' : ''}`, text, title, role: 'menuitem',
+    onclick: () => { S.menu = null; S.dialog = { kind }; render(); },
+  });
+  const items = [
+    !frozen() && item('Rename…', 'rename'),
+    rooms && !p.archived && item('Fork…', 'fork', {
       title: 'Start a new game from a copy of this one',
-      disabled: p.archived,
-      onclick: () => { S.dialog = { kind: 'fork' }; render(); },
     }),
-    yours && h('button', {
-      class: `act publish${listed ? ' on' : ''}`,
-      title: listed
-        ? 'Everybody sees this game on the games page'
-        : 'Only people with the link can find this game',
-      onclick: () => { S.dialog = { kind: 'publish' }; render(); },
-    }, h('span', { class: 'dot' }), listed ? 'Published!' : 'Unpublished'),
-    yours && h('button', {
-      class: 'act',
-      text: 'Editors',
+    rooms && yours && item('Editors…', 'authors', {
       title: 'Who can change this game, and whether the whole studio can',
-      onclick: () => { S.dialog = { kind: 'authors' }; render(); },
     }),
-  ];
+    rooms && yours && !p.archived && item(
+      p.published ? 'Take it out of the games list…' : 'Put it in the games list…', 'publish',
+    ),
+    rooms && !frozen() && S.chats.length < MAX_CHATS && item('Add chat…', 'new-chat', {
+      title: 'Start another chat in this game',
+    }),
+    p.originator && !p.archived && !p.published && item('Archive…', 'archive', {
+      danger: true, title: 'Put this game away — only a terminal brings it back',
+    }),
+  ].filter(Boolean);
+  if (items.length === 0) return null;
+  const open = S.menu === 'game';
+  return h('div', { class: 'more' },
+    h('button', {
+      class: `icon more-dots${open ? ' on' : ''}`, text: '···',
+      title: 'More', 'aria-label': 'More about this game',
+      'aria-haspopup': 'menu', 'aria-expanded': open ? 'true' : 'false',
+      onclick: () => { S.menu = open ? null : 'game'; render(); },
+    }),
+    open ? h('div', { class: 'menu', role: 'menu' }, items) : null);
 }
 
-// One pill per conversation, and either side of them the things that are about
-// this conversation rather than about the game: making another one, the
-// helpers listening in this one, and the + that calls another in. They were in
-// the bar above with the game's name, which is the game's row, not the room's.
-//
-// Before the chats, the editors the game's type brings — a pill each, with a
-// hairline between the two kinds so a surface reads as a different thing from
-// a room (public/game-types.js). On an editor's tab the right-hand end is
-// empty: the chips and the + are the open chat's, and no chat is showing.
+// The row of modes over the centre (spec.md §6, public/game-types.js): one
+// pill per surface the centre can show, the chat first. A chat project is one
+// room with nothing to switch to, so it has no row. The mark on Chat says
+// somebody called you in a conversation behind whatever mode is up.
+function renderModes(p) {
+  const modes = modesFor(p);
+  if (modes.length < 2) return null;
+  return h('div', { class: 'modes' }, modes.map((m) => h('button', {
+    class: `mode${S.mode === m.id ? ' on' : ''}`,
+    title: m.what,
+    // ⚠️ Returned, not fired: Share reads before it shows (see syncUrl).
+    onclick: () => openMode(m.id),
+  }, m.label, m.id === 'chat' && S.mode !== 'chat' ? calledMark(p.mentions) : null)));
+}
+
+// One pill per conversation, and at the right the things that are about this
+// conversation rather than about the game: the helpers listening in it, and
+// the + that calls another in. Making another chat is the game's ···.
 //
 // ⚠️ The pills and the chips are each their own scroller. Two rows of helpers
 // and a studio's worth of chats will not fit on a phone, and something has to
 // give sideways rather than push the other off the end.
 //
 // Nothing here is ever greyed out: a button you cannot press is a question,
-// and the answer — somebody else's game, an archived one, twenty chats
-// already, a room that takes no helpers — is not one a bar can give. What
-// cannot be done is not offered.
+// and the answer — somebody else's game, an archived one, a room that takes
+// no helpers — is not one a bar can give. What cannot be done is not offered.
 function renderChatTabs(p) {
   if (!S.chat) return null;
-  const editors = editorsFor(p.type);
-  const onEditor = S.editor !== null;
   // The name toggles between answering everything and waiting to be called;
   // the ✕ takes them out. Both are a change to the game, so neither is
   // offered on a game that is archived or somebody else's — the server refuses
@@ -514,38 +532,27 @@ function renderChatTabs(p) {
       title: `Remove ${a.name} from this game`,
       onclick: () => detachAgent(a),
     })));
-  // A chat project is one room: there are no pills to switch between and no
-  // second one to make. Who is listening in it is the whole of this bar there.
+  // A chat project is one room: there are no pills to switch between. Who is
+  // listening in it is the whole of this row there.
   const rooms = !isChat();
-  const addChat = rooms && !frozen() && S.chats.length < MAX_CHATS;
   const addHelper = !frozen() && S.chat.bots;
-  if (!rooms && !addHelper && chips.length === 0 && editors.length === 0) return null;
+  if (!rooms && !addHelper && chips.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
-    addChat ? h('button', {
-      class: 'chat-tab add', text: 'Add chat', title: 'Start another chat in this game',
-      onclick: () => { S.dialog = { kind: 'new-chat' }; render(); },
-    }) : null,
-    editors.length ? h('div', { class: 'pills editors' }, editors.map((e) => h('button', {
-      class: `chat-tab editor${S.editor === e.id ? ' on' : ''}`,
-      title: e.what,
-      onclick: () => openEditor(e.id),
-    }, e.label))) : null,
-    editors.length && rooms ? h('span', { class: 'sep' }) : null,
     rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
-      class: `chat-tab${c.id === S.chat.id && !onEditor ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
+      class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
       title: c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
     },
     c.bots ? null : h('span', { class: 'hush', text: '·' }),
     c.name,
     // The mark on the game says somebody called you; this says in which
-    // conversation — the one behind the editor included.
+    // conversation.
     calledMark(c.mentions)))) : null,
     h('div', { class: 'spacer' }),
-    chips.length && !onEditor ? h('div', { class: 'hchips' }, chips) : null,
+    chips.length ? h('div', { class: 'hchips' }, chips) : null,
     // Outside the chips and never scrolled away with them: the way to add
     // somebody has to stay put whether the row holds nobody or nine.
-    addHelper && !onEditor ? h('button', {
+    addHelper ? h('button', {
       class: 'hchip-add', text: '+',
       title: 'Put a helper in this chat', 'aria-label': 'Put a helper in this chat',
       onclick: () => { S.dialog = { kind: 'add-helper' }; render(); },
@@ -608,10 +615,11 @@ export function renderChat() {
   // opens, which is where its meaning is explained.
   const locked = !isChat() && !p.open_edit;
 
-  // The body of the pane is a chat or an editor. The bar over it and the row
-  // of pills stay whatever is showing; the thread and the composer are the
-  // chat's, and an editor takes their whole space the way a chat does.
-  const editor = editorsFor(p.type).find((e) => e.id === S.editor) ?? null;
+  // The body of the pane is whatever the mode says (spec.md §6). The bar over
+  // it and the row of modes stay whatever is showing; the chat's own row, the
+  // thread and the composer are the chat mode's, and every other mode takes
+  // their whole space the way the chat does.
+  const body = S.mode === 'chat' ? null : renderModeBody();
 
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
     // hero.png, when the game has one, backs the bar under a dark wash so the
@@ -631,26 +639,23 @@ export function renderChat() {
         title: `Only ${p.name}’s editors can change it`,
       }),
       h('div', { class: 'title', text: p.name }),
-      h('button', {
-        class: 'icon tiny', text: '✎', title: 'Rename this game',
-        disabled: frozen(),
-        onclick: () => { S.dialog = { kind: 'rename' }; render(); },
-      }),
       p.archived && h('span', { class: 'tag', text: 'archived' }),
       h('div', { class: 'spacer' }),
-      isChat() ? null : renderActs(p),
-      !isChat() && h('button', { class: 'quiet only-narrow', text: 'Files', onclick: () => { S.narrowPane = 'rail'; render(); } }),
-      p.archived && h('button', {
-        class: 'quiet tiny', text: 'Reopen',
-        title: 'Start working on this again',
-        onclick: () => { S.dialog = { kind: 'archive' }; render(); },
-      })),
-    renderChatTabs(p),
-    editor ? editor.render() : scroller,
+      // State, not a control: whether the game is in the games list. What
+      // changes it is in the ··· and under Share.
+      isChat() || p.archived ? null : h('span', {
+        class: 'whisper',
+        text: p.published ? 'in the games list' : 'not in the games list',
+      }),
+      renderMore(p),
+      !isChat() && h('button', { class: 'quiet only-narrow', text: 'Preview', onclick: () => { S.narrowPane = 'rail'; render(); } })),
+    renderModes(p),
+    body ? null : renderChatTabs(p),
+    body ?? scroller,
     // Send sits beside the box rather than under it: the strip it used to have
     // to itself was a whole row of studio for one button, and the box is wide
     // enough to give the width up.
-    editor ? null : h('div', { class: 'composer' },
+    body ? null : h('div', { class: 'composer' },
       gap,
       pinNote ? h('div', { class: 'hint pins', text: pinNote }) : null,
       h('div', { class: 'say' },

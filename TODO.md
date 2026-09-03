@@ -23,9 +23,6 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- ! build the mode row and take the tabs out of the rail: Chat as a mode, the
-  game's ··· with Archive behind a confirmation, `npm run unarchive` and no
-  Reopen — calm shell step 2 (ideas/calm-shell.md)
 - put a ··· on every thing and the selected thing's fields in the rail, with
   one Copy… whose dialog asks where, and the shelf as a dialog — calm shell
   step 3 (ideas/calm-shell.md)
