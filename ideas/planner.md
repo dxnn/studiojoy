@@ -2,8 +2,9 @@
 
 Nothing here is built. Decided 2026-09-03 after four probes against the live
 API (`tmp/probe-lib.mjs` and the four `tmp/probe-*.mjs` beside it); the
-numbers below are theirs. Names marked *(name?)* are proposals, not glossary
-terms — nothing is coined until agreed.
+numbers below are theirs and spec.md §14 carries their tables. The names —
+*sizing*, *step*, *builder*, and `Building` as the builder's room — were agreed
+the same day and are in GLOSSARY.md.
 
 ## The problem, as measured
 
@@ -130,7 +131,7 @@ attachment swamps it; `response_format` is a belt on top. The trace costs
 
 Three calls where there was one, each small.
 
-**Sizing** *(name?)*. On a human message in a builder chat (below), one
+**Sizing.** On a human message in a builder chat (below), one
 `complete()` — the microhelper shape in `deepseek.js` — with the fire's own
 system prompt, no tools, thinking off, `response_format` json_object as belt
 and the prompt's own JSON ask as braces, parsed defensively like the fill.
@@ -139,7 +140,7 @@ Costs a second or two and warms the fire's cache.
 
 **Small.** Today's fire, unchanged — the cap still stands behind it.
 
-**Steps** *(name?)*. One fire per step. Its last user turn is a `[studio]`
+**Steps.** One fire per step. Its last user turn is a `[studio]`
 row: the request, the plan, which step this is, "do only this step, then one
 line". That reuses the continuation machinery as it stands — a `system` row
 enters the transcript as a user turn and is what gives the next fire something
@@ -156,11 +157,11 @@ as text, to the next request of the same fire". In an open room with no
 planner, the cheaper half of the same finding applies: the retry should carry
 the trace too (probe 4, arm B).
 
-**Thinking levels.** The planner at `none` (measured). Steps at `none`
-(8–9 s, one-line notes) or `low` (8–37 s) — decision below. Small asks keep
-the helper's own level.
+**Thinking levels.** Decided: the planner and every step at `none` — 8–9 s
+and a one-line note, measured — and a small ask at the helper's own level,
+`low` by default, because no plan thought for it first.
 
-## The builder chat *(name?)*
+## The builder chat
 
 Today every game has `Humans only` and `Building`, and the *starter helper* —
 an admin-picked `agents` row — joins `Building` chatty. What is wanted is a
@@ -182,8 +183,10 @@ rooms with chosen helpers stay as they are, made with `Add chat…`.
   running step, then goes through sizing with "steps X–Y of a plan are still
   to do" in the ask, and the planner may return the revised remaining steps.
   Re-plan on interrupt, nothing cleverer.
-- **Which room.** Either `Building` becomes the builder's room, or a third
-  born-with room is added and `Building` stays the open one. Decision below.
+- **Which room.** Decided: `Building` becomes the builder's room. It is already
+  "where a helper can be", the *starter helper* setting becomes moot, and three
+  rooms at birth is more furniture. An existing game's `Building` with helpers
+  in it is renamed to an ordinary chat and given a fresh `Building`.
 
 ## Context per step
 
@@ -214,35 +217,33 @@ already named its files:
 - The trace at step scope is 0–150 tokens at `low` and nothing at `none`, so
   the thinking panel all but disappears on its own. Receipts stay.
 
-## Decisions still open
+## Decided 2026-09-03
 
-1. Steps at `none` or `low`. `none` is 8–9 s every time and wrote the same
-   files; `low` is 8–37 s and might catch more on edits. Quality unscored
-   either way. Recommendation: `none` for steps and the planner, `low` for
-   small asks; measure quality on real games and revisit.
-2. Where the plan's progress lives. Decided `TODO.md` plus the step text in
-   the `[studio]` turn — but the step probe shows the turn alone is enough
-   for the model, so `TODO.md` would only be a second copy for the kid, which
-   the plan card already is, and studio bookkeeping in a game's commits is
-   surface. Recommendation: a `plans` row (steps, done count, status) and the
-   card; no `TODO.md`.
-3. `Building` becomes the builder's room, or a third room is born beside it.
-   Recommendation: `Building` — it is already "where a helper can be", the
-   starter-helper setting becomes moot, and three rooms at birth is more
-   furniture. Existing games' `Building` rooms with helpers in them would be
-   renamed to ordinary chats and given a fresh `Building`.
-4. Names: the sizing call, a step, the builder, its room.
-5. Where the wall of text comes from. Not the retry (probe 4). Find one real
-   instance in the production studio and read its receipt before assuming.
+- Steps and the planner at `none`; a small ask at the helper's own level.
+  Quality on real games is unscored and is what to watch first.
+- The plan's progress is a `plans` row (steps, done count, status) and the
+  plan card — not the game's `TODO.md`. The step probe showed the `[studio]`
+  turn alone is enough for the model, so a file would only be a second copy
+  for the kid, which the card already is, and studio bookkeeping in a game's
+  commits is surface.
+- `Building` is the builder's room (above).
+- Names: *sizing*, *step*, *builder*; the room keeps its name. In GLOSSARY.md.
 
-## Build order (a TODO line each, when agreed)
+## Still open
 
-1. `complete()` sizing with the fire's system prompt; the JSON shape; tests
-   against the fake LLM.
+- Where the wall of text comes from. Not the retry (probe 4). Find one real
+  instance in the production studio and read its receipt before assuming.
+
+## Build order (one TODO.md line points here)
+
+1. `complete()` sizing with the fire's system prompt; the JSON shape with
+   `response_format` json_object as the belt (and deepseek.js's comment saying
+   it was never measured comes out); tests against the fake LLM.
 2. The builder row and its room; `assertBotsAllowed` for it; migration.
 3. Steps as continuations with the `[studio]` step turn; per-step message
    rows and commits; the plan row; interrupt = re-plan.
 4. The plan card in the client.
 5. Per-step context narrowing.
 6. The cap hands its trace to the planner.
-7. spec.md §8 and §14, GLOSSARY, `npm test` green at every step.
+7. spec.md §8 and the GLOSSARY entries losing their "Planned"; `npm test`
+   green at every step. §14 already carries the measurements.

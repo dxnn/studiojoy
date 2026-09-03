@@ -106,9 +106,9 @@ deliberately deferred.
 - ! watch the first real fires on the new `low` default and see whether the
   games come out as good — the measurement scored whether files got written,
   not whether they were any good (spec.md §14, the caveat)
-- ! build small asks: a sizing call, one fire per step, and a standard builder
-  chat that takes no other helper (ideas/planner.md) — four decisions and the
-  names are still open there; spec.md §14 wants the four probes' tables
+- ! build small asks: a sizing call, one fire per step, and the builder in
+  `Building` with no other helper allowed (ideas/planner.md, build order at
+  the end)
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
