@@ -17,6 +17,7 @@ import {
 } from './main.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
+import { renderShelfDialog } from './story-guide.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { discardAchievements, saveAchievements } from './achievements-form.js';
 
@@ -772,25 +773,70 @@ export function dialogFor(d) {
 
   // A file into another game. The list is the games you may change: copying
   // out of this one takes nothing from it, so what decides is where it lands.
-  if (d.kind === 'copy-to') {
+  // One Copy… for the two places a file can go (spec.md §6): another game,
+  // or — for a picture — the studio's collection, where every game's shelf
+  // can pick it. Two routes behind it, one word in front of them. ⚠️ The
+  // collection half says whose the picture stays: nothing here asks for a
+  // licence and nothing records one, because the studio does not need a
+  // grant to show somebody their own drawing (ideas/studio-collection.md).
+  if (d.kind === 'copy') {
+    const picture = /\.png$/i.test(d.path);
     const games = S.projects.filter((p) => p.kind !== 'chat' && p.slug !== S.slug && p.can_edit);
-    const where = h('select', {}, games.map((p) => h('option', { value: p.slug, text: p.name })));
-    const name = h('input');
-    name.value = d.path;
-    const err = h('p', { class: 'error' });
-    if (games.length === 0) {
-      return wrap('Copy this file into another game',
+    if (games.length === 0 && !picture) {
+      return wrap('Copy this file somewhere',
         h('p', { text: 'There is no other game you can change. A game you are an editor of, or one that is open to everyone, can take a copy.' }),
         h('div', { class: 'actions' }, h('button', { class: 'filled', text: 'Close', onclick: close })));
     }
-    return wrap('Copy this file into another game',
-      h('label', { text: 'Which game?' }), where,
+    const where = h('select', {},
+      games.map((p) => h('option', { value: p.slug, text: p.name })),
+      picture ? h('option', { value: 'studio', text: 'The studio\'s collection — for every game to pick from' }) : null);
+    // Into a game: what to call it there.
+    const name = h('input');
+    name.value = d.path;
+    const gameFields = h('div', {},
       h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'The bytes are copied as they are now. The two games stay strangers — this one keeps its file, and neither one hears about the other again.' }),
-      err,
+      h('p', { class: 'hint muted', text: 'The bytes are copied as they are now. The two games stay strangers — this one keeps its file, and neither one hears about the other again.' }));
+    // Into the collection: what it is called there, what kind, and for a face
+    // whose — which only suggests the file name it lands under when picked,
+    // the way the shipped set's faces do. Left empty it is still offered.
+    const label = h('input');
+    label.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
+    const kind = h('select', {},
+      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
+      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
+    const who = h('input');
+    who.placeholder = 'optional';
+    const whoRow = h('div', {},
+      h('label', { text: 'Who is it, in one word?' }), who,
+      h('p', { class: 'hint muted', text: 'Only used to suggest a file name — "dragon" makes dragon-normal.png.' }));
+    const studioFields = h('div', {},
+      h('label', { text: 'What is it called?' }), label,
+      h('label', { text: 'What kind of picture?' }), kind,
+      whoRow,
+      h('p', { class: 'hint muted', text: 'Every game in the studio can pick it from the shelf, and it will say you made it. It stays yours — the studio is not asking for it, and you can take it out again whenever you like.' }));
+    const err = h('p', { class: 'error' });
+    const sync = () => {
+      const studio = where.value === 'studio';
+      gameFields.hidden = studio;
+      studioFields.hidden = !studio;
+      whoRow.hidden = kind.value !== 'portrait';
+    };
+    where.addEventListener('change', sync);
+    kind.addEventListener('change', sync);
+    sync();
+    return wrap(`Copy ${d.path.split('/').pop()}`,
+      h('label', { text: 'Where to?' }), where,
+      gameFields, studioFields, err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Copy it',
         onclick: async () => {
+          if (where.value === 'studio') {
+            const called = label.value.trim();
+            if (!called) { err.textContent = 'Give it a name.'; return; }
+            close();
+            await shareArt(d.path, { kind: kind.value, name: called, who: who.value.trim() });
+            return;
+          }
           const to = name.value.trim();
           if (!to) { err.textContent = 'Give it a name.'; return; }
           close();
@@ -799,40 +845,26 @@ export function dialogFor(d) {
       })));
   }
 
-  // A picture into the studio's collection, where every game's shelf can
-  // pick it. ⚠️ It says whose it stays: nothing here asks for a licence and
-  // nothing records one, because the studio does not need a grant to show
-  // somebody their own drawing (ideas/studio-collection.md).
-  if (d.kind === 'share-art') {
+  // The shelf, as a dialog with a filter: the story editor's way to a
+  // picture from the standard set or the studio's collection (story-guide.js).
+  if (d.kind === 'pick-picture') return renderShelfDialog(d, { wide, cancel, close });
+
+  // A chat's name. The human-only one keeps its own — it is furniture, and
+  // the words the studio uses for it — so the ··· that opens this is only on
+  // a chat that takes helpers.
+  if (d.kind === 'rename-chat') {
     const name = h('input');
-    name.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
-    const kind = h('select', {},
-      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
-      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
-    // A face suggests the name it lands under when somebody picks it, the way
-    // the shipped set's faces do. Left empty it is still offered.
-    const who = h('input');
-    who.placeholder = 'optional';
-    const err = h('p', { class: 'error' });
-    const whoRow = h('div', {},
-      h('label', { text: 'Who is it, in one word?' }), who,
-      h('p', { class: 'hint muted', text: 'Only used to suggest a file name — "dragon" makes dragon-normal.png.' }));
-    const sync = () => { whoRow.hidden = kind.value !== 'portrait'; };
-    kind.addEventListener('change', sync);
-    sync();
-    return wrap('Put this picture in the studio\'s collection',
-      h('label', { text: 'What is it called?' }), name,
-      h('label', { text: 'What kind of picture?' }), kind,
-      whoRow,
-      h('p', { class: 'hint muted', text: 'Every game in the studio can pick it from the shelf, and it will say you made it. It stays yours — the studio is not asking for it, and you can take it out again whenever you like.' }),
-      err,
+    name.value = d.chat.name;
+    return wrap('Rename this chat',
+      h('label', { text: 'What is it about?' }), name,
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Share it',
+        class: 'filled', text: 'Rename it',
         onclick: async () => {
-          const label = name.value.trim();
-          if (!label) { err.textContent = 'Give it a name.'; return; }
+          const called = name.value.trim();
+          if (!called) return;
           close();
-          await shareArt(d.path, { kind: kind.value, name: label, who: who.value.trim() });
+          const res = await api('PATCH', `/api/projects/${S.slug}/chats/${d.chat.id}`, { name: called });
+          if (!res.ok) say(res.body?.error ?? 'Could not rename that chat.', true);
         },
       })));
   }

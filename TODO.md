@@ -23,9 +23,6 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- put a ··· on every thing and the selected thing's fields in the rail, with
-  one Copy… whose dialog asks where, and the shelf as a dialog — calm shell
-  step 3 (ideas/calm-shell.md)
 - show Pics and Hear by kind, Characters and Places for a visual novel, and
   open the file editors in the centre — calm shell step 4 (ideas/calm-shell.md,
   which absorbs ideas/editors-in-the-centre.md)

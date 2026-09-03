@@ -825,8 +825,8 @@ button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c08
   background: var(--agent);
   box-shadow: 0 0 9px var(--agent);
 }
-.hchip .hchip-x { color: var(--muted); font-size: 13px; padding: 5px 10px 5px 5px; }
-.hchip .hchip-x:hover:not(:disabled) { color: var(--danger); }
+/* The chip's ··· sits where its ✕ was. */
+.hchip .more-dots { padding: 3px 7px 3px 2px; }
 /* Calls another helper in. Beside the chips and outside their scroller, so it
    is in the same place whether the row holds nobody or nine. */
 .hchip-add {
@@ -2227,10 +2227,13 @@ label.knob {
 .bar .more-dots { font-weight: 700; letter-spacing: 0.1em; }
 .bar .more-dots.on { color: var(--text); background: var(--hover); }
 .menu {
-  position: absolute;
+  /* Fixed and placed by placeMenu (main.js) once it is on screen; until then
+     it is nowhere rather than at the corner of the window. */
+  position: fixed;
+  top: 0;
   right: 0;
-  top: calc(100% + 4px);
-  z-index: 30;
+  visibility: hidden;
+  z-index: 60;
   min-width: 210px;
   display: flex;
   flex-direction: column;
@@ -2240,6 +2243,7 @@ label.knob {
   border-radius: var(--radius-lg);
   box-shadow: 0 14px 34px oklch(0 0 0 / 0.5);
 }
+.menu.placed { visibility: visible; }
 .menu-item {
   justify-content: flex-start;
   text-align: left;
@@ -2255,6 +2259,88 @@ label.knob {
 .menu-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 22%, transparent); }
+
+/* A ··· on a row sits at its right-hand end and opens its menu under
+   itself; the row lights up and opens on a click anywhere else in it. */
+.step > .more, .file > .more, .strip-row > .more, .commit .more { margin-left: auto; }
+.strip-row { position: relative; }
+.strip-row > .more { position: absolute; right: 4px; top: 3px; }
+.file > .more { margin-left: 4px; }
+.more-dots.tiny { padding: 1px 6px; font-size: 13px; }
+
+/* The inspector: the selected thing's fields, under the preview in the rail
+   (spec.md §6). Its own scroller, so a long scene never pushes the preview
+   off the top. */
+.inspector {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inspector-head { display: flex; flex-direction: column; gap: 2px; }
+.inspector-head .section-label { padding: 8px 0 0; }
+.inspector-head .iname { font-size: 17px; font-weight: 700; word-break: break-word; font-family: var(--mono); }
+.ifield { display: flex; flex-direction: column; gap: 5px; }
+.ifield .ilabel { font-size: 11.5px; color: var(--muted); }
+.ifield .cfg-text { width: 100%; min-width: 0; }
+.ifield select { max-width: 100%; }
+.ifield .row.wrap { row-gap: 6px; }
+.ifield .thumb {
+  width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: var(--radius);
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+}
+.ifield .hint.mono { font-size: 11px; }
+
+/* The shelf as a dialog: a grid behind a filter. */
+.dialog .shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.dialog .shelf-grid .art-mine { position: relative; display: block; }
+.dialog .shelf-grid button.art {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dialog .shelf-grid button.art:hover { border-color: var(--look-primary, var(--accent)); }
+.dialog .shelf-grid button.art img { width: 100%; height: 64px; object-fit: contain; image-rendering: pixelated; }
+.dialog .shelf-grid .art-name {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.dialog .shelf-grid .art-out {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.dialog .shelf-grid .art-out:hover { color: var(--danger); border-color: var(--danger); }
 
 /* State beside the name, not a control. */
 .bar .whisper {

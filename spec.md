@@ -1195,6 +1195,30 @@ earlier decision — three buttons at the end of the bar, and a drawer under
 the name before that — for a reason that is no longer local: every thing in
 the studio has one `···` (ideas/calm-shell.md), and the game is a thing.
 
+**Every thing has one `···`, on its row, and nothing else that changes it.**
+A scene, a line, a choice, a mood, a file, a version, a helper in a chat, the
+chat you are in: each row ends in a `···` holding what can be done to that
+thing, in one order — Rename, Duplicate, Copy, then what is its own (Start
+here, Move up, Move down, Bring back), Delete last in crimson — and holding
+nothing the reader may not press: an item that would be refused is absent,
+and a thing with nothing to offer has no `···`. What *looks* at a thing stays
+a link on the row (`Show changes`, `All files changed`, a scene's *comes
+from*); what makes a new one stays a bordered button where it lands (`Add a
+file`, `+ Add a scene`). One `Copy…` covers the two places a file can go —
+another game, or a picture into the *studio collection* — with the dialog
+asking where (formerly `Copy to…` and `Share to studio…`). `more()` in
+`main.js` is the one implementation; `S.menu` holds which is open, keyed by
+the thing, so a render keeps it, and a click anywhere else closes it.
+
+**The inspector** (a working name, ideas/calm-shell.md) is the rail under the
+preview, holding the selected thing's fields when the mode has one: in the
+story editor a scene's name, ways in, note, picture and music, a person's
+name and note, the title screen's two lines. It is where the mock put the
+fields, and what lets the centre be what happens rather than what things are
+called. Its fields keep the ids the focus snapshot knows (§17), so the caret
+survives a render there the way it does in the centre. A file has none: its
+bar in the centre already says what it is.
+
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 **Chat**, then the type's editors (**Write** for a visual novel), then
@@ -1614,13 +1638,17 @@ the line's portrait and speaker, the words along the bottom, and on the exit
 step the choices, the go or the end (`stageFor` in `story-editor.js`, pure and
 tested). Its pictures are object URLs in a cache keyed by path — the
 reserved-images pattern, since the file routes send `no-store` — dropped for
-the paths a `files.changed` names. Under it the **steps**: the scene as rows
-read top to bottom — its name (renaming brings every way in with it), *comes
-from* links, *Start here*, *Remove* (disabled while something leads here);
-the picture and the sound; one row per line, the selected one open in place
-with who, mood and the words, rows dragged into order by a handle or moved
-with ▲ ▼; then the exit — the player chooses, go straight on, or the end —
-and the scene's problems. A selected person shows their moods and the file
+the paths a `files.changed` names. Under it the **steps**: what happens in the
+scene, top to bottom — one row per line, the selected one open in place with
+who, mood and the words, rows dragged into order by a handle or moved from
+the row's `···` (Move up, Move down, Delete); then the exit — the player
+chooses, go straight on, or the end, each choice with its own `···` — and the
+scene's problems. What the scene *is* — its name (renaming brings every way in
+with it), the *comes from* links, the note about it, its picture and its
+music — is the **inspector**'s, in the rail under the preview (below); what
+can be done to it whole — *Start here*, *Duplicate*, *Delete*, the last
+absent while something leads here — is the `···` on its row in the strip. A
+selected person shows their moods and the file
 each expects. Typing repaints the stage and the status in place; anything that
 changes the shape renders.
 
@@ -1661,7 +1689,7 @@ line stay that form's and are one link away on the right. Until this row the
 only way to change "My Story" was to find the file in the rail. A words file a
 helper has reshaped past the two lines shows no row rather than a wrong one,
 and a save whose story text is unchanged makes no story commit. **Duplicate**
-sits in a scene's head row beside Remove: a copy right after it under the next
+is in a scene's `···` beside Delete: a copy right after it under the next
 free name, its lines and choices its own. The shape has no lines after a
 choice on purpose, so a choice that keeps the player where they are — "the
 door is locked", still in the hall — is a second scene, and Duplicate is how
@@ -1798,13 +1826,15 @@ and no link back, and a game's repository holds exactly the art it uses.
 and `who`/`mood` on a portrait) and `examples`, whole stories the guide can
 put in, each naming the art it uses.
 
-The **shelf** is how it is picked: the pictures of the kind being asked for,
-in a row that scrolls sideways — across the top of the guide's picture card,
-before the field and the buttons, and behind `Pick a picture` on the scene's
-Picture row. Two places because the guide stops asking the moment a scene has
-a picture, so without the second the set could never be used to *change* one.
-The row is the studio's reveal-in-place rule: one open at a time, and the same
-control closes it with its label flipped. ⚠️ Picking copies the bytes to the path the *story* expects,
+The **shelf** is how it is picked: the pictures of the kind being asked for.
+Two places, because the guide stops asking the moment a scene has a picture,
+so without the second the set could never be used to *change* one: a row that
+scrolls sideways across the top of the guide's picture card, before the field
+and the buttons; and a **dialog with a filter** behind `Pick a picture…` on
+the scene's Picture field in the inspector — a grid of every picture of that
+kind, the shipped set and the collection together, found by name or by who
+made it, because forty-two pictures before anybody adds one is not a strip
+(ideas/calm-shell.md). ⚠️ Picking copies the bytes to the path the *story* expects,
 not to the set's own landing path, so the set says what a picture looks like
 and the story says what it is called: "Mila, worried" becomes
 `assets/sprites/ben-normal.png` when that is the face being asked for. The
@@ -1864,8 +1894,9 @@ no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
 *Renamed from* when the reader is standing on the destination, rather than as an
 empty drawer.
 
-`Rename` sits in the open file's bar and takes the whole path, so it also
-moves: `sprite.png` to `art/hero.png` is the same one commit. The dialog says
+`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`,
+`Copy…` and `Delete…`, and takes the whole path, so it also moves:
+`sprite.png` to `art/hero.png` is the same one commit. The dialog says
 what the new name will mean before it happens, and ⚠️ crossing into or out of
 `studio/` gets its own sentence, because that is the one move that changes who
 may edit the file rather than only where it lives. It is allowed either way —

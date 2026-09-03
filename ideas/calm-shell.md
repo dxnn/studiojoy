@@ -279,6 +279,16 @@ in the same commit.
    line and choice buttons, the version rows; the scene's picture and music
    into the inspector; the shelf as a dialog with a filter. The preamble's
    button names. spec.md §6; GLOSSARY *shelf*, *game actions* pruned.
+
+   *Landed 2026-09-02.* The `···` sits on the thing's **row** — a scene, a
+   line, a choice, a mood, a file, a version, a helper chip, the chat you are
+   in — rather than at the foot of the inspector: one entry point, where the
+   eye already is. The inspector holds a scene's name, ways in, note, picture
+   and music, a person's name and note, and the title screen's two lines; a
+   file has no inspector, because its bar in the centre already says what it
+   is. Moods stay in the centre as a person's steps until step 4's Characters
+   card. The quiz editor's ✕s wait for Questions mode, in step 4 too. The
+   guide keeps its inline strip of three; the dialog is the scene's.
 4. **Pics and Hear.** The by-kind views; Characters and Places; the pixel
    editor and the text editor opening in the centre; the `:has(.drawing)`
    preview rule and the rail-width workarounds dropped. ideas/

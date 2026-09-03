@@ -397,6 +397,54 @@ export function artShelf(kind, place, label = 'Ready to use:') {
   return shelf;
 }
 
+// The shelf as a dialog (spec.md §6): every picture of one kind — the shipped
+// set and the studio's collection together — in a grid behind a filter, for
+// the story editor's Picture field. The guide keeps its strip: a question
+// card with three faces on it is a different thing from a shelf of
+// forty-two. Picking copies the bytes in through `d.place`, which names the
+// file the story expects, and closes the dialog; a picture of your own keeps
+// the way out of the collection it had on the strip.
+export function renderShelfDialog(d, { wide, cancel, close }) {
+  const grid = h('div', { class: 'shelf-grid' });
+  const filter = h('input', {
+    type: 'search', placeholder: 'Find one by name', 'aria-label': 'Find a picture by name',
+  });
+  const empty = h('p', { class: 'muted', text: 'Reading the shelf…' });
+  let all = [];
+  const card = (a) => {
+    const pick = h('button', {
+      class: 'art', title: artTitle(a),
+      onclick: async () => {
+        const res = await send(a.src);
+        if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
+        close();
+        await d.place(a, await res.blob());
+      },
+    }, h('img', { src: a.src, alt: a.name }), h('span', { class: 'art-name', text: a.name }));
+    if (!a.mine) return pick;
+    return h('span', { class: 'art-mine' }, pick, h('button', {
+      class: 'art-out', text: '✕', title: `Take ${a.name} out of the collection`,
+      onclick: () => { S.dialog = { kind: 'unshare-art', art: a }; render(); },
+    }));
+  };
+  const paint = () => {
+    const q = filter.value.trim().toLowerCase();
+    const shown = all.filter((a) => !q
+      || a.name.toLowerCase().includes(q) || String(a.by ?? '').toLowerCase().includes(q));
+    grid.replaceChildren(...shown.map(card));
+    empty.textContent = shown.length ? '' : (all.length ? 'Nothing called that.' : 'Nothing on the shelf yet.');
+    empty.hidden = shown.length > 0;
+  };
+  filter.addEventListener('input', paint);
+  artIndex().then((index) => {
+    all = (index?.art ?? []).filter((a) => a.kind === d.art);
+    paint();
+  });
+  return wide(d.art === 'portrait' ? 'Pick a face' : 'Pick a picture',
+    filter, grid, empty,
+    h('div', { class: 'actions' }, cancel));
+}
+
 export const artTitle = (a) => (a.made_here
   ? `${a.name} — made here by ${a.by}`
   : `${a.name} — ${a.by}, ${a.licence}`);

@@ -6,7 +6,7 @@
 import { patchFor, hasHunks, renameIn } from './patch.js';
 import { h } from './dom.js';
 import {
-  S, render, encodePath, chooseFile, loadHistory, loadDiff, urlAs, frozen,
+  S, render, encodePath, chooseFile, loadHistory, loadDiff, urlAs, frozen, more,
 } from './main.js';
 
 /* Versions ----------------------------------------------------------------- */
@@ -220,24 +220,26 @@ export function renderVersionsTab() {
         // the row rather than disappearing, so the newest version says what it
         // is instead of being the one row with nothing on the right.
         current ? h('span', { class: 'current', text: 'Current version' }) : null,
-        S.historyPath && !current && !frozen()
-          ? h('button', {
-            class: 'quiet tiny', text: 'Bring this file back',
-            onclick: () => {
+        h('div', { class: 'spacer' }),
+        // Bringing a version back changes the game, so it is the row's ···
+        // (spec.md §6): this file's bytes from a filtered list, everything
+        // from the whole one. Absent on a game you may not change.
+        frozen() ? null : more(`version:${c.sha}`, [
+          S.historyPath && !current && {
+            text: 'Bring this file back…',
+            onPick: () => {
               S.dialog = { kind: 'restore', sha: c.sha, path: S.historyPath, short: c.short };
               render();
             },
-          })
-          : null,
-        !S.historyPath && !frozen()
-          ? h('button', {
-            class: 'quiet tiny', text: 'Bring everything back',
-            onclick: () => {
+          },
+          !S.historyPath && {
+            text: 'Bring everything back…',
+            onPick: () => {
               S.dialog = { kind: 'rollback', sha: c.sha, short: c.short };
               render();
             },
-          })
-          : null),
+          },
+        ], { label: `More about version ${c.short}` })),
       open ? diffDrawer() : null);
   });
 

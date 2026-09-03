@@ -27,9 +27,10 @@ import {
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, commitNow, NO_CONNECTION,
+  S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, commitNow, more,
+  NO_CONNECTION,
 } from './main.js';
-import { renderGuide, artShelf, artCredit } from './story-guide.js';
+import { renderGuide, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
 
 export const STORY_FILE = 'config/story.js';
@@ -409,6 +410,47 @@ function buildStage() {
     h('div', { class: 'box' }, who, words, sound, choices));
 }
 
+/* Controls ------------------------------------------------------------------- */
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// Ids on the fields are what carry the caret across a background render
+// (main.js keeps the focus of anything called story-…). Read-only — somebody
+// else's game, an archived one — is a field you can read and not type in; a
+// button you could not press is left out instead (spec.md §6).
+const field = (id, value, placeholder, on = {}) => {
+  const input = h('input', {
+    type: 'text', class: 'cfg-text', id, placeholder, disabled: frozen(), ...on,
+  });
+  input.value = value;
+  return input;
+};
+const pick = (options, value, onchange, extra = {}) => h(
+  'select', { onchange, disabled: frozen(), ...extra },
+  options.map(([v, label]) => {
+    const option = h('option', { value: v, text: label });
+    if (v === value) option.selected = true;
+    return option;
+  }),
+);
+const filesUnder = (dir, ext) => S.files.map((f) => f.path)
+  .filter((p) => p.startsWith(`${dir}/`) && (!ext || p.endsWith(ext))).sort();
+const thumb = (path) => {
+  const img = h('img', { class: 'thumb', alt: '' });
+  setPicture(img, path);
+  return img;
+};
+// Hear it where it stands, through the same cache the pictures use — the
+// file routes send no-store, so a fresh <audio src> per render would refetch
+// the whole track on every keystroke.
+const play = (path) => h('button', {
+  class: 'icon tiny', text: '▶', title: `Play ${path.split('/').pop()}`,
+  onclick: () => {
+    imageUrl(path).then((url) => { if (url) new Audio(url).play(); });
+  },
+});
+const go = (key) => { selectScene(key); render(); };
+
 /* The editor ----------------------------------------------------------------- */
 
 const note = (...kids) => h('div', { class: 'story-editor' }, h('div', { class: 'pad muted' }, ...kids));
@@ -446,44 +488,6 @@ export function renderStoryEditor() {
   const switches = [...new Set(
     scenes.flatMap((s) => s.choices.map((c) => c.set)).filter(Boolean),
   )].sort();
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-  /* Controls ---------------------------------------------------------------- */
-
-  // Ids on the fields are what carry the caret across a background render
-  // (main.js keeps the focus of anything called story-…).
-  const field = (id, value, placeholder, on = {}) => {
-    const input = h('input', {
-      type: 'text', class: 'cfg-text', id, placeholder, disabled: ro, ...on,
-    });
-    input.value = value;
-    return input;
-  };
-  const pick = (options, value, onchange, extra = {}) => h(
-    'select', { onchange, disabled: ro, ...extra },
-    options.map(([v, label]) => {
-      const option = h('option', { value: v, text: label });
-      if (v === value) option.selected = true;
-      return option;
-    }),
-  );
-  const filesUnder = (dir, ext) => paths
-    .filter((p) => p.startsWith(`${dir}/`) && (!ext || p.endsWith(ext))).sort();
-  const thumb = (path) => {
-    const img = h('img', { class: 'thumb', alt: '' });
-    setPicture(img, path);
-    return img;
-  };
-  // Hear it where it stands, through the same cache the pictures use — the
-  // file routes send no-store, so a fresh <audio src> per render would refetch
-  // the whole track on every keystroke.
-  const play = (path) => h('button', {
-    class: 'icon tiny', text: '▶', title: `Play ${path.split('/').pop()}`,
-    onclick: () => {
-      imageUrl(path).then((url) => { if (url) new Audio(url).play(); });
-    },
-  });
-  const go = (key) => { selectScene(key); render(); };
 
   /* The strip ---------------------------------------------------------------- */
 
@@ -496,8 +500,13 @@ export function renderStoryEditor() {
 
   // Two lines a row — the name, then what is known about it — because at the
   // strip's width a name beside "starts here · 3 choices" was three letters.
+  // The row's ··· holds what can be done to the scene, and nothing that
+  // cannot (spec.md §6): Start here is absent on the first scene, Delete
+  // while anything still leads here or it is the last one. Its name, its
+  // note, its picture and its music are the inspector's, beside the preview.
   const sceneRow = (scene, at) => {
     const problems = problemsFor(scene.key);
+    const from = leadingTo(model, scene.key);
     return h('div', {
       class: `strip-row${!st.person && !st.title && st.scene === scene.key ? ' on' : ''}`,
       onclick: () => go(scene.key),
@@ -508,15 +517,44 @@ export function renderStoryEditor() {
       problems.length ? h('span', {
         class: 'hint warn', text: `⚠ ${problems.length}`, title: problems.map((c) => c.say).join('\n'),
       }) : null,
-      h('span', { class: 'hint muted', text: tailOf(scene) })));
+      h('span', { class: 'hint muted', text: tailOf(scene) })),
+    ro ? null : more(`scene:${scene.key}`, [
+      at !== 0 && {
+        text: 'Start here', title: 'Make this the scene the story starts at',
+        onPick: () => { startAt(model, scene.key); touched(); render(); },
+      },
+      // A copy for a choice that keeps the player here — the shape has no
+      // lines after a choice, so "the door is locked" is a second scene.
+      {
+        text: 'Duplicate', title: 'A copy of this scene right after it — for a choice that keeps the player here',
+        onPick: () => { const key = duplicateScene(model, scene.key); touched(); go(key); },
+      },
+      from.length === 0 && scenes.length > 1 && {
+        text: 'Delete', danger: true,
+        onPick: () => {
+          model.scenes = scenes.filter((s) => s !== scene);
+          touched();
+          go(model.scenes[0]?.key);
+        },
+      },
+    ], { label: `More about ${scene.key}` }));
   };
 
-  const personRow = (person) => h('div', {
-    class: `strip-row${st.person === person.key ? ' on' : ''}`,
-    onclick: () => { st.person = person.key; st.title = false; st.step = 0; render(); },
-  },
-  h('span', { class: 'sname', text: person.name || person.key }),
-  h('span', { class: 'tail' }, h('span', { class: 'hint muted', text: plural(person.moods.length, 'mood') })));
+  // Somebody still saying lines cannot be taken out, so a person who is has
+  // no ··· at all rather than a Delete that refuses.
+  const personRow = (person) => {
+    const used = scenes.reduce((n, s) => n + s.lines.filter((l) => l.who === person.key).length, 0);
+    return h('div', {
+      class: `strip-row${st.person === person.key ? ' on' : ''}`,
+      onclick: () => { st.person = person.key; st.title = false; st.step = 0; render(); },
+    },
+    h('span', { class: 'sname', text: person.name || person.key }),
+    h('span', { class: 'tail' }, h('span', { class: 'hint muted', text: plural(person.moods.length, 'mood') })),
+    ro || used > 0 ? null : more(`person:${person.key}`, [{
+      text: 'Delete', danger: true, title: 'Take them out of the story',
+      onPick: () => { model.cast = cast.filter((p) => p !== person); touched(); go(st.scene); },
+    }], { label: `More about ${person.name || person.key}` }));
+  };
 
   // The title screen is the first thing a player sees and the one thing here
   // that is not a scene: its two lines live in config/words.js, and until this
@@ -542,8 +580,8 @@ export function renderStoryEditor() {
         title: checks.length ? `${checks.length} to look at` : null,
       })),
     ...scenes.map(sceneRow),
-    h('button', {
-      class: 'quiet tiny', text: '+ Add a scene', disabled: ro,
+    ro ? null : h('button', {
+      class: 'quiet tiny', text: '+ Add a scene',
       onclick: () => {
         const key = addScene(model, '');
         touched();
@@ -552,8 +590,8 @@ export function renderStoryEditor() {
     }),
     h('div', { class: 'strip-head' }, h('span', { class: 'section-label', text: 'People' })),
     ...cast.map(personRow),
-    h('button', {
-      class: 'quiet tiny', text: '+ Add someone', disabled: ro,
+    ro ? null : h('button', {
+      class: 'quiet tiny', text: '+ Add someone',
       onclick: () => {
         const key = addPerson(model, '');
         touched();
@@ -588,119 +626,16 @@ export function renderStoryEditor() {
     },
   }, ...kids);
 
-  const sceneSteps = (scene, at) => {
-    const from = leadingTo(model, scene.key);
+  // What happens in the scene, top to bottom. The scene's own fields — its
+  // name, what leads here, the note about it, its picture and its music —
+  // are the inspector's, beside the preview (renderStoryInspector below).
+  const sceneSteps = (scene) => {
     const rows = [];
-
-    // The scene itself: its name, every way in, and where the story starts.
-    // Open, a line about the place too — the studio's material, which the
-    // game never reads.
-    rows.push(rowOf('scene', `head${st.step === 'scene' ? ' open' : ''}`,
-      h('span', { class: 'glyph', text: '▸' }),
-      field('story-name', scene.key, 'a short name', {
-        onchange: (e) => {
-          const want = freshKey(e.currentTarget.value, keys.filter((k) => k !== scene.key));
-          renameScene(model, scene.key, want);
-          st.scene = want;
-          touched();
-          render();
-        },
-      }),
-      h('span', { class: 'hint muted', text: from.length ? 'comes from:' : (at === 0 ? '' : 'nothing leads here') }),
-      ...from.map((k) => h('button', { class: 'link tiny mono', text: k, onclick: () => go(k) })),
-      h('div', { class: 'spacer' }),
-      at === 0
-        ? h('span', { class: 'hint muted', text: 'starts here' })
-        : h('button', {
-          class: 'quiet tiny', text: 'Start here', disabled: ro,
-          title: 'Make this the scene the story starts at',
-          onclick: () => { startAt(model, scene.key); touched(); render(); },
-        }),
-      // A copy for a choice that keeps the player here — the shape has no
-      // lines after a choice, so "the door is locked" is a second scene.
-      h('button', {
-        class: 'quiet tiny', text: 'Duplicate', disabled: ro,
-        title: 'A copy of this scene right after it — for a choice that keeps the player here',
-        onclick: () => { const key = duplicateScene(model, scene.key); touched(); go(key); },
-      }),
-      h('button', {
-        class: 'danger tiny', text: 'Remove',
-        title: from.length
-          ? `${plural(from.length, 'way')} in still lead here`
-          : 'Remove this scene',
-        disabled: ro || from.length > 0 || scenes.length < 2,
-        onclick: () => {
-          model.scenes = scenes.filter((s) => s !== scene);
-          touched();
-          go(model.scenes[0]?.key);
-        },
-      }),
-      st.step === 'scene' ? h('div', { class: 'sub' },
-        h('span', { class: 'hint muted', text: 'about' }),
-        field('story-about', scene.about ?? '', 'A line about this place, for the studio and its helpers', {
-          oninput: (e) => { scene.about = e.currentTarget.value; touched(); },
-        })) : null));
-
-    // The standard set, in the row it belongs to and one open at a time, with
-    // the same control closing it again — the studio's rule for anything a
-    // control reveals. Without this the set is only ever reachable through
-    // the guide's picture question, which stops being asked the moment a
-    // scene has a picture: there would be no way to change one from the shelf
-    // afterwards.
-    const showSet = st.shelf === scene.key;
-    rows.push(rowOf('picture', `fixed${showSet ? ' open' : ''}`,
-      h('span', { class: 'glyph', text: '▤' }),
-      h('span', { class: 'label', text: 'Picture' }),
-      pick(
-        [['', 'None'], ...filesUnder(IMAGE_DIR).map((p) => [p, p.slice(IMAGE_DIR.length + 1)])],
-        scene.picture,
-        (e) => { scene.picture = e.currentTarget.value; touched(); render(); },
-      ),
-      scene.picture ? thumb(scene.picture) : null,
-      scene.picture && !has.has(scene.picture)
-        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null,
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'link tiny',
-        text: showSet ? 'Hide the pictures' : 'Pick a picture',
-        title: 'Pictures from the studio\'s own collection',
-        disabled: ro,
-        onclick: () => { st.shelf = showSet ? null : scene.key; render(); },
-      }),
-      showSet ? h('div', { class: 'sub' }, artShelf('background', async (a, blob) => {
-        // Named for the scene, like every other way a picture gets in — the
-        // set says what it looks like, the story says what it is called.
-        const path = `${IMAGE_DIR}/${scene.key}.png`;
-        const { failure } = await writeFiles([{ path, body: blob }]);
-        if (failure) { say(failure, true); return; }
-        scene.picture = path;
-        st.shelf = null;
-        touched();
-        say(artCredit(a, path));
-      })) : null));
-
-    // Music belongs to the whole scene the way the picture does — it keeps
-    // playing into the next scene that asks for the same track — so it is a
-    // fixed row. A sound is a moment and lives among the lines instead.
-    rows.push(rowOf('music', 'fixed',
-      h('span', { class: 'glyph', text: '♫' }),
-      h('span', { class: 'label', text: 'Music' }),
-      pick(
-        // None first and selected by default, and the only thing offered
-        // until somebody uploads a track: a picker listing music the game
-        // does not have would be naming files nothing could play.
-        [['', 'None'], ...filesUnder(MUSIC_DIR).map((p) => [p, p.slice(MUSIC_DIR.length + 1)])],
-        scene.music,
-        (e) => { scene.music = e.currentTarget.value; touched(); render(); },
-      ),
-      scene.music ? play(scene.music) : null,
-      scene.music && !has.has(scene.music)
-        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
 
     // One row per step. Closed, it reads as the player would hear it; open,
     // it is who, mood and the words — or, for a sound, which noise. Rows drag
-    // into order by their handle, and ▲ ▼ are the keyboard's way. Both kinds
-    // are one list, so a noise drags in between two lines and back out again.
+    // into order by their handle, and the ··· is the keyboard's way. Both
+    // kinds are one list, so a noise drags in between two lines and back out.
     const sounds = filesUnder(SOUND_DIR, '.wav')
       .map((p) => p.slice(SOUND_DIR.length + 1, -4));
     let dragFrom = null;
@@ -715,22 +650,23 @@ export function renderStoryEditor() {
       },
     });
 
-    // ▲ ▼ ✕, the same three whichever kind of step it is.
-    const movesFor = (i, what) => [
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'icon tiny', text: '▲', title: `Move this ${what} up`, disabled: ro || i === 0,
-        onclick: () => { moveLine(scene, i, i - 1); st.step = i - 1; touched(); render(); },
-      }),
-      h('button', {
-        class: 'icon tiny', text: '▼', title: `Move this ${what} down`, disabled: ro || i === scene.lines.length - 1,
-        onclick: () => { moveLine(scene, i, i + 1); st.step = i + 1; touched(); render(); },
-      }),
-      h('button', {
-        class: 'icon tiny', text: '✕', title: `Remove this ${what}`, disabled: ro,
-        onclick: () => { scene.lines.splice(i, 1); st.step = 'scene'; touched(); render(); },
-      }),
-    ];
+    // Move up, move down, delete — the same three whichever kind of step it
+    // is, behind the row's ··· (spec.md §6), with the end of the list saying
+    // so by leaving a move out.
+    const stepMore = (i, what) => (ro ? null : more(`line:${i}`, [
+      i > 0 && {
+        text: 'Move up',
+        onPick: () => { moveLine(scene, i, i - 1); st.step = i - 1; touched(); render(); },
+      },
+      i < scene.lines.length - 1 && {
+        text: 'Move down',
+        onPick: () => { moveLine(scene, i, i + 1); st.step = i + 1; touched(); render(); },
+      },
+      {
+        text: 'Delete', danger: true,
+        onPick: () => { scene.lines.splice(i, 1); st.step = 'scene'; touched(); render(); },
+      },
+    ], { label: `More about this ${what}` }));
 
     // A drop lands wherever the pointer is, so every row takes the wiring
     // whatever it holds.
@@ -771,7 +707,7 @@ export function renderStoryEditor() {
         ),
         play(path),
         has.has(path) ? null : h('span', { class: 'hint warn', text: 'not in this game' }),
-        open ? h('div', { class: 'sub' }, ...movesFor(i, 'sound')) : null), i);
+        stepMore(i, 'sound')), i);
     };
 
     const lineRow = (line, i) => {
@@ -783,6 +719,7 @@ export function renderStoryEditor() {
         line.who && line.mood ? thumb(portraitPath(line.who, line.mood)) : h('span', { class: 'thumb' }),
         open ? null : h('span', { class: `speaker${person ? '' : ' muted'}`, text: person ? (person.name || person.key) : (line.who || 'the story') }),
         open ? null : h('span', { class: `words${line.say ? '' : ' muted'}`, text: line.say || '…' }),
+        stepMore(i, 'line'),
         open ? h('div', { class: 'sub' },
           pick(
             [['', 'The story'], ...cast.map((p) => [p.key, p.name || p.key])],
@@ -800,8 +737,7 @@ export function renderStoryEditor() {
             [['', 'no picture'], ...person.moods.map((m) => [m, m])],
             line.mood,
             (e) => { line.mood = e.currentTarget.value; touched(); render(); },
-          ) : null,
-          ...movesFor(i, 'line')) : null,
+          ) : null) : null,
         open ? h('div', { class: 'sub' }, (() => {
           const area = h('textarea', {
             class: 'cfg-text', id: 'story-say', rows: '2', placeholder: 'What is said', disabled: ro,
@@ -813,9 +749,9 @@ export function renderStoryEditor() {
       return draggable(row, i);
     };
     rows.push(...scene.lines.map(lineRow));
-    rows.push(h('div', { class: 'row wrap add-line' },
+    if (!ro) rows.push(h('div', { class: 'row wrap add-line' },
       h('button', {
-        class: 'quiet tiny', text: '+ Add a line', disabled: ro,
+        class: 'quiet tiny', text: '+ Add a line',
         onclick: () => {
           scene.lines.push({
             who: '', mood: '', say: '', sound: '',
@@ -829,7 +765,7 @@ export function renderStoryEditor() {
       // answer is "+ Make a sound" over on the right, and a dead button in
       // the timeline would not say so.
       sounds.length ? h('button', {
-        class: 'quiet tiny', text: '+ Add a sound', disabled: ro,
+        class: 'quiet tiny', text: '+ Add a sound',
         title: 'A noise at this point in the scene',
         onclick: () => {
           scene.lines.push(soundStep(sounds[0]));
@@ -881,10 +817,10 @@ export function renderStoryEditor() {
         choice.need,
         (e) => { choice.need = e.currentTarget.value; touched(); render(); },
       ),
-      h('button', {
-        class: 'icon tiny', text: '✕', title: 'Remove this choice', disabled: ro,
-        onclick: () => { scene.choices.splice(ci, 1); touched(); render(); },
-      }));
+      ro ? null : more(`choice:${ci}`, [{
+        text: 'Delete', danger: true,
+        onPick: () => { scene.choices.splice(ci, 1); touched(); render(); },
+      }], { label: 'More about this choice' }));
 
     rows.push(rowOf('exit', `exit${st.step === 'exit' ? ' open' : ''}`,
       h('span', { class: 'glyph', text: '⇢' }),
@@ -901,8 +837,8 @@ export function renderStoryEditor() {
         onclick: () => go(scene.go),
       }) : null,
       ...(after === 'choices' ? scene.choices.map(choiceRow) : []),
-      after === 'choices' ? h('div', { class: 'sub' }, h('button', {
-        class: 'quiet tiny', text: '+ Add a choice', disabled: ro,
+      after === 'choices' && !ro ? h('div', { class: 'sub' }, h('button', {
+        class: 'quiet tiny', text: '+ Add a choice',
         onclick: () => {
           scene.choices.push({ say: '', go: elsewhere, set: '', need: '' });
           touched();
@@ -916,31 +852,10 @@ export function renderStoryEditor() {
 
   /* A person ----------------------------------------------------------------- */
 
+  // A person's moods. Their name and the note about them are the inspector's,
+  // beside the preview; taking them out is the strip row's ···.
   const personSteps = (person) => {
-    const used = scenes.reduce((n, s) => n + s.lines.filter((l) => l.who === person.key).length, 0);
     const rows = [];
-    rows.push(rowOf('name', `head${st.step === 'name' ? ' open' : ''}`,
-      h('span', { class: 'glyph', text: '▣' }),
-      field('story-person', person.name, 'Their name', {
-        oninput: (e) => { person.name = e.currentTarget.value; touched(); },
-      }),
-      h('span', { class: 'hint muted mono', text: person.key }),
-      h('div', { class: 'spacer' }),
-      h('button', {
-        class: 'danger tiny', text: 'Remove',
-        title: used ? `${plural(used, 'line')} still said by them` : 'Remove them from the story',
-        disabled: ro || used > 0,
-        onclick: () => {
-          model.cast = cast.filter((p) => p !== person);
-          touched();
-          go(st.scene);
-        },
-      }),
-      st.step === 'name' ? h('div', { class: 'sub' },
-        h('span', { class: 'hint muted', text: 'about' }),
-        field('story-person-about', person.about ?? '', 'A line about them, for the studio and its helpers', {
-          oninput: (e) => { person.about = e.currentTarget.value; touched(); },
-        })) : null));
     // One row per mood: the picture it is, and the file it expects — naming
     // the file is how somebody knows what to call the picture they draw.
     person.moods.forEach((mood, mi) => {
@@ -958,14 +873,13 @@ export function renderStoryEditor() {
           })
           : h('span', { class: 'speaker', text: mood }),
         h('span', { class: `hint mono ${has.has(path) ? 'muted' : 'warn'}`, text: has.has(path) ? path : `${path} — not in this game` }),
-        h('div', { class: 'spacer' }),
-        h('button', {
-          class: 'icon tiny', text: '✕', title: `Remove ${mood}`, disabled: ro,
-          onclick: () => { person.moods.splice(mi, 1); st.step = 0; touched(); render(); },
-        })));
+        ro ? null : more(`mood:${person.key}:${mood}`, [{
+          text: 'Delete', danger: true,
+          onPick: () => { person.moods.splice(mi, 1); st.step = 0; touched(); render(); },
+        }], { label: `More about ${mood}` })));
     });
-    rows.push(h('button', {
-      class: 'quiet tiny add-line', text: '+ Add a mood', disabled: ro,
+    if (!ro) rows.push(h('button', {
+      class: 'quiet tiny add-line', text: '+ Add a mood',
       onclick: () => {
         person.moods.push(freshKey('', person.moods, 'mood'));
         st.step = person.moods.length - 1;
@@ -978,26 +892,15 @@ export function renderStoryEditor() {
 
   /* The title screen ------------------------------------------------------------ */
 
-  // Two fields, spliced back into config/words.js by Save. The rest of that
-  // file — the End, the buttons, how to play — stays the config form's, one
-  // click away on the right.
-  const titleSteps = () => {
-    const w = st.words;
-    const word = (key, id, label, placeholder) => rowOf(key, `fixed${st.step === key ? ' open' : ''}`,
-      h('span', { class: 'glyph', text: key === 'title' ? '▶' : '▸' }),
-      h('span', { class: 'label', text: label }),
-      field(id, w[key], placeholder, {
-        oninput: (e) => { w[key] = e.currentTarget.value; w.dirty = true; touched(); },
-      }));
-    return [
-      word('title', 'story-title', 'Title', 'What the story is called'),
-      word('tagline', 'story-tagline', 'Under it', 'A line under the title'),
-      h('p', { class: 'hint muted problem' },
-        `The End, the buttons and how to play are in ${WORDS_FILE} — `,
-        h('button', { class: 'link tiny', text: 'open it under Code', onclick: () => chooseFile(WORDS_FILE) }),
-        '.'),
-    ];
-  };
+  // Its two lines are the inspector's, beside the preview. The rest of that
+  // file — the End, the buttons, how to play — stays the config form's, under
+  // Code.
+  const titleSteps = () => [
+    h('p', { class: 'hint muted problem' },
+      `The title and the line under it are beside the preview. The End, the buttons and how to play are in ${WORDS_FILE} — `,
+      h('button', { class: 'link tiny', text: 'open it under Code', onclick: () => chooseFile(WORDS_FILE) }),
+      '.'),
+  ];
 
   /* Put together -------------------------------------------------------------- */
 
@@ -1006,7 +909,7 @@ export function renderStoryEditor() {
   const person = st.person ? cast.find((p) => p.key === st.person) : null;
   if (showTitle) stepsBox.append(...titleSteps());
   else if (person) stepsBox.append(...personSteps(person));
-  else if (scene) stepsBox.append(...sceneSteps(scene, scenes.indexOf(scene)));
+  else if (scene) stepsBox.append(...sceneSteps(scene));
   else stepsBox.append(h('p', { class: 'muted', text: 'No scenes yet. Add one on the left.' }));
 
   // No Save: the story saves itself (touched, above). The whisper is the
@@ -1048,4 +951,128 @@ export function renderStoryEditor() {
       }),
       stepsBox,
       bar));
+}
+
+/* The inspector -------------------------------------------------------------- */
+
+// The selected thing's own fields, in the rail beside the preview (spec.md
+// §6): a scene's name, what leads to it, the note about it, its picture and
+// its music; a person's name and note; the title screen's two lines. These
+// were the head rows of the steps; moved so the middle is what happens and
+// the side is what it is about. The fields keep their story-… ids, so the
+// caret survives a render here as it does in the middle, and every edit saves
+// the way every edit does: touched().
+export function renderStoryInspector() {
+  const st = S.story;
+  if (!st?.model || st.grown || st.missing || S.open?.path === STORY_FILE) return null;
+  const { model } = st;
+  const { cast, scenes } = model;
+  const ro = frozen();
+  const has = new Set(S.files.map((f) => f.path));
+  const keys = scenes.map((s) => s.key);
+  const head = (kind, name) => h('div', { class: 'inspector-head' },
+    h('span', { class: 'section-label', text: kind }),
+    h('div', { class: 'iname', text: name }));
+  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
+    h('span', { class: 'ilabel', text: label }), ...kids);
+  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+
+  if (st.title && st.words) {
+    const w = st.words;
+    const word = (key, id, label, placeholder) => fieldRow(label, field(id, w[key], placeholder, {
+      oninput: (e) => { w[key] = e.currentTarget.value; w.dirty = true; touched(); },
+    }));
+    return box(head('Title screen', w.title || '…'),
+      word('title', 'story-title', 'Title', 'What the story is called'),
+      word('tagline', 'story-tagline', 'Under it', 'A line under the title'));
+  }
+
+  if (st.person) {
+    const person = cast.find((p) => p.key === st.person);
+    if (!person) return null;
+    return box(head('Person', person.name || person.key),
+      fieldRow('Name',
+        field('story-person', person.name, 'Their name', {
+          oninput: (e) => { person.name = e.currentTarget.value; touched(); },
+        }),
+        h('span', { class: 'hint muted mono', text: person.key })),
+      fieldRow('About', field('story-person-about', person.about ?? '', 'A line about them, for the studio and its helpers', {
+        oninput: (e) => { person.about = e.currentTarget.value; touched(); },
+      })));
+  }
+
+  const scene = scenes.find((s) => s.key === st.scene);
+  if (!scene) return null;
+  const at = scenes.indexOf(scene);
+  const from = leadingTo(model, scene.key);
+  return box(head('Scene', scene.key),
+    fieldRow('Name', field('story-name', scene.key, 'a short name', {
+      onchange: (e) => {
+        const want = freshKey(e.currentTarget.value, keys.filter((k) => k !== scene.key));
+        renameScene(model, scene.key, want);
+        st.scene = want;
+        touched();
+        render();
+      },
+    })),
+    fieldRow('Comes from', from.length
+      ? h('div', { class: 'row wrap' }, ...from.map((k) => h('button', {
+        class: 'link tiny mono', text: k, onclick: () => go(k),
+      })))
+      : h('span', { class: 'hint muted', text: at === 0 ? 'the start of the story' : 'nothing leads here' })),
+    fieldRow('About', field('story-about', scene.about ?? '', 'A line about this place, for the studio and its helpers', {
+      oninput: (e) => { scene.about = e.currentTarget.value; touched(); },
+    })),
+    // The picture: the game's own to choose from, and the studio's shelf
+    // behind a button that opens it as a dialog with a filter (spec.md §6) —
+    // forty-two pictures before anybody adds one is not a strip. Without this
+    // the shelf was only reachable through the guide's picture question, which
+    // stops being asked the moment a scene has a picture.
+    fieldRow('Picture',
+      scene.picture ? thumb(scene.picture) : null,
+      h('div', { class: 'row wrap' },
+        pick(
+          [['', 'None'], ...filesUnder(IMAGE_DIR).map((p) => [p, p.slice(IMAGE_DIR.length + 1)])],
+          scene.picture,
+          (e) => { scene.picture = e.currentTarget.value; touched(); render(); },
+        ),
+        ro ? null : h('button', {
+          class: 'quiet tiny', text: 'Pick a picture…',
+          title: 'Pictures from the studio\'s own shelf',
+          onclick: () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: 'background',
+              // Named for the scene, like every other way a picture gets in
+              // — the set says what it looks like, the story says what it is
+              // called.
+              place: async (a, blob) => {
+                const path = `${IMAGE_DIR}/${scene.key}.png`;
+                const { failure } = await writeFiles([{ path, body: blob }]);
+                if (failure) { say(failure, true); return; }
+                scene.picture = path;
+                touched();
+                render();
+                say(artCredit(a, path));
+              },
+            };
+            render();
+          },
+        })),
+      scene.picture && !has.has(scene.picture)
+        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null),
+    // Music belongs to the whole scene the way the picture does — it keeps
+    // playing into the next scene that asks for the same track. None first
+    // and the only thing offered until somebody uploads a track: a picker
+    // listing music the game does not have would name files nothing plays.
+    fieldRow('Music',
+      h('div', { class: 'row wrap' },
+        pick(
+          [['', 'None'], ...filesUnder(MUSIC_DIR).map((p) => [p, p.slice(MUSIC_DIR.length + 1)])],
+          scene.music,
+          (e) => { scene.music = e.currentTarget.value; touched(); render(); },
+        ),
+        scene.music ? play(scene.music) : null),
+      scene.music && !has.has(scene.music)
+        ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
 }

@@ -179,9 +179,12 @@ destructive actions confirm first. The UI says **helper** where the code says
 
 Three conventions to keep. **A link looks at something, a button changes
 something** (`Show changes`, `All files`, `Versions` and every path in a diff
-are `button.link`; `Bring this file back` is a bordered button). Anything a
-control reveals opens **in the row it belongs to**, not at the foot of the
-list — one open at a time, and the same control closes it again with its label
+are `button.link`; `Add a file` is a bordered button, and anything that
+changes one *thing* — a scene, a line, a file, a version, a helper — is an
+item in that thing's `···`, in one order, absent when it may not be pressed).
+Anything a control reveals opens **in the row it belongs to**, not at the
+foot of the list — one open at a time, and the same control closes it again
+with its label
 flipped rather than a second control appearing. And **what lights up is what
 can be clicked**: a row that highlights under the pointer opens on a click
 anywhere in it, or it does not highlight at all.
@@ -229,11 +232,12 @@ specified:
   one request, one answer, nothing kept, through the same two token walls a
   reply goes through and billed to whoever pressed. No message row anywhere
   (§6, §10).
-- The **standard set** (`public/story-art/`) is picked from a shelf — on the
-  guide's picture card and behind `Pick a picture` on a scene's Picture row —
-  one file, one commit. 33 portraits and 9 backgrounds, all CC0 (Kenney and
-  Stealthix). Beside it the **studio collection**: pictures people here have
-  added, on the same shelf, `Share to studio…` on an open picture's bar.
+- The **standard set** (`public/story-art/`) is picked from a shelf — a strip
+  on the guide's picture card, and a dialog with a filter behind
+  `Pick a picture…` on a scene's Picture field in the rail — one file, one
+  commit. 33 portraits and 9 backgrounds, all CC0 (Kenney and Stealthix).
+  Beside it the **studio collection**: pictures people here have added, on
+  the same shelf, put there by `Copy…` on a picture's row under Code.
   ⚠️ Bytes in the row so `npm run backup` covers them, and ⚠️ no licence
   recorded — whoever drew it keeps it (§3).
 - A scene takes **music** (`assets/music/`, looped, carried into the next

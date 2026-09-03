@@ -33,6 +33,7 @@ import { renderQuizForm } from './quiz-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
   STORY_FILE, loadStory, parkStory, saveStory, storyChanged, dropStageImages, selectScene,
+  renderStoryInspector,
 } from './story-form.js';
 import { dropArtIndex } from './story-guide.js';
 import { editorsFor, modesFor } from './game-types.js';
@@ -492,6 +493,52 @@ export function commitNow(slug = S.slug, { keepalive = false } = {}) {
   if (!slug || S.project?.archived) return Promise.resolve();
   return send(`/api/projects/${slug}/commit`, { method: 'POST', keepalive })
     .catch(() => { /* the idle timer lands it if this did not */ });
+}
+
+// One ··· per thing (spec.md §6): the button, and while it is open, its menu
+// — items in one order, each `{text, onPick, danger?, title?}`, with anything
+// the reader may not press left out by the caller rather than greyed here.
+// Which one is open is `S.menu`, keyed by the thing, so a render keeps it;
+// the listener at the foot of this file closes it on a click anywhere else.
+// Clicks stop here: the row a ··· sits in usually opens something on a click.
+export function more(key, items, { label = 'More', small = true } = {}) {
+  const list = items.filter(Boolean);
+  if (list.length === 0) return null;
+  const open = S.menu === key;
+  const button = h('button', {
+    class: `icon more-dots${small ? ' tiny' : ''}${open ? ' on' : ''}`, text: '···',
+    title: label, 'aria-label': label,
+    'aria-haspopup': 'menu', 'aria-expanded': open ? 'true' : 'false',
+    onclick: (e) => {
+      e.stopPropagation();
+      S.menu = open ? null : key;
+      menuOpenedAt = performance.now();
+      render();
+    },
+  });
+  const menu = open ? h('div', { class: 'menu', role: 'menu' }, list.map((item) => h('button', {
+    class: `menu-item${item.danger ? ' danger' : ''}`, text: item.text, title: item.title, role: 'menuitem',
+    onclick: (e) => { e.stopPropagation(); S.menu = null; return item.onPick(); },
+  }))) : null;
+  if (menu) placeMenu(button, menu);
+  return h('div', { class: 'more' }, button, menu);
+}
+
+// A menu is fixed to the viewport and put beside its button once both are on
+// screen: inside a scrolling list an absolutely placed menu is clipped by the
+// list, and a row near the foot of the pane opens upward instead of into the
+// fold. Hidden until placed, so it never flashes at the corner first.
+let menuOpenedAt = 0;
+function placeMenu(button, menu) {
+  requestAnimationFrame(() => {
+    if (!button.isConnected || !menu.isConnected) return;
+    const r = button.getBoundingClientRect();
+    const height = menu.offsetHeight;
+    const below = r.bottom + 4 + height <= window.innerHeight;
+    menu.style.top = `${below ? r.bottom + 4 : Math.max(4, r.top - 4 - height)}px`;
+    menu.style.right = `${Math.max(4, window.innerWidth - r.right)}px`;
+    menu.classList.add('placed');
+  });
 }
 
 // A pill pressed. Held and awaited: Share reads before it shows, and a render
@@ -3149,7 +3196,16 @@ function renderFilesTab() {
   // row can be got at by keyboard. Inside a folder the row shows the rest of
   // the path — the folder's own row already says the front of it.
   h('button', { class: 'fname', text: top ? f.path.slice(top.length + 1) : f.path, disabled: f.unreachable }),
-  h('span', { class: 'fsize', text: sizeText(f.size) }));
+  h('span', { class: 'fsize', text: sizeText(f.size) }),
+  // What can be done to the file, on its row (spec.md §6). Copy is not gated
+  // on frozen(): copying out of a game takes nothing from it, and the rights
+  // that matter are the destination's, which the dialog minds.
+  f.unreachable ? null : more(`file:${f.path}`, [
+    !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path: f.path }; render(); } },
+    !frozen() && { text: 'Duplicate…', onPick: () => { S.dialog = { kind: 'duplicate-file', path: f.path }; render(); } },
+    { text: 'Copy…', title: 'Into another game, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'copy', path: f.path }; render(); } },
+    !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path: f.path }; render(); } },
+  ], { label: `More about ${f.path}` }));
 
   // The list is sorted by path, so a folder's files are already contiguous:
   // one header row where each top-level folder starts, and its files hidden
@@ -3206,38 +3262,9 @@ function renderFilesTab() {
           : 'Versions',
         onclick: () => { showMode('share'); return loadHistory(S.open.path); },
       }),
-      h('button', {
-        class: 'quiet tiny', text: 'Rename',
-        disabled: frozen(),
-        onclick: () => { S.dialog = { kind: 'rename-file', path: S.open.path }; render(); },
-      }),
-      h('button', {
-        class: 'quiet tiny', text: 'Duplicate',
-        disabled: frozen(),
-        onclick: () => { S.dialog = { kind: 'duplicate-file', path: S.open.path }; render(); },
-      }),
-      // Into another game. Not disabled by frozen(): copying out of a game
-      // takes nothing from it, and the rights that matter are the ones on the
-      // game it lands in — which is what the dialog offers.
-      h('button', {
-        class: 'quiet tiny', text: 'Copy to…',
-        title: 'Copy this file into another game',
-        onclick: () => { S.dialog = { kind: 'copy-to', path: S.open.path }; render(); },
-      }),
-      // Into the studio's own collection, so every game's shelf can pick it.
-      // Beside Copy to… because it is the other "send this elsewhere", and
-      // for pictures only: the shelf offers faces and places. Not disabled by
-      // frozen() for the same reason Copy to… is not — sharing a picture out
-      // of a game takes nothing from it.
-      /\.png$/i.test(S.open.path) ? h('button', {
-        class: 'quiet tiny', text: 'Share to studio…',
-        title: 'Put this picture in the studio\'s collection, for any game to use',
-        onclick: () => { S.dialog = { kind: 'share-art', path: S.open.path }; render(); },
-      }) : null,
-      h('button', {
-        class: 'danger tiny', text: 'Delete',
-        onclick: () => { S.dialog = { kind: 'delete-file', path: S.open.path }; render(); },
-      }),
+      // Rename, Duplicate, Copy and Delete are the file's ··· on its row in
+      // the list above (spec.md §6); the bar is the file's name, its
+      // versions, and the way out.
       h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',
         // Wrapped, not passed: closeOpenFile's first argument is the file to
@@ -3348,10 +3375,9 @@ function renderFilesTab() {
     // the commonest; which kind of file you are adding is a question, so it is
     // asked in a dialog.
     h('div', { class: 'pad row wrap' },
-      h('button', {
+      frozen() ? null : h('button', {
         class: 'quiet tiny', text: 'Add a file',
         title: 'Make a file, upload one, draw a picture or make a sound',
-        disabled: frozen(),
         onclick: () => { S.dialog = { kind: 'add-file' }; render(); },
       }),
       h('div', { class: 'spacer' }),
@@ -3564,9 +3590,11 @@ function railGrip() {
   return grip;
 }
 
-// The rail is the running game and nothing else (spec.md §6): the preview,
-// and under it what the game reported. The four tabs that used to sit here —
-// Files, Versions, Scoreboard, Achievements — are modes of the centre now.
+// The rail is the running game, and under it the selected thing (spec.md §6):
+// the preview with what the game reported, then the inspector — the fields of
+// whatever the centre's mode has selected, when it has one. The four tabs that
+// used to sit here — Files, Versions, Scoreboard, Achievements — are modes of
+// the centre now.
 function renderRail() {
   if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
@@ -3574,7 +3602,16 @@ function renderRail() {
     // On a phone the rail is a pane of its own, and this is the way back.
     h('div', { class: 'pad row only-narrow' },
       h('button', { class: 'quiet', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } })),
-    renderPreview());
+    renderPreview(),
+    renderInspector());
+}
+
+// The selected thing's fields, for the mode that has one. The story editor's
+// scene, person or title screen today; a picture or a sound once Pics and
+// Hear exist (ideas/calm-shell.md).
+function renderInspector() {
+  if (editorShowing()?.id === 'story') return renderStoryInspector();
+  return null;
 }
 
 // The centre's body for every mode but the chat, whose thread and composer
@@ -3730,5 +3767,11 @@ document.addEventListener('click', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.menu) { S.menu = null; render(); }
 });
+// A menu is fixed to the viewport (placeMenu), so a list scrolling under it
+// would leave it floating beside nothing: scrolling closes it. Not the scroll
+// the opening render itself causes, putting every scroller back where it was.
+document.addEventListener('scroll', () => {
+  if (S.menu && performance.now() - menuOpenedAt > 200) { S.menu = null; render(); }
+}, { capture: true, passive: true });
 
 start();

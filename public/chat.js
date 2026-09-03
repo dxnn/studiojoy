@@ -9,6 +9,7 @@ import {
   loadDiff, toggleChatty, detachAgent,
   composerBox, sendComposer, send, api, say, sizeText,
   openChat, openMode, showMode, loadShare, renderModeBody, frozen, canTalk, nearQuota, calledMark,
+  more,
 } from './main.js';
 import { modesFor } from './game-types.js';
 
@@ -452,11 +453,10 @@ function helperGap() {
 function renderMore(p) {
   const yours = Boolean(p.mine);
   const rooms = !isChat();
-  const item = (text, kind, { danger = false, title = null } = {}) => h('button', {
-    class: `menu-item${danger ? ' danger' : ''}`, text, title, role: 'menuitem',
-    onclick: () => { S.menu = null; S.dialog = { kind }; render(); },
+  const item = (text, kind, { danger = false, title = null } = {}) => ({
+    text, title, danger, onPick: () => { S.dialog = { kind }; render(); },
   });
-  const items = [
+  return more('game', [
     !frozen() && item('Rename…', 'rename'),
     rooms && !p.archived && item('Fork…', 'fork', {
       title: 'Start a new game from a copy of this one',
@@ -473,17 +473,7 @@ function renderMore(p) {
     p.originator && !p.archived && !p.published && item('Archive…', 'archive', {
       danger: true, title: 'Put this game away — only a terminal brings it back',
     }),
-  ].filter(Boolean);
-  if (items.length === 0) return null;
-  const open = S.menu === 'game';
-  return h('div', { class: 'more' },
-    h('button', {
-      class: `icon more-dots${open ? ' on' : ''}`, text: '···',
-      title: 'More', 'aria-label': 'More about this game',
-      'aria-haspopup': 'menu', 'aria-expanded': open ? 'true' : 'false',
-      onclick: () => { S.menu = open ? null : 'game'; render(); },
-    }),
-    open ? h('div', { class: 'menu', role: 'menu' }, items) : null);
+  ], { label: 'More about this game', small: false });
 }
 
 // The row of modes over the centre (spec.md §6, public/game-types.js): one
@@ -503,7 +493,8 @@ function renderModes(p) {
 
 // One pill per conversation, and at the right the things that are about this
 // conversation rather than about the game: the helpers listening in it, and
-// the + that calls another in. Making another chat is the game's ···.
+// the + that calls another in. Making another chat is the game's ···; this
+// chat's own ··· sits after the pills, for the one you are in.
 //
 // ⚠️ The pills and the chips are each their own scroller. Two rows of helpers
 // and a studio's worth of chats will not fit on a phone, and something has to
@@ -514,24 +505,23 @@ function renderModes(p) {
 // no helpers — is not one a bar can give. What cannot be done is not offered.
 function renderChatTabs(p) {
   if (!S.chat) return null;
-  // The name toggles between answering everything and waiting to be called;
-  // the ✕ takes them out. Both are a change to the game, so neither is
-  // offered on a game that is archived or somebody else's — the server refuses
-  // them there, and a chip that answers with a red banner is worse than a
-  // chip that stays still.
+  // A helper's chip is its name, lit when it answers everything, and its ···:
+  // whether it answers everything or waits to be called, and taking it out.
+  // Both are a change to the game, so neither is offered on a game that is
+  // archived or somebody else's — the server refuses them there, and a chip
+  // that answers with a red banner is worse than a chip that stays still.
+  const first = (a) => a.name.split(' ')[0];
   const chips = p.agents.map((a) => h('span', { class: `hchip${a.chatty ? ' on' : ''}` },
-    h('button', {
-      class: 'hchip-name', text: a.name, disabled: frozen(),
-      title: a.chatty
-        ? `${a.name} answers everything — click to make them wait for @${a.name.split(' ')[0]}`
-        : `${a.name} waits to be called — click to make them answer everything`,
-      onclick: () => toggleChatty(a),
+    h('span', {
+      class: 'hchip-name', text: a.name,
+      title: a.chatty ? `${a.name} answers everything` : `${a.name} waits to be called by @${first(a)}`,
     }),
-    h('button', {
-      class: 'hchip-x', text: '✕', disabled: frozen(),
-      title: `Remove ${a.name} from this game`,
-      onclick: () => detachAgent(a),
-    })));
+    frozen() ? null : more(`helper:${a.agent_id}`, [
+      a.chatty
+        ? { text: 'Wait to be called', title: `Answer only when somebody types @${first(a)}`, onPick: () => toggleChatty(a) }
+        : { text: 'Answer everything', title: 'Answer every message in this chat', onPick: () => toggleChatty(a) },
+      { text: 'Take out of this chat', danger: true, onPick: () => detachAgent(a) },
+    ], { label: `More about ${a.name}` })));
   // A chat project is one room: there are no pills to switch between. Who is
   // listening in it is the whole of this row there.
   const rooms = !isChat();
@@ -548,6 +538,11 @@ function renderChatTabs(p) {
     // The mark on the game says somebody called you; this says in which
     // conversation.
     calledMark(c.mentions)))) : null,
+    // The chat you are in. Humans only keeps its name — it is furniture, and
+    // the words the studio uses for it — so it has nothing to offer and no ···.
+    rooms && S.chat.bots && !frozen() ? more(`chat:${S.chat.id}`, [
+      { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-chat', chat: S.chat }; render(); } },
+    ], { label: `More about ${S.chat.name}` }) : null,
     h('div', { class: 'spacer' }),
     chips.length ? h('div', { class: 'hchips' }, chips) : null,
     // Outside the chips and never scrolled away with them: the way to add
