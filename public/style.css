@@ -2046,6 +2046,15 @@ pre.diff .hunk { color: var(--accent); }
 .choices .cwhat { font-size: 12.5px; color: var(--muted); }
 .dialog.wide { max-width: 560px; }
 
+/* A file's name in pieces: the folder and the ending shown but fixed either
+   side of the box, so the name is all there is to type. The link under it
+   opens the whole path up, and flips its label to close it again. */
+.dialog .name-row { display: flex; align-items: center; gap: 4px; }
+.dialog .name-row input { flex: 1; min-width: 0; }
+.dialog .name-row .fixed { color: var(--muted); white-space: nowrap; }
+.dialog .name-row .fixed:empty { display: none; }
+.dialog > button.link { align-self: flex-start; }
+
 /* A row per parameter: what it is called, the slider, where it is now, and the
    comment saying what it does — the config form's bargain, without a file.
    Lives in the sound editor pane rather than a dialog, so it is a bare

@@ -43,14 +43,23 @@ function renameNote(from, to) {
     + 'the old name needs changing, and your helpers can do that for you.';
 }
 
+// A file's name in three pieces — the folder, the name, the ending — so a
+// dialog can offer just the middle one. The ending starts at the last dot in
+// the name and is never the name's first character: `.gitignore` is a name
+// with no ending, not an ending with no name.
+function splitName(path) {
+  const slash = path.lastIndexOf('/') + 1;
+  const dot = path.lastIndexOf('.');
+  const cut = dot > slash ? dot : path.length;
+  return { dir: path.slice(0, slash), stem: path.slice(slash, cut), ext: path.slice(cut) };
+}
+
 // The name a duplicate starts with: `-copy` before the extension, counting up
 // past any name already taken, so the dialog never opens on a collision.
 function duplicateName(from) {
-  const slash = from.lastIndexOf('/');
-  const dot = from.lastIndexOf('.');
-  const cut = dot > slash + 1 ? dot : from.length;
+  const { dir, stem, ext } = splitName(from);
   for (let n = 1; ; n += 1) {
-    const to = `${from.slice(0, cut)}-copy${n > 1 ? `-${n}` : ''}${from.slice(cut)}`;
+    const to = `${dir}${stem}-copy${n > 1 ? `-${n}` : ''}${ext}`;
     if (!S.files.some((f) => f.path === to)) return to;
   }
 }
@@ -198,27 +207,64 @@ export function dialogFor(d) {
 
   // `rename-file`, not `rename`: the game's own name has owned that one since
   // before this existed, and the two dialogs are a click apart.
+  //
+  // The box holds just the name to begin with. The folder before it and the
+  // ending after it are shown but fixed, so nobody types `.js` to keep it —
+  // and typing it anyway does not double it. One link opens the whole path
+  // up; that is the mode where a rename is also a move, and what that will
+  // mean is said before it happens rather than found out afterwards.
   if (d.kind === 'rename-file') {
+    let parts = splitName(d.path);
+    let whole = false;
     const path = h('input', { 'aria-label': 'New name' });
-    path.value = d.path;
+    const before = h('span', { class: 'fixed mono' });
+    const after = h('span', { class: 'fixed mono' });
+    const label = h('label');
     const note = h('div', { class: 'hint muted' });
+    const more = h('button', { class: 'link tiny' });
     const rename = h('button', { class: 'filled', text: 'Rename it' });
-    // The name is the whole path, so a rename is also a move, and what that
-    // will mean is said before it happens rather than found out afterwards.
+    // What the file will be called, in either mode.
+    const target = () => {
+      const typed = path.value.trim();
+      if (whole || !typed) return typed;
+      const { dir, ext } = parts;
+      const stem = ext && typed.length > ext.length && typed.toLowerCase().endsWith(ext.toLowerCase())
+        ? typed.slice(0, -ext.length)
+        : typed;
+      return dir + stem + ext;
+    };
     const check = () => {
-      const to = path.value.trim();
+      const to = target();
       note.textContent = renameNote(d.path, to);
       rename.disabled = !to || to === d.path;
     };
+    const show = () => {
+      label.textContent = whole ? 'New name (use / for folders)' : 'New name';
+      before.textContent = whole ? '' : parts.dir;
+      after.textContent = whole ? '' : parts.ext;
+      more.textContent = whole ? 'Just the name' : 'Change the folder or the ending too';
+      check();
+    };
+    // The name carries across: opened up, the box shows the whole of it as it
+    // stands; closed again, the same name back in pieces.
+    more.addEventListener('click', () => {
+      const to = target() || d.path;
+      whole = !whole;
+      if (whole) path.value = to;
+      else { parts = splitName(to); path.value = parts.stem; }
+      show();
+      path.focus();
+    });
     path.addEventListener('input', check);
     rename.addEventListener('click', async () => {
-      const to = path.value.trim();
+      const to = target();
       close();
       await renameFile(d.path, to);
     });
-    check();
+    path.value = parts.stem;
+    show();
     return wrap('Rename this file',
-      h('label', { text: 'New name (use / for folders)' }), path, note,
+      label, h('div', { class: 'name-row' }, before, path, after), note, more,
       h('div', { class: 'actions' }, cancel, rename));
   }
 
