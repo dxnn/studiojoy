@@ -295,6 +295,20 @@ in the same commit.
    editors-in-the-centre.md moves to tmp/ with this step. spec.md §6, §17
    "Panes"; GLOSSARY *pixel editor*, *sound editor*, *cast*.
 
+   *Landed 2026-09-02.* Pics is cards by kind — Characters and Places for a
+   visual novel, Sprites, Pictures and Studio dressing for every game, and
+   an Other pictures section so nothing in the tree is missing — and a
+   picture opens full width in the pixel editor, the bar's ✕ the way back.
+   Hear is rows, and the open sound's editor lands in the rail as the plan
+   said, a column of sliders where a column fits. **Questions** came with
+   this step: the quiz form is a mode of its own, and the mode is the file.
+   The pixel editor, the sound editor and the quiz form save themselves now,
+   two seconds after the last stroke, slider or change, with no Save; Code's
+   text editor keeps its. A person's moods moved into the inspector, so Write
+   and Pics show one Character card the same way. The mock's bottom bar with
+   Undo and one primary button was not built: each mode's maker sits at the
+   top of its body, where Code's already was, and Versions is the undo.
+
 ## Open questions
 
 - **The inspector's name.** Used here for want of one; not in the glossary

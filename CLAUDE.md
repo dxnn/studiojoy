@@ -245,12 +245,17 @@ specified:
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is
   never written back, so an existing visual novel needs its own `js/story.js`
   brought forward before its story is re-saved (§6).
-- The centre pane is one **mode** at a time — Chat, a game type's editors,
-  Code, Share — in a row of pills over it; the rail is the preview and
-  nothing else. Code opens a file as coloured text, a config form, a pixel
-  editor, a sound editor or a media player; Share is the link, the versions,
-  the scoreboard and the achievements editor as one page. Everything done to
-  the whole game is behind one `···` beside its name (§6, ideas/calm-shell.md).
+- The centre pane is one **mode** at a time — Chat, a game type's editors
+  (Write, Questions), Pics, Hear, Code, Share — in a row of pills over it;
+  the rail is the preview, and under it the selected thing's fields. Pics
+  shows every picture by kind (a visual novel's Characters and Places, every
+  game's sprites and dressing) and opens one full width in the pixel editor;
+  Hear lists sounds over music and puts the sound editor in the rail; Code is
+  the tree, opening text and config forms; Share is the link, the versions,
+  the scoreboard and the achievements editor as one page. The pixel editor,
+  the sound editor, the story and the quiz save themselves; Code's text editor
+  keeps Save. Everything done to a thing is behind its one `···` (§6,
+  ideas/calm-shell.md).
 
 Open questions:
 

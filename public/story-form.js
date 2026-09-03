@@ -28,7 +28,7 @@ import {
 import { h } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, commitNow, more,
-  NO_CONNECTION,
+  createPictureAt, NO_CONNECTION,
 } from './main.js';
 import { renderGuide, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
@@ -451,6 +451,13 @@ const play = (path) => h('button', {
 });
 const go = (key) => { selectScene(key); render(); };
 
+// Shared with Pics and Hear (main.js): the same picture cache — dropped for
+// the paths a files.changed names, wholesale with the game — and the same
+// way to hear a file.
+export {
+  setPicture as pictureInto, imageUrl as cachedFileUrl, play as playButton, thumb as pictureThumb,
+};
+
 /* The editor ----------------------------------------------------------------- */
 
 const note = (...kids) => h('div', { class: 'story-editor' }, h('div', { class: 'pad muted' }, ...kids));
@@ -852,43 +859,15 @@ export function renderStoryEditor() {
 
   /* A person ----------------------------------------------------------------- */
 
-  // A person's moods. Their name and the note about them are the inspector's,
-  // beside the preview; taking them out is the strip row's ···.
-  const personSteps = (person) => {
-    const rows = [];
-    // One row per mood: the picture it is, and the file it expects — naming
-    // the file is how somebody knows what to call the picture they draw.
-    person.moods.forEach((mood, mi) => {
-      const path = portraitPath(person.key, mood);
-      rows.push(rowOf(mi, `line${st.step === mi ? ' open' : ''}`,
-        thumb(path),
-        st.step === mi
-          ? field('story-mood', mood, 'a mood', {
-            onchange: (e) => {
-              const want = freshKey(e.currentTarget.value, person.moods.filter((m) => m !== mood), 'mood');
-              renameMood(model, person.key, mood, want);
-              touched();
-              render();
-            },
-          })
-          : h('span', { class: 'speaker', text: mood }),
-        h('span', { class: `hint mono ${has.has(path) ? 'muted' : 'warn'}`, text: has.has(path) ? path : `${path} — not in this game` }),
-        ro ? null : more(`mood:${person.key}:${mood}`, [{
-          text: 'Delete', danger: true,
-          onPick: () => { person.moods.splice(mi, 1); st.step = 0; touched(); render(); },
-        }], { label: `More about ${mood}` })));
-    });
-    if (!ro) rows.push(h('button', {
-      class: 'quiet tiny add-line', text: '+ Add a mood',
-      onclick: () => {
-        person.moods.push(freshKey('', person.moods, 'mood'));
-        st.step = person.moods.length - 1;
-        touched();
-        render();
-      },
-    }));
-    return rows;
-  };
+  // A person is all the inspector's — their name, the note about them and
+  // their moods (renderPersonInspector); the stage shows the mood the step
+  // names. Taking them out is the strip row's ···.
+  const personSteps = () => [
+    h('p', {
+      class: 'hint muted problem',
+      text: 'Their name, the note about them and their moods are beside the preview.',
+    }),
+  ];
 
   /* The title screen ------------------------------------------------------------ */
 
@@ -987,19 +966,7 @@ export function renderStoryInspector() {
       word('tagline', 'story-tagline', 'Under it', 'A line under the title'));
   }
 
-  if (st.person) {
-    const person = cast.find((p) => p.key === st.person);
-    if (!person) return null;
-    return box(head('Person', person.name || person.key),
-      fieldRow('Name',
-        field('story-person', person.name, 'Their name', {
-          oninput: (e) => { person.name = e.currentTarget.value; touched(); },
-        }),
-        h('span', { class: 'hint muted mono', text: person.key })),
-      fieldRow('About', field('story-person-about', person.about ?? '', 'A line about them, for the studio and its helpers', {
-        oninput: (e) => { person.about = e.currentTarget.value; touched(); },
-      })));
-  }
+  if (st.person) return renderPersonInspector(cast.find((p) => p.key === st.person));
 
   const scene = scenes.find((s) => s.key === st.scene);
   if (!scene) return null;
@@ -1075,4 +1042,87 @@ export function renderStoryInspector() {
         scene.music ? play(scene.music) : null),
       scene.music && !has.has(scene.music)
         ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
+}
+
+// A person, for the story inspector and for Pics' Characters card alike
+// (spec.md §6): their name, the note about them, and their moods — each a
+// picture at the path the story expects, which is how somebody knows what to
+// call the picture they draw. A mood is drawn on under Pics or Code, or picked
+// from the shelf of faces, or renamed here, which renames the picture and
+// every line said in it. `close` is the way out of a card in Pics; the strip
+// in Write has no such thing to close.
+export function renderPersonInspector(person, { close = null } = {}) {
+  const st = S.story;
+  if (!st?.model || !person) return null;
+  const { model } = st;
+  const ro = frozen();
+  const has = new Set(S.files.map((f) => f.path));
+  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
+    h('span', { class: 'ilabel', text: label }), ...kids);
+  const moodRow = (mood, mi) => {
+    const path = portraitPath(person.key, mood);
+    return h('div', { class: 'mood-row row' },
+      thumb(path),
+      field(`story-mood-${mi}`, mood, 'a mood', {
+        onchange: (e) => {
+          const want = freshKey(e.currentTarget.value, person.moods.filter((m) => m !== mood), 'mood');
+          renameMood(model, person.key, mood, want);
+          touched();
+          render();
+        },
+      }),
+      has.has(path)
+        ? h('button', { class: 'link tiny', text: 'Draw', title: `Open ${path} to draw on`, onclick: () => chooseFile(path) })
+        : h('span', { class: 'hint warn', text: 'no picture yet', title: `${path} is not in this game` }),
+      ro ? null : more(`mood:${person.key}:${mood}`, [
+        {
+          text: 'Pick a face…', title: 'A face from the studio\'s shelf, saved as this mood',
+          onPick: () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: 'portrait',
+              place: async (a, blob) => {
+                const { failure } = await writeFiles([{ path, body: blob }]);
+                if (failure) { say(failure, true); return; }
+                say(artCredit(a, path));
+              },
+            };
+            render();
+          },
+        },
+        !has.has(path) && {
+          text: 'Draw one', title: `A blank face at ${path}, opened to draw on`,
+          onPick: () => createPictureAt(path, 64, 64),
+        },
+        {
+          text: 'Delete', danger: true,
+          onPick: () => { person.moods.splice(mi, 1); touched(); render(); },
+        },
+      ], { label: `More about ${mood}` }));
+  };
+  return h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' },
+    h('div', { class: 'inspector-head row' },
+      h('div', { class: 'grow' },
+        h('span', { class: 'section-label', text: 'Character' }),
+        h('div', { class: 'iname', text: person.name || person.key })),
+      close ? h('button', { class: 'icon tiny', text: '✕', title: 'Close', onclick: close }) : null),
+    fieldRow('Name',
+      field('story-person', person.name, 'Their name', {
+        oninput: (e) => { person.name = e.currentTarget.value; touched(); },
+      }),
+      h('span', { class: 'hint muted mono', text: person.key })),
+    fieldRow('About', field('story-person-about', person.about ?? '', 'A line about them, for the studio and its helpers', {
+      oninput: (e) => { person.about = e.currentTarget.value; touched(); },
+    })),
+    fieldRow('Moods',
+      ...person.moods.map(moodRow),
+      person.moods.length ? null : h('span', { class: 'hint muted', text: 'No moods yet, so this person is never shown.' }),
+      ro ? null : h('button', {
+        class: 'quiet tiny', text: '+ Add a mood',
+        onclick: () => {
+          person.moods.push(freshKey('', person.moods, 'mood'));
+          touched();
+          render();
+        },
+      })));
 }

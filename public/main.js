@@ -20,11 +20,11 @@ import {
 } from './pixel-editor.js';
 import { h, iconButton } from './dom.js';
 import {
-  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, assetPath, writeFiles,
+  SOUND_DIR, MUSIC_DIR, IMAGE_DIR, SPRITE_DIR, assetPath, writeFiles,
   makeDropTarget, isFileDrag,
 } from './upload.js';
 import { isConfigPath, renderConfigForm } from './config-form.js';
-import { isQuizPath, quizModel } from './quiz-editor.js';
+import { isQuizPath, quizModel, QUIZ_FILE } from './quiz-editor.js';
 import { isAchievementsPath, ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import {
   loadAchievements, parkAchievements, achievementsChanged, renderAchievementsTab,
@@ -33,9 +33,9 @@ import { renderQuizForm } from './quiz-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
   STORY_FILE, loadStory, parkStory, saveStory, storyChanged, dropStageImages, selectScene,
-  renderStoryInspector,
+  renderStoryInspector, renderPersonInspector, pictureInto, playButton,
 } from './story-form.js';
-import { dropArtIndex } from './story-guide.js';
+import { dropArtIndex, artCredit } from './story-guide.js';
 import { editorsFor, modesFor } from './game-types.js';
 import { tokenize, langFor } from './highlight.js';
 import { renderVersionsTab } from './versions.js';
@@ -108,6 +108,9 @@ export const S = {
   errors: [],
   pinned: new Set(),
   open: null, // {path, content, etag, dirty, conflict}
+  // What Pics has selected into the inspector: {kind: 'picture', path} or
+  // {kind: 'person', key}. Hear's selection is the open sound itself.
+  pick: null,
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
   draw: null,
@@ -548,6 +551,8 @@ export async function openMode(id) {
   await urlAs('hold', async () => {
     showMode(id);
     if (S.mode === 'share') await loadShare();
+    // Questions is the quiz file: arriving opens it.
+    if (S.mode === 'quiz' && S.open?.path !== QUIZ_FILE) await chooseFile(QUIZ_FILE);
   });
   render();
 }
@@ -569,7 +574,7 @@ function urlNow() {
       const first = S.story?.model?.scenes[0]?.key;
       if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
     }
-    if (S.mode === 'code' && S.open) q.set('file', S.open.path);
+    if (['code', 'pics', 'hear'].includes(S.mode) && S.open) q.set('file', S.open.path);
     if (S.mode === 'share') {
       if (S.historyPath) q.set('file', S.historyPath);
       if (S.diff) q.set('version', S.diff.sha);
@@ -676,13 +681,16 @@ async function applyView({
     }
     await loadScores();
     if (!S.achievements || S.achievements.grown) await loadAchievements();
-  } else if (want === 'code') {
+  } else if (want === 'code' || want === 'pics' || want === 'hear') {
     // Back is a way out of a file as much as into one, and either way it goes
     // through the same question the ✕ asks when there is unsaved work. Answer
     // that no and the file stays open, so the next render puts its own address
     // back — a duplicate entry is a smaller price than losing what was typed.
     if (path && path !== S.open?.path) await chooseFile(path);
     else if (!path && S.open) closeOpenFile();
+  } else if (want === 'quiz') {
+    // The mode is the file.
+    if (S.open?.path !== QUIZ_FILE) await chooseFile(QUIZ_FILE);
   }
   render();
 }
@@ -905,6 +913,7 @@ export async function openProject(slug, { view = null } = {}) {
   S.errors = res.body.errors ?? [];
   S.pinned = new Set();
   S.open = null;
+  S.pick = null;
   S.history = [];
   S.scores = null;
   // Cleared as well as the list: a path from the game you just left would
@@ -1286,7 +1295,10 @@ function onEvent(name, data) {
       if (S.open && data.paths.includes(S.open.path)) {
         if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
-        } else {
+        } else if (Date.now() - (S.open.savedAt ?? 0) > 5000) {
+          // Somebody else's write: re-read the file. Our own save's write
+          // arrives this way too, and re-opening on that would restart the
+          // pixel editor — undo history and all — every two seconds.
           openFile(S.open.path);
         }
       }
@@ -1566,8 +1578,15 @@ export async function openFile(path) {
   S.drawRefused = null;
   S.sound = null;
   S.soundRefused = null;
-  // A file opens under Code, wherever it was asked for.
-  showMode('code');
+  // A file opens where it belongs: under Pics or Hear when that is the mode
+  // and the file is its kind, under Questions when it is the quiz, and under
+  // Code for everything else, wherever it was asked for.
+  const mime = S.open.mime ?? '';
+  const stays = (S.mode === 'pics' && mime.startsWith('image/'))
+    || (S.mode === 'hear' && mime.startsWith('audio/'))
+    || (S.mode === 'quiz' && isQuizPath(path));
+  showMode(stays ? S.mode : 'code');
+  if (S.mode === 'pics') S.pick = { kind: 'picture', path };
   render();
   // A picture opens as a picture you can draw on. There was a second way to
   // look at one and it showed it at exactly the same size, so it was a control
@@ -1607,11 +1626,14 @@ async function countVersions() {
 // stray click is a great deal easier to make.
 function closeOpenFile(then = null) {
   if (!S.open) return;
-  if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
+  if (S.open.dirty) {
     S.dialog = { kind: 'close-file', path: S.open.path, then };
     render();
     return;
   }
+  // A picture or a sound saves itself, so what is unsaved here is the last
+  // two seconds of it: saved on the way out rather than asked about.
+  if (S.draw?.dirty || S.sound?.dirty) return saveAndClose(then);
   // Returned, not fired and forgotten: a caller that waits for the close has
   // to be waiting for the open too. Back is one — it renders when this
   // settles, and a render that lands after it has already finished writes the
@@ -1677,8 +1699,22 @@ export async function saveOpenFile({ force = false } = {}) {
   S.open.dirty = false;
   S.previewNonce += 1;
   await refreshFiles();
-  say(`Saved ${S.open.path}.`);
+  // The forms that save themselves say so in their own bar; Code's text
+  // editor, which asks first, hears it back.
+  if (!isQuizPath(S.open.path)) say(`Saved ${S.open.path}.`);
+  else render();
   return true;
+}
+
+// The quiz form saves itself two seconds after the last change (spec.md §5):
+// every change to it is a whole valid quiz, so there is nothing to wait for.
+let openSaveTimer = null;
+export function saveOpenFileSoon() {
+  clearTimeout(openSaveTimer);
+  openSaveTimer = setTimeout(() => {
+    openSaveTimer = null;
+    if (S.open?.dirty && !frozen()) saveOpenFile();
+  }, 2000);
 }
 
 export async function createFile(path) {
@@ -1869,15 +1905,16 @@ async function saveSound() {
     say(problem(res, body?.error ?? 'Could not save that sound.'), true);
     return false;
   }
-  // The save is a commit and a commit rebuilds the pane, so only the editor
-  // that asked may finish the job.
+  // The save is a write on the stream like any other, and the pane may have
+  // been rebuilt underneath, so only the editor that asked may finish the job.
+  // `savedAt` is what tells the files.changed handler this write is our own.
   if (S.sound === holding && S.open?.path === path) {
     S.open.etag = body.etag;
+    S.open.savedAt = Date.now();
     S.sound.dirty = false;
   }
   S.previewNonce += 1;
   await refreshFiles();
-  say(`Saved ${path}.`);
   return true;
 }
 
@@ -2061,7 +2098,24 @@ function stepDrawing(back) {
   }
   to.push(move);
   S.draw.dirty = true;
+  saveEditorSoon();
   render();
+}
+
+// The pixel and sound editors save themselves (spec.md §5): two seconds after
+// the last stroke or slider, because every state a picture or a sound passes
+// through is a picture or a sound. Code's text editor keeps its Save — half-
+// typed code is a broken game. Skipped on a game the reader may not change;
+// the write would only be refused.
+let editorSaveTimer = null;
+function saveEditorSoon() {
+  clearTimeout(editorSaveTimer);
+  editorSaveTimer = setTimeout(() => {
+    editorSaveTimer = null;
+    if (frozen()) return;
+    if (S.draw?.dirty) saveDrawing();
+    else if (S.sound?.dirty) saveSound();
+  }, 2000);
 }
 
 // Closing the tab is not a switch and nothing else would catch it, so the last
@@ -2130,6 +2184,7 @@ async function saveDrawing() {
     // the job.
     if (S.draw === drawing && S.open?.path === path) {
       S.open.etag = body.etag;
+      S.open.savedAt = Date.now();
       S.draw.dirty = false;
     }
   }
@@ -2138,9 +2193,9 @@ async function saveDrawing() {
   S.previewNonce += 1;
   await refreshFiles();
   if (!colours) return false;
-  if (drew && recoloured) say(`Saved ${path} and the colours.`);
-  else if (recoloured) say(`Saved the colours in ${LOOK_FILE}.`);
-  else say(`Saved ${path}.`);
+  // The picture saves itself and says so in its own bar; the colours are a
+  // separate file and a rarer thing, so they are still announced.
+  if (recoloured) say(`Saved the colours in ${LOOK_FILE}.`);
   return true;
 }
 
@@ -2594,17 +2649,9 @@ function renderMedia({ path, mime }) {
 // whether they have been saved.
 function renderSoundEditor() {
   const state = h('span', { class: 'hint muted' });
-  const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveSound() });
-  const saveClose = h('button', {
-    class: 'filled ok', text: 'Save and close',
-    onclick: async () => { if (await saveSound()) await closeOpenFile(); },
-  });
-  const paint = () => {
-    state.textContent = S.sound.dirty ? 'Not saved yet' : 'Saved';
-    save.disabled = !S.sound.dirty || frozen();
-    saveClose.disabled = save.disabled;
-  };
-  const changed = () => { S.sound.dirty = true; paint(); };
+  const paint = () => { state.textContent = S.sound.dirty ? 'Saving…' : 'Saved'; };
+  // No Save: a slider moved is a sound saved, two seconds later (spec.md §5).
+  const changed = () => { S.sound.dirty = true; paint(); saveEditorSoon(); };
   paint();
 
   return h('div', { class: 'sound grow' },
@@ -2612,9 +2659,7 @@ function renderSoundEditor() {
     h('div', { class: 'editor-bar row' },
       state,
       h('div', { class: 'spacer' }),
-      h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(S.sound.params) }),
-      save,
-      saveClose));
+      h('button', { class: 'quiet', text: 'Play', onclick: () => playSound(S.sound.params) })));
 }
 
 // Everything here is painted into one canvas and one pair of nodes rather
@@ -2677,22 +2722,15 @@ function renderDrawing() {
   };
   new ResizeObserver(fit).observe(canvas);
   const state = h('span', { class: 'hint muted' });
-  // The picture and the game's colours are both work in this pane, so one
-  // button covers both and the words say which of them is waiting.
+  // The picture saves itself two seconds after a stroke (spec.md §5); the
+  // game's colours are the other work in this pane, saved with it and on the
+  // way out. The words say which of them is on its way.
   const unsaved = () => {
-    if (S.draw.dirty && S.palette?.dirty) return 'Picture and colours not saved yet';
-    if (S.draw.dirty) return 'Not saved yet';
+    if (S.draw.dirty && S.palette?.dirty) return 'Saving the picture and the colours…';
+    if (S.draw.dirty) return 'Saving…';
     if (S.palette?.dirty) return 'Colours not saved yet';
     return 'Saved';
   };
-  const save = h('button', { class: 'filled', text: 'Save', onclick: () => saveDrawing() });
-  // The same pair as the text editor, so every pane ends the same way. Closes
-  // only once the save really landed: a picture somebody else changed
-  // underneath stays open with the drawing still on it.
-  const saveClose = h('button', {
-    class: 'filled ok', text: 'Save and close',
-    onclick: async () => { if (await saveDrawing()) await closeOpenFile(); },
-  });
 
   const paint = () => {
     whole.getContext('2d')
@@ -2715,12 +2753,11 @@ function renderDrawing() {
         .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
     }
     state.textContent = unsaved();
-    save.disabled = (!S.draw.dirty && !S.palette?.dirty) || frozen();
-    saveClose.disabled = save.disabled;
   };
 
   const touched = () => {
     S.draw.dirty = true;
+    saveEditorSoon();
     paint();
   };
 
@@ -2742,6 +2779,7 @@ function renderDrawing() {
     // refusing to remember it would mean it could not be undone.
     while (S.draw.undo.length > 1 && used() > UNDO_BYTES) S.draw.undo.shift();
     S.draw.dirty = true;
+    saveEditorSoon();
   };
 
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(chosenColour()));
@@ -2992,9 +3030,7 @@ function renderDrawing() {
         hint: 'put back what you just took back (⇧⌘Z)',
         disabled: !S.draw.redo.length,
         onclick: () => stepDrawing(false),
-      }),
-      save,
-      saveClose));
+      })));
 }
 
 // How big a file can be and still be recoloured on every keystroke without
@@ -3197,15 +3233,7 @@ function renderFilesTab() {
   // the path — the folder's own row already says the front of it.
   h('button', { class: 'fname', text: top ? f.path.slice(top.length + 1) : f.path, disabled: f.unreachable }),
   h('span', { class: 'fsize', text: sizeText(f.size) }),
-  // What can be done to the file, on its row (spec.md §6). Copy is not gated
-  // on frozen(): copying out of a game takes nothing from it, and the rights
-  // that matter are the destination's, which the dialog minds.
-  f.unreachable ? null : more(`file:${f.path}`, [
-    !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path: f.path }; render(); } },
-    !frozen() && { text: 'Duplicate…', onPick: () => { S.dialog = { kind: 'duplicate-file', path: f.path }; render(); } },
-    { text: 'Copy…', title: 'Into another game, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'copy', path: f.path }; render(); } },
-    !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path: f.path }; render(); } },
-  ], { label: `More about ${f.path}` }));
+  f.unreachable ? null : fileMore(f.path));
 
   // The list is sorted by path, so a folder's files are already contiguous:
   // one header row where each top-level folder starts, and its files hidden
@@ -3244,10 +3272,58 @@ function renderFilesTab() {
     rows.push(fileRow(f, top));
   }
 
-  const editor = [];
-  if (S.open) {
-    // One bar for both cases: a picture has nothing to edit but still has to
-    // be closable, and Close belongs next to Delete either way.
+  // With a file open the list shrinks to about five rows and the editor takes
+  // everything else; with nothing open the list fills the pane.
+  const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}`, 'data-scroll': 'files' },
+    rows.length ? rows : h('div', {
+      class: 'pad muted',
+      text: 'No files yet. Ask a helper to make one, or drop a file here.',
+    }));
+  if (!frozen()) makeDropTarget(tree);
+
+  return [
+    // One button, four ways in. The four used to sit here in a row that
+    // wrapped to two lines in a narrow rail and put the rarest of them beside
+    // the commonest; which kind of file you are adding is a question, so it is
+    // asked in a dialog.
+    h('div', { class: 'pad row wrap' },
+      frozen() ? null : h('button', {
+        class: 'quiet tiny', text: 'Add a file',
+        title: 'Make a file, upload one, draw a picture or make a sound',
+        onclick: () => { S.dialog = { kind: 'add-file' }; render(); },
+      }),
+      h('div', { class: 'spacer' }),
+      S.pinned.size
+        ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })
+        : null),
+    tree,
+    renderOpenFile(),
+  ];
+}
+
+// What can be done to a file, on its row under Code or its card under Pics
+// or Hear (spec.md §6). Copy is not gated on frozen(): copying out of a game
+// takes nothing from it, and the rights that matter are the destination's,
+// which the dialog minds.
+function fileMore(path) {
+  return more(`file:${path}`, [
+    !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path }; render(); } },
+    !frozen() && { text: 'Duplicate…', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
+    { text: 'Copy…', title: 'Into another game, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'copy', path }; render(); } },
+    !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path }; render(); } },
+  ], { label: `More about ${path}` });
+}
+
+// The open file's editor, full width: the pixel editor, the sound editor, a
+// player, the quiz form, a config form, or the text (spec.md §6). Under Code
+// it sits below the tree; under Pics it is the whole pane while a picture is
+// open, and under Questions it is the mode. Null with nothing open.
+export function renderOpenFile() {
+  if (!S.open) return null;
+  {
+    // One bar for every kind: the file's name, its versions, and the way out
+    // — except under Questions, where the file is the mode and there is
+    // nowhere to close it to.
     const bar = h('div', { class: 'bar' },
       h('div', { class: 'title mono', text: S.open.path }),
       h('div', { class: 'spacer' }),
@@ -3262,10 +3338,10 @@ function renderFilesTab() {
           : 'Versions',
         onclick: () => { showMode('share'); return loadHistory(S.open.path); },
       }),
-      // Rename, Duplicate, Copy and Delete are the file's ··· on its row in
-      // the list above (spec.md §6); the bar is the file's name, its
-      // versions, and the way out.
-      h('button', {
+      // Rename, Duplicate, Copy and Delete are the file's ··· on its row or
+      // card (spec.md §6); the bar is the file's name, its versions, and the
+      // way out.
+      S.mode === 'quiz' ? null : h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',
         // Wrapped, not passed: closeOpenFile's first argument is the file to
         // open next, and handing it the click event asked for a file named
@@ -3279,9 +3355,8 @@ function renderFilesTab() {
     // whole game as a form — falling back through the generic form to the
     // text as the file outgrows each reader. Two files are the exception and
     // open here as plain text and nothing else: the story, in a game with the
-    // story editor — its editor is the Story tab in the middle — and the
-    // achievements, whose editor is the rail's own Achievements tab. A form
-    // here would be a second one writing the same file.
+    // story editor — its editor is Write — and the achievements, whose editor
+    // is under Share. A form here would be a second one writing the same file.
     const inEditor = (isStoryPath(S.open.path) && hasEditor('story')) || isAchievementsPath(S.open.path);
     const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)
@@ -3292,19 +3367,20 @@ function renderFilesTab() {
 
     if (S.open.content === null) {
       const refused = S.drawRefused ?? S.soundRefused;
-      editor.push(h('div', { class: 'editor' }, bar,
+      return h('div', { class: 'editor' }, bar,
         S.draw ? renderDrawing() : S.sound ? renderSoundEditor() : renderMedia(S.open),
-        refused ? h('div', { class: 'pad hint muted', text: refused }) : null));
-    } else if (quiz?.ok) {
-      editor.push(h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz)));
-    } else if (parsed?.ok && !S.open.asText) {
+        refused ? h('div', { class: 'pad hint muted', text: refused }) : null);
+    }
+    if (quiz?.ok) return h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz));
+    if (parsed?.ok && !S.open.asText) {
       const outgrown = quiz && !quiz.ok && quiz.reason;
-      editor.push(h('div', { class: 'editor' }, bar,
+      return h('div', { class: 'editor' }, bar,
         outgrown
           ? h('div', { class: 'pad hint muted', text: `Showing every field because ${outgrown}.` })
           : null,
-        renderConfigForm(parsed.decls)));
-    } else {
+        renderConfigForm(parsed.decls));
+    }
+    {
       const area = h('textarea', {
         id: EDITOR_AREA,
         spellcheck: 'false',
@@ -3318,7 +3394,7 @@ function renderFilesTab() {
         },
       });
       area.value = S.open.content;
-      editor.push(h('div', { class: 'editor' },
+      return h('div', { class: 'editor' },
         bar,
         // Why a config file is showing as text: either you asked, or it holds
         // something the form will not pretend to understand — or it is the
@@ -3356,37 +3432,224 @@ function renderFilesTab() {
             class: 'filled ok', id: 'save-close-btn', text: 'Save and close',
             disabled: !S.open.dirty || frozen(),
             onclick: async () => { if (await saveOpenFile()) closeOpenFile(); },
-          }))));
+          })));
     }
   }
+}
 
-  // With a file open the list shrinks to about five rows and the editor takes
-  // everything else; with nothing open the list fills the pane.
-  const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}`, 'data-scroll': 'files' },
-    rows.length ? rows : h('div', {
-      class: 'pad muted',
-      text: 'No files yet. Ask a helper to make one, or drop a file here.',
-    }));
-  if (!frozen()) makeDropTarget(tree);
+/* Pics and Hear ------------------------------------------------------------ */
 
+const isPictureFile = (f) => Boolean(f?.mime?.startsWith('image/'));
+const isAudioFile = (f) => Boolean(f?.mime?.startsWith('audio/'));
+const baseName = (path) => path.split('/').pop().replace(/\.[a-z0-9]+$/i, '');
+const inDir = (f, dir) => f.path.startsWith(`${dir}/`);
+
+// A card under Pics: the picture, its name, a line under it, its ···. Pressing
+// it selects it into the inspector; pressing it again opens it to draw on. A
+// strip wears its first frame — the picture is pinned to the card's left edge.
+function pictureCard({ path, name, sub, strip = false }) {
+  const on = S.pick?.kind === 'picture' && S.pick.path === path;
+  const img = h('img', { alt: '' });
+  pictureInto(img, path);
+  return h('div', {
+    class: `card${on ? ' on' : ''}${strip ? ' strip' : ''}`,
+    onclick: (e) => {
+      if (e.target.closest('button')) return undefined;
+      if (on) return chooseFile(path);
+      S.pick = { kind: 'picture', path };
+      render();
+      return undefined;
+    },
+  },
+  h('div', { class: 'cpic' }, img),
+  h('div', { class: 'crow' }, h('div', { class: 'cname', text: name }), fileMore(path)),
+  sub ? h('div', { class: 'csub', text: sub }) : null);
+}
+
+// A person, wearing their first mood. Their moods, their name and the note
+// about them are the inspector's; taking them out of the story is Write's.
+function personCard(person) {
+  const on = S.pick?.kind === 'person' && S.pick.key === person.key;
+  const img = h('img', { alt: '' });
+  if (person.moods[0]) pictureInto(img, `${SPRITE_DIR}/${person.key}-${person.moods[0]}.png`);
+  return h('div', {
+    class: `card face${on ? ' on' : ''}`,
+    onclick: () => { S.pick = { kind: 'person', key: person.key }; render(); },
+  },
+  h('div', { class: 'cpic' }, img),
+  h('div', { class: 'crow' }, h('div', { class: 'cname', text: person.name || person.key })),
+  h('div', { class: 'csub', text: plural(person.moods.length, 'mood') }));
+}
+
+// What each reserved image dresses (spec.md §6), for its card.
+const DRESSES = {
+  [CHAT_IMAGE]: 'behind the conversation',
+  [HERO_IMAGE]: 'behind the game\'s name, and on its card',
+  [ICON_IMAGE]: 'beside the game\'s name in the list',
+};
+
+// Pics: every picture in the game by what it is, not by folder (spec.md §6).
+// A visual novel shows its Characters — a card per person — over its Places;
+// every game shows its sprites, its pictures, and the three reserved images by
+// what each dresses; anything else that is a picture comes last, so nothing
+// the tree holds is missing here. While a picture is open it is the whole
+// pane, in the pixel editor; the bar's ✕ is the way back to the cards.
+function renderPicsMode() {
+  if (S.open && isPictureFile(S.open)) return renderOpenFile();
+  const pictures = S.files.filter((f) => isPictureFile(f) && !f.unreachable);
+  const covered = new Set();
+  const take = (f) => { covered.add(f.path); return f; };
+  const section = (label, cards) => (cards.length
+    ? [h('div', { class: 'section-label', text: label }), h('div', { class: 'cards' }, cards)]
+    : []);
+  const parts = [];
+  const story = hasEditor('story') ? S.story?.model : null;
+  if (story) {
+    parts.push(...section('Characters', story.cast.map(personCard)));
+    for (const person of story.cast) {
+      for (const mood of person.moods) covered.add(`${SPRITE_DIR}/${person.key}-${mood}.png`);
+    }
+    const scenesUsing = (p) => story.scenes.filter((s) => s.picture === p).length;
+    parts.push(...section('Places', pictures.filter((f) => inDir(f, IMAGE_DIR)).map((f) => {
+      const n = scenesUsing(take(f).path);
+      return pictureCard({
+        path: f.path, name: baseName(f.path), sub: n ? `in ${plural(n, 'scene')}` : 'not in a scene yet',
+      });
+    })));
+  }
+  parts.push(...section('Sprites', pictures
+    .filter((f) => inDir(f, SPRITE_DIR) && !covered.has(f.path))
+    .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: sizeText(f.size), strip: true }))));
+  if (!story) {
+    parts.push(...section('Pictures', pictures.filter((f) => inDir(f, IMAGE_DIR))
+      .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: sizeText(f.size) }))));
+  }
+  parts.push(...section('Studio dressing', pictures.filter((f) => RESERVED_IMAGES.includes(f.path))
+    .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: DRESSES[f.path] }))));
+  parts.push(...section('Other pictures', pictures.filter((f) => !covered.has(f.path))
+    .map((f) => pictureCard({ path: f.path, name: f.path, sub: sizeText(f.size) }))));
   return [
-    // One button, four ways in. The four used to sit here in a row that
-    // wrapped to two lines in a narrow rail and put the rarest of them beside
-    // the commonest; which kind of file you are adding is a question, so it is
-    // asked in a dialog.
     h('div', { class: 'pad row wrap' },
       frozen() ? null : h('button', {
-        class: 'quiet tiny', text: 'Add a file',
-        title: 'Make a file, upload one, draw a picture or make a sound',
-        onclick: () => { S.dialog = { kind: 'add-file' }; render(); },
-      }),
-      h('div', { class: 'spacer' }),
-      S.pinned.size
-        ? h('button', { class: 'quiet tiny', text: 'Unpin all', onclick: () => { S.pinned.clear(); render(); } })
-        : null),
-    tree,
-    ...editor,
+        class: 'quiet tiny', text: 'Add a picture',
+        title: 'Draw one, or upload one from this device',
+        onclick: () => { S.dialog = { kind: 'add-file', only: 'picture' }; render(); },
+      })),
+    h('div', { class: 'pics scroll', 'data-scroll': 'pics' },
+      parts.length ? parts : h('div', {
+        class: 'pad muted', text: 'No pictures yet. Draw one, or ask a helper what the game needs.',
+      })),
   ];
+}
+
+// Hear: the game's sounds over its music (spec.md §6), a row each with a way
+// to hear it. Selecting one opens it — its editor lands in the rail, sliders
+// for a studio-made sound and a player for anything else — while the list
+// stays here; the same row closes it again.
+function renderHearMode() {
+  const audio = S.files.filter((f) => isAudioFile(f) && !f.unreachable);
+  const row = (f) => {
+    const on = S.open?.path === f.path;
+    return h('div', {
+      class: `hear-row${on ? ' on' : ''}`,
+      onclick: (e) => {
+        if (e.target.closest('button')) return undefined;
+        return on ? closeOpenFile() : chooseFile(f.path);
+      },
+    },
+    playButton(f.path),
+    h('span', { class: 'hname mono', text: f.path.split('/').pop() }),
+    h('span', { class: 'hsize', text: sizeText(f.size) }),
+    fileMore(f.path));
+  };
+  const section = (label, files) => (files.length
+    ? [h('div', { class: 'section-label', text: label }), ...files.map(row)]
+    : []);
+  const sounds = audio.filter((f) => inDir(f, SOUND_DIR));
+  const music = audio.filter((f) => inDir(f, MUSIC_DIR));
+  const other = audio.filter((f) => !sounds.includes(f) && !music.includes(f));
+  return [
+    h('div', { class: 'pad row wrap' },
+      frozen() ? null : h('button', {
+        class: 'quiet tiny', text: 'Make a sound',
+        title: 'A new blip, ready for its sliders',
+        onclick: () => createSound(),
+      }),
+      frozen() ? null : h('button', {
+        class: 'quiet tiny', text: 'Upload a sound',
+        title: 'A sound or a whole track from this device',
+        onclick: () => { S.dialog = { kind: 'add-file', only: 'sound' }; render(); },
+      })),
+    h('div', { class: 'hear scroll', 'data-scroll': 'hear' },
+      ...section('Sounds', sounds), ...section('Music', music), ...section('Other', other),
+      audio.length ? null : h('div', {
+        class: 'pad muted', text: 'No sounds yet. Make one, or upload a track.',
+      })),
+  ];
+}
+
+// The inspector for Pics and Hear: the picked picture or person, or the open
+// sound. A picture is where it lives and how big it is, a way to draw on it
+// and a way to swap it from the shelf, with the file's ··· in its head — its
+// card is not on screen once it is open. A sound is the sound editor, or the
+// player for one not made here.
+function renderPickInspector() {
+  const head = (kind, name, ...extra) => h('div', { class: 'inspector-head row' },
+    h('div', { class: 'grow' },
+      h('span', { class: 'section-label', text: kind }),
+      h('div', { class: 'iname', text: name })),
+    ...extra);
+  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
+    h('span', { class: 'ilabel', text: label }), ...kids);
+  const shut = (onclick) => h('button', { class: 'icon tiny', text: '✕', title: 'Close', onclick });
+
+  if (S.mode === 'hear') {
+    if (!S.open || !isAudioFile(S.open)) return null;
+    const { path } = S.open;
+    return box(head('Sound', path.split('/').pop(), fileMore(path), shut(() => closeOpenFile())),
+      S.sound ? renderSoundEditor() : renderMedia(S.open),
+      S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused } ) : null,
+      fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: path })));
+  }
+  if (S.mode !== 'pics' || !S.pick) return null;
+  if (S.pick.kind === 'person') {
+    const person = S.story?.model?.cast.find((p) => p.key === S.pick.key);
+    return person ? renderPersonInspector(person, { close: () => { S.pick = null; render(); } }) : null;
+  }
+  const { path } = S.pick;
+  const f = S.files.find((x) => x.path === path);
+  if (!f) return null;
+  const img = h('img', { class: 'thumb', alt: '' });
+  pictureInto(img, path);
+  const sprite = inDir(f, SPRITE_DIR);
+  const dressing = RESERVED_IMAGES.includes(path);
+  return box(
+    head(dressing ? 'Studio dressing' : sprite ? 'Sprite' : 'Picture', path.split('/').pop(),
+      fileMore(path), shut(() => { S.pick = null; render(); })),
+    img,
+    fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: `${path} · ${sizeText(f.size)}` })),
+    dressing ? fieldRow('Dresses', h('span', { class: 'hint muted', text: DRESSES[path] })) : null,
+    frozen() ? null : h('div', { class: 'row wrap' },
+      f.mime === 'image/png' && S.open?.path !== path ? h('button', {
+        class: 'quiet tiny', text: 'Draw on it', onclick: () => chooseFile(path),
+      }) : null,
+      dressing ? null : h('button', {
+        class: 'quiet tiny', text: sprite ? 'Pick a face…' : 'Pick a picture…',
+        title: 'Swap it for one from the studio\'s shelf',
+        onclick: () => {
+          S.dialog = {
+            kind: 'pick-picture',
+            art: sprite ? 'portrait' : 'background',
+            place: async (a, blob) => {
+              const { failure } = await writeFiles([{ path, body: blob }]);
+              if (failure) { say(failure, true); return; }
+              say(artCredit(a, path));
+            },
+          };
+          render();
+        },
+      })));
 }
 
 // What the game reported while someone was playing it. Shown here because
@@ -3606,11 +3869,11 @@ function renderRail() {
     renderInspector());
 }
 
-// The selected thing's fields, for the mode that has one. The story editor's
-// scene, person or title screen today; a picture or a sound once Pics and
-// Hear exist (ideas/calm-shell.md).
+// The selected thing's fields, for the mode that has one: the story editor's
+// scene, person or title screen; Pics' picture or person; Hear's open sound.
 function renderInspector() {
   if (editorShowing()?.id === 'story') return renderStoryInspector();
+  if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
   return null;
 }
 
@@ -3620,6 +3883,8 @@ function renderInspector() {
 export function renderModeBody() {
   const editor = editorShowing();
   if (editor) return editor.render();
+  if (S.mode === 'pics') return renderPicsMode();
+  if (S.mode === 'hear') return renderHearMode();
   if (S.mode === 'code') return renderFilesTab();
   if (S.mode === 'share') return renderShareMode();
   return null;

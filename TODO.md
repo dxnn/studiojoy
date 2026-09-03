@@ -23,9 +23,6 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- show Pics and Hear by kind, Characters and Places for a visual novel, and
-  open the file editors in the centre — calm shell step 4 (ideas/calm-shell.md,
-  which absorbs ideas/editors-in-the-centre.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
@@ -50,8 +47,6 @@ deliberately deferred.
   `image-rendering: pixelated` in the template's `css/style.css` is the fix
   and would suit every picture the studio's own editor makes — but it is a
   template, so it only reaches new games and each existing one by hand
-- the standard set's shelf scrolls sideways past 33 faces; it wants filtering
-  or a dialog rather than a strip once people start adding their own
 - networked multiplayer: a turn-based room relay on the games origin — see
   ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
   limit, caps) are settled and tested by the scoreboard now

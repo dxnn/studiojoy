@@ -9,7 +9,8 @@
 
 import { parseConfigFile } from './config-file.js';
 
-export const isQuizPath = (p) => p === 'config/questions.js';
+export const QUIZ_FILE = 'config/questions.js';
+export const isQuizPath = (p) => p === QUIZ_FILE;
 
 // Result keys are wiring, never shown to the person: identifiers the
 // serializer can write bare and the reader reads back.

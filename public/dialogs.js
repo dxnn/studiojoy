@@ -316,11 +316,15 @@ export function dialogFor(d) {
   // list. The names are the ones the agent preamble tells a helper to ask for
   // by — renaming one here means renaming it there.
   if (d.kind === 'add-file') {
+    // Pics and Hear ask for their own kind — `only` narrows the ways in and
+    // what the picker offers; Code asks for any file.
+    const only = d.only ?? null;
     // The picker is what makes uploading work on a tablet, where there is
     // nothing to drag from. It lives in the dialog now, with the button that
     // opens it; the dialog node outlives every render, so it stays connected.
     const picker = h('input', {
       type: 'file', multiple: true, hidden: true,
+      accept: only === 'picture' ? 'image/*' : only === 'sound' ? 'audio/*' : null,
       onchange: (e) => {
         const files = [...e.currentTarget.files];
         // Cleared so picking the same file twice in a row still fires.
@@ -333,18 +337,21 @@ export function dialogFor(d) {
       h('span', { class: 'cname', text: label }),
       h('span', { class: 'cwhat', text: what }));
 
-    return wrap('Add a file',
+    return wrap(only === 'picture' ? 'Add a picture' : only === 'sound' ? 'Add a sound' : 'Add a file',
       h('div', { class: 'choices' },
-        choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
+        only ? null : choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
           () => { S.dialog = { kind: 'new-file' }; render(); }),
-        choice('+ Upload', 'Any file from this device. Pictures and sounds go to assets/.',
+        choice('+ Upload',
+          only === 'picture' ? 'A picture from this device, into assets/.'
+            : only === 'sound' ? 'A sound or a whole track from this device, into assets/.'
+              : 'Any file from this device. Pictures and sounds go to assets/.',
           () => picker.click()),
-        choice('+ Draw a picture', 'A sprite or a backdrop, square by square.',
+        only === 'sound' ? null : choice('+ Draw a picture', 'A sprite or a backdrop, square by square.',
           () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); }),
         // Straight to the sliders. There is nothing to ask first: a sound you
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.
-        choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
+        only === 'picture' ? null : choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
           () => { close(); createSound(); })),
       picker,
       h('div', { class: 'actions' }, cancel));

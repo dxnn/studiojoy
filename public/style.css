@@ -1391,16 +1391,14 @@ details.thinking .trace {
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
 
-/* ⚠️ The canvas is the only thing in the rail that can give, and it gave all
-   the way to nothing. Everything stacked above it — the preview, the tabs, the
-   file list — and everything under it — the tools, the brushes, the palette,
-   the save bar — is fixed height, and together they are more than a window is
-   tall: at 1440 by 900 the canvas came out 0 pixels high, which is not a small
-   canvas but no canvas at all, since a pointer has to land on it for a stroke
-   to happen. So while a picture is open the preview steps aside — the file is
-   what the rail is about for as long as it is open — the canvas keeps a floor,
-   and in a short window the tools scroll rather than pushing Save off the
-   bottom. Closing the picture brings the preview straight back. */
+/* ⚠️ The canvas is the only thing in its pane that can give, and it once gave
+   all the way to nothing: everything stacked above it and under it — the bar,
+   the tools, the brushes, the palette — is fixed height, and in a short window
+   they added up to more than the window, so the canvas came out 0 pixels high,
+   which is not a small canvas but no canvas at all, since a pointer has to
+   land on it for a stroke to happen. So the canvas keeps a floor, and in a
+   short window the tools scroll instead. (It lived in the rail when this was
+   found; under Pics and Code it has the centre, and the same rule holds.) */
 /* A floor of 150, or a quarter of the window where a quarter is less than
    that — a phone held sideways is 390 tall, and a canvas taking 150 of it
    leaves the tools nothing. */
@@ -2298,6 +2296,99 @@ label.knob {
   border: 1px solid var(--border);
 }
 .ifield .hint.mono { font-size: 11px; }
+
+/* Pics: cards by kind (spec.md §6). A strip wears its first frame — the card
+   is a fixed box and the picture is pinned to its left edge. */
+.pics, .hear { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 16px; }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: 10px;
+  padding: 4px 16px 12px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: oklch(0.98 0.01 300 / 0.03);
+  cursor: pointer;
+  min-width: 0;
+}
+.card:hover { background: var(--hover); }
+.card.on {
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 18%, transparent);
+}
+.card .cpic {
+  height: 96px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 16px 16px;
+}
+.card .cpic img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
+.card .cpic img[hidden] { display: none; }
+.card.strip .cpic img { width: 100%; height: 100%; object-fit: cover; object-position: left center; }
+.card .crow { display: flex; align-items: center; gap: 4px; }
+.card .cname {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card .csub { font-size: 11.5px; color: var(--muted); }
+
+/* Hear: a row per sound, lit while it is open in the rail. */
+.hear-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.hear-row:hover { background: var(--hover); }
+.hear-row.on { background: color-mix(in oklab, var(--look-primary) 22%, transparent); }
+.hear-row .hname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.hear-row .hsize { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+/* The inspector holds a sound's editor or player, and a person's moods. Its
+   parts do not scroll on their own; it does. */
+.inspector .scroll { flex: none; overflow: visible; }
+/* The sound editor was built to fill a pane and shrink; here it takes its own
+   height, or the field under it paints over the sliders. */
+.inspector .sound { flex: none; min-height: 0; }
+.inspector .sound .pad { padding: 0; }
+.inspector .media { padding: 0; background: none; }
+/* With a ··· and a ✕ beside the name: a row after all, the name growing. */
+.inspector-head.row { flex-direction: row; align-items: flex-start; gap: 4px; }
+.inspector-head.row .grow { min-width: 0; }
+.mood-row { align-items: center; gap: 6px; }
+.mood-row .cfg-text { flex: 1; min-width: 4rem; }
+.ifield .mood-row .thumb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  max-height: none;
+  object-fit: contain;
+  border: none;
+  background: none;
+}
 
 /* The shelf as a dialog: a grid behind a filter. */
 .dialog .shelf-grid {

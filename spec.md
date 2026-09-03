@@ -977,8 +977,10 @@ choices worth naming:
   dozen agent writes would. Batching them would need a route that takes several
   files, and nothing else in the app wants one.
 
-An asset opens in the pane as the thing itself — `img`, `audio` or `video`
-pointed at the studio's own read route — because there is nothing to edit. An
+An asset opens as the thing itself — a picture in the *pixel editor* full width
+under Pics or Code, a sound's sliders or player in the rail under Hear, an
+`img`, `audio` or `video` pointed at the studio's own read route for anything
+the studio cannot edit. An
 agent never sees its bytes (§8), and `write_file` takes text, so a helper can
 point a game at `assets/sprites/hero.png` but cannot create or change it.
 
@@ -1079,8 +1081,10 @@ choices worth naming:
   with `keepalive` for the tab simply closing — because a plain `fetch` is
   cancelled on unload and `sendBeacon` cannot `PUT`. Writing each one as it
   happened turned eyedropping six colours into six commits, which is the
-  versioning working against the drawing rather than for it. One Save covers the
-  picture, the colours, or both, and the pane says which is waiting.
+  versioning working against the drawing rather than for it. The picture saves
+  itself two seconds after a stroke and the colours go with it (§5, the
+  *pending commit* is what made that affordable); the bar says which is on
+  its way. There is no Save.
 
   The four tools are icons; the words stay on `title` and `aria-label`, so
   nothing is only a picture.
@@ -1248,6 +1252,27 @@ pill rather than being read, and pressing the pill paints what arrived. The
 addresses still read: `?edit=` is a mode, `?tab=files` is Code, the other
 tabs are Share.
 
+**Pics and Hear are the game's files by kind, not by folder.** Pics is cards:
+for a visual novel, **Characters** — one per *cast* member, wearing their first
+mood — over **Places**, the backgrounds with how many scenes use each; for
+every game, **Sprites** (a strip wears its first frame), **Pictures**, the
+three *reserved images* under **Studio dressing** with what each dresses, and
+**Other pictures** last, so nothing the tree holds is missing here. A card
+pressed once is selected into the inspector — where it lives, how big it is,
+*Draw on it*, and *Pick a picture…* or *Pick a face…* to swap it from the
+*shelf*; pressed again it opens full width in the *pixel editor*, the bar's ✕
+the way back to the cards. Hear is rows, sounds over music, each with a way to
+hear it; the open one's *sound editor* — or a player, for one not made here —
+lands in the rail, a column of sliders where a column fits, and the same row
+closes it. Each has its maker at the top: *Add a picture* is the add-file
+dialog narrowed to drawing and uploading, *Make a sound* and *Upload a sound*
+the same for sounds. The tree is still Code's, and a file asked for from
+anywhere else opens under Code.
+
+**Questions** is the quiz's editor as a mode: the mode is `config/questions.js`
+— arriving opens it, and its bar has no ✕ because there is nowhere to close it
+to — and the form saves itself like the story does.
+
 **A game a person makes is open** — the whole studio may change it — and an
 editor closes it in the `Editors` dialog, which puts a padlock in front of its
 name. This is a studio of a few people who trust each other: a game nobody else
@@ -1264,7 +1289,8 @@ problems and the moments the game reported. Folded, it is one row that still
 plays, remembered per browser. `Reload` is gone: a save already reloads it.
 The four tabs that used to sit under it — Files, Versions, Scoreboard,
 Achievements — are modes of the centre now (above), and the file editors
-that opened under Files open under Code.
+that opened under Files open by kind: a picture under Pics or Code, a sound
+in the rail under Hear, everything else under Code.
 
 **A game lends the studio its four colours** — its *look* — while it is open.
 `config/look.js` is read once for both the *palette* and these; the four are
@@ -1660,9 +1686,12 @@ not have. **No Save button**: the story saves itself two seconds after the
 last edit and sooner on the way out of a field, a scene, the editor or the
 game, with `if-match` and a `story-conflict` dialog on a 409; a save is a
 write and a preview reload, and its commit is the project's *pending commit*
-(§5), which is what made an editor that saves itself affordable — the other
-editors keep their Save until they move (ideas/calm-shell.md). The bar's
-whisper says *Saved* or *Saving…*. *Show the text* saves first and opens
+(§5), which is what made an editor that saves itself affordable. The pixel
+editor, the sound editor and the quiz form save themselves the same way,
+because every state they pass through is a picture, a sound or a quiz; Code's
+text editor keeps its Save, because half-typed code is a broken game the
+*reporter* would post and the helpers would read. The bar's whisper says
+*Saved* or *Saving…*. *Show the text* saves first and opens
 the file as plain text in the rail, where it is now text and nothing else —
 the editor is in the middle, and a form there too would be a second surface
 writing the same file — while the tab's body says so and waits. *Try this
