@@ -184,7 +184,7 @@ test('repeated failures lock the account out with a retry hint', async (t) => {
 test('hardening headers are set on every response', async (t) => {
   const app = await setup();
   t.after(() => app.close());
-  for (const p of ['/', '/api/me', '/style.css', '/nope']) {
+  for (const p of ['/', '/api/me', '/css/base.css', '/nope']) {
     const res = await app.client.request('GET', p);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff', p);
     assert.equal(res.headers.get('x-frame-options'), 'DENY', p);
@@ -213,7 +213,7 @@ test('the shell is served for client-side routes', async (t) => {
 test('static assets are served and traversal is refused', async (t) => {
   const app = await setup({ publicDir: PUBLIC_DIR });
   t.after(() => app.close());
-  const css = await app.client.request('GET', '/style.css');
+  const css = await app.client.request('GET', '/css/base.css');
   assert.equal(css.status, 200);
   assert.match(css.headers.get('content-type'), /text\/css/);
   await css.text();

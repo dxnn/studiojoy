@@ -1,0 +1,23 @@
+/* People ------------------------------------------------------------------ */
+
+/* One person in the studio settings: their name, what they have spent, what
+   they may spend, and the things an admin can do to the account. */
+.person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.person:last-child { border-bottom: none; }
+.person input { flex: 1 1 8rem; min-width: 6rem; }
+.person input.cfg-num { flex: 0 0 7rem; }
+/* A select is width:100% like every other field, and without a basis of its
+   own that pushes the whole row onto a second line. */
+.person select { flex: 1 1 10rem; min-width: 8rem; }
+.person .hint { flex: 0 0 auto; }
+.person button.on { color: var(--num); border-color: color-mix(in oklab, var(--num) 50%, transparent); }
+/* What a row's button revealed, on its own line under the row: the new
+   password field and the button that sets it. */
+.person .person-more { flex: 1 0 100%; display: flex; align-items: center; gap: 6px; padding: 2px 0 4px; }

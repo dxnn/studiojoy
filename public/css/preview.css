@@ -1,0 +1,92 @@
+/* The preview, and its collapsed self ------------------------------------- */
+
+.preview-wrap { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 9px; flex: 0 0 auto; }
+.preview-frame {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid color-mix(in oklab, var(--look-primary) 55%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--panel-3);
+  display: block;
+}
+/* The live frame is one node on the body, never moved — an <iframe> reloads
+   whenever it leaves the document, and render() rebuilds the tree — laid over
+   the placeholder the tree holds for it (main.js, placePreview): its size and
+   place come from the placeholder's rectangle, so nothing else is said here.
+   Above the rail, under the banner and every dialog. */
+.preview-frame.live { position: fixed; z-index: 3; aspect-ratio: auto; margin: 0; }
+/* Under the frame: the best score in highlight, then the two things you do to
+   the running game — open it in a tab, or fold it away. Both belong to the
+   preview, so both live on the preview. */
+.preview-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: -9px;
+  padding: 9px 12px;
+  background: color-mix(in oklab, var(--look-primary) 22%, transparent);
+  border: 1px solid color-mix(in oklab, var(--look-primary) 55%, transparent);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.preview-foot .best {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--num);
+  margin-right: auto;
+}
+.preview-foot button.icon {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  color: color-mix(in oklab, var(--look-primary) 25%, white);
+}
+.preview-foot button.icon:hover:not(:disabled) { color: #fff; background: oklch(0.98 0.01 300 / 0.12); }
+.preview-frame { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+/* Collapsed: one row that keeps the two things you would miss — a way to show
+   the game again and a way to open it in its own tab — and the file list grows
+   into the space. Add .collapsed to .preview-wrap; nothing else moves. */
+.preview-wrap.collapsed .preview-frame,
+.preview-wrap.collapsed .preview-foot { display: none; }
+.preview-wrap.collapsed .preview-row { display: flex; }
+.preview-row {
+  display: none;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in oklab, var(--look-primary) 55%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--look-primary) 20%, transparent);
+  cursor: pointer;
+}
+.preview-row .play {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--look-primary), var(--look-accent));
+  color: #1c0810;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.preview-row .pname { flex: 1; font-size: 13px; font-weight: 700; color: #fdf4f6; }
+/* An inline-flex anchor propagates its underline to the button inside it,
+   which the inline one in the foot does not. */
+.preview-row a { display: inline-flex; text-decoration: none; }
+/* Show ▼ against the frame's Hide ▲: one control in two states, so it reads
+   the same folded as it does open. */
+.preview-row button.icon {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fdf4f6;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+.preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }

@@ -1,0 +1,30 @@
+/* The sound editor -------------------------------------------------------- */
+
+/* A row per parameter: what it is called, the slider, where it is now, and the
+   comment saying what it does — the config form's bargain, without a file.
+   Lives in the sound editor pane rather than a dialog, so it is a bare
+   `label.knob`; nothing above it claims plain labels there. */
+.knobs { display: flex; flex-direction: column; }
+label.knob {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 0;
+  padding: 4px 0;
+}
+.knob-name { font-size: 13px; color: var(--text); }
+.knob-value { font-family: var(--mono); font-size: 11px; text-align: right; color: var(--num); }
+.knob-note { grid-column: 2 / -1; font-size: 11px; color: var(--muted); margin-top: -2px; }
+.knob input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.knob select { width: 100%; }
+
+/* The sound editor: sliders that scroll, over a bar that does not — the same
+   shape as every other pane. */
+.sound { display: flex; flex-direction: column; min-height: 0; }
+.sound .knobs { padding-bottom: 6px; }
+
+/* A version of a sound, playable where it stands. The browser's own player,
+   full width, because a narrow rail is where it is usually met. */
+.heard-row { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.heard { width: 100%; height: 34px; }

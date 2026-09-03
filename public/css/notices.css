@@ -1,0 +1,33 @@
+/* Notices ----------------------------------------------------------------- */
+
+/* Something the studio says about itself, wherever it has to say it: a note
+   in a pane or a dialog, and the pill for not being connected at all. */
+
+.notice {
+  padding: 10px 13px;
+  border-radius: var(--radius);
+  background: var(--system-soft);
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.notice.bad { border-color: color-mix(in oklab, var(--danger) 65%, transparent); color: oklch(0.88 0.1 20); }
+
+/* Not connected. A pill at the top rather than a strip across it: it has to be
+   impossible to miss and must not sit on top of the title of whatever you were
+   in the middle of. It never times out — the state is what it is reporting. */
+.offline {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 250;
+  max-width: min(560px, 92vw);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: oklch(0.24 0.06 20 / 0.95);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgba(6, 3, 18, 0.6);
+}
+.offline strong { color: oklch(0.88 0.12 20); }

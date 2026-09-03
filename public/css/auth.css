@@ -1,0 +1,43 @@
+/* Sign in ----------------------------------------------------------------- */
+
+.auth-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background-color: var(--bg);
+  background-image: var(--halftone);
+  background-size: var(--halftone-size);
+  background-position: var(--halftone-pos);
+}
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The wordmark at title size. UNBRIDLED is primary, JOY is crimson, and the
+   slash between them is the mark — see .brand for the spans. */
+/* One line, whatever the card's width: the mark is the join between the two
+   words, and a wordmark broken across two lines is two words with a controller
+   stranded at the end of the first. The size follows the card rather than the
+   card following the size. */
+.auth-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  font-size: min(40px, 9.5vw);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--accent-hi);
+  white-space: nowrap;
+}
+.auth-title .b2 { color: oklch(0.76 0.19 22); }
+.auth-title .mark { font-size: 0.6em; }
+.auth-tag { margin: 4px 0 20px; color: var(--muted); }
+.auth-card label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+.auth-card .row { margin-top: 18px; display: flex; gap: 8px; align-items: center; }
+.auth-note { margin-top: 18px; font-size: 13px; color: var(--muted); }

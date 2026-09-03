@@ -1,0 +1,43 @@
+/* Narrow ------------------------------------------------------------------ */
+
+/* ⚠️ Last of the stylesheets, and it has to stay last: these rules carry the
+   same specificity as the ones they override, so the cascade is doing the
+   work. What is here is the *shell* giving way — three panes becoming one at
+   a time, and the two utilities for showing a control at one width only. A
+   surface with a narrow shape of its own keeps that rule in its own file
+   (story-editor.css is the one). */
+
+/* Collapsing only means anything where the three panes are side by side; on a
+   narrow screen the panes already take turns. */
+/* Column count follows how many panes are actually rendered: a zero-width
+   track would just be handed to the next pane by grid auto-placement. Both
+   rules are wide-only — narrow screens show one pane at a time, so a second
+   column there would strand the visible pane in the first one. */
+@media (min-width: 861px) {
+  .app.no-rail { grid-template-columns: var(--side, 258px) minmax(0, 1fr); }
+  .app.side-closed { grid-template-columns: minmax(0, 1fr) var(--rail, 372px); }
+  .app.side-closed.no-rail { grid-template-columns: minmax(0, 1fr); }
+  .app.side-closed > .pane.side { display: none; }
+  .app.side-closed > .pane.chat { border-left: none; }
+}
+@media (max-width: 1100px) {
+  .app { --side: 214px; }
+  .brand { font-size: 22px; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .app > .pane { display: none; }
+  .app > .pane.show { display: flex; }
+  .pane + .pane { border-left: none; }
+  .rail-grip { display: none; }
+  .messages { padding: 16px; }
+  .composer { padding: 12px 16px 16px; }
+  .pane.chat > .bar { padding: 10px 16px; }
+
+  /* The frame around the picture spent on the picture instead. */
+  .drawing .media { padding: 6px; }
+}
+.only-narrow { display: none; }
+@media (max-width: 860px) { .only-narrow { display: inline-flex; } }
+.only-wide { display: inline-flex; }
+@media (max-width: 860px) { .only-wide { display: none; } }

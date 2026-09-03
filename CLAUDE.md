@@ -131,6 +131,12 @@ walk into, each paid for once already.
   `.scroll` container needs a `data-scroll` name; nothing calls `fetch`
   directly, `send()` does; and an `onclick` that opens something must return
   its promise all the way up, or Back stops working.
+- The stylesheet is one file per surface under `public/css/`, linked in order
+  from `index.html`. Two of those positions are load-bearing: `base.css` first,
+  because it sets the custom properties the rest read, and `narrow.css` last,
+  because its media queries override rules of their own specificity. A new
+  piece has to be linked or it is served and never loaded — `test/style.test.js`
+  checks that the two lists match.
 - ⚠️ `rename-file` is the dialog for a *file's* name and `rename` is the
   *game's*. The two are one click apart in the interface.
 
@@ -200,7 +206,7 @@ cannot press is a question, and the answer (somebody else's game, an archived
 one, a room that takes no helpers) is not one a bar can give. Controls that
 cannot be pressed are left out instead.
 
-The studio is dark, always: `public/style.css` sets `color-scheme: dark` and
+The studio is dark, always: `public/css/base.css` sets `color-scheme: dark` and
 there is no light theme to fall back to — the games are dark and the previews
 are dark, and a light shell around them read as two applications. Four colour
 roles carry it. **Cyan is the studio's own voice** (New game, the open tab, the

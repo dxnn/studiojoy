@@ -8,7 +8,7 @@ import { escapeHtml } from './util/html.js';
 // self-contained page is the entire deployment.
 //
 // They wear the studio's look on purpose: the wordmark, the dark ground, the
-// halftone and the hairline are lifted from public/style.css so the front
+// halftone and the hairline are lifted from public/css/ so the front
 // door and the studio read as one place. Cyan is the studio's voice, crimson
 // is JOY, and gold appears on scores — the board's, your own best — and on
 // nothing else: a count of trophies is a number, not a score.
@@ -21,7 +21,8 @@ import { escapeHtml } from './util/html.js';
 // wordmark and the buttons. Each page adds its own rules after it.
 const DRESS = `
   /* The studio's own dark, always: same ground, same halftone, same hairline
-     as public/style.css, so the front door matches the house. */
+     as public/css/base.css and shell.css, so the front door matches the
+     house. */
   :root {
     --bg: #15112b;
     --panel: #1a1436;
@@ -71,7 +72,7 @@ const DRESS = `
 
   /* UNBRIDLED / JOY, exactly as the studio draws it: two words and the
      little controller lying between them at the slash angle — three empty
-     spans, every measurement in em (see public/style.css). */
+     spans, every measurement in em (see public/css/shell.css). */
   .brand {
     margin: 0;
     display: inline-flex; align-items: center; gap: 4px;
