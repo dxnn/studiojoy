@@ -95,7 +95,6 @@ export function dialogFor(d) {
   if (d.kind === 'new-project') {
     const chat = d.chat === true;
     const name = h('input', { placeholder: chat ? 'Silly ideas' : 'Space Racer' });
-    const slug = h('input', { placeholder: chat ? 'silly-ideas (optional)' : 'space-racer (optional)' });
     const err = h('p', { class: 'error' });
 
     // How the game is held: its control scheme, picked here the way the type
@@ -158,7 +157,6 @@ export function dialogFor(d) {
 
     return wrap(chat ? 'New chat' : 'New game',
       h('label', { text: 'What is it called?' }), name,
-      h('label', { text: 'Web address (letters, numbers and dashes)' }), slug,
       chat ? null : h('label', { text: 'Start from' }),
       chat ? null : from,
       chat ? null : fromHint,
@@ -169,7 +167,6 @@ export function dialogFor(d) {
         class: 'filled', text: 'Make it',
         onclick: async () => {
           const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
-          if (slug.value.trim()) body.slug = slug.value.trim();
           if (!chat && from.value) body.template = from.value;
           // Nothing sent while the row is away: the template's own is what
           // the server falls back to, and saying it here twice could only
