@@ -496,6 +496,9 @@ export function dialogFor(d) {
         // what leaving means. There is no route behind it either (spec.md §11).
         return h('div', { class: 'person' },
           name,
+          // The address is what they sign in with, and the one thing on the
+          // row that tells two people with the same name apart.
+          h('span', { class: 'hint muted mono', title: 'Signs in as', text: person.email }),
           h('span', {
             class: 'hint muted mono',
             title: 'Spent today',
