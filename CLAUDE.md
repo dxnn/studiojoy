@@ -48,8 +48,7 @@ holds plans and sketches. Completed work is git history, not this file.
   One studio-authored commit per game; archived games skipped. Run it on
   the machine holding the games, ideally while the studio is quiet.
 
-Ports default to 8100 (studio) and 8101 (games). 8090 is deliberately left
-alone: `new-y` defaults to it and is expected to be running at the same time.
+Ports default to 8100 (studio) and 8101 (games). 
 
 Running locally in this sandbox, both gotchas below apply at once:
 
