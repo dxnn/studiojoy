@@ -1286,7 +1286,7 @@ bar in the centre already says what it is.
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 **Chat**, then the type's editors (**Write** for a visual novel), then
-**Pics**, **Hear**, **Controls**, **Code** and **Share**. A chat project is one room and has no row. Which is
+**Pics**, **Hear**, **Controls**, **Code**, **Versions** and **Share**. A chat project is one room and has no row. Which is
 showing is the centre's one piece of state (`S.mode`), in the address as
 `?mode=`, remembered per game; a game opens on what the address says, else
 what this browser remembers, else its type's first editor, else Chat. There
@@ -1302,15 +1302,17 @@ other off the end) — over the thread and the composer. An **editor** is a
 surface a *game type* brings, one mode each — `public/game-types.js` maps
 `projects.type` to its editors, one entry each, and that file is the whole
 registry — taking the whole pane the way the chat does. Code is the file list
-with the open file's editor under it, as the rail's Files tab was; Share is
-one page — the game's address and whether it is in the games list, then the
-versions, the scoreboard and the achievements, each keeping the rendering it
-had as a rail tab, in one scroller. `S.chat` is untouched by the mode, so the
-chat behind another mode keeps filling, a mention lands as a mark on the Chat
-pill rather than being read, and pressing the pill paints what arrived. The
-*story editor* is the first editor (below); a type may bring several. Old
-addresses still read: `?edit=` is a mode, `?tab=files` is Code, the other
-tabs are Share.
+with the open file's editor under it, as the rail's Files tab was; Versions is
+every past version of the game — `git log`, one row a commit, each opening its
+diff — its own mode, no longer folded into Share; Share is one page — the
+game's address and whether it is in the games list, then the scoreboard and
+the achievements, each keeping the rendering it had as a rail tab, in one
+scroller. `S.chat` is untouched by the mode, so the chat behind another mode
+keeps filling, a mention lands as a mark on the Chat pill rather than being
+read, and pressing the pill paints what arrived. The *story editor* is the
+first editor (below); a type may bring several. Old addresses still read:
+`?edit=` is a mode, `?tab=files` is Code, `?tab=versions` is Versions, the
+other tabs are Share.
 
 **Pics and Hear are the game's files by kind, not by folder.** Pics is cards:
 for a visual novel, **Characters** — one per *cast* member, wearing their first

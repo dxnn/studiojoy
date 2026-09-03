@@ -437,12 +437,13 @@ const slugFromUrl = () => {
 // and `?tab=` a rail tab. Still read, never written; `?tab=play` and any
 // other stranger fall back to the game's own default.
 const modeFromOld = (edit, tab) => edit ?? (tab === 'files' ? 'code'
-  : ['versions', 'scoreboard', 'achievements'].includes(tab) ? 'share' : null);
+  : tab === 'versions' ? 'versions'
+    : ['scoreboard', 'achievements'].includes(tab) ? 'share' : null);
 
 // The URL is the view: which game, which mode, which file, which version — so
 // what someone is looking at is always the thing they can send to somebody
 // else. `file` is whichever file the mode is about: the open one under Code,
-// the filter on Share's versions. One name because it is one idea.
+// the filter on Versions' list. One name because it is one idea.
 const viewFromUrl = () => {
   const q = new URLSearchParams(location.search);
   return {
@@ -475,12 +476,10 @@ export function showMode(id) {
   if (S.slug) prefs.set(`mode-${S.slug}`, mode);
 }
 
-// Share shows what history and the public hold, so arriving there reads them:
-// all the versions — a list filtered to one file is somewhere you come from
-// that file, not a state the mode keeps — the scores, fresh every time because
-// the public posts while the studio idles, and the achievements.
+// Share shows what the public holds, so arriving there reads it: the scores,
+// fresh every time because the public posts while the studio idles, and the
+// achievements.
 export async function loadShare() {
-  if (historyNeedsLoad(null)) await loadHistory(null);
   await loadScores();
   if (!S.achievements || S.achievements.grown) await loadAchievements();
 }
@@ -549,6 +548,7 @@ export async function openMode(id) {
   await urlAs('hold', async () => {
     showMode(id);
     if (S.mode === 'share') await loadShare();
+    if (S.mode === 'versions' && historyNeedsLoad(null)) await loadHistory(null);
     // Questions is the quiz file: arriving opens it.
     if (S.mode === 'quiz' && S.open?.path !== QUIZ_FILE) await chooseFile(QUIZ_FILE);
     if (S.mode === 'controls') await openControls();
@@ -574,7 +574,7 @@ function urlNow() {
       if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
     }
     if (['code', 'pics', 'hear'].includes(S.mode) && S.open) q.set('file', S.open.path);
-    if (S.mode === 'share') {
+    if (S.mode === 'versions') {
       if (S.historyPath) q.set('file', S.historyPath);
       if (S.diff) q.set('version', S.diff.sha);
     }
@@ -664,7 +664,7 @@ async function applyView({
   }
   if (isChat()) return;
   const path = file ?? null;
-  if (want === 'share') {
+  if (want === 'versions') {
     if (historyNeedsLoad(path)) await loadHistory(path);
     if (version !== (S.diff?.sha ?? null)) {
       // Arriving at a version is arriving at its row, which a link can drop
@@ -672,6 +672,7 @@ async function applyView({
       if (version) await loadDiff(version, { goTo: true });
       else S.diff = null;
     }
+  } else if (want === 'share') {
     await loadScores();
     if (!S.achievements || S.achievements.grown) await loadAchievements();
   } else if (want === 'code' || want === 'pics' || want === 'hear') {
@@ -1119,14 +1120,15 @@ export function renderModeBody() {
   if (S.mode === 'hear') return renderHearMode();
   if (S.mode === 'controls') return renderControlsEditor();
   if (S.mode === 'code') return renderFilesTab();
+  if (S.mode === 'versions') return renderVersionsTab();
   if (S.mode === 'share') return renderShareMode();
   return null;
 }
 
-// Share: the game's public face and its history — the address and whether it
-// is in the games list, then the versions, the scoreboard and the
-// achievements (spec.md §6). Each was a tab of the rail; here they are
-// sections of one page in one scroller, each keeping the rendering it had.
+// Share: the game's public face — the address and whether it is in the games
+// list, then the scoreboard and the achievements (spec.md §6). Each was a tab
+// of the rail; here they are sections of one page in one scroller, each
+// keeping the rendering it had.
 function renderShareMode() {
   const p = S.project;
   const section = (label) => h('div', { class: 'section-label', text: label });
@@ -1148,7 +1150,6 @@ function renderShareMode() {
         text: p.published ? 'Take it out of the games list' : 'Put it in the games list',
         onclick: () => { S.dialog = { kind: 'publish' }; render(); },
       }) : null),
-    section('Versions'), renderVersionsTab(),
     section('Scoreboard'), renderScoreboardTab(),
     section('Achievements'), renderAchievementsTab());
 }

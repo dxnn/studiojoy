@@ -7,8 +7,8 @@
 // templates' index.json stays the manifest of what a type starts from.
 //
 // Around the editors sit the modes every game has (spec.md §6): Chat first,
-// then Pics, Hear, Code and Share. `modesFor` is the row over the centre, in
-// order.
+// then Pics, Hear, Controls, Code, Versions and Share. `modesFor` is the row
+// over the centre, in order.
 
 import { renderStoryEditor } from './story-form.js';
 import { renderQuizEditor } from './quiz-form.js';
@@ -43,18 +43,19 @@ const CONTROLS_MODE = {
   id: 'controls', label: 'Controls', what: 'How the game is held, and what each button does',
 };
 const CODE_MODE = { id: 'code', label: 'Code', what: 'Every file in the game' };
+const VERSIONS_MODE = { id: 'versions', label: 'Versions', what: 'Every past version of this game' };
 const SHARE_MODE = {
-  id: 'share', label: 'Share', what: 'The link, the versions, the scoreboard and the achievements',
+  id: 'share', label: 'Share', what: 'The link, the scoreboard and the achievements',
 };
 
 // The row of modes over a project's centre pane. A chat project is one room
 // and has only the chat; a game has the chat, its type's editors, then Pics,
-// Hear, Controls, Code and Share. Controls sits after the two that are about
-// what a game is made of and before the tree, because it is about how the
-// game is played rather than what is in it.
+// Hear, Controls, Code, Versions and Share. Controls sits after the two that
+// are about what a game is made of and before the tree, because it is about
+// how the game is played rather than what is in it.
 export const modesFor = (project) => (!project || project.kind === 'chat'
   ? [CHAT_MODE]
   : [
     CHAT_MODE, ...editorsFor(project.type),
-    PICS_MODE, HEAR_MODE, CONTROLS_MODE, CODE_MODE, SHARE_MODE,
+    PICS_MODE, HEAR_MODE, CONTROLS_MODE, CODE_MODE, VERSIONS_MODE, SHARE_MODE,
   ]);

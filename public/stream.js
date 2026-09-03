@@ -386,7 +386,7 @@ function onEvent(name, data) {
       // landing is not somewhere the reader navigated to, and every one would
       // otherwise leave an entry behind.
       S.historyStale = true;
-      if (S.mode === 'share') urlAs('replace', () => loadHistory(S.historyPath));
+      if (S.mode === 'versions') urlAs('replace', () => loadHistory(S.historyPath));
       // The open file has one more version than it had a moment ago —
       // including when this is the commit our own saves just became.
       if (S.open && data.paths.includes(S.open.path)) countVersions();

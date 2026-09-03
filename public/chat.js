@@ -7,11 +7,11 @@ import { h } from './dom.js';
 import {
   S, render, prefs, isChat, agentName, urlAs,
   composerBox, sendComposer, send, api, say, sizeText,
-  openMode, showMode, loadShare, renderModeBody, frozen, canTalk, nearQuota,
+  openMode, showMode, renderModeBody, frozen, canTalk, nearQuota,
   more,
 } from './main.js';
 import { toolLabel, thinkingFor } from './stream.js';
-import { loadDiff } from './history.js';
+import { loadDiff, loadHistory, historyNeedsLoad } from './history.js';
 import {
   toggleChatty, detachAgent, openChat, readMark,
 } from './chats.js';
@@ -345,9 +345,9 @@ function renderMessage(msg) {
       // entry in the history and it ends on the row it opened.
       onclick: async () => {
         await urlAs('hold', async () => {
-          showMode('share');
+          showMode('versions');
           render();
-          await loadShare();
+          if (historyNeedsLoad(null)) await loadHistory(null);
         });
         await loadDiff(w.commit_sha, { goTo: true });
       },

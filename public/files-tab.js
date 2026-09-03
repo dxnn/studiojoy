@@ -268,7 +268,7 @@ export function renderOpenFile() {
         text: S.open.versions
           ? `${S.open.versions} version${S.open.versions === 1 ? '' : 's'}`
           : 'Versions',
-        onclick: () => { showMode('share'); return loadHistory(S.open.path); },
+        onclick: () => { showMode('versions'); return loadHistory(S.open.path); },
       }),
       // Rename, Duplicate and Delete are the file's ··· on its row or card
       // (spec.md §6); the bar is the file's name, its versions, and the way
