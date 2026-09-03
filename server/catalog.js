@@ -326,9 +326,11 @@ export function catalogPage({ games, player = null }) {
 
 // A game's players page: everybody's numbers for one game, the answer to
 // "who else has played this?" (ideas/front-page-players.md, rung 2). Three
-// lists — the board's top 100, one personal best per person, and the trophies
-// with who holds each — and the viewer's own rows marked, which is the only
-// thing the player cookie does here. `board` and `bests` arrive empty when
+// lists — one personal best per person, the trophies with who holds each, and
+// under those the board's top 100: the people first, because a hundred runs
+// is a long way to scroll to find out how your friends are doing — and the
+// viewer's own rows marked, which is the only thing the player cookie does
+// here. `board` and `bests` arrive empty when
 // the game's scoreboard is switched off, so the page says nothing about
 // scores then; the trophies stay, because earned is forever. Static and
 // scriptless: nothing on it changes without a reload.
@@ -349,14 +351,14 @@ export function playersPage({
     .join('\n      ');
 
   const sections = [
-    board.length
-      ? `<section><h3>Top 100</h3><ol class="board">\n      ${rows(board)}\n    </ol></section>`
-      : '',
     bests.length
       ? `<section><h3>Personal bests</h3><ol class="board">\n      ${rows(bests)}\n    </ol></section>`
       : '',
     achievements.length
       ? `<section><h3>Trophies</h3><ul class="trophies">\n      ${trophies}\n    </ul></section>`
+      : '',
+    board.length
+      ? `<section><h3>Top 100</h3><ol class="board">\n      ${rows(board)}\n    </ol></section>`
       : '',
   ].filter(Boolean);
 

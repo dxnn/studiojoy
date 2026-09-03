@@ -419,9 +419,12 @@ test('a game\'s players page shows everybody\'s board, bests and trophies, and m
   assert.match(html, /Tank &amp; &lt;Chips&gt;/, 'the game\'s name, escaped');
   assert.match(html, /Pat &lt;b&gt;/, 'a player\'s name, escaped');
   assert.doesNotMatch(html, /Pat <b>/);
-  // The board: three runs, best first; the bests: one row each.
+  // The board: three runs, best first; the bests: one row each. The people
+  // come first and the hundred runs last.
   assert.match(html, /Top 100/);
   assert.match(html, /Personal bests/);
+  assert.ok(html.indexOf('Personal bests') < html.indexOf('Trophies')
+    && html.indexOf('Trophies') < html.indexOf('Top 100'), 'bests, trophies, then the board');
   assert.ok(html.indexOf('4,520') < html.indexOf('1,000') && html.indexOf('1,000') < html.indexOf('>300<'), 'best first');
   assert.equal((html.match(/>300</g) ?? []).length, 1, 'the 300 is a run, not a best');
   // Two runs and one best are the viewer's; the trophy they hold is theirs too.
