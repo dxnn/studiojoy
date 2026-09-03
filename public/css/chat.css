@@ -117,6 +117,29 @@
   text-align: center;
 }
 
+/* A plan card: what the Builder split a big ask into, as a checklist that
+   ticks as the pieces land (spec.md §8). Pink is a helper's colour; the
+   count is not a score, so it is not gold. */
+.pieces {
+  border: 1px solid color-mix(in oklab, oklch(0.84 0.13 350) 35%, transparent);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e4d9de;
+  max-width: 560px;
+}
+.pieces-head { font-weight: 600; margin-bottom: 6px; }
+.pieces-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.piece { display: grid; grid-template-columns: 1.4em 1fr; column-gap: 4px; align-items: baseline; }
+.piece-mark { font-family: var(--mono); color: oklch(0.84 0.13 350); }
+.piece.todo .piece-mark { color: var(--muted); }
+.piece-title { font-weight: 500; }
+.piece.done .piece-title { color: var(--muted); }
+.piece-files { grid-column: 2; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.pieces-state { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.pieces.done .pieces-state { color: #e4d9de; }
+
 /* The files a reply touched. Monospace pills, and the one that was deleted is
    crimson with its minus, because that is the one you check twice. */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
