@@ -1,7 +1,7 @@
 // A DOM small enough to render into and no bigger, so the studio's own front
 // end can be held to its own rules by `npm test` (CLAUDE.md, "Three
-// conventions to keep"). Zero dependencies is the whole point: this is fifty
-// lines and jsdom is a browser.
+// conventions to keep"). Zero dependencies is the whole point: this is about
+// a hundred lines of it and jsdom is a browser.
 //
 // What it is not: a browser. Nothing here lays anything out, computes a
 // style, or knows what a pointer is — those go to Playwright by hand, which

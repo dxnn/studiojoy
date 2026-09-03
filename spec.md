@@ -3563,7 +3563,7 @@ are absent on purpose — the first three permanently, the last deferred
 (§2, §15).
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
-scripted fake LLM client and — for the client's own rules — a fifty-line DOM
+scripted fake LLM client and — for the client's own rules — a hand-rolled DOM
 stand-in (`test/dom-stand-in.js`, §17), so the suite needs no network, no API
 key and no browser. The one place a live key is required is a manual smoke
 script, kept out of `npm test`.
@@ -3579,12 +3579,14 @@ every rule here was found by breaking it.
 to fire it — ask the server who you are, open the stream — so `npm test`
 could not load any file that renders, and the *three conventions* could only
 ever be checked by eye in a browser. They are tests now
-(`test/conventions.test.js`) over a fifty-line DOM stand-in
-(`test/dom-stand-in.js`): what lights up is what can be clicked, nothing is
-greyed where a row would have to explain why, one thing open at a time in the
-row it belongs to, and gold only on a number. Each was written by putting the
-bug back and watching it fail. ⚠️ Zero dependencies still holds — the
-stand-in is fifty lines and jsdom is a browser. What genuinely needs one —
+(`test/conventions.test.js`) over a hand-rolled DOM stand-in
+(`test/dom-stand-in.js`, ~100 lines of code): what lights up is what can be
+clicked, nothing is greyed where a row would have to explain why, one thing
+open at a time in the row it belongs to, and gold only on a number. ⚠️ Each
+one was held to the only standard a convention test has — the bug put back,
+the test watched failing, the bug taken out again — because a convention
+test that cannot fail is decoration. ⚠️ Zero dependencies still holds: a
+hundred lines against jsdom, which is a browser. What genuinely needs one —
 layout, computed colour, a real pointer — stays a Playwright check by hand,
 and that list is now short. `install()` runs before the import, because the
 client still reads `document` and the stored rail width on the way in.
