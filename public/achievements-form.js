@@ -220,7 +220,7 @@ function renderAchievementsForm(st) {
   const { entries } = model;
   const slug = S.slug;
   const heard = momentsFor(slug);
-  const checks = achievementChecks(model, heard);
+  const checks = achievementChecks(model, heard, counts.get(slug)?.players);
   if (opened.slug !== slug) opened = { slug, index: null };
   countNodes = new Map();
   loadCounts(slug);

@@ -106,6 +106,13 @@ test('the checks say what the game will not count, and what it has not been hear
     '“Chatty” waits for “answered”, which the game has not been heard to say.',
   ]);
 
+  // A real player already holding it proves the rule fires — the warning is
+  // moot and drops, even though the game still has not been heard to say it.
+  const counts = new Map([['quick', 1]]);
+  assert.deepEqual(achievementChecks(model, heard, counts), [
+    '“Chatty” waits for “answered”, which the game has not been heard to say.',
+  ]);
+
   // A row being written, a duplicate id and an icon that is not one emoji
   // are flagged with the shape module's own words.
   model.entries.push({ id: '', name: '', how: '', icon: '', when: null });

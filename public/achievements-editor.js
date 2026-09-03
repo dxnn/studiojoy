@@ -143,8 +143,9 @@ export function achievementsText({ entries }) {
 // What the whole list says that one field cannot: which entries the game will
 // not count and why, and a rule waiting on a moment the game has never been
 // heard to say — only once it has been heard to say anything, or every rule
-// in a game nobody has played this session would be flagged.
-export function achievementChecks({ entries }, heard = new Map()) {
+// in a game nobody has played this session would be flagged, and never once a
+// real player already holds it, since that proves the rule fires.
+export function achievementChecks({ entries }, heard = new Map(), counts = new Map()) {
   const out = [];
   const label = (a) => (a.name ? `“${a.name}”` : 'an achievement with no name yet');
   const { skipped } = readAchievements(entries.map((a) => ({
@@ -160,7 +161,7 @@ export function achievementChecks({ entries }, heard = new Map()) {
   }
   if (heard.size > 0) {
     for (const a of entries) {
-      if (a.when && !heard.has(a.when.moment)) {
+      if (a.when && !heard.has(a.when.moment) && !counts.get(a.id)) {
         out.push(`${label(a)} waits for “${a.when.moment}”, which the game has not been heard to say.`);
       }
     }
