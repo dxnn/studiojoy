@@ -23,9 +23,10 @@ import {
 } from './achievements-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, send, say, api, frozen, momentsFor, chooseFile, encodePath, refreshFiles,
-  NO_CONNECTION,
+  S, render, send, say, api, frozen, encodePath, NO_CONNECTION,
 } from './main.js';
+import { momentsFor } from './telemetry.js';
+import { chooseFile, refreshFiles } from './files.js';
 
 // Which row is open, for which game — a different game opens closed.
 let opened = { slug: null, index: null };

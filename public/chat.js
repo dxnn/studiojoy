@@ -5,12 +5,16 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, isChat, agentName, toolLabel, thinkingFor, urlAs,
-  loadDiff, toggleChatty, detachAgent,
+  S, render, prefs, isChat, agentName, urlAs,
   composerBox, sendComposer, send, api, say, sizeText,
-  openChat, openMode, showMode, loadShare, renderModeBody, frozen, canTalk, nearQuota, calledMark,
+  openMode, showMode, loadShare, renderModeBody, frozen, canTalk, nearQuota,
   more,
 } from './main.js';
+import { toolLabel, thinkingFor } from './stream.js';
+import { loadDiff } from './history.js';
+import {
+  toggleChatty, detachAgent, openChat, calledMark,
+} from './chats.js';
 import { modesFor } from './game-types.js';
 
 /* Render: chat ------------------------------------------------------------ */

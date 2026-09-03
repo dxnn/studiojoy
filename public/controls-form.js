@@ -19,8 +19,10 @@ import {
 } from './controls-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, renderOpenFile, saveOpenFileSoon, more, frozen,
+  S, render, more, frozen,
 } from './main.js';
+import { renderOpenFile } from './files-tab.js';
+import { saveOpenFileSoon } from './files.js';
 
 function commit(text) {
   if (text === null) {

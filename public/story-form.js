@@ -27,9 +27,10 @@ import {
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, send, say, frozen, encodePath, refreshFiles, chooseFile, commitNow, more,
-  createPictureAt, NO_CONNECTION,
+  S, render, send, say, frozen, encodePath, commitNow, more, NO_CONNECTION,
 } from './main.js';
+import { refreshFiles, chooseFile } from './files.js';
+import { createPictureAt } from './drawing.js';
 import { renderGuide, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
 

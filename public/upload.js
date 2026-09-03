@@ -3,9 +3,9 @@
 // upload lives in dialogs.js; the buttons that open it are on the files tab.
 
 import {
-  S, send, say, render, refreshFiles, openFile, sizeText, encodePath, NO_CONNECTION,
-  RESERVED_IMAGES,
+  S, send, say, render, sizeText, encodePath, NO_CONNECTION,
 } from './main.js';
+import { refreshFiles, openFile, RESERVED_IMAGES } from './files.js';
 
 /* Uploads ----------------------------------------------------------------- */
 

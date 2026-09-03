@@ -4,7 +4,8 @@
 
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
 import { h } from './dom.js';
-import { S, render, saveOpenFile, frozen } from './main.js';
+import { S, render, frozen } from './main.js';
+import { saveOpenFile } from './files.js';
 
 /* Config form -------------------------------------------------------------- */
 

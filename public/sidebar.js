@@ -3,9 +3,9 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, api, openProject, attachAgent, SIDE_SEARCH, frozen,
-  mentionPerson, calledMark,
+  S, render, prefs, api, openProject, SIDE_SEARCH, frozen,
 } from './main.js';
+import { attachAgent, mentionPerson, calledMark } from './chats.js';
 
 /* Render: sidebar --------------------------------------------------------- */
 

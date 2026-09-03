@@ -10,8 +10,10 @@
 import { quizText, quizChecks, freshKey, QUIZ_FILE } from './quiz-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, saveOpenFileSoon, renderOpenFile, more, frozen,
+  S, render, more, frozen,
 } from './main.js';
+import { saveOpenFileSoon } from './files.js';
+import { renderOpenFile } from './files-tab.js';
 
 function commit(model) {
   S.open.content = quizText(model);

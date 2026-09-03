@@ -6,8 +6,10 @@
 import { patchFor, hasHunks, renameIn } from './patch.js';
 import { h } from './dom.js';
 import {
-  S, render, encodePath, chooseFile, loadHistory, loadDiff, urlAs, frozen, more,
+  S, render, encodePath, urlAs, frozen, more,
 } from './main.js';
+import { chooseFile } from './files.js';
+import { loadHistory, loadDiff } from './history.js';
 
 /* Versions ----------------------------------------------------------------- */
 

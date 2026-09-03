@@ -8,13 +8,19 @@ import {
   SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload,
 } from './upload.js';
 import {
-  S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents,
-  syncAttached, attachAgent, openFile, saveOpenFile, saveAndClose, createFile,
-  renameFile, duplicateFile, deleteFile, restore, rollback, createPicture,
-  createChat, createSound, setAuthors, setOpenEdit, setPublished,
-  frozen, loadStudio, studioChange,
-  copyFileTo, LIBRARY_DIR, deleteScore, clearScores, shareArt, unshareArt,
+  S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents, frozen,
 } from './main.js';
+import { syncAttached, attachAgent, createChat } from './chats.js';
+import {
+  openFile, saveOpenFile, saveAndClose, createFile, renameFile, duplicateFile,
+  deleteFile, setAuthors, setOpenEdit, setPublished, copyFileTo, LIBRARY_DIR,
+  shareArt, unshareArt,
+} from './files.js';
+import { restore, rollback } from './history.js';
+import { createPicture } from './drawing.js';
+import { createSound } from './sound-editor.js';
+import { loadStudio, studioChange } from './people.js';
+import { deleteScore, clearScores } from './scoreboard.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
 import { renderShelfDialog } from './story-guide.js';

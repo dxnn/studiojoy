@@ -989,8 +989,8 @@ a path and never its extension, so nothing had to change to accept a `.zip`
 beyond the button that used to claim it took pictures and sounds.
 
 What the pane can *show* is the separate question, answered by `MEDIA_KINDS` in
-`main.js`: one entry per kind, matched in order, and the only place a new kind
-gets added. A file no entry matches is described plainly with a link to save it,
+`public/files-tab.js`: one entry per kind, matched in order, and the only place
+a new kind gets added. A file no entry matches is described plainly with a link to save it,
 since the server already serves an unknown extension as a download (§4). Three
 choices worth naming:
 
@@ -1080,8 +1080,8 @@ in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
 side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas keeps
 them, so opening an uploaded picture loses nothing. The tools are in
 `public/pixel-editor.js` and are arithmetic over bytes for the same reason the
-sound editor is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
-choices worth naming:
+sound editor is; the canvas, the pointer and `toBlob` stay in
+`public/drawing.js`. Five choices worth naming:
 
 - **There is no look-only view of a picture.** There was, behind a link, and it
   showed the picture at exactly the same size as the editor did — a control
@@ -2979,10 +2979,10 @@ broker entirely.
 | `game.errors` | `{project_slug, errors: [{id, message, location, times, at}]}` — the whole current list, not a delta |
 | `collection.changed` | `{}` — the *studio collection* gained or lost a picture. The only event with no `project_slug`, because the collection belongs to no game: every tab drops its copy of the *shelf*'s index and repaints |
 
-⚠️ **`STREAM_EVENTS` in `main.js` is an allow-list.** `EventSource` delivers
-only what has been subscribed to by name, so a handler added to `onEvent`
-without a line in that array is dead code that looks alive — which is exactly
-how `collection.changed` shipped inert the first time.
+⚠️ **`STREAM_EVENTS` in `public/stream.js` is an allow-list.** `EventSource`
+delivers only what has been subscribed to by name, so a handler added to
+`onEvent` without a line in that array is dead code that looks alive — which
+is exactly how `collection.changed` shipped inert the first time.
 
 `files.changed` is what makes the studio feel live: an agent writes a file and
 the game in your preview pane reloads. It stopped meaning "a version landed"
@@ -3666,9 +3666,24 @@ server/
                   errors, files, history, story, helpers, stream
 public/
   index.html      shell
-  main.js         the SPA's core: state, transport, URL, stream, the file,
-                  drawing and history actions, and render() (§17)
+  main.js         the SPA's core: state, transport, URL, boot, and render()'s
+                  own composition (§17)
   dom.js          h(), and the icon buttons
+  stream.js       the SSE connection and streaming replies
+  telemetry.js    what a running game reports: problems and moments
+  files.js        the file lifecycle: open, save, rename, duplicate, delete,
+                  copy into another game or the studio collection
+  drawing.js      the pixel editor and the game's own colour palette
+  sound-editor.js reading and saving a sound's own numbers
+  files-tab.js    Code: the file list and the open file's editor
+  pics-hear.js    Pics and Hear
+  history.js      Versions: load, diff, restore, rollback
+  scoreboard.js   the Share page's scoreboard section
+  chats.js        switching chats, mentions, attaching a helper
+  people.js       the studio's roster and the admin panel's data
+                  each a slice of a game's state, split out of main.js; import
+                  the core from it and, where they need each other's, from one
+                  another the same way
   sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
   dialogs.js  upload.js  achievements-form.js  quiz-form.js  story-form.js
   story-guide.js  controls-form.js
@@ -3839,8 +3854,8 @@ something git cannot recover.
 
 ### Panes
 
-- `MEDIA_KINDS` in `main.js` is the one list to extend when the studio should
-  show a new kind of file.
+- `MEDIA_KINDS` in `public/files-tab.js` is the one list to extend when the
+  studio should show a new kind of file.
 - The preview reloads itself: every `files.changed` bumps `previewNonce`, which
   is in the iframe's `src`, so a helper's write, a save or an upload all
   restart the game — on the write, not on the commit, which for a save comes

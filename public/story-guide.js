@@ -31,8 +31,9 @@ import {
 } from './story-editor.js';
 import { h } from './dom.js';
 import {
-  S, render, prefs, say, send, api, loadMe, createPictureAt,
+  S, render, prefs, say, send, api, loadMe,
 } from './main.js';
+import { createPictureAt } from './drawing.js';
 import { writeFiles } from './upload.js';
 import { storyEdited, selectScene, saveStory } from './story-form.js';
 
