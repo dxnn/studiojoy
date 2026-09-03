@@ -2340,6 +2340,20 @@ No CSRF token in v0: the session cookie is `HttpOnly`, `SameSite=Lax`,
 `Secure` when `NODE_ENV=production`. The content-type guard above stands in
 for it — a token would close the logout residue and nothing else.
 
+Each origin is also its own installable PWA — a manifest and service worker
+are scoped per-origin, so one studio person installing the studio and the
+catalog gets two distinct home-screen apps, named "Unbridled Joy Studio" and
+"Unbridled Joy". The studio's live at `/manifest.json` and `/sw.js`; the
+games origin's at the underscore-prefixed `/_manifest.json` and `/_sw.js`
+(plus `/_icons/*`), following the same can't-collide-with-a-slug convention
+as `/_players` and the rest. Both service workers are installability only —
+`fetch` is a no-op, nothing is cached — since there is no build step or
+filename hashing to make a cache-first strategy safe, and the catalog is
+personalized per request (sign-in state, live scores) so it must never be
+served stale. `playersPage()` stays scriptless as before: it carries the
+manifest `<link>` but does not register the service worker, which
+`catalogPage()` already does for the whole origin.
+
 ## 8. Agent orchestration
 
 ### Eligibility

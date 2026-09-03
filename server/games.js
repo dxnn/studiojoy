@@ -53,9 +53,12 @@ const MAX_AUTH_BODY_BYTES = 1024;
 // table, never a working tree (spec.md §6). Names and slugs reach the
 // catalog as text, never as markup.
 
+const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
+
 export function createGamesApp({
   db, gamesDir, pending = null, scoreRate, signupRate, unlockRate,
   trustProxy = false, secureCookies = false,
+  publicDir = DEFAULT_PUBLIC_DIR,
   emailLockout = createLockout(DEFAULT_EMAIL_LOCKOUT),
   ipLockout = createLockout(DEFAULT_IP_LOCKOUT),
 }) {
@@ -174,6 +177,18 @@ export function createGamesApp({
     if (ctx.req.method === 'HEAD') return ctx.res.end();
     return ctx.res.end(page);
   };
+
+  // The front page as an installable PWA: its own manifest (a distinct name
+  // from the studio's), the service worker catalogPage() registers, and the
+  // icons both reference — all served from the studio's own public/ tree
+  // rather than a second copy of the artwork. Underscore-prefixed like every
+  // other studio-authored path here, so none of them can ever be shadowed by
+  // a game's slug (checkSlug forbids `_`).
+  r.get('/_manifest.json', (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'games-manifest.json')));
+  r.get('/_sw.js', (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'sw.js')));
+  for (const name of ['icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png']) {
+    r.get(`/_icons/${name}`, (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'icons', name)));
+  }
 
   // A game's players page (catalog.js): everybody's scores and trophies for
   // one game, at an underscore path no game file can shadow. The board and

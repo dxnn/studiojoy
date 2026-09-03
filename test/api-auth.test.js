@@ -210,6 +210,35 @@ test('the shell is served for client-side routes', async (t) => {
   }
 });
 
+test('the studio is installable as a PWA', async (t) => {
+  const app = await setup({ publicDir: PUBLIC_DIR });
+  t.after(() => app.close());
+
+  const shell = await app.client.request('GET', '/');
+  const html = await shell.text();
+  assert.match(html, /<link rel="manifest" href="\/manifest\.json" \/>/);
+  assert.match(html, /navigator\.serviceWorker\.register\('\/sw\.js'\)/);
+
+  const manifest = await app.client.request('GET', '/manifest.json');
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers.get('content-type'), /application\/json/);
+  const parsed = await manifest.json();
+  assert.equal(parsed.display, 'standalone');
+  assert.equal(parsed.start_url, '/');
+  assert.ok(parsed.icons.length >= 2, 'at least a regular and a maskable icon');
+
+  const sw = await app.client.request('GET', '/sw.js');
+  assert.equal(sw.status, 200);
+  assert.match(sw.headers.get('content-type'), /text\/javascript/);
+
+  for (const icon of parsed.icons) {
+    const res = await app.client.request('GET', icon.src);
+    assert.equal(res.status, 200, icon.src);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    await res.arrayBuffer();
+  }
+});
+
 test('static assets are served and traversal is refused', async (t) => {
   const app = await setup({ publicDir: PUBLIC_DIR });
   t.after(() => app.close());

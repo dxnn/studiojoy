@@ -242,6 +242,8 @@ specified:
   catalog says how *you* are doing on each card. The preview reloads itself
   on every write — and on nothing else: the frame lives outside the rendered
   tree (§17) — and reports its own errors and moments back.
+- Both the studio and the front page install as PWAs — a manifest and an
+  installability-only service worker each, no offline caching (§7).
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by
   `npm run sweep` (§4).

@@ -129,6 +129,11 @@ const HEAD = (title) => `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#15112b">
 <title>${title}</title>
+<link rel="manifest" href="/_manifest.json">
+<link rel="icon" href="/_icons/icon-192.png">
+<link rel="apple-touch-icon" href="/_icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Unbridled Joy">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">`;
 
@@ -281,6 +286,7 @@ export function catalogPage({ games, player = null }) {
   ${dialogs}
 
   <script>
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/_sw.js');
     const $ = (id) => document.getElementById(id);
     const post = async (path, body) => {
       const res = await fetch(path, {

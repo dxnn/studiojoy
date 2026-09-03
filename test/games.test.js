@@ -255,6 +255,45 @@ test('a symlink planted in a working tree is not followed', async (t) => {
   assert.ok(!(await res.text()).includes('SECRET'));
 });
 
+test('the front page is installable as a PWA, distinct from the studio', async (t) => {
+  const { games } = await bothOrigins(t);
+
+  const catalog = await games.client.request('GET', '/');
+  const html = await catalog.text();
+  assert.match(html, /<link rel="manifest" href="\/_manifest\.json">/);
+  assert.match(html, /navigator\.serviceWorker\.register\('\/_sw\.js'\)/);
+
+  const manifest = await games.client.request('GET', '/_manifest.json');
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers.get('content-type'), /application\/json/);
+  const parsed = await manifest.json();
+  assert.equal(parsed.display, 'standalone');
+  assert.equal(parsed.name, 'Unbridled Joy');
+  assert.ok(parsed.icons.length >= 2, 'at least a regular and a maskable icon');
+
+  const sw = await games.client.request('GET', '/_sw.js');
+  assert.equal(sw.status, 200);
+  assert.match(sw.headers.get('content-type'), /text\/javascript/);
+
+  for (const icon of parsed.icons) {
+    const res = await games.client.request('GET', icon.src);
+    assert.equal(res.status, 200, icon.src);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    await res.arrayBuffer();
+  }
+});
+
+test('the players page stays scriptless, but still carries the manifest', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await put(app, 'index.html', 'game');
+
+  const res = await games.client.request('GET', '/tank/_players');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<link rel="manifest" href="\/_manifest\.json">/);
+  assert.doesNotMatch(html, /<script>/, 'nothing changes on this page without a reload');
+});
+
 test('an unknown extension downloads rather than rendering', async (t) => {
   const { app, games } = await bothOrigins(t);
   await put(app, 'save.dat', 'opaque');
