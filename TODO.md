@@ -61,7 +61,7 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! deploy input v5 / screens v10: npm run sweep on the studio machine, then
+- ! deploy input v5 / screens v11: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
 - draw on the real phone now the pane fits: a finger is not a pointer, so how

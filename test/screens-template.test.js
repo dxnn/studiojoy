@@ -74,7 +74,8 @@ function fakeDom() {
 
 // A fetch that answers from a table of path-prefix to { status, body }, and
 // records what was asked. The studio's two game-origin routes are all this
-// library ever calls: /_me and /_scores/<slug>.
+// library ever calls: /_me and /_scores/<slug>. An entry may be a function of
+// the call instead, for an answer that depends on what was asked before it.
 function fakeNet(table) {
   const calls = [];
   function fetch(url, init) {
@@ -90,6 +91,7 @@ function fakeNet(table) {
       }
     }
     if (!hit) return Promise.reject(new Error(`no route for ${url}`));
+    if (typeof hit === 'function') hit = hit(String(url), init || null);
     const status = hit.status === undefined ? 200 : hit.status;
     return Promise.resolve({
       ok: status >= 200 && status < 300,
@@ -798,6 +800,35 @@ test('title({score, post, board}) posts the run and shows where it landed', asyn
   assert.deepEqual(
     calls.map((c) => c.url).sort(),
     ['/_me', '/_scores/asteriskoids', '/_scores/asteriskoids?limit=100'],
+  );
+});
+
+// The board is read after the post has landed, so the run is on it. Asked for
+// alongside, it came back as the board before this run — and a new number one
+// saw the old one, marked as theirs.
+test('title({post, board}) reads the board only once the run is on it', async () => {
+  const scores = madeUpScores(3);
+  const { Screens, document, calls } = bootDom({
+    routes: {
+      '/_me': { body: { user: { name: 'Pat' } } },
+      '/_scores/asteriskoids?': () => ({ body: { scores: scores.slice() } }),
+      '/_scores/asteriskoids': (url, init) => {
+        scores.unshift({ name: 'Pat', score: JSON.parse(init.body).score });
+        return { status: 201, body: { rank: 1 } };
+      },
+    },
+  });
+  Screens.title({ score: 5000, post: true, board: true });
+  await settle();
+  const root = document.body.children[0];
+  const places = all(root, 'screens-place');
+  assert.equal(places.length, 4);
+  assert.deepEqual(rowOf(places[0]), ['1', 'Pat', '5000']);
+  assert.deepEqual(rowOf(all(root, 'screens-mine')[0]), ['1', 'Pat', '5000']);
+  const urls = calls.map((c) => c.url);
+  assert.ok(
+    urls.indexOf('/_scores/asteriskoids?limit=100') > urls.indexOf('/_scores/asteriskoids'),
+    'the board was asked for after the post',
   );
 });
 

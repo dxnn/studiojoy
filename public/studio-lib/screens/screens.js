@@ -649,10 +649,17 @@ const Screens = (function () {
     // A rank past the shown rows needs the rest of the board to bracket it,
     // and a promised rank is not knowable yet — so either way, ask for all of
     // it. Without a rank, the shown rows are the whole request.
+    //
+    // ⚠️ The board is read only once the rank is known. With title({ post:
+    // true }) the rank is the post's answer, and a board asked for alongside
+    // the post came back without this run on it — the request with no body
+    // was answered first — so a new number one saw the old one, marked as
+    // theirs. A plain rank resolves at once and costs nothing here.
+    const rank = rankOf(o.around);
     const rows = Array.isArray(o.scores)
       ? Promise.resolve(o.scores)
-      : readScores(asked ? 100 : limit);
-    Promise.all([rows, rankOf(o.around)])
+      : rank.then(() => readScores(asked ? 100 : limit));
+    Promise.all([rows, rank])
       .then((both) => paintBoard(list, both[0], limit, both[1]))
       .catch(() => {});
     return root;
