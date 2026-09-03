@@ -14,6 +14,7 @@ const SEED = read('templates/controls.js'); // the default: stick-buttons
 const ONE_BUTTON = read('templates/controls-one-button.js');
 const SWIPE_TAP = read('templates/controls-swipe-tap.js');
 const DUAL_STICK = read('templates/controls-dual-stick.js');
+const NONE = read('templates/controls-none.js');
 
 // A controls.js from before schemes existed: touch: directions drawn as the
 // arrow pad, and no SCHEME anywhere.
@@ -260,6 +261,20 @@ test('a controls.js from before schemes: the arrow pad and the button', () => {
   assert.equal(
     boot({ controls: LEGACY, coarse: true }).hint(),
     'Arrows to move · GO to fire',
+  );
+});
+
+// A game of buttons explains itself: the buttons are on the screen with
+// their own words on them. Before this the seeded scheme was stick-buttons,
+// so a visual novel's title screen offered "Enter to start" over a Start
+// button that only ever took a click.
+test('the null controller says nothing, on either device', () => {
+  assert.equal(boot({ controls: NONE }).hint(), '', 'nothing for a keyboard');
+  assert.equal(boot({ controls: NONE, coarse: true }).hint(), '', 'nothing for a touchscreen');
+  const words = 'const WORDS = { howToPlay: "pick an answer" };';
+  assert.equal(
+    boot({ controls: NONE, words }).hint(), 'pick an answer',
+    'a game with its own line still gets to say it',
   );
 });
 

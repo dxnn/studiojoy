@@ -2442,7 +2442,7 @@ not and why, so the shape section above does not get a helper "fixing" a DOM
 quiz onto `Screens.title`. The blank page ships one too, written by
 `scaffoldStart` beside the page: it is the only place that says which script
 tags that page carries, that the input module is left out of them on purpose,
-and that the seeded *control scheme* is a default with four alternatives a word
+and that the seeded *control scheme* is a default with five alternatives a word
 away. No `{{name}}` in it — that substitution is HTML-escaped, which is right
 for the page and wrong for markdown. `SPEC.md` is a template's to ship and
 nobody else's; `TODO.md` is never scaffolded.

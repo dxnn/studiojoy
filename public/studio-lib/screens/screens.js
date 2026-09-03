@@ -319,6 +319,11 @@ const Screens = (function () {
   function hint() {
     const own = ownWords();
     if (own !== "") return own;
+    // The null controller has nothing to explain: its controls are the game's
+    // own buttons, and a button says what it does. Without this a game made
+    // of buttons offered a line about keys it may never read — a visual novel
+    // saying "Enter to start" over a Start button that only takes clicks.
+    if (schemeName() === "none") return "";
     const m = model();
     if (!m) return "";
     const coarse = typeof window === "object" && window.matchMedia

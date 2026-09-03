@@ -33,7 +33,10 @@
 // swipe:tap) — moments, not states, so read them with pressed(), never
 // held(). "stick-buttons": an analog stick under one thumb (stick:left …)
 // beside the drawn buttons. "dual-stick": an aim stick too (stick:aim-left
-// …); stick:move and stick:aim are held while a stick is pushed.
+// …); stick:move and stick:aim are held while a stick is pushed. "none": no
+// controller at all — the game's own buttons on the page are the controls, so
+// nothing is drawn, the page still scrolls, and a key bound here also still
+// does whatever the browser does with it.
 //
 // Use this instead of your own keydown listeners — two input systems fight
 // over the same keys. index.html must load config/controls.js and then
@@ -120,7 +123,7 @@ const Input = (function () {
   // The declared control scheme, or "" — which draws the same as "buttons".
   // An unknown name gets that shape too, said once, rather than a game with
   // no controls at all.
-  const SCHEMES = ["buttons", "one-button", "swipe-tap", "stick-buttons", "dual-stick"];
+  const SCHEMES = ["buttons", "one-button", "swipe-tap", "stick-buttons", "dual-stick", "none"];
   let warnedScheme = false;
   function schemeName() {
     let name = "";
@@ -186,7 +189,10 @@ const Input = (function () {
     if (typing(e)) return;
     const key = e.key.toLowerCase();
     keysDown.add(key);
-    if (isBoundKey(key)) e.preventDefault();
+    // The null controller never takes a key away from the page: its controls
+    // are the page's own buttons, and a prevented keydown on Space is a click
+    // the browser then never sends to the button under the focus.
+    if (schemeName() !== "none" && isBoundKey(key)) e.preventDefault();
   });
   window.addEventListener("keyup", (e) => { keysDown.delete(e.key.toLowerCase()); });
 
@@ -389,8 +395,9 @@ const Input = (function () {
   // Run once, on the first update: by then config/controls.js has loaded (it
   // is documented to stand in front of this file). A declared scheme also
   // owns the screen — no browser scrolling, zooming or text selection over
-  // the game — waiting for <body> the way the overlay does. The default
-  // shape leaves the body alone: a page-shaped game may still scroll.
+  // the game — waiting for <body> the way the overlay does. Two shapes leave
+  // the body alone, so a page-shaped game may still scroll: the default one,
+  // and "none", where the page's own buttons are the controls.
   let surfacesInstalled = false;
   let bodyOwned = false;
   function prepare() {
@@ -401,7 +408,7 @@ const Input = (function () {
       if (s === "swipe-tap") installSwipeTap();
       if (stickZones()) installSticks();
     }
-    if (!bodyOwned && schemeName() && document.body) {
+    if (!bodyOwned && schemeName() && schemeName() !== "none" && document.body) {
       bodyOwned = true;
       const style = document.body.style;
       style.touchAction = "none";
@@ -778,9 +785,10 @@ const Input = (function () {
   // build it for — a laptop with a mouse gets nothing drawn over the game.
   function buildTouchControls() {
     if (overlay) return;
-    // one-button and swipe-tap draw nothing: the screen itself is the control.
+    // Three shapes draw nothing: one-button and swipe-tap make the screen
+    // itself the control, and "none" has no controller to draw.
     const s = shape();
-    if (s === "one-button" || s === "swipe-tap") return;
+    if (s === "one-button" || s === "swipe-tap" || s === "none") return;
     const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
     if (!coarse || !document.body) return;
     const zones = stickZones();

@@ -115,11 +115,8 @@ other migration (TODO.md holds the list).
   `Input.point()`, a coordinate-space answer, and a drawn controller cursor.
   Wanted eventually (the adventure template gets couch play from it); parked
   so the expensive machinery stays off this critical path.
-- **clicker** (working name **normal** when it returns) — the game's own DOM
-  buttons are the controls; the scheme adds pad/arrow focus-cycling and a loud
-  focus ring. ⚠️ It cannot live inside `input.js` as-is: DOM games have no
-  frame loop to call `Input.update()`, and pads are poll-only, so it needs its
-  own rAF heartbeat — its own small library file. The quiz would declare it.
+- **clicker** — built as `none`, see "The sixth" below. Its focus-cycling
+  half is still deferred, and for the reason given there.
 - **tilt** — iOS gates device orientation behind a permission prompt and there
   is no desktop analog. Out of the default set.
 - **pinch / multi-touch gestures** — rare in these games, expensive to get
@@ -188,3 +185,61 @@ controls there until they move onto `Screens.title` — queued in TODO.md.
 The input header grew to ~2.6 KB; the orchestrator's API-note cap went to
 3 KB rather than compressing the note into illegibility. Not yet felt on a
 real phone — that re-test is queued in TODO.md with the deploy.
+
+## The sixth: none, the null controller
+
+(Dann, 2026-09-03, built as input v6 / screens v12.) The four presets and the
+fifth were built and then never reachable: nothing in the studio ever
+installed one. `studio-lib/index.json` seeded `/templates/controls.js` —
+`stick-buttons` — into every game, always, and the other four were read by
+nothing but the tests. So a quiz declared an analog stick, and a visual
+novel's title screen offered "Enter to start" over a Start button that only
+took clicks.
+
+**`none` is the absence of a controller, not a quiet one.** A game made of
+its own buttons and links already works everywhere: a mouse clicks them, a
+finger taps them, Tab reaches them, a screen reader reads them out. So the
+shape draws nothing, installs no surface, leaves the body its scrolling and
+its text selection, and ⚠️ is the one shape that does **not** take its bound
+keys away from the browser — a prevented keydown on Space is a click the
+browser then never sends to the button under the focus. `Screens.hint()`
+returns "" for it: a button says what it does.
+
+It is not the same as no `SCHEME` at all, which stays the `buttons` shape so
+every game from before the word plays untouched.
+
+Deferred, still: pad and arrow focus-cycling over those buttons, for the
+reason the clicker row gave — a page of buttons has no frame loop, so it
+wants a heartbeat of its own. `none` is where that lands when it is built,
+rather than a seventh name.
+
+## Picking one, and changing it after
+
+(Dann, 2026-09-03.) The scheme is chosen when a game is made, the way its
+type is, and then changed whenever — unlike the type. Four decisions taken
+before the build:
+
+1. The word in the file is `none`, kid-facing **Just the game's own
+   buttons**, and it is the default seed. *normal* and *clicker* are retired
+   as names.
+2. **Arcade is a family in the interface, not a word in the file.** New game
+   offers four choices — the null controller, Arcade, One button, Swipes and
+   taps — and Arcade seeds `stick-buttons`, refined in the panel to its three
+   manners: two sticks, a stick and buttons, buttons only. `SCHEME` stays one
+   concrete word, because "explicit is checkable" is the whole argument for
+   declaring it, and `SCHEME = "arcade"` would leave nothing in the file
+   saying which shape a phone actually gets.
+3. The panel is a **mode pill named Controls**, one per game, beside Pics and
+   Hear. `config/controls.js` then opens under Code as plain text and nothing
+   else — the story editor's rule, so one surface writes one file.
+4. Verb names are shown and not editable: `left`, `thrust`, `boost` are the
+   game's own words and `Input.held("thrust")` is in its code, so a rename in
+   a form is a silent code break. Bindings, drawn labels, latching, the side
+   and the deadzone are all editable. Adding and renaming verbs is queued in
+   TODO.md.
+
+Changing the shape rewrites `SCHEME` and nothing else. It must never replace
+the file with the new shape's preset: that would take the game's own verbs
+away and break its code. Instead the panel says what the new shape has no
+room for — a stick under swipe-tap — and offers to drop that binding, one at
+a time. Which is what explicit declaration was for.

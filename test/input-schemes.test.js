@@ -16,6 +16,7 @@ const SWIPE_TAP = read('templates/controls-swipe-tap.js');
 const SEED = read('templates/controls.js'); // the default: stick-buttons
 const DUAL_STICK = read('templates/controls-dual-stick.js');
 const BUTTONS = read('templates/controls-buttons.js');
+const NONE = read('templates/controls-none.js');
 
 // A controls.js from before schemes existed: no SCHEME anywhere.
 const LEGACY = `
@@ -90,7 +91,11 @@ function boot({ controls, body = null, coarse = false } = {}) {
       return event;
     },
     key(name, down = true) {
-      fire(down ? 'keydown' : 'keyup', { key: name, target: null, preventDefault() {} });
+      const event = {
+        key: name, target: null, prevented: false, preventDefault() { this.prevented = true; },
+      };
+      fire(down ? 'keydown' : 'keyup', event);
+      return event;
     },
   };
 }
@@ -471,6 +476,53 @@ test("the Screens start button reaches the game as one frame of start", () => {
   g.Input.update();
   assert.equal(g.Input.pressed('start'), false);
   assert.equal(g.Input.held('start'), false);
+});
+
+/* The null controller ------------------------------------------------------
+   "none" is the absence of a controller, not a quiet one: the game's own
+   buttons on the page are the controls, so nothing is drawn, nothing is
+   installed, and — unlike every other shape — the browser keeps its keys and
+   its page. Space on a focused <button> is a click the browser will not send
+   if the keydown was prevented, which is why this one gives that up. */
+
+test('the none preset is readable as a config form', () => {
+  const parsed = parseConfigFile(NONE);
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['SCHEME', 'CONTROLS']);
+});
+
+test('none: nothing is drawn, even on a touchscreen', () => {
+  const g = bootButtons(NONE);
+  g.Input.update();
+  assert.equal(g.overlay(), undefined, 'no overlay at all');
+  assert.equal(g.body.children.length, 0, 'and no stick either');
+});
+
+test('none: the page keeps its own scrolling and selecting', () => {
+  const body = { style: {} };
+  boot({ controls: NONE, body }).Input.update();
+  assert.equal(body.style.touchAction, undefined);
+  assert.equal(body.style.userSelect, undefined);
+});
+
+test('none: a bound key is read, and the browser still gets it', () => {
+  const g = boot({ controls: NONE });
+  assert.equal(g.key(' ').prevented, false, 'Space stays the page\'s');
+  assert.equal(g.key('Enter').prevented, false);
+  g.Input.update();
+  assert.equal(g.Input.held('action'), true, 'and the game reads it all the same');
+  // Every other shape does take its keys, which is what keeps a game from
+  // scrolling out from under the player.
+  assert.equal(boot({ controls: SEED }).key(' ').prevented, true);
+});
+
+test('none: no whole-screen surface, so a tap presses nothing', () => {
+  const g = boot({ controls: NONE });
+  g.Input.update();
+  const down = g.pointer('pointerdown', { x: 400, y: 500 });
+  g.Input.update();
+  assert.equal(g.Input.held('action'), false);
+  assert.equal(down.prevented, false);
 });
 
 test('no SCHEME draws the same buttons shape: the arrow and GO still work', () => {

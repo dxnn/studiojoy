@@ -54,8 +54,13 @@ deliberately deferred.
   game refactor, so ask a helper to do it rather than doing it by hand)
 - migrate `redwolf-radness` — still one big file, so this is a rebuild rather
   than a move (fun-slide went this way live: `2a6821d` in its repo)
-- revisit the deferred control schemes — point-and-click, and normal, the
-  DOM-buttons one (ideas/control-schemes.md, "Deferred, and why")
+- the point-and-click control scheme: `Input.point()`, an answer about
+  coordinate space, and a drawn controller cursor (ideas/control-schemes.md,
+  "Deferred, and why")
+- let a controller drive a null-controller game's own buttons — pad and arrow
+  focus-cycling with a loud focus ring. ⚠️ It cannot live in `input.js` as it
+  is: a page of buttons has no frame loop to call `Input.update()`, so it
+  wants a heartbeat of its own (ideas/control-schemes.md, "The sixth")
 - ask a helper to move space-racer to the buttons scheme, and its hand-rolled
   menus onto Screens.title — its screens still sit under the drawn controls
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
