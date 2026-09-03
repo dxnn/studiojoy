@@ -128,12 +128,6 @@ deliberately deferred.
   at 390px and 1280px, computed colour, a real pointer sliding between drawn
   buttons. Outside `npm test`, because playwright is a browser and the
   suite's zero dependencies are worth more than the coverage
-- split main.js — 4,100 lines that are the state, the transport, the URL, the
-  render dispatch, the file actions and the loaders at once, along its own
-  section comments. The file every change has to touch and none can hold in
-  one read. ⚠️ A big diff across everything, so it wants a quiet week of its
-  own. `start()` is the shell's call already, so a split piece can be tested
-  as it comes out
 - split spec.md (3,400 lines): every addition has to be woven into prose
   rather than appended, so each one costs a read of its neighbourhood first.
   §-per-file with the numbers kept, because everything cites them
