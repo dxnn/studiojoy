@@ -1505,6 +1505,62 @@ button.quiet.on { background: var(--accent); border-color: var(--accent); color:
 .cfg textarea.cfg-text { font-family: inherit; font-size: inherit; resize: vertical; }
 .cfg .cfg-row .hint { grid-column: 2; font-size: 12px; color: var(--muted); }
 .cfg .cfg-group { margin: 10px 0; }
+/* Controls: the shapes a game can be held in, one wide row each, the name
+   over what it does — the same choice the New game dialog offers, so the same
+   row as .choices there. Cyan on the one the game wears: a shape is the
+   studio's own vocabulary rather than the game's, so it stays cyan whichever
+   game is open. A manner of the arcade family is stepped in under it. */
+.ctl-shapes { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px; }
+.ctl-shape {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+}
+.ctl-shape.manner { margin-left: 18px; padding: 7px 12px; }
+/* Only the rows that are buttons light up, which here means every row but
+   the one the game already wears. */
+.ctl-shape:hover:not(.on) {
+  background: var(--hover);
+  border-color: var(--border-soft);
+  color: inherit;
+}
+.ctl-shape .cname { font-size: 14px; font-weight: 700; }
+.ctl-shape .cwhat { font-size: 12.5px; color: var(--muted); }
+.ctl-shape.on {
+  border-color: color-mix(in oklab, var(--accent) 70%, transparent);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+}
+.ctl-shape.on .cname { color: var(--accent-hi); }
+/* A verb and everything that does it: the game's word, then its bindings as
+   chips. The word is never editable — the game's code asks for it by name. */
+.ctl-verb {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+.ctl-verb:last-child { border-bottom: none; }
+.ctl-verb > .cfg-name { flex: 0 0 7rem; }
+.ctl-chip {
+  font-size: 12px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--hover);
+  white-space: nowrap;
+}
+/* A binding this shape has not got. Not crimson — nothing is in danger, it
+   simply never fires — so it is struck through and stood down instead. */
+.ctl-chip.dead { color: var(--muted); text-decoration: line-through; }
+
 /* The quiz editor: a card per question and per ending. The .cfg-text inputs
    inside flex rows need leave to shrink, or a long answer pushes the ✕ out. */
 .quiz-q {
@@ -2031,6 +2087,10 @@ pre.diff .hunk { color: var(--accent); }
 .dialog h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 .dialog label { display: block; margin: 8px 0 3px; font-size: 13px; color: var(--muted); }
 .dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+/* A hint that has nothing to say yet — the one under a select, before
+   anything has been chosen — takes no room. New game has two of them now and
+   the pair of gaps was pushing its buttons past the fold. */
+.dialog p.hint:empty { display: none; }
 
 /* A dialog that asks which of several things you meant: one wide row each,
    the name over what it does. Whole-row buttons, because the sentence under

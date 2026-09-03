@@ -1226,7 +1226,7 @@ bar in the centre already says what it is.
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 **Chat**, then the type's editors (**Write** for a visual novel), then
-**Code** and **Share**. A chat project is one room and has no row. Which is
+**Pics**, **Hear**, **Controls**, **Code** and **Share**. A chat project is one room and has no row. Which is
 showing is the centre's one piece of state (`S.mode`), in the address as
 `?mode=`, remembered per game; a game opens on what the address says, else
 what this browser remembers, else its type's first editor, else Chat. There
@@ -1272,6 +1272,41 @@ anywhere else opens under Code.
 **Questions** is the quiz's editor as a mode: the mode is `config/questions.js`
 — arriving opens it, and its bar has no ✕ because there is nowhere to close it
 to — and the form saves itself like the story does.
+
+**Controls** is how the game is held, the same way: the mode is
+`config/controls.js`, it opens on arriving, its bar has no ✕, and it saves
+itself. Two halves. The **shape** is one wide row per thing the studio offers,
+in the registry's order and its words — the same four New game asks about
+(§4) — with the *arcade* family opening into its three manners underneath,
+and only while the game wears one of them: one open at a time, in the row it
+belongs to. The row the game already wears is cyan and *is not a button*,
+because a greyed-out row is a question a row cannot answer; neither is any of
+them in a game you may not change. Picking one writes `SCHEME` and nothing
+else — ⚠️ never the bindings, whose left-hand words are the game's own and are
+in its code by name, and ⚠️ not the notes above it either, which still
+describe the shape the game was seeded with (a TODO line).
+
+Then **what each player does**: a row per verb with its bindings as chips,
+the verb read-only for the same reason. Under those, every binding this shape
+has not got — a `stick:` in a swipe game, a drawn button in a `none` one —
+said in words, with *Take it out* in its `···`; the same chips are struck
+through in the verb rows above, or a row would show a control that looks like
+it works. And one check over the whole file: a shape that draws something and
+bindings that never name it is a game nobody can play on a phone, which is
+exactly what picking a shape causes, since the bindings are left alone. This
+is what declaring the shape was for — a file claiming `swipe-tap` while
+binding six drawn buttons has left its shape, and the panel is where that
+gets said.
+
+⚠️ Shape-locked like the quiz: `CONTROLS` must be a group of players, each a
+group of things to do, each **one line** of bindings. A list where a line
+belongs, or anything the config reader will not touch, falls back through the
+generic form to the text with the reason said. A declaration the panel does
+not know — a game that grew its own — is named at the foot rather than
+hidden. The model is `public/controls-editor.js`, shared with `npm test`; the
+panel is `public/controls-form.js`. Like the quiz's, both render wherever the
+file is open, Code included: one renderer reached two ways is not two
+surfaces, which is the thing the *story editor*'s rule is actually about.
 
 **A game a person makes is open** — the whole studio may change it — and an
 editor closes it in the `Editors` dialog, which puts a padlock in front of its
@@ -3198,6 +3233,62 @@ the three that acted, and how much prose each wrote was not measured. `'low'`
 has two runs behind it and `'none'` one, against nine at the default — enough
 to show the direction, not enough to size it.
 
+### ⚠️ The size of the ask is the lever
+
+Measured 2026-09-03 (`tmp/probe-sizing.mjs`, `tmp/probe-step.mjs`,
+`tmp/probe-trace-handoff.mjs`, `tmp/probe-handoff-json.mjs`; outputs beside
+them) with the same preamble, tools and request as the cliff table above, so
+the rows compare. The design they led to is ideas/planner.md.
+
+**One small call plans the whole.** No tools, `reasoning_effort: 'none'`,
+`max_tokens` 800, JSON asked for in the last user message so the system
+prompt stays byte-identical to the fire's:
+
+| ask | answer | wall | out tokens |
+| --- | --- | --- | --- |
+| the tank game, empty tree ×5 | big, 7–8 steps (one overran 800 tokens) | 3.6–7.1 s | 427–800 |
+| "make the ship turn a bit faster", space-racer's tree ×3 | small | 0.8–1.3 s | 5 |
+| "add a second player with split screen" ×3 | big, 4–6 steps | 3.6–6.6 s | 246–688 |
+| "it doesn't work" ×2, "do you think the game is fun?" ×2 | small | 0.8–1.4 s | 5–93 |
+
+Every plan was in a sensible order with sensible files. `response_format:
+{type: 'json_object'}` is **accepted** and returned valid JSON (two runs, and
+a JSON one-liner at 99% cache) — the parameter §6's fill treated as
+unmeasured. The prompt's own ask stays as the braces.
+
+**A step thinks in proportion to the step.** The same request as one step of
+a six-step plan, plan shown, "do only this step, then one line":
+
+| ask | effort | reasoning tokens | first call at | files | prose | wall |
+| --- | --- | --- | --- | --- | --- | --- |
+| the whole game (above) | `'low'` | 1,597 / 6,886 | 16 s / 56 s | 3 / 3 | — | 24 s / 62 s |
+| step 1, page + config, empty tree ×3 | `'low'` | 0 / 19 / 157 | 1–2 s | 5 | 0 | 11–14 s |
+| step 1 ×3 | `'none'` | 0 | 1 s | 5–6 | 44–55 chars | 10–15 s |
+| step 2, input + tank + loop, on step 1's files ×3 | `'low'` | 264 / 1,571 / 3,651 | 3 / 12 / 32 s | 3–4 | 56–94 chars | 8 / 18 / 37 s |
+| step 2 ×3 | `'none'` | 0 | 1 s | 3–4 | 53–108 chars | 8–9 s |
+
+Every run stayed inside its step, and the prose at `'none'` was the one-line
+note asked for: no planning in the open at step scope, on either setting.
+Editing thinks more than creating, and `'none'` is the predictable one.
+Quality unscored, as above.
+
+**A capped trace is worth handing on.** Two traces cut at 35,000 characters
+(85 s and 89 s at the default effort — the studio's own cap path), each
+retried on the same prompt with thinking off:
+
+| retry | run 1 | run 2 |
+| --- | --- | --- |
+| trace dropped (what §8's cap does today) | 4 files, 2,857 chars, 149 prose, 8 s | 1 file, 713 chars, 97 prose, 3 s |
+| the trace in the message as "your notes so far" | 3 files, 5,376 chars, 74 prose, 10 s | 8 files, 15,661 chars, 103 prose, 25 s |
+| the planner, notes *before* the JSON ask | prose, not JSON | prose, not JSON |
+| the planner, JSON ask *after* the notes | big, 5 steps, 3.5 s | big, 5 steps, 5.0 s |
+
+Both retries act at once — the guess that the dropped-trace retry re-plans in
+the open was wrong — but it under-delivers where the handed one is followed.
+A 35 K attachment swamps an ask placed ahead of it; the ask goes after. The
+two traces were design deliberation and pseudo-code more than code (5–13%
+code-shaped lines), both ending at the cap on "OK write files now."
+
 ### Tools
 
 **Both** models support function calling — the original guess that
@@ -3216,6 +3307,11 @@ Truncation mid-tool-call is cleaner than Anthropic's: the non-streaming
 response omits `tool_calls` entirely rather than returning partial JSON. The
 streaming path still needs the unparseable-buffer guard, because fragments are
 delivered before the cut.
+
+`tool_choice: 'none'` is **accepted** (2026-09-03, `tmp/probe-tools-cache.mjs`):
+the model answers in prose with no call, and the prompt shrinks by the tools'
+455 tokens — the same as sending no tools, which is simpler and what the
+sizing call does.
 
 ### Limits
 
@@ -3281,6 +3377,19 @@ identically to back-to-back, so this is structure, not write latency. §8's
 file-block ordering exists because of this: the win is not the first fire
 after an edit, it is every fire after that one, provided the divergence depth
 holds still.
+
+**The tools array does not sit ahead of the system prompt.** Measured
+2026-09-03 (`tmp/probe-tools-cache.mjs`): space-racer's tree in the system
+prompt, ~12.3 K tokens, a transcript growing one exchange a round. A request
+with no tools and the with-tools request straight after it, same round, hit
+95% on the first round and 99–100% every round after, against 99% for the
+tools-every-time control; the array costs 455 prompt tokens and those are all
+that misses. So a no-tools call — the sizing call — warms the fire that
+follows it. (The branch-point rule above would have predicted 0% for that
+first with-tools request, which diverges from the no-tools one at a depth
+nothing had diverged at before; it did not. Whether the rule is really about
+divergence *inside* a block, or the cache has changed since 2026-08-23, is
+unresolved — one arm, one run.)
 
 Within one tool-call chain, the model's own output — the **reasoning trace
 included** — is re-attached server-side to the next request's prompt and
@@ -3407,11 +3516,12 @@ public/
   dom.js          h(), and the icon buttons
   sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
   dialogs.js  upload.js  achievements-form.js  quiz-form.js  story-form.js
-  story-guide.js
+  story-guide.js  controls-form.js
                   one pane or feature each, importing the core from main.js
   game-types.js   which editors a game's type puts in the centre pane (§6)
   config-file.js  patch.js  pixel-editor.js  sound-maker.js  highlight.js
   achievements-editor.js  achievement-shape.js  quiz-editor.js  story-editor.js
+  controls-editor.js
                   pure logic, shared with npm test (achievement-shape.js also
                   imported by the server, above)
   studio-lib/     the studio library's source: index.json, and a directory per

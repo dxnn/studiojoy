@@ -529,11 +529,13 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /hero\.png backs the bar/);
   assert.match(system, /icon\.png/);
   assert.match(system, /an \.svg is text/, 'the one picture an agent can make itself');
-  // The three config files that are somebody's whole editing surface, named so
-  // a helper knows what a stray extra key costs them.
+  // The four config files that are somebody's whole editing surface, named so
+  // a helper knows what a stray extra key costs them — and each by the words
+  // on the button, so renaming one in the interface fails here.
   assert.match(system, /"quiz editor"/);
   assert.match(system, /"story editor"/);
   assert.match(system, /"achievements editor", the Achievements part of/);
+  assert.match(system, /config\/controls\.js as "Controls"/);
   assert.match(system, /config\/story\.js/);
   assert.match(system, /config\/achievements\.js/);
   // Moments are what achievements are written over, so the preamble says where

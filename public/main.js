@@ -30,6 +30,8 @@ import {
   loadAchievements, parkAchievements, achievementsChanged, renderAchievementsTab,
 } from './achievements-form.js';
 import { renderQuizForm } from './quiz-form.js';
+import { isControlsPath, controlsModel, CONTROLS_FILE } from './controls-editor.js';
+import { renderControlsEditor, renderControlsForm } from './controls-form.js';
 import { isStoryPath } from './story-editor.js';
 import {
   STORY_FILE, loadStory, parkStory, saveStory, storyChanged, dropStageImages, selectScene,
@@ -103,6 +105,10 @@ export const S = {
   // dirty}, {grown: reason} when the file will not read as achievements, or
   // null (achievements-form.js).
   achievements: null,
+  // The studio's control scheme registry, once the Controls panel has asked
+  // for it: what it offers, the families, and the words for each. The
+  // studio's own rather than a game's, so it outlives opening another game.
+  schemes: null,
   files: [],
   // What the game said when it ran, for the version of the files on disk now.
   errors: [],
@@ -553,6 +559,7 @@ export async function openMode(id) {
     if (S.mode === 'share') await loadShare();
     // Questions is the quiz file: arriving opens it.
     if (S.mode === 'quiz' && S.open?.path !== QUIZ_FILE) await chooseFile(QUIZ_FILE);
+    if (S.mode === 'controls') await openControls();
   });
   render();
 }
@@ -691,6 +698,8 @@ async function applyView({
   } else if (want === 'quiz') {
     // The mode is the file.
     if (S.open?.path !== QUIZ_FILE) await chooseFile(QUIZ_FILE);
+  } else if (want === 'controls') {
+    await openControls();
   }
   render();
 }
@@ -1579,12 +1588,14 @@ export async function openFile(path) {
   S.sound = null;
   S.soundRefused = null;
   // A file opens where it belongs: under Pics or Hear when that is the mode
-  // and the file is its kind, under Questions when it is the quiz, and under
-  // Code for everything else, wherever it was asked for.
+  // and the file is its kind, under Questions when it is the quiz or Controls
+  // when it is the bindings, and under Code for everything else, wherever it
+  // was asked for.
   const mime = S.open.mime ?? '';
   const stays = (S.mode === 'pics' && mime.startsWith('image/'))
     || (S.mode === 'hear' && mime.startsWith('audio/'))
-    || (S.mode === 'quiz' && isQuizPath(path));
+    || (S.mode === 'quiz' && isQuizPath(path))
+    || (S.mode === 'controls' && isControlsPath(path));
   showMode(stays ? S.mode : 'code');
   if (S.mode === 'pics') S.pick = { kind: 'picture', path };
   render();
@@ -1746,6 +1757,29 @@ export async function createFile(path) {
 // The rule that makes it a library and not just a folder is in
 // server/files/paths.js: a helper reads it and cannot write it.
 export const LIBRARY_DIR = 'studio';
+
+// The control scheme registry (public/templates/index.json, spec.md §4): what
+// the Controls panel offers and the words for each. The studio's own file
+// rather than any game's, so it is fetched once a session and kept — the
+// panel renders on every keystroke and cannot wait for it each time.
+async function loadSchemes() {
+  if (S.schemes) return;
+  const res = await send('/templates/index.json');
+  if (!res.ok) return;
+  const index = await res.json().catch(() => null);
+  if (index) S.schemes = index;
+}
+
+// Controls is the controls file: arriving opens it, with the registry that
+// names the shapes. A game with no config/controls.js — one from before the
+// input library and never swept, or one a helper deleted it from — opens
+// nothing rather than a banner about a file that cannot be opened, and the
+// panel is what says so.
+async function openControls() {
+  await loadSchemes();
+  if (!S.files.some((f) => f.path === CONTROLS_FILE)) return;
+  if (S.open?.path !== CONTROLS_FILE) await chooseFile(CONTROLS_FILE);
+}
 
 /* Drawing ----------------------------------------------------------------- */
 
@@ -3340,8 +3374,9 @@ export function renderOpenFile() {
       }),
       // Rename, Duplicate, Copy and Delete are the file's ··· on its row or
       // card (spec.md §6); the bar is the file's name, its versions, and the
-      // way out.
-      S.mode === 'quiz' ? null : h('button', {
+      // way out — except under Questions and Controls, where the file is the
+      // mode and there is nowhere to close it to.
+      S.mode === 'quiz' || S.mode === 'controls' ? null : h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',
         // Wrapped, not passed: closeOpenFile's first argument is the file to
         // open next, and handing it the click event asked for a file named
@@ -3351,18 +3386,25 @@ export function renderOpenFile() {
 
     // A config file opens as fields rather than code, unless it holds something
     // the reader will not touch, or you asked to see the text. Before that,
-    // config/questions.js in the quiz shape opens as the quiz editor — the
-    // whole game as a form — falling back through the generic form to the
-    // text as the file outgrows each reader. Two files are the exception and
+    // two files have an editor of their own here: config/questions.js in the
+    // quiz shape as the quiz editor — the whole game as a form — and
+    // config/controls.js as the Controls panel. Both fall back through the
+    // generic form to the text as the file outgrows each reader, and both
+    // render wherever the file is open, Code included: one renderer reached
+    // two ways is not two surfaces. Two other files are the exception and
     // open here as plain text and nothing else: the story, in a game with the
-    // story editor — its editor is Write — and the achievements, whose editor
-    // is under Share. A form here would be a second one writing the same file.
+    // story editor — its editor is Write, with a model of its own — and the
+    // achievements, whose editor is under Share. A form there would be a
+    // second thing writing the same file.
     const inEditor = (isStoryPath(S.open.path) && hasEditor('story')) || isAchievementsPath(S.open.path);
     const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)
       : null;
     const quiz = isQuizPath(S.open.path) && S.open.content !== null && !S.open.asText
       ? quizModel(S.open.content)
+      : null;
+    const controls = isControlsPath(S.open.path) && S.open.content !== null && !S.open.asText
+      ? controlsModel(S.open.content)
       : null;
 
     if (S.open.content === null) {
@@ -3372,8 +3414,10 @@ export function renderOpenFile() {
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null);
     }
     if (quiz?.ok) return h('div', { class: 'editor' }, bar, ...renderQuizForm(quiz));
+    if (controls?.ok) return h('div', { class: 'editor' }, bar, ...renderControlsForm(controls));
     if (parsed?.ok && !S.open.asText) {
-      const outgrown = quiz && !quiz.ok && quiz.reason;
+      const outgrown = (quiz && !quiz.ok && quiz.reason)
+        || (controls && !controls.ok && controls.reason);
       return h('div', { class: 'editor' }, bar,
         outgrown
           ? h('div', { class: 'pad hint muted', text: `Showing every field because ${outgrown}.` })
@@ -3885,6 +3929,7 @@ export function renderModeBody() {
   if (editor) return editor.render();
   if (S.mode === 'pics') return renderPicsMode();
   if (S.mode === 'hear') return renderHearMode();
+  if (S.mode === 'controls') return renderControlsEditor();
   if (S.mode === 'code') return renderFilesTab();
   if (S.mode === 'share') return renderShareMode();
   return null;

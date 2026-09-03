@@ -66,9 +66,18 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! deploy input v5 / screens v11: npm run sweep on the studio machine, then
+- ! deploy input v6 / screens v12: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
   were never checkable headless)
+- add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
+  `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
+  in its code, so a rename in a form is a silent code break. It wants either a
+  helper doing both halves or a search of the tree first
+- when the shape changes, the notes at the top of `config/controls.js` still
+  describe the shape the game was seeded with. Either the panel swaps that
+  block for the new shape's, or the presets are made shape-neutral and the
+  prose lives only in the panel — the second is smaller and loses the
+  vocabulary a hand-editor wants (ideas/control-schemes.md, "Picking one")
 - draw on the real phone now the pane fits: a finger is not a pointer, so how
   big a sprite has to be before a 1-pixel brush is usable, and whether a stroke
   that starts off the canvas is a scroll, are both things headless cannot say

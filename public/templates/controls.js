@@ -19,13 +19,16 @@
 // what a player is doing. Rename them to suit the game, then use the same
 // word in the code: Input.held("boost").
 
-// The shape of the game on a touchscreen. "stick-buttons" is an analog stick
-// under the left thumb and round buttons under the right.
+// The shape of the game on a screen — what hands do. "stick-buttons" is an
+// analog stick under the left thumb and round buttons under the right, and
+// somebody chose it when this game was made.
 //
-// It is the default rather than a decision: this file is seeded into every
-// game before anybody knows what the game is. Change the word to the shape
-// this one actually wants, then make the bindings below match it.
+// Change it in Controls, over the chat, which is also where the buttons are.
+// Changing the word here does the same thing; then make the bindings below
+// match the shape.
 //
+//   "none"           no controller at all: the game's own buttons on the
+//                    page are the controls, and nothing is drawn over them
 //   "buttons"        drawn buttons under both thumbs — an arrow pad on one
 //                    side, the touch: names on the other
 //   "one-button"     a tap or a click anywhere is the button; nothing drawn

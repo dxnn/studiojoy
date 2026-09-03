@@ -7,14 +7,14 @@
   "families": {
     "arcade": {
       "title": "Arcade",
-      "what": "Held like a games machine: a stick, or buttons, or both, drawn on the screen for a phone. Which of those is up to you, and you can change it later.",
+      "what": "Held like a games machine: a stick, or buttons, or both, drawn on the screen for a phone. Which of those is up to you.",
       "of": ["stick-buttons", "buttons", "dual-stick"]
     }
   },
   "schemes": {
     "none": {
       "title": "Just the game's own buttons",
-      "what": "The buttons on the page are the controls. Nothing is drawn on top, and they work the same for a mouse, a finger and the keyboard. Right for a quiz, a story, or anything you press rather than steer.",
+      "what": "The game's own buttons are the controls, and nothing is drawn on top. Right for a quiz, a story, or anything you press rather than steer.",
       "seed": "controls-none.js"
     },
     "stick-buttons": {
