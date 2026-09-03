@@ -202,7 +202,11 @@ test('the shell is served for client-side routes', async (t) => {
     assert.match(res.headers.get('content-type'), /text\/html/);
     const html = await res.text();
     assert.match(html, /<div id="root">/);
-    assert.match(html, /src="\/main\.js"/);
+    // ⚠️ The shell starts the studio; main.js does not start itself on the
+    // way in. That is what lets `npm test` import the client's render
+    // functions without firing a studio at the server (test/conventions).
+    assert.match(html, /from '\/main\.js'/);
+    assert.match(html, /start\(\);/);
   }
 });
 

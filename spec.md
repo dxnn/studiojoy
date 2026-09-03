@@ -3562,16 +3562,32 @@ Email, web push, typing previews and unread counts (all present in `new-y`)
 are absent on purpose — the first three permanently, the last deferred
 (§2, §15).
 
-Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, and a
-scripted fake LLM client, so the suite needs no network and no API key. The
-one place a live key is required is a manual smoke script, kept out of
-`npm test`.
+Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
+scripted fake LLM client and — for the client's own rules — a fifty-line DOM
+stand-in (`test/dom-stand-in.js`, §17), so the suite needs no network, no API
+key and no browser. The one place a live key is required is a manual smoke
+script, kept out of `npm test`.
 
 ## 17. The client
 
 One page, no framework, no build step. `render()` builds the whole tree from
 `S` and replaces it. Everything below follows from that one sentence, and
 every rule here was found by breaking it.
+
+⚠️ **The shell starts the studio; `main.js` does not start itself.**
+`public/index.html` imports `start` and calls it. Importing the module used
+to fire it — ask the server who you are, open the stream — so `npm test`
+could not load any file that renders, and the *three conventions* could only
+ever be checked by eye in a browser. They are tests now
+(`test/conventions.test.js`) over a fifty-line DOM stand-in
+(`test/dom-stand-in.js`): what lights up is what can be clicked, nothing is
+greyed where a row would have to explain why, one thing open at a time in the
+row it belongs to, and gold only on a number. Each was written by putting the
+bug back and watching it fail. ⚠️ Zero dependencies still holds — the
+stand-in is fifty lines and jsdom is a browser. What genuinely needs one —
+layout, computed colour, a real pointer — stays a Playwright check by hand,
+and that list is now short. `install()` runs before the import, because the
+client still reads `document` and the stored rail width on the way in.
 
 ### What a render destroys
 

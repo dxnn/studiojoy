@@ -14,6 +14,12 @@
   </head>
   <body>
     <div id="root">Loading…</div>
-    <script type="module" src="/main.js"></script>
+    <!-- The shell starts the studio, rather than main.js starting itself on
+         the way in: a module that fires at import cannot be imported by
+         npm test, and everything that renders lives in there. -->
+    <script type="module">
+      import { start } from '/main.js';
+      start();
+    </script>
   </body>
 </html>

@@ -109,23 +109,22 @@ deliberately deferred.
 - ! build small asks: a sizing call, one fire per step, and the builder in
   `Building` with no other helper allowed (ideas/planner.md, build order at
   the end)
-- move main.js's import-time work into a `start()` the shell calls — the
-  `getElementById` on line 48 and eight module-scope listeners — so a render
-  function can be imported under `npm test` at all. Every `public/*-form.js`
-  imports main.js, so today none of them can be. First step of the two lines
-  below
-- ! the studio's own taste as tests: a row that highlights opens on a click,
-  nothing in a bar is greyed out, one thing open at a time, gold only on a
-  number. ⚠️ Zero dependencies still: a hand-rolled DOM stand-in like the one
-  in `test/screens-template.test.js`, never jsdom or playwright inside
-  `npm test`. Playwright stays the interactive check for paint and feel and
-  could be an `npm run ui` of its own, outside the suite. Every one of these
-  was found by eye in a browser this week, which is the expensive way
+- hold the other surfaces to the conventions the way Controls is now
+  (test/conventions.test.js): the story editor, the achievements editor,
+  Pics, Hear, Share and the mode row itself — a `render` call and the same
+  four assertions each. ⚠️ Two of the four rules still have nothing checking
+  them: every `.scroll` has a `data-scroll` name, and an `onclick` that opens
+  something returns its promise (callable, so assertable)
+- `npm run ui`: the Playwright checks that a DOM stand-in cannot do — layout
+  at 390px and 1280px, computed colour, a real pointer sliding between drawn
+  buttons. Outside `npm test`, because playwright is a browser and the
+  suite's zero dependencies are worth more than the coverage
 - split main.js — 4,100 lines that are the state, the transport, the URL, the
   render dispatch, the file actions and the loaders at once, along its own
   section comments. The file every change has to touch and none can hold in
-  one read. ⚠️ A big diff across everything, so it wants a quiet week and the
-  `start()` line above first
+  one read. ⚠️ A big diff across everything, so it wants a quiet week of its
+  own. `start()` is the shell's call already, so a split piece can be tested
+  as it comes out
 - split style.css (91 KB) the same way, a section at a time
 - split spec.md (3,400 lines): every addition has to be woven into prose
   rather than appended, so each one costs a read of its neighbourhood first.

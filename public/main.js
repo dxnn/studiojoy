@@ -728,7 +728,13 @@ const followUrl = () => {
   return following;
 };
 
-async function start() {
+// Called by the shell rather than on the way in (index.html). ⚠️ Importing
+// this file must not start the studio: a module that asks the server who you
+// are and opens a stream the moment it is loaded cannot be imported by
+// `npm test`, and that is what keeps every render function in here untested.
+// The rest of what this file does at import — a listener, an iframe, reading
+// the stored rail width — a fake DOM can stand in for; a fire cannot.
+export async function start() {
   const me = await api('GET', '/api/me');
   // A studio that cannot be reached is not a studio you are signed out of, and
   // the sign-in form on its own says the wrong thing.
@@ -4091,5 +4097,3 @@ window.addEventListener('keydown', (e) => {
 document.addEventListener('scroll', () => {
   if (S.menu && performance.now() - menuOpenedAt > 200) { S.menu = null; render(); }
 }, { capture: true, passive: true });
-
-start();
