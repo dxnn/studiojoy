@@ -14,7 +14,7 @@
 
 import {
   deadBindings, deadReason, controlsChecks, sayBinding, screenOptions,
-  keyNameFor, PAD_NAMES, hasSide, hasDeadzone,
+  keyNameFor, isArrow, PAD_NAMES, hasSide, hasDeadzone,
   setScheme, setBindings, setKnob, CONTROLS_FILE,
 } from './controls-editor.js';
 import { h } from './dom.js';
@@ -173,11 +173,13 @@ export function renderControlsForm(model) {
     const swap = (i, raw) => write(raws.map((r, at) => (at === i ? raw : r)));
 
     const bindingRow = (b, i) => {
-      const drawn = (b.kind === 'touch' || b.kind === 'toggle') && b.name !== 'screen'
-        && !['left', 'right', 'up', 'down'].includes(b.name);
+      // A button with a word on it: the two that are not are the whole-screen
+      // one and the four the shape draws as arrows.
+      const drawn = (b.kind === 'touch' || b.kind === 'toggle')
+        && b.name !== 'screen' && !isArrow(b.name);
       const why = deadReason(shape, b);
       const name = drawn ? h('input', {
-        class: 'cfg-text ctl-name', value: b.name,
+        class: 'cfg-text ctl-name',
         onchange: (e) => {
           const typed = e.currentTarget.value.trim().replace(/\s+/g, '-');
           if (typed) swap(i, `${b.kind}:${typed}`);

@@ -123,7 +123,10 @@ export function screenOptions(shape) {
   return out;
 }
 
-const ARROWS = { left: 'left', right: 'right', up: 'up', down: 'down' };
+// A drawn direction: input.js draws these four as the arrow pair or the arrow
+// pad rather than as a button with a word on it, so they have no name to
+// change and nothing to latch.
+export const isArrow = (name) => ['left', 'right', 'up', 'down'].includes(name);
 
 // One binding in plain words, for the row it sits on.
 export function sayBinding(b) {
@@ -137,7 +140,7 @@ export function sayBinding(b) {
       const whose = stick === 'stick2' ? 'right stick' : 'left stick';
       return `the controller's ${whose} pushed ${way}`;
     }
-    if (ARROWS[b.name]) return `the controller's pad, ${b.name}`;
+    if (isArrow(b.name)) return `the controller's pad, ${b.name}`;
     return `the controller's ${b.name.toUpperCase()} button`;
   }
   if (b.kind === 'swipe') return b.name === 'tap' ? 'a tap' : `a flick ${b.name}`;
@@ -149,7 +152,7 @@ export function sayBinding(b) {
   }
   if (b.kind === 'touch' || b.kind === 'toggle') {
     if (b.name === 'screen') return 'a tap or a click anywhere';
-    if (ARROWS[b.name]) return `the ${b.name} arrow, drawn on the screen`;
+    if (isArrow(b.name)) return `the ${b.name} arrow, drawn on the screen`;
     return b.kind === 'toggle' ? 'a drawn button that latches' : 'a drawn button';
   }
   return 'nothing reads this';
