@@ -29,12 +29,12 @@ clears the bit and gives back the same person.
 ⚠️ **And it is not something anybody can click.** There is no route and no
 button: `npm run deluser -- <email>` is the only way out, going through
 `removeAccount` in `server/auth.js`, and `restoreuser` the only way back.
-Adding an account is an everyday thing and belongs in the panel beside the
-names and the allowances. Taking one out is rare, is about a person rather
-than a setting, and a red button sitting next to Save and Password invites the
-press — so it costs a terminal. The panel's other refusals stay where they
-are: the studio still keeps at least one admin (`isLastAdmin`, asked by the
-panel before it demotes and by `deluser` before it removes).
+Adding an account is everyday and belongs in the panel; taking one out is
+rare and about a person rather than a setting, so it costs a terminal
+rather than a red button next to Save and Password. The panel's other
+refusals stay where they are: the studio still keeps at least one admin
+(`isLastAdmin`, asked by the panel before it demotes and by `deluser`
+before it removes).
 
 The bit is read on one side of a single line. **Access** minds it: the login
 lookup, `userForToken`, `GET /api/users`, the admin panel's list, resolving an
@@ -268,16 +268,15 @@ There is no delete: a chat holds what people said in it, and nothing else in
 the studio throws words away.
 
 **The upgrade to the builder** (`intoBuilderRooms`): a game's first chat that
-takes helpers is its Building. Empty, it becomes the builder's in place; with
-people's helpers in it, it keeps them and its words under `Building with
-helpers` and a fresh `Building` is made beside it; renamed by the people, it is
-theirs and left alone, and a fresh `Building` is made. Runs on every open and
-does nothing to a game that has a builder room.
-
-⚠️ Both, unconditionally, and for an upgraded database too. `intoChats` used to
-make `Building` only where there was a thread or a line-up to carry into it,
-which left a game nobody had talked in yet with nowhere a helper could ever be
-put. The condition belongs to what moves, not to whether the chat exists.
+takes helpers is its Building. Empty, it becomes the builder's in place;
+with people's helpers already in it, it keeps them under `Building with
+helpers` and a fresh `Building` is made beside it; renamed by the people, it
+is left alone and a fresh `Building` is made instead. Runs on every open,
+unconditionally, doing nothing to a game that already has a builder room —
+⚠️ `intoChats` used to make `Building` only where there was a thread or
+line-up to carry into it, which left a game nobody had talked in yet with
+nowhere a helper could ever be put. The condition belongs to what moves,
+not to whether the chat exists.
 
 ⚠️ `bots = 0` is enforced where a helper would be **put in** (`assertBotsAllowed`
 on the attach route and on a mention's call-in), not where one would answer. A
@@ -389,19 +388,20 @@ is never a message, so the thread's shape does not move when somebody reacts.
 
 PK `(message_id, user_id)`. One row per person an `@name` in a **human**
 message reached, written in the same transaction as the message. `server/
-mentions.js` resolves both kinds of name with one rule — normalise to lowercase
-alphanumerics, match the whole name or a prefix of at least two characters — so
-`@Robin` reaches Robin Fox the same way `@Level` reaches Level Designer. Never
-for the person who wrote it, and never for an agent reply: agents are not told
-who the people are, and a helper echoing a name should not ring a bell.
+mentions.js` resolves both kinds of name with one rule — normalise to
+lowercase alphanumerics, match the whole name or a prefix of at least two
+characters — so `@Robin` reaches Robin Fox the same way `@Level` reaches
+Level Designer. Never for the person who wrote it, and never for an agent
+reply, since agents aren't told who the people are and a helper echoing a
+name shouldn't ring a bell.
 
-A row rather than an event, because the mark has to outlive the tab that was
-open when it landed; per chat rather than per project, because reading one
-conversation says nothing about what was said in another. `POST
-…/chats/:id/seen` is the only thing that clears it, and it clears nobody else's
-rows. ⚠️ Not a side effect of the GET that opens a chat: a read that writes is
-one somebody else's tab can trip, and the client needs the same call for a
-mention that lands in the chat already on screen.
+A row rather than an event, since the mark must outlive the tab that was
+open when it landed; per chat rather than per project, since reading one
+conversation says nothing about another. `POST …/chats/:id/seen` is the
+only thing that clears it, and only its own rows. ⚠️ Not a side effect of
+the GET that opens a chat: a read that writes is one somebody else's tab
+can trip, and the client needs the same call for a mention landing in the
+chat already on screen.
 
 Counts ride the payloads that are already drawn per person — `mentions` on each
 project in `GET /api/projects` and on each chat in the project detail — and the

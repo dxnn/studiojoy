@@ -19,15 +19,13 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 | GET | `/api/me` | — | current user |
 | GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
 
-There is no signup route **on this origin**, and no route here ever makes
-studio access from the outside: studio accounts come from `npm run adduser`
-and the admin panel, and what the games origin's public sign-up feeds is a
-waiting list whose approval makes a player account (§3, `signups`). Login
-requires `studio_access = 1`; a player account takes the unknown-email path,
-the same as a removed one. `/api/users` is a list of who is *in the studio*,
-for the sidebar's Crew tab — players are not on it — and carries no address:
-the studio is private, but a list of names does not need to be a list of
-email addresses to do its job.
+There is no signup route **on this origin**: studio accounts come from
+`npm run adduser` and the admin panel, and the games origin's public sign-up
+only feeds a waiting list whose approval makes a player account (§3,
+`signups`). Login requires `studio_access = 1`; a player account takes the
+unknown-email path, same as a removed one. `/api/users` lists who is *in the
+studio* for the sidebar's Crew tab — players excluded — and carries no
+address: a list of names needn't be a list of emails to do its job.
 
 #### Projects
 
@@ -74,8 +72,7 @@ any account (§11).
 
 The panel has no Save buttons: every field saves itself on `change` — when
 focus leaves it, so a half-typed number is never sent — and the row repaints
-from the server's answer, so a refused value goes back to what it was. A
-panel of rows each wanting its own Save was a form pretending to be a list.
+from the server's answer, so a refused value reverts.
 
 ⚠️ A password set here ends that person's sessions: a password changed because
 somebody else knew it has to end the somebody else's session too.
@@ -145,132 +142,119 @@ change to it, so neither authorship nor archiving stands in the way.
 | POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
 | POST | `/api/projects/:slug/files/import` | `{from_slug, from_path, to_path?}` — copies a file **in from another game**, commits; 409 if `to_path` exists |
 
-`import` is the copy/paste between games. Reading the source is every
-account's, so the only rights that matter are the ones on the game it lands
-in: it takes `write: true` on `:slug` and nothing on the source. The bytes are
-copied as they are — no history, no link, and the two games are strangers
-afterwards.
+`import` is the copy/paste between games: reading the source is every
+account's, so only the destination's rights matter — `write: true` on
+`:slug`, nothing on the source. Bytes only, no history, no link; the two
+games stay strangers afterwards.
 
-`PUT` takes a **raw body**, not `multipart/form-data`. That removes the need
-to hand-roll multipart parsing and fits a file tree better than an upload
-endpoint: the browser reads a dropped `File` and `PUT`s its bytes at the path
-it should occupy.
+`PUT` takes a **raw body**, not `multipart/form-data` — no multipart parsing
+to hand-roll, and it fits a file tree better than an upload endpoint: the
+browser reads a dropped `File` and `PUT`s its bytes at the path it should
+occupy.
 
-`If-Match` carries the ETag from the last `GET`. On mismatch the server
+`If-Match` carries the ETag from the last `GET`; on mismatch the server
 returns 409 with the current content, so the editor can't silently clobber an
 agent's write while you had the file open. Omitting the header forces the
 write.
 
-The tag is matched by the sha inside it, not byte for byte. A compressing
-proxy renames a strong ETag per encoding — Caddy's `encode` turns `"<sha>"`
-into `"<sha>-zstd"` and strips its suffix from `If-None-Match` only, never
-from `If-Match`; nginx's gzip weakens it to `W/"<sha>"` instead — so deployed
-behind the recommended Caddyfile, every save of a compressed `GET`'s file
-409'd as a phantom conflict until the comparison allowed for the rename. The
-sha is a hash of the content, so comparing it *is* the conflict check the
-header was for.
+The tag is matched by the sha inside it, not byte for byte — comparing the
+hash *is* the conflict check the header is for. A compressing proxy renames a
+strong ETag per encoding (Caddy's `encode` suffixes it `-zstd`, stripped only
+from `If-None-Match`; nginx's gzip weakens it to `W/"<sha>"`), so behind the
+recommended Caddyfile every save 409'd as a phantom conflict until the
+comparison allowed for the rename.
 
-`+ Upload` — one of the four choices behind **Add a file**, the single button
-above the file list — puts **any** file into the game the same way: the studio reads the
-dropped or picked `File` and `PUT`s its bytes, one request and one commit per
-file. Client-side only; no route knows an upload from an edit, and no route
-knows one kind of file from another — `checkProjectPath` validates the shape of
-a path and never its extension, so nothing had to change to accept a `.zip`
-beyond the button that used to claim it took pictures and sounds.
+`+ Upload` — one of **Add a file**'s four choices — puts **any** file into
+the game the same way: the studio `PUT`s the dropped or picked `File`'s
+bytes, one request and one commit per file. Client-side only; no route
+distinguishes an upload from an edit or one kind of file from another —
+`checkProjectPath` validates a path's shape, never its extension, so
+accepting a `.zip` needed no server change, only a button that no longer
+claims to take just pictures and sounds.
 
-What the pane can *show* is the separate question, answered by `MEDIA_KINDS` in
-`main.js`: one entry per kind, matched in order, and the only place a new kind
-gets added. A file no entry matches is described plainly with a link to save it,
-since the server already serves an unknown extension as a download (§4). Three
-choices worth naming:
+What the pane can *show* is separate, answered by `MEDIA_KINDS` in
+`main.js`: one entry per kind, matched in order — the only place a new kind
+gets added. A file no entry matches gets a plain description with a link to
+save it, since an unknown extension is already served as a download (§4).
+Three choices worth naming:
 
-- **Four folders under `assets/`, by what the file is.** A short noise goes to
-  `assets/sounds/`, a whole track to `assets/music/`, a *strip* to
-  `assets/sprites/`, any other picture to `assets/images/`, and anything else
-  to `assets/`. The folder is not tidiness: the sound player and the sprites
-  library resolve a plain name inside the first and the third, so
-  `Sound.play("laser")` and `Sprites.draw(ctx, "hero", x, y)` find a file
-  nobody had to path out — and a picture that does not move is in
-  `assets/images/`, drawn by its whole path, because it is not what that call
-  is for; music likewise, since a track's ending varies. The agent preamble
-  names all four. A dropped file is **measured** before the dialog opens: a
-  picture's shape says whether it is a strip, and audio's length says whether
-  it is a noise or a tune — over ten seconds is music, which is the same kind
-  of guess as the strip test and wrong for a wav of music or a long sting. The
-  dialog then shows the path each file will take before anything is sent, and
-  one box overrules every one of them for the drop that belongs somewhere else
-  entirely. Anything that will not decode goes where the ones that cannot be
-  measured go.
-- **The filename is tidied, not trusted.** Lowercased, runs of non-alphanumerics
-  to one dash, extension kept, and `checkProjectPath` validates the result
-  regardless. Two files that tidy to one name are refused rather than one
-  quietly overwriting the other.
+- **Four folders under `assets/`, by what the file is** (named in the agent
+  preamble): a short noise to `assets/sounds/`, a track to `assets/music/`, a
+  *strip* to `assets/sprites/`, any other picture to `assets/images/`,
+  anything else to `assets/`. Not tidiness: `Sound.play("laser")` and
+  `Sprites.draw(ctx, "hero", x, y)` resolve a plain name inside the first and
+  third folders unaided; a still picture or a track (whose ending varies)
+  can't, so those are drawn by whole path instead. A dropped file is
+  **measured** first — shape says strip, length says noise or tune (over ten
+  seconds is music, as wrong for a long wav or sting as the strip test can
+  be) — with one override box for whatever the guess gets wrong, and
+  anything undecodable treated the same way.
+- **The filename is tidied, not trusted.** Lowercased, runs of
+  non-alphanumerics collapsed to one dash, extension kept, and
+  `checkProjectPath` validates the result regardless. Two files that tidy to
+  one name are refused, not silently overwritten.
 - **One commit per file.** A dozen sprites make a dozen versions, exactly as a
   dozen agent writes would. Batching them would need a route that takes several
   files, and nothing else in the app wants one.
 
-An asset opens as the thing itself — a picture in the *pixel editor* full width
-under Pics or Code, a sound's sliders or player in the rail under Hear, an
-`img`, `audio` or `video` pointed at the studio's own read route for anything
-the studio cannot edit. An
-agent never sees its bytes (§8), and `write_file` takes text, so a helper can
-point a game at `assets/sprites/hero.png` but cannot create or change it.
+An asset opens as the thing itself — a picture in the *pixel editor* full
+width under Pics or Code, a sound's sliders or player in the rail under Hear,
+an `img`, `audio` or `video` pointed at the studio's own read route for
+anything it cannot edit. An agent never sees its bytes (§8), and `write_file`
+takes text, so a helper can point a game at `assets/sprites/hero.png` but
+cannot create or change it.
 
-A code file opens with its syntax coloured, by the studio's own tokenizer
+A code file opens with its syntax coloured by the studio's own tokenizer
 (`public/highlight.js`) rather than a library: comments, strings, numbers,
-keywords, tags and attributes for `.js`/`.json`, `.css` and `.html`, and
-everything else plain. The mechanism is an overlay — the same characters
-tokenized onto a `<pre>` behind a textarea whose ink is transparent — so the
-textarea stays the only editor: caret, selection, focus snapshot, dirty state
-and save are untouched, and a token read wrongly is a colour, never a change
-to the file. ⚠️ Token styles may vary `color` alone — a bold or italic glyph
-is a different width, and the overlay must sit exactly on the text. A file
-past 128 KB stays plain, and a JavaScript regex literal is deliberately shown
-plain: telling `/` the operator from `/` the regex needs a parser, and a wrong
-guess would paint the rest of the line as a comment or string. The tokenizer
-is pure — no DOM — and covered by `npm test`.
+keywords, tags and attributes for `.js`/`.json`, `.css` and `.html`, else
+plain. The mechanism is an overlay — the same characters tokenized onto a
+`<pre>` behind a transparent-ink textarea — so the textarea stays the only
+editor: caret, selection, focus snapshot, dirty state and save are untouched,
+and a mistokenized read is a wrong colour, never a changed file. ⚠️ Token
+styles may vary `color` only — a bold or italic glyph is a different width,
+and the overlay must sit exactly on the text. A file past 128 KB stays
+plain, and a JS regex literal stays plain too: telling `/` the operator from
+`/` the regex needs a parser, and a wrong guess would paint the rest of the
+line as a comment or string. The tokenizer is pure — no DOM — and covered by
+`npm test`.
 
 An asset can also be **made** here rather than added, by two tools that end in
 the same `PUT`, at the same tidied path, in one commit each.
 
-`+ Make a sound` asks two things — what it is called, and which preset it
+`+ Make a sound` asks two things — what it's called, and which preset it
 starts from — writes the `.wav`, and opens it in the **sound editor**: a
 preset row, a shape, and a slider per number with its comment beside it. The
 render is arithmetic in `public/sound-maker.js` rather than Web Audio — a few
-hundred samples per millisecond of blip, then the 44 bytes of a PCM header —
-which buys two things. The studio plays the encoded bytes, so what is heard is
-what is saved rather than a live approximation of it; and the whole thing is
-checked in `npm test` without a browser, which no `AudioContext` would allow.
+hundred samples per millisecond of blip, then a 44-byte PCM header — so what
+the studio plays is what got saved, not a live approximation, and the whole
+thing is checked in `npm test` without a browser, which no `AudioContext`
+would allow.
 
 The editor is also simply how a `.wav` opens, which is the point: a sound is
-worth changing a week later, and samples cannot be turned back into sliders.
-So the numbers ride inside the file they made, as the **sound note** — a JSON
-comment in a `LIST`/`INFO`/`ICMT` chunk, about 200 bytes, sitting between
-`fmt ` and `data`. RIFF is a list of chunks and every player skips the ones it
-does not know, so the sound is unchanged: the samples are byte for byte what
-they would have been without it. Three choices worth naming:
+worth changing a week later, and samples can't be turned back into sliders.
+So the numbers ride inside the file, as the **sound note** — a JSON comment
+in a `LIST`/`INFO`/`ICMT` chunk, ~200 bytes, between `fmt ` and `data`. RIFF
+is a list of chunks any player skips what it doesn't know, so the samples
+stay byte for byte unchanged. Three choices worth naming:
 
-- **In the file, not beside it.** A `laser.json` next to `laser.wav` would have
-  been less code and would have come apart the first time somebody renamed,
-  duplicated or restored one of the pair. `move`, `duplicate` and Versions all
-  work on one file at a time, and none of them would have to learn about a
-  second.
-- **A comment chunk rather than a private one.** `ICMT` is the documented place
-  for a note about a sound, so an audio editor shows it rather than dropping it
-  on the next save. A chunk of the studio's own invention would have been
+- **In the file, not beside it.** A sidecar `laser.json` would break on
+  rename, duplicate or restore, since those all move one file at a time.
+- **A comment chunk rather than a private one.** `ICMT` is the documented
+  place for a note about a sound, so any audio editor shows it instead of
+  dropping it on save — a chunk of the studio's own invention would be
   invisible everywhere and no easier to write.
-- **Nothing in the file is trusted.** The bytes may have been uploaded. A value
-  that is not a number the sliders could have produced is replaced by the
-  default, so a hand-edited note is a strange sound at worst, never a broken
-  editor. A `.wav` with no note — anything made before this, or made anywhere
-  else — opens as the player it always did, with one line saying why.
+- **Nothing in the file is trusted.** The bytes may have been uploaded — a
+  value the sliders couldn't have produced is replaced by the default, so a
+  hand-edited note is a strange sound at worst, never a broken editor. A
+  `.wav` with no note opens as the plain player it always did, with one line
+  saying why.
 
 `+ Draw a picture` makes a transparent PNG at the size asked for and opens it
 in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
-side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas keeps
-them, so opening an uploaded picture loses nothing. The tools are in
-`public/pixel-editor.js` and are arithmetic over bytes for the same reason the
-sound editor is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
+side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas
+keeps them, so an uploaded picture loses nothing on open. The tools live in
+`public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
+editor's are; the canvas, pointer and `toBlob` stay in `main.js`. Five
 choices worth naming:
 
 - **There is no look-only view of a picture** — one would look identical to
@@ -281,68 +265,61 @@ choices worth naming:
   open re-reads the bytes, so a version brought back from history is what gets
   drawn on.
 - **Which tool, how wide and what colour live outside the open file.** A save
-  is a commit, a commit is a `files.changed`, and that re-opens the file
-  underneath the editor — so anything held per-file is thrown away every time
-  someone saves. The picture and its undo stack are per-file; the choices are
+  is a commit, a commit is a `files.changed`, which re-opens the file
+  underneath the editor — so anything held per-file would be thrown away on
+  every save. The picture and its undo stack are per-file; the choices are
   not.
 - **The canvas element fills its box and the picture is fitted inside it.**
-  Sizing it by width and height instead squashes it: a canvas has an intrinsic
-  size, so a definite width with a capped height gives a 16-square sprite drawn
-  16 by 7. The pointer maths takes the resulting empty strip back off.
+  Sizing it by width and height instead squashes it: a canvas has an
+  intrinsic size, so a definite width with a capped height draws a 16-square
+  sprite at 16 by 7. The pointer maths takes the resulting empty strip back
+  off.
 - **The palette is the game's, and it is built rather than chosen from.**
-  Thirty-two colours in `PALETTE` in the game's own `config/look.js` — two rows
-  of sixteen, greys then rainbow then the ones with character. The chosen square
-  is both what the pencil draws with and what the colour box and the eyedropper
-  write into, so taking a colour off a picture is how the palette fills up.
+  Thirty-two colours in `PALETTE` in the game's own `config/look.js` — two
+  rows of sixteen, greys then rainbow then the ones with character. The
+  chosen square is both what the pencil draws with and what the colour box
+  and the eyedropper write into, so lifting a colour off a picture is how the
+  palette fills up.
 
-  Being a *config file* is the point rather than an implementation detail: a
-  colour change is a commit on the game, it appears in Versions, a helper reads
-  the same list, and the file opens as a config form of thirty-two colour
-  fields. The first draft kept it in `localStorage`, which made a game's colours
-  a property of whichever browser had drawn in it.
+  Being a *config file* is the point, not an implementation detail: a colour
+  change is a commit on the game, appears in Versions, and a helper reads the
+  same list — the file also opens as a config form of thirty-two colour
+  fields (an earlier design's tradeoff: spec/alternatives.md). A game with no
+  `look.js` sees the studio's own thirty-two, written on first change; a
+  `look.js` with no `PALETTE` gets one appended rather than overwritten.
+  Otherwise each changed colour is a splice of that one value, so every
+  comment and untouched colour survives.
 
-  A game with no `look.js` is shown the studio's own thirty-two and the first
-  change writes the file. A `look.js` that exists but holds no `PALETTE` — a
-  game's own drawing colours belong there too — has one appended rather than
-  being overwritten. Otherwise each changed colour is a splice of that one
-  value, so every comment and every colour nobody touched survive.
-
-  **Colour changes are batched.** They are held in memory and written when the
-  picture is saved, when the editor is left for another file, or on `pagehide`
-  with `keepalive` for the tab simply closing — because a plain `fetch` is
-  cancelled on unload and `sendBeacon` cannot `PUT`. Writing each one as it
-  happened turned eyedropping six colours into six commits, which is the
-  versioning working against the drawing rather than for it. The picture saves
-  itself two seconds after a stroke and the colours go with it (§5, the
-  *pending commit* is what made that affordable); the bar says which is on
-  its way. There is no Save.
-
-  The four tools are icons; the words stay on `title` and `aria-label`, so
+  **Colour changes are batched** — held in memory and written when the
+  picture is saved, when the editor is left for another file, or on
+  `pagehide` with `keepalive` for the tab simply closing (a plain `fetch` is
+  cancelled on unload and `sendBeacon` can't `PUT`). Writing each one as it
+  happened turned eyedropping six colours into six commits — versioning
+  working against the drawing instead of for it. The picture saves itself two
+  seconds after a stroke and the colours go with it (§5's *pending commit* is
+  what makes that affordable); the bar says which is on its way. There is no
+  Save. The four tools are icons, with words on `title` and `aria-label` so
   nothing is only a picture.
 
-- **A step is the pixels it changed, not a copy of the picture.** One gesture —
-  a stroke from pointer down to up, or a fill — records each pixel it touched
-  with its colour on both sides. That is a few kilobytes for a stroke at any
-  picture size, where a copy would be 4 MB, and it is what makes redo possible
-  at all: undo writes the old colours back, redo writes the new ones. The
-  recording happens inside `setPixel`, the one function every tool goes through,
-  so a tool added later gets undo by existing.
-
-  The alternative was a stack of actions replayed over the base image. It stores
-  less, but `floodFill` is O(area) — replaying thirty fills to step back one is
-  seconds of work, which is why it would have needed periodic keyframes.
-  Diffing costs O(pixels changed) in both directions: measured in a browser, a
-  fill of a 670×330 background took 57 ms and undoing it took 8 ms.
+- **A step is the pixels it changed, not a copy of the picture.** One
+  gesture — a stroke from pointer down to up, or a fill — records each pixel
+  it touched with its colour on both sides: a few kilobytes for a stroke at
+  any picture size, where a copy would be 4 MB, and what makes redo possible
+  at all — undo writes the old colours back, redo the new ones. The recording
+  happens inside `setPixel`, the one function every tool goes through, so a
+  tool added later gets undo by existing. Measured in a browser: a fill of a
+  670×330 background took 57 ms and undoing it took 8 ms (why not replay
+  actions instead: spec/alternatives.md).
 
   ⚠️ Undo applies its entries **last to first**. A stroke that crosses itself
   writes the same pixel twice, so that pixel has two entries: the first holds
   the colour it really started as, the second holds what the first left behind.
   In record order, undo would stop at the middle colour.
 
-- **Both stacks together are bounded by bytes**, because one case is genuinely
-  large: flooding a whole 1024-square picture is twelve bytes a pixel — a 4-byte
-  index and 4 bytes of colour each side — so 12 MB. One step is always kept
-  however big, since the alternative is a fill that cannot be undone.
+- **Both stacks together are bounded by bytes**, because one case is
+  genuinely large: flooding a whole 1024-square picture is twelve bytes a
+  pixel — a 4-byte index and 4 bytes of colour each side — 12 MB. One step is
+  always kept however big; the alternative is a fill that can't be undone.
 
 A conflict is reported rather than merged. The save carries `If-Match` like the
 text editor, but two pictures cannot be offered side by side in a dialog, and
@@ -350,34 +327,32 @@ nothing but a person writes a PNG — so a 409 says what happened and changes
 nothing.
 
 In **Versions**, a commit that touched a picture shows it as a thumbnail
-without being asked, and opening the row shows it whole. The unified diff of a
-PNG is the sentence "Binary files differ", which is git talking about itself
-rather than about the game; the patch is now rendered only when it has a hunk
-in it. `logCommits` carries the paths each commit touched — from `--name-only`
-in the same process, because fifty extra git invocations to discover that a
-version has no picture in it would cost more than the feature is worth.
+unasked, and opening the row shows it whole. The unified diff of a PNG is the
+sentence "Binary files differ" — git talking about itself, not the game — so
+the patch renders only when it has a real hunk. `logCommits` carries the
+paths each commit touched, from `--name-only` in the same process: fifty
+extra git invocations just to learn a version has no picture would cost more
+than the feature is worth.
 
-A commit that touched a sound gets a player on the same terms, pointed at the
-same read-at-a-commit route, because a subject line cannot tell you what a
-version of a blip sounded like. It sits beside the row's controls rather than
-inside the button that opens them: a player is a control, and pressing play
-must not open the changes. It preloads metadata only, so a version that
-deleted the sound removes its own row the way a picture with nothing behind it
-does.
+A commit that touched a sound gets a player on the same terms, pointed at
+the same read-at-a-commit route — a subject line can't say what a version of
+a blip sounded like. It sits beside the row's controls, not inside the button
+that opens them, since pressing play must not open the changes; it preloads
+metadata only, so a version that deleted the sound removes its own row the
+way a picture with nothing behind it does.
 
-The history route answers `{ commits, total }`: a page of versions, and how
-many there are. The count is a `rev-list --count` beside the log, and it is
-what the open file's own bar says — `12 versions` rather than `Versions`,
-asked for with `limit=1` when the file opens, because the number is worth
-knowing before deciding whether the list is worth opening. A count that
-stopped at the page size would be a number quietly meaning "or more".
+The history route answers `{ commits, total }` — a page of versions and how
+many there are. The count, a `rev-list --count` beside the log, is what the
+open file's bar says (`12 versions` rather than `Versions`, asked for with
+`limit=1` on open) — worth knowing before deciding whether the list is worth
+opening at all, rather than a page-size count quietly meaning "or more".
 
 A file matching `config/<name>.js` opens as a **config form** — one labelled
-field per value, with the value's own comment beside it — instead of as text.
-Entirely client-side: `public/config-file.js` reads the `const NAME = value;`
-subset (§8) and returns each value with its span in the source, and an edit
-splices that span, so comments, alignment and every other byte survive. Four
-rules hold it together:
+field per value, its own comment beside it — instead of as text. Entirely
+client-side: `public/config-file.js` reads the `const NAME = value;` subset
+(§8), returns each value with its span in the source, and an edit splices
+that span so comments, alignment and every other byte survive. Four rules
+hold it together:
 
 - **Nothing is executed.** No `eval`, no `new Function`. Config files are
   written by LLMs and by kids and are served from the games origin; running one
@@ -388,12 +363,12 @@ rules hold it together:
 - **A value it writes is a value it can read.** A number field validates against
   the same pattern the reader accepts, so the form cannot produce a file it would
   then refuse to open.
-- **A comment belongs to one value.** It is read from the raw text — a `//`
-  inside a string is not a comment — and only counts as a value's own if it
-  follows that value with nothing but a comma or a closing semicolon between,
-  or if it sits above a line that value's own text starts. `{ width: 320,
-  height: 200 };  // the play area` describes the group, so both fields inside
-  it show no note rather than repeating that one.
+- **A comment belongs to one value.** Read from the raw text — a `//` inside
+  a string isn't a comment — and counted as a value's own only if it follows
+  with nothing but a comma or closing semicolon between, or sits above the
+  line that value's text starts. `{ width: 320, height: 200 };  // the play
+  area` describes the group, so both fields show no note rather than
+  repeating that one.
 
 Each edit re-reads the file and finds the value by path rather than reusing the
 last render's offsets: a splice moves every offset behind it, and re-rendering
@@ -401,818 +376,459 @@ the pane per keystroke would replace the Save button under the pointer.
 
 #### The shell
 
-Three panes: the sidebar, the conversation, the rail. The shape of each is
-settled, and each choice is about where a thing is reachable from rather than
-how it looks.
+Three panes: the sidebar, the conversation, the rail. Each choice is about
+where a thing is reachable from, not how it looks.
 
-**The sidebar is one list at a time** — Games, Chats, Crew — with tabs over
-it and a box that filters the one showing. Crew is everyone in the studio in
-two kinds: **Humans** over **Helpers**, because both belong to the studio
-rather than to a game. The people come from `GET /api/users`, which is names
-and ids and deliberately no addresses; nothing in the interface makes an
-account, so the list is read once at boot and the empty state says where
-accounts come from. Three stacked foldable sections
-fought each other for the height of the pane, and folding one to see another is
-a decision nobody wanted to make twice. The tab is remembered per browser next
-to the rail width; the filter is not, because a filter still in force tomorrow
-is a list with things missing from it. The button above the tabs makes whatever
-the open tab holds, so `+ New chat` is never a click away from the chats.
+**The sidebar is one list at a time** — Games, Chats, Crew — with tabs and a
+filter box, not the three stacked foldable sections that fought each other
+for the pane's height before. Crew is everyone in the studio, **Humans** over
+**Helpers**, since both belong to the studio rather than a game, from `GET
+/api/users` — names and ids, no addresses — read once at boot; the empty
+state says where accounts come from, since nothing here makes one. The tab is
+remembered per browser next to the rail width; the filter isn't, since a
+stale filter is a list with things missing. The button above the tabs makes
+whatever it holds, so `+ New chat` is never a click away.
 
 **Everything you can do to the whole game is behind one `···` beside its
-name** — Rename, Fork, Editors, the games list, Add chat, Archive — each an
-item that opens its dialog, and each absent rather than greyed for anybody who
-may not press it: Fork is everybody's; Rename, Editors, the games list and Add
-chat are an editor's; Archive is the *originator*'s, and only while the game
-is out of the games list (§11). Nothing to offer means no `···`. The bar
-itself holds state and nothing else: the padlock, the `archived` tag, and a
-whisper saying whether the game is in the games list.
+name** — Rename, Fork, Editors, the games list, Add chat, Archive — absent
+rather than greyed for anybody who may not press it: Fork is everybody's;
+Rename, Editors, the games list and Add chat are an editor's; Archive is the
+*originator*'s, only while the game is out of the games list (§11). Nothing
+to offer means no `···`. The bar itself holds only state: the padlock, the
+`archived` tag, and a whisper saying whether the game is in the games list.
 
 **Every thing has one `···`, on its row, and nothing else that changes it.**
-A scene, a line, a choice, a mood, a file, a version, a helper in a chat, the
-chat you are in: each row ends in a `···` holding what can be done to that
-thing, in one order — Rename, Duplicate, then what is its own (Start here,
-Move up, Move down, Bring back), Delete last in crimson — and holding
-nothing the reader may not press: an item that would be refused is absent,
-and a thing with nothing to offer has no `···`. What *looks* at a thing stays
-a link on the row (`Show changes`, `All files changed`, a scene's *comes
-from*); what makes a new one stays a bordered button where it lands (`Add a
-file`, `+ Add a scene`). One `Duplicate…` covers the three places a file can
-go — this game, another, or a picture into the *studio collection* — with
-the dialog asking where. `more()` in `main.js` is the one
-implementation; `S.menu` holds which is open, keyed by the thing, so a
-render keeps it, and a click anywhere else closes it.
+A scene, a line, a choice, a mood, a file, a version, a helper, the chat
+you're in: each row's `···` holds what can be done to it, in one order —
+Rename, Duplicate, then what is its own (Start here, Move up, Move down,
+Bring back), Delete last in crimson — with nothing the reader may not press:
+a refused item is absent, and a thing with nothing to offer has no `···`.
+What *looks* at a thing is a link on the row (`Show changes`, `All files
+changed`, a scene's *comes from*); what makes a new one is a bordered button
+where it lands (`Add a file`, `+ Add a scene`). One `Duplicate…` covers all
+three destinations a file can go — this game, another, or a picture into the
+*studio collection*. `more()` in `main.js` is the one implementation;
+`S.menu` holds which is open, keyed by the thing, so a render keeps it and a
+click elsewhere closes it.
 
 **The inspector** (a working name, ideas/calm-shell.md) is the rail under the
 preview, holding the selected thing's fields when the mode has one: in the
-story editor a scene's name, ways in, note, picture and music, a person's
-name and note, the title screen's two lines. It is where the mock put the
-fields, and what lets the centre be what happens rather than what things are
-called. Its fields keep the ids the focus snapshot knows (§17), so the caret
-survives a render there the way it does in the centre. A file has none: its
-bar in the centre already says what it is.
+story editor a scene's name, ways in, note, picture and music; a person's
+name and note; the title screen's two lines — letting the centre be what
+happens rather than what things are called. Its fields keep the ids the
+focus snapshot knows (§17), so the caret survives a render there too. A file
+has none: its bar in the centre already says what it is.
 
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 **Chat**, then the type's editors (**Write** for a visual novel), then
-**Pics**, **Hear**, **Controls**, **Code** and **Share**. A chat project is one room and has no row. Which is
-showing is the centre's one piece of state (`S.mode`), in the address as
-`?mode=`, remembered per game; a game opens on what the address says, else
-what this browser remembers, else its type's first editor, else Chat. There
-is no Play: the preview lives in the rail and only there, so the
-ask-commit-reload-play loop stays one pane away whatever mode is up. Leaving
-a mode lands the game's *pending commit* (§5).
+**Pics**, **Hear**, **Controls**, **Code**, **Share**. A chat project has no
+row. Which is showing is the centre's one piece of state (`S.mode`), in the
+address as `?mode=`, remembered per game; a game opens on what the address
+says, else what the browser remembers, else its type's first editor, else
+Chat. There is no Play — the preview lives in the rail only, so the
+ask-commit-reload-play loop stays one pane away regardless of mode. Leaving a
+mode lands the game's *pending commit* (§5).
 
 **The body of the centre pane is the mode's.** Chat is the chat's own row —
-its pills, the helpers listening in the one showing and the `+` that calls
-another in (⚠️ each its own horizontal scroller, so a studio's worth of chats
-and a crowd of helpers give way to each other rather than one pushing the
-other off the end) — over the thread and the composer. An **editor** is a
-surface a *game type* brings, one mode each — `public/game-types.js` maps
-`projects.type` to its editors, one entry each, and that file is the whole
-registry — taking the whole pane the way the chat does. Code is the file list
+pills, the helpers listening and the `+` that calls another in (⚠️ each its
+own horizontal scroller, so chats and helpers give way to each other rather
+than one pushing the other off the end) — over the thread and composer. An
+**editor** is a surface a *game type* brings, one mode each
+(`public/game-types.js` maps `projects.type` to its editors — the whole
+registry), taking the whole pane like the chat does. Code is the file list
 with the open file's editor under it, as the rail's Files tab was; Share is
-one page — the game's address and whether it is in the games list, then the
-versions, the scoreboard and the achievements, each keeping the rendering it
-had as a rail tab, in one scroller. `S.chat` is untouched by the mode, so the
-chat behind another mode keeps filling, a mention lands as a mark on the Chat
-pill rather than being read, and pressing the pill paints what arrived. The
-*story editor* is the first editor (below); a type may bring several. Old
-addresses still read: `?edit=` is a mode, `?tab=files` is Code, the other
-tabs are Share.
+one page — the game's address and games-list status, then versions,
+scoreboard and achievements, each keeping the rendering it had as a rail tab.
+`S.chat` is untouched by the mode, so the chat behind another mode keeps
+filling and a mention marks the Chat pill rather than being read. The *story
+editor* is the first editor (below); a type may bring several. Old addresses
+still read: `?edit=` is a mode, `?tab=files` is Code, the rest are Share.
 
-**Pics and Hear are the game's files by kind, not by folder.** Pics is cards:
-for a visual novel, **Characters** — one per *cast* member, wearing their first
-mood — over **Places**, the backgrounds with how many scenes use each; for
-every game, **Sprites** (a strip wears its first frame), **Pictures**, the
-three *reserved images* under **Studio dressing** with what each dresses, and
-**Other pictures** last, so nothing the tree holds is missing here. A card
-pressed once is selected into the inspector — where it lives, how big it is,
-*Draw on it*, and *Pick a picture…* or *Pick a face…* to swap it from the
-*shelf*; pressed again it opens full width in the *pixel editor*, the bar's ✕
-the way back to the cards. Hear is rows, sounds over music, each with a way to
-hear it; the open one's *sound editor* — or a player, for one not made here —
-lands in the rail, a column of sliders where a column fits, and the same row
-closes it. Each has its maker at the top: *Add a picture* is the add-file
-dialog narrowed to drawing and uploading, *Make a sound* and *Upload a sound*
-the same for sounds. The tree is still Code's, and a file asked for from
-anywhere else opens under Code.
+**Pics and Hear are the game's files by kind, not by folder.** Pics is
+cards: for a visual novel, **Characters** (one per *cast* member, first
+mood) over **Places** (backgrounds, with scene counts); for every game,
+**Sprites** (first frame), **Pictures**, the three *reserved images* under
+**Studio dressing**, and **Other pictures** last, so nothing the tree holds
+is missing. A card pressed once selects into the inspector — where it
+lives, its size, *Draw on it*, *Pick a picture…*/*Pick a face…* to swap it
+from the *shelf*; pressed again it opens full width in the *pixel editor*,
+the bar's ✕ the way back. Hear is rows, sounds over music; the open one's
+*sound editor* — or a player, for one not made here — lands in the rail,
+closed by the same row. Each has its maker at the top: *Add a picture* is
+the add-file dialog narrowed to drawing and uploading; *Make/Upload a
+sound* the same for sounds. The tree is still Code's — a file opened
+elsewhere still opens under Code.
 
-**Questions** is the quiz's editor as a mode: the mode is `config/questions.js`
-— arriving opens it, and its bar has no ✕ because there is nowhere to close it
-to — and the form saves itself like the story does.
+**Questions** is the quiz's editor as a mode: `config/questions.js` opens on
+arriving, its bar has no ✕ — nowhere to close it to — and the form saves
+itself like the story does.
 
-**Controls** is how the game is held, the same way: the mode is
-`config/controls.js`, it opens on arriving, its bar has no ✕, and it saves
-itself. Two halves. The **shape** is one wide row per thing the studio offers,
-in the registry's order and its words — the same four New game asks about
-(§4) — with the *arcade* family opening into its three manners underneath,
-and only while the game wears one of them: one open at a time, in the row it
-belongs to. The row the game already wears is cyan and *is not a button*,
-because a greyed-out row is a question a row cannot answer; neither is any of
-them in a game you may not change. Picking one writes `SCHEME` and nothing
-else — ⚠️ never the bindings, whose left-hand words are the game's own and are
-in its code by name, and ⚠️ not the notes above it either, which still
-describe the shape the game was seeded with (a TODO line).
+**Controls** is how the game is held, the same way: `config/controls.js`
+opens on arriving, no ✕, saves itself. Two halves.
+
+The **shape** is one wide row per thing the studio offers, in the registry's
+order and words — the same four New game asks about (§4) — with the
+*arcade* family opening into its three manners underneath while the game
+wears one: one open at a time, in its row. The row already worn is cyan and
+*not a button* — a greyed-out row is a question it can't answer — nor is
+any row in a game you may not change. Picking one writes `SCHEME` only —
+⚠️ never the bindings, whose left-hand words are the game's own code, and
+⚠️ not the notes above it either, which still describe the shape it was
+seeded with (a TODO line).
 
 Then **what each player does**: a row per verb with its bindings as chips,
-the verb read-only for the same reason. A verb **opens in the row it belongs
-to**, one at a time, into a row per binding — the chip, what it is in a
-player's words ("the space bar", "the controller's right stick pushed left"),
-and *Take it out* in its `···` — over the three ways to add one. A key is
-**pressed** rather than picked out of a list of a hundred: the button installs
-one `keydown` listener that takes itself off with the first key, Esc calls it
-off, and the friendly name is what gets written (`key:space`, not a space
-nobody can see). A controller button and something-on-the-screen are selects
-of the shape's own vocabulary, so a shape can only be given what it draws;
-a drawn button's row also carries its **name** — the words on the button,
-starting as the verb's own — and *it latches* (`touch:` ↔ `toggle:`), which
-only a drawn one gets, because a key or a pad button staying momentary is
-what keeps the desktop feel the same.
+read-only for the same reason. A verb **opens in the row it belongs to**,
+into a row per binding — the chip, its words for a player ("the space bar",
+"the controller's right stick pushed left"), and *Take it out* in its `···`
+— over the three ways to add one. A key is **pressed** rather than picked
+from a list of a hundred: the button installs one `keydown` listener that
+takes itself off with the first key, Esc cancels, and the friendly name is
+what gets written (`key:space`, not a space nobody can see). A controller
+button or on-screen control is a select of the shape's own vocabulary, so a
+shape can only be given what it draws; a drawn button also carries its
+**name** (starting as the verb's own) and *it latches* (`touch:` ↔
+`toggle:`) — only a drawn one does, since a key or pad button staying
+momentary keeps the desktop feel.
 
-The shape's two knobs sit under it: `BUTTON_SIDE` where anything is drawn and
-`STICK_DEADZONE` where a thumb works a stick, ⚠️ **written the first time one
-is used** — a file seeded for a shape without them never declared them, and
-`input.js` reads `"right"` and `0.35` for itself until one is there.
+The shape's two knobs sit under it: `BUTTON_SIDE` where anything is drawn,
+`STICK_DEADZONE` where a thumb works a stick — ⚠️ **written the first time
+one is used**, since a shape seeded without them never declared them, and
+`input.js` reads `"right"`/`0.35` for itself until one is there.
 
-Under the verbs, every binding this shape has not got — a `stick:` in a swipe
-game, a drawn button in a `none` one — said in words, and *Take it out* in its
-`···` there too; the same chips are struck
-through in the verb rows above, or a row would show a control that looks like
-it works. And one check over the whole file: a shape that draws something and
-bindings that never name it is a game nobody can play on a phone, which is
-exactly what picking a shape causes, since the bindings are left alone. This
-is what declaring the shape was for — a file claiming `swipe-tap` while
-binding six drawn buttons has left its shape, and the panel is where that
-gets said.
+Under the verbs, every binding this shape lacks — a `stick:` in a swipe
+game, a drawn button in a `none` one — is said in words, with *Take it out*
+in its `···` too, and struck through in the verb rows above, or a row would
+show a control that looks like it works. One check runs over the whole
+file: a shape that draws something with bindings that never name it is
+unplayable on a phone — exactly what picking a shape without rebinding
+causes. That's what declaring the shape is for: a file claiming `swipe-tap`
+while binding six drawn buttons has left its shape, and the panel says so.
 
 ⚠️ Shape-locked like the quiz: `CONTROLS` must be a group of players, each a
 group of things to do, each **one line** of bindings. A list where a line
-belongs, or anything the config reader will not touch, falls back through the
-generic form to the text with the reason said. A declaration the panel does
-not know — a game that grew its own — is named at the foot rather than
-hidden. The model is `public/controls-editor.js`, shared with `npm test`; the
-panel is `public/controls-form.js`. Like the quiz's, both render wherever the
-file is open, Code included: one renderer reached two ways is not two
-surfaces, which is the thing the *story editor*'s rule is actually about.
+belongs, or anything the reader won't touch, falls back through the generic
+form to the text with the reason said; a declaration the panel doesn't know
+is named at the foot rather than hidden. The model is
+`public/controls-editor.js`, shared with `npm test`; the panel is
+`public/controls-form.js` — both render wherever the file is open, Code
+included, since one renderer reached two ways isn't two surfaces (the
+*story editor*'s rule).
 
-**A game a person makes is open** — the whole studio may change it — and an
-editor closes it in the `Editors` dialog, which puts a padlock in front of its
-name. This is a studio of a few people who trust each other: a game nobody else
-may touch should be a decision somebody made rather than the state everything
-starts in. A fork is a new game and starts open too, whatever the original was.
-⚠️ Stated at the INSERT rather than as the column's default, which stays 0: a
-database written before this already has the column, and SQLite cannot change a
-default after the fact. Chat projects stay closed — they have no working tree,
-and `open_edit` there is about who may start chats in somebody's conversation.
+**A game a person makes is open** — the whole studio may change it — until
+an editor closes it in the `Editors` dialog, putting a padlock on its name.
+This is a studio of people who trust each other: a game nobody else may
+touch should be a decision somebody made, not the default. A fork starts
+open too, whatever the original was. ⚠️ Stated at the INSERT rather than the
+column's default (which stays 0), since a database from before already has
+the column and SQLite can't change a default after the fact. Chat projects
+stay closed — no working tree, and `open_edit` there is about who may start
+chats in somebody's conversation.
 
-**The rail is the running game and nothing else**: the preview, with `Open`
-and `Hide` on the frame because both act on the game, and under it the
-problems and the moments the game reported. Folded, it is one row that still
-plays, remembered per browser. `Reload` is gone: a save already reloads it.
-The four tabs that used to sit under it — Files, Versions, Scoreboard,
-Achievements — are modes of the centre now (above), and the file editors
-that opened under Files open by kind: a picture under Pics or Code, a sound
-in the rail under Hear, everything else under Code.
+**The rail is the running game and nothing else**: the preview, `Open` and
+`Hide` on the frame since both act on the game, and under it the problems
+and moments it reported. Folded, it is one row that still plays, remembered
+per browser. `Reload` is gone — a save already reloads it. Files, Versions,
+Scoreboard and Achievements are modes of the centre now (above); the file
+editors open by kind: a picture under Pics or Code, a sound in the rail
+under Hear, everything else under Code.
 
-**A game lends the studio its four colours** — its *look* — while it is open.
-`config/look.js` is read once for both the *palette* and these; the four are
-set on the shell as `--look-*`, and the chat pane, its buttons, the composer,
-the game's actions and the rail are the only things that read them. The sidebar stays
-the studio's own cyan on purpose: that is what stops the studio from looking
-like whichever game is open. ⚠️ Each value is checked before it reaches a style
-attribute — no colon or semicolon, so it cannot close the declaration and open
-another, and no `url()` or `var()`. A game that names none of them wears the
-studio's defaults, so a partial look is fine, and a helper's edit to `look.js`
-re-reads it unless there are unsaved colours in the editor.
+**A game lends the studio its four colours** — its *look* — while it is
+open. `config/look.js` is read once for both the *palette* and these; the
+four are set on the shell as `--look-*`, read only by the chat pane, its
+buttons, the composer, the game's actions and the rail. The sidebar stays
+the studio's own cyan on purpose, so the studio never looks like whichever
+game is open. ⚠️ Each value is checked before reaching a style attribute —
+no colon or semicolon, so it can't close the declaration and open another,
+and no `url()` or `var()`. A game naming none of them wears the studio's
+defaults, so a partial look is fine; a helper's edit to `look.js` re-reads
+unless the editor holds unsaved colours.
 
 **Three picture names at a game's root are reserved images** — the studio's
-dressing rather than the game's: `chat.png` tiles behind the conversation,
-`hero.png` backs the bar over it and the game's card in the catalog (§7), and
+dressing, not the game's: `chat.png` tiles behind the conversation,
+`hero.png` backs the bar over it and the game's card in the catalog (§7),
 `icon.png` sits before the game's name in the sidebar. Root rather than
-`assets/` on purpose: a sprite that happens to be called `icon.png` must not
-become the studio's dressing, and the upload dialog routes the three names to
-the root the same way it routes a strip to `assets/sprites/`. All optional —
-a game without one wears the studio's own look — and person-made like any
-other picture; the preamble names them so a helper asks rather than filing a
-wallpaper where nothing looks. In the studio they sit under a wash of the
-game's `deep` colour, and on the catalog card under a plain dark one. The
-client holds the open game's
-two, and every game's icon, as object URLs replaced on `files.changed` and
-revoked on replace — the file routes send `no-store`, and a background
-rebuilt by every render would refetch on every keystroke; `has_icon` on the
-project list is what keeps the sidebar from probing every game for an icon
-it does not have.
+`assets/` on purpose, so a sprite happening to be named `icon.png` doesn't
+become the studio's dressing; the upload dialog routes the three names to
+the root the same way it routes a strip to `assets/sprites/`. All optional
+— a game without one wears the studio's own look — and person-made like
+any other picture; the preamble names them so a helper asks rather than
+filing a wallpaper where nothing looks. They sit under a wash of the game's
+`deep` colour in the studio, a plain dark one on the catalog card. The
+client holds the open game's two, and every game's icon, as object URLs
+replaced on `files.changed` and revoked on replace — the file routes send
+`no-store`, and a background rebuilt by every render would refetch on
+every keystroke; `has_icon` on the project list keeps the sidebar from
+probing every game for an icon it lacks.
 
-### The studio library
-
-`studio/` is a reserved directory in a game's working tree holding the studio's
-own **libraries** — the input module and the sound player today, a sprite
-library or an engine later. It is served like any other file, committed like
-any other file, and cloned with the repository. `studio/studio.json` is its
-**manifest**: library name to the version this game has.
-
-The **sound player** (`studio/sound.js`) is the second library, and the one
-that proved the shape: it needed no orchestrator edit — its API note is its
-file header — only the file and an `index.json` entry, which is still all a
-fourth library would need. `Sound.play("laser")`
-plays `assets/sounds/laser.wav` — the files the sound editor writes — with a pooled
-element per shot, so rapid fire overlaps instead of dropping or cutting
-itself, plus `loop`/`stop`/`mute`. A missing file or a not-yet-allowed
-autoplay is one console warning, never an error: a game must not break over a
-sound.
-
-The **sprites library** (`studio/sprites.js`) is the third. One sprite is one
-file: `Sprites.draw(ctx, "hero", x, y)` draws `assets/sprites/hero.png`, and a PNG
-whose width is a whole multiple of its height is a **strip** — square frames
-side by side, cycled by a shared clock (`Sprites.tick()` once a frame, 8 fps
-unless the call says otherwise; `frame` pins one, `scale`/`flip` transform,
-`frames` overrides the count for a non-square strip). No registry and no
-config file — the shape of the picture says everything, the same
-name-is-the-file rule as sound. A packed multi-sprite sheet was considered
-and rejected: atlases exist for request counts and draw-call batching,
-neither of which binds here, and the file is this studio's unit of naming,
-versioning, diffing and thumbnailing — a kid edits `hero.png`, not a cell in
-a sheet. Still loading draws nothing; missing warns once.
-
-A strip opens in the pixel editor **one frame at a time**: frame buttons, a
-small preview looping the whole strip live at the library's 8 fps while it is
-drawn, Copy frame / Paste frame (one undoable gesture that goes through
-`setPixel` like every tool), and a toggleable **ghost** — the frame before at
-quarter strength, display-only, wrapping so frame one ghosts the last. The
-tools are clipped to the open frame inside the one bounds check they all
-share (`inside` in pixel-editor.js), so a wide brush cannot spill into the
-neighbour and a fill cannot leak across the strip; undo jumps to the frame it
-changed. "Whole strip" is the way back to drawing across everything, with the
-frame boundaries as an overlay — one screen pixel at any zoom, never saved
-into the picture. `+ Draw a picture` offers the frame count that makes a
-strip.
-
-The **screens library** (`studio/screens.js`) is the fourth, and the first
-presentational one: `Screens.hint()`, the phone-fit `Screens.title()` and the
-`Screens.chips()` HUD strip. Three decisions in it are worth writing down.
-
-**Every rule it injects weighs exactly one element selector.** `injectStyle()`
-appends a `<style>` to `<head>`, which is after the game's own `<link>` — so at
-equal specificity the library won every tie, and a game could not restyle a
-screen without `!important` or a specificity fight. Each rule is therefore
-written `body :where(…)`: `:where()` contributes nothing, so the whole sheet
-sits at 0-0-1. That single weight is what makes the three cases come out right,
-and each of the three is a real game's stylesheet:
-
-| the game's rule | weight | who wins | why it matters |
-| --- | --- | --- | --- |
-| `.screens-name { … }` | 0-1-0 | the game | it meant this |
-| `button { … }` | 0-0-1 | the library, by being later | its page style should not eat the Start button |
-| `* { margin: 0 }` | 0-0-0 | the library | a reset is not an opinion about a title screen |
-
-⚠️ **A cascade layer is the wrong tool here, and worse than doing nothing.**
-`@layer screens` was the first answer. An unlayered rule beats a layered one
-at *any* specificity, and the first line of a game's stylesheet is almost
-always `* { margin: 0; padding: 0 }` — under a layer that reset flattened
-every margin and padding on the screen, the panel lost its `margin:auto` and
-sat squashed against the left edge with no rhythm between anything. Bare
-`:where()` was the second answer and is 0-0-0, which then lost the Start
-button to the game's own `button { … }`. Neither failure was visible in a
-harness page written without a reset, which is the lesson worth keeping —
-**a styling contract is only tested against a stylesheet that did not expect
-it.**
-
-The library's variables are the deliberate exception: they are declared at
-`:where(:root)`, specificity zero, so a game's own `:root` *replaces* a default
-instead of fighting it. ⚠️ The four `LOOK` colours are the other exception —
-those are set inline on the screen node and beat a stylesheet, which is right,
-because they come from the game's own `config/look.js`. Where `LOOK` names
-nothing the default stands and a game can set it from css instead.
-
-**Its default is the studio's form in the game's colour.** The four `LOOK`
-names carry the colour; the shapes are the ones `public/css/` and the
-catalog use — the halftone dots, a hairline across the top, a panel card, a
-pill button with a glow under it, and every number in a mono face with tabular
-figures. The fallbacks are the studio's own four rather than white-on-black,
-because most games have not picked colours yet. ⚠️ Gold is policed here as
-everywhere: the game-over score, a board score and a chip value, nothing else.
-
-**It carries its own typefaces.** Space Grotesk and Space Mono (OFL 1.1,
-`studio/fonts-license.txt`), the latin and latin-ext subsets, as four `.woff2`
-files beside the library — about 60 KB in the tree, of which an ASCII page
-fetches 41 KB, because the `unicode-range` on each face is Google's own. A
-`<link>` to a font host was the alternative and was rejected on the same
-grounds as the shared route below: it makes a game that only looks right while
-somebody else's server is up. ⚠️ A relative `url()` in an injected `<style>`
-resolves against the *document*, not the script, so the paths are derived from
-`document.currentScript.src` and a game with a page in a subdirectory still
-finds them.
-
-The library also carries **snippets**: pieces of a screen it builds and the
-game places. `Screens.board()` is the scoreboard — it calls `/_scores` itself,
-marks the rank it is given, and brackets a rank that landed past the shown rows
-with the four either side, numbered where they really are rather than from 1.
-`Screens.rows()` is a label-and-value list, `Screens.signin()` is who is playing
-or the link to the catalog, and `Screens.me()`/`Screens.post()` are the two
-calls behind them. `title({ score, post: true, board: true })` is the whole
-game-over dance in one line, which is what every game was writing by hand.
-Signed out, the post answers 401 and the screen offers the sign-in link instead
-of a name box (§6).
-
-The **moments library** (`studio/moments.js`) is the fifth, and the smallest.
-`Moments.say("name", value)` validates the name (slug-shaped, ≤ 40) and value
-(a number, text ≤ 100, or nothing, which is `true`) and dispatches one
-`CustomEvent("moment")` on the window; anything outside the shape is one
-console warning per name and is dropped, so saying a moment every frame is
-fine. `Moments.on(name, fn)` is sugar over `addEventListener` filtered by name.
-The DOM event *is* the bus — the *reporter*, injected before any library loads,
-hears every moment without the library existing, and so can anything later
-(§8). Publishing is the game's; nothing in this library knows what an
-*achievement* is.
-
-The **achievements library** (`studio/achievements.js`) is the sixth. On load
-it reads the game's own `ACHIEVEMENTS` (from `config/achievements.js`, loaded
-before it), asks `/_achievements/<slug>` once for what this player already
-holds, and subscribes to every moment a rule names. When a rule is first met —
-or `Achievements.unlock("id")` is called — it posts the unlock and shows a
-toast: DOM like Screens, `achievements-` classes, `body :where()` weighting so
-the game's own css wins, the game's `primary`/`accent` and ⚠️ never its
-`highlight` (gold stays a number). Signed out the toast still shows with a line
-about signing in, and stores nothing; a missing file, an unknown id or a dead
-network is one console warning, never an error. Each award is also said on the
-window as an `achievement` event (`{ id, name, how, icon }`), kept or not:
-the screens library keeps them from one game over to the next and lists them
-under the score as *Won this run* (`WORDS.won`), a late one landing on the
-screen as it arrives, so the game-over screen agrees with the toasts.
-`Achievements.mine()` is the `/_achievements` GET for a trophy screen. It **seeds** `config/achievements.js`
-(an empty list with the shape commented) the way input seeds `controls.js`, so
-every game that holds the library holds the file, and the *sweep* gives an
-existing game both new files and the empty seed. ⚠️ The library carries its own
-copy of the shape rules, because a classic script cannot import; a test runs
-that copy and the server's shared `public/achievement-shape.js` over one list
-so the two cannot drift (§16).
-
-**Copied, not shared.** The alternatives were considered and rejected on
-evidence:
-
-- A **symlink** into a shared directory fails twice. `listTree` uses `lstat` and
-  refuses to follow one on purpose — a symlink in a tree served from a public
-  origin is a path out of the sandbox — and git stores it as a blob holding the
-  target path, so a clone elsewhere gets a dangling link.
-- A **submodule** records the version in history, which is the good part, but a
-  plain `git clone` without `--recursive` yields empty directories: a broken
-  game, for games meant to be copied and published. It would also grow a case in
-  every git call the app makes — `listTree`, the write routes, `restoreTree`,
-  `fork`, project creation — and needs network at create time.
-- A **shared route** on the games origin is one copy always current, and makes a
-  game that only runs inside this studio.
-
-So: real bytes, in the tree, in the history. The cost is drift — every game can
-sit on its own version — and the manifest is what makes drift visible instead of
-silent. **Every game is born holding the library**: creation scaffolds it
-server-side (`server/files/library.js` reads `public/studio-lib/index.json`,
-writes the files under `studio/`, seeds the game's companions, records the
-versions) in one commit right after `init`. The sweep below is the same
-install pointed at a game that already exists.
-
-**Every game is kept current by the sweep.** Pinning each game to the version
-it was born with left the fleet split into generations: a helper asked to use
-a library its game lacked had no file and no API note to find, because the
-note rides the manifest. `npm run sweep`
-(`bin/sweep.js`), run on the machine holding the games, closes the gap:
-every non-archived game gets the libraries it lacks and the current version
-of the ones it holds, one readable, revertable commit per game, authored as
-the studio (`studio@gamestudio.local` — the reserved-domain trick agent
-commits use, so it never reads as a person). Seeds and every other file of
-the game's own are never touched, and the `<script>` tags stay the
-page-writer's job, named in the agent preamble.
-
-⚠️ What makes the sweep safe is the **compatibility law**: a library version
-N+1 must run every game that ran N — a release that cannot keep that promise
-is not a version bump, it is a new library under a new name. The escape
-hatch is the fleet's size: if the law ever has to break, the games are few
-enough to fix by hand, one repo at a time. Two refusals guard the edges: a
-manifest holding a version newer than the studio's own is left alone (a
-rolled-back studio, not a game to fix), and an archived game is skipped — it
-catches up on the first sweep after it is reopened. The manifest is still
-what makes drift answerable — `studio/studio.json` says what each game
-holds — the sweep is just the thing that reads it fleet-wide.
-
-Two rules make it a library rather than a folder, and both are load-bearing:
-
-- ⚠️ **A helper may read it and may not write it.** `isLibraryPath` in
-  `paths.js` — the security boundary — and `write_file`, `patch_file` and
-  `delete_file` refuse with a reason it can act on. A helper that could write it
-  would fork a shared engine into one game, and the drift would be invisible
-  because nothing else reads that copy. A person may write it: that is how it is
-  installed, and it is their tree.
-- **It is named to an agent, never sent.** `listTree` flags library files, and
-  the ambient block lists them under `STUDIO LIBRARY` with a total size instead
-  of their contents (§8). An engine an agent cannot edit is also one it does not
-  need in front of it, and sending it would eat the budget the game's own code is
-  competing for. `read_file` still reaches it. Pinning a library file is
-  disabled in the file tree for the same reason.
-- **It documents itself with an API note.** The comment block at the top of
-  `studio/<name>.js` is reproduced in the preamble for each library the game's
-  manifest holds — read from the *game's own copy*, so the note matches the
-  version the game has, and capped so a note stays a note. Adding a library to
-  the studio teaches every helper about it with no orchestrator edit. A game
-  that holds no library gets no note and nothing pointed at: there is nothing
-  to add from in here.
-- **A note closes its surface.** It says its calls are the whole of it, and
-  names the things the library deliberately lacks — no init, no unlock, no
-  registry. An agent porting hand-rolled code goes looking for the
-  equivalents of what it had, and a note that only lists what exists leaves
-  every absence reading as uncertainty rather than a closed question. Stating
-  the negative space is what makes the note authoritative enough not to
-  re-check.
-
-`config/controls.js` is **not** part of the library: it is the game's own
-bindings, seeded once from `public/templates/` and never replaced, because it
-holds buttons somebody chose. `seeds` in the index is that distinction.
-
-#### Picking the control scheme
-
-Which `config/controls.js` a game is seeded with is a choice made when the
-game is made, the way its type is: New game asks **How is it played?** beside
-"Start from", and the answer is the game's *control scheme*. The two are
-deliberately unalike after that. A type is `projects.type`, a column, so no
-`write_file` can change which editors somebody sees; a scheme has to be a
-file, because `input.js` reads `SCHEME` inside the running game — which is
-also why it is the one of the two that stays changeable afterwards.
-
-`public/templates/index.json` is the registry: one entry per scheme with the
-words the dialog shows and the seed file it starts from, and it doubles as the
-validation list the way `game-templates/index.json` does for templates. Three
-things it settles:
-
-- **A request names a key, never a path.** `POST /api/projects` takes
-  `scheme`, checked against the registry before anything touches the disk;
-  the seed path comes from the registry and is held against a plain-name
-  pattern. ⚠️ A name shaped like a path is a 400, not a read of another file.
-- **A family is an interface grouping, not a word in the file.** `offer` is
-  what the dialog lists, and an entry naming a family — **Arcade** — stands
-  for the family: it is offered in the family's own words and the game starts
-  as the family's first manner (`stick-buttons`), narrowed to two sticks or
-  buttons-only in the panel afterwards. `SCHEME` is always one concrete
-  shape, because a file claiming to be arcade would not say which shape a
-  phone actually gets, and "explicit is checkable" is the whole reason the
-  declaration exists rather than being inferred from the bindings.
-- **The default is the null controller**, which draws nothing. The registry's
-  `default` and the input library's own `seeds[].from` — what an install with
-  no choice at all writes — must name the same file; `test/schemes.test.js`
-  holds the two together, because they are the only two places that could
-  disagree about it.
-
-A template may fix its own scheme (`scheme` in `game-templates/index.json`):
-the quiz and the visual novel both say `none`, since a game of buttons is
-pressed rather than steered, and the dialog then takes the question away
-rather than offering a choice it would overrule. An explicit scheme still
-wins over a template's — a quiz you steer is a stranger game, not a mistake.
-`scaffoldLibraries` takes the override as a map from a seed's destination to
-where it is copied from, so `npm run sweep` never learns about schemes at
-all: it cannot replace a seed that exists, which is the same rule.
+The six libraries under `studio/` — what each does, the manifest, the
+compatibility law, the sweep, and picking a game's control scheme — are
+documented separately, in spec/06-studio-library.md.
 
 ### Game templates
 
 A **game template** is a starter tree: New game offers "Start from", and the
 chosen template's files are copied in server-side right after the library
-scaffold, as one commit ("start from the quiz template"). From then on they
-are the game's own — no version recorded, no update ever offered — unlike a
-library, because genre code has to stay editable: "add a timer to my quiz"
-must land in files a helper can change, not behind the `studio/` write-wall.
-Not a fork either: a fork copies history and attached agents; a template
-wants a clean thread and current libraries. `public/game-templates/` is the
-source (distinct from `public/templates/`, the seeds); its `index.json`
-carries the dialog's words and is the validation list. Every template follows
-one shape: its remixable heart in a config file the forms can open, a
-pre-written `BRIEF.md` and `SPEC.md` so helpers know the map from the first
-fire, the library script tags already in `index.html` so a newborn shows no
-Update offers, and placeholder assets the studio's own makers can replace.
-Server-side copying is byte-safe, so templates can ship sounds and pictures.
+scaffold, as one commit. From then on they are the game's own — no version,
+no updates — unlike a library, since genre code must stay editable: "add a
+timer to my quiz" has to land in files a helper can change, not behind the
+`studio/` write-wall. Not a fork either: a fork copies history and attached
+agents; a template wants a clean thread and current libraries.
+`public/game-templates/` is the source (distinct from `public/templates/`,
+the seeds); its `index.json` carries the dialog's words and is the
+validation list. Every template follows one shape: a remixable heart in a
+config file, a pre-written `BRIEF.md` and `SPEC.md`, the library script tags
+already in `index.html`, and placeholder assets the studio's own makers can
+replace. Server-side copying is byte-safe, so templates can ship sounds and
+pictures.
 
-"A blank page" — the dialog's other choice, and its default — used to mean a
-blank *directory*, and a game with no `index.html` is nothing the games origin
-can serve: the preview and the play link both answered `{"error":"not found"}`
-until a helper had written one. It is now one page, committed after the library
-scaffold like a template, from `public/game-templates/blank/index.html`. That
-page is the one thing under `game-templates/` that is not copied byte for byte
-— `{{name}}` becomes the game's name, escaped — and it is deliberately absent
-from `index.json`, because the dialog already offers it as the empty choice.
-Read from `publicDir` like every other scaffold, so a `public/` without it
-writes nothing: that is what keeps the suite's games born empty, and what
-leaves "a game with no page" a state still worth testing. It loads every
-library the game holds, the input module included, since a game's *control
-scheme* is a choice made at creation: the null controller draws nothing, and
-a game whose maker picked an arcade shape wants the two tags from its first
-minute rather than after a helper has noticed.
+"A blank page" — the dialog's other, default choice — is one page, committed
+after the library scaffold like a template, from
+`public/game-templates/blank/index.html`; a game with no `index.html` is
+nothing the games origin can serve. That page is the one thing under
+`game-templates/` not copied byte for byte (`{{name}}` becomes the game's
+name, escaped), and is absent from `index.json` since the dialog already
+offers it as the empty choice. It loads every library the game holds,
+including input, since a game's *control scheme* is chosen at creation: the
+null controller draws nothing, and an arcade shape wants its two tags from
+the first minute.
 
-A `BRIEF.md` is committed with the page, from the same directory and copied
-byte for byte (§8, Project documents). Every template ships one; a game made
-without a template had none, and nothing else says which tags *this* page
-carries, or which `SCHEME` the game was made with and that somebody chose it.
+A `BRIEF.md` is committed with the page, copied byte for byte (§8, Project
+documents) — every template ships one, and it's the only place saying which
+script tags the page carries and which `SCHEME` was chosen.
 
 `index.json` also names each template's **heart**: the file the studio opens
-the new game on, because a template with an editor of its own is made in that
-editor rather than asked for. The *builder* is in a template game's `Building`
-like any game's, and answers what is typed there; opening on the heart is what
-keeps it out of the way until somebody wants it.
+the new game on, since a template with its own editor is made in that editor
+rather than asked for. The *builder* sits in a template game's `Building`
+like any game's; opening on the heart just keeps it out of the way until
+wanted.
 
-The **quiz** template is the first, and it comes with its own editor: a quiz
-is a form pretending to be a game. `config/questions.js` holds `QUESTIONS`
-(each answer counting toward an ending) and `RESULTS`; when the file still
-has that shape, the studio opens it as the **quiz editor** — add and remove
-questions, answers and endings, wire each answer to an ending by name, no
-code in sight. Ending keys are internal wiring the editor invents
-(`ending_4`) and never shows. Unlike the generic form's one-value splicing,
-the quiz editor regenerates the whole file with the template's standard
-comments — it is the authoring surface for that one file, and opening then
-saving the shipped template is byte-identical (tested). A file that outgrows
-the shape — extra declarations, weights, code — falls back to the generic
-form with a reason, then to the text, and a helper can grow it freely from
-there.
+The **quiz** template is the first, with its own editor: a quiz is a form
+pretending to be a game. `config/questions.js` holds `QUESTIONS` (each answer
+counting toward an ending) and `RESULTS`; while the file keeps that shape,
+the studio opens it as the **quiz editor** — add and remove questions,
+answers and endings, wire each answer to an ending by name, no code in
+sight. Ending keys (`ending_4`) are internal wiring the editor invents and
+never shows. Unlike the generic form's one-value splicing, the quiz editor
+regenerates the whole file with the template's standard comments, so opening
+and saving the shipped template is byte-identical (tested). A file that
+outgrows the shape falls back to the generic form, then to text, and a
+helper can grow it freely from there.
 
-The **achievements editor** is the third, and the first that every game has:
-`config/achievements.js` is seeded into every game (§4), so its editor is not
-a template's but the studio's own, the **Achievements** part of Share — the
-list of what a player can earn, one open in its own row with its name, how to
-get it, an icon and the *moment* and test it waits for; `+ Add an
-achievement`; `Take it out`, with a confirm that says how many players keep
-what they earned. Like the quiz and the story it regenerates the whole file
-with the seed's comments and is byte-identical on an untouched save; a file
-that outgrows the shape keeps its tab, which says why and offers the text.
-Under Files the file opens as plain text and nothing else — the story editor's
-rule: one surface writes it. It reads two things no field can: how many
-players hold each achievement (`GET /api/projects/:slug/achievements`),
-painted in place, and the moments the *reporter* has heard this game say this
-session (§8), offered where a rule names one and flagged where a rule names
-one never heard. Explicit Save with `if-match` and an `achievements-conflict`
-dialog on a 409; unsaved edits are parked per game the way the story's are.
-`?mode=share` is its address. The libraries and the seed reach an
-existing game through the *sweep*; the `<script>` tags in its `index.html`
-and its own `Moments.say()` calls stay a helper's job, as the preamble says.
+The **achievements editor** is the third, and the first every game has:
+`config/achievements.js` is seeded into every game (§4), so its editor is
+the studio's own — the **Achievements** part of Share: each achievement in
+its own row with name, how to get it, an icon and the *moment* it waits for;
+`+ Add an achievement`; `Take it out`, confirmed with how many players keep
+what they earned. Like the quiz and story it regenerates the whole file and
+is byte-identical on an untouched save; a file that outgrows the shape keeps
+its tab with a reason and the text. Under Files it opens as plain text only
+— one surface writes it. It reads two things no field can: how many players
+hold each achievement (`GET /api/projects/:slug/achievements`), and the
+moments the *reporter* has heard this game say this session (§8) — offered
+where a rule names one, flagged where a rule names one never heard. Explicit
+Save with `if-match` and a conflict dialog on 409; unsaved edits park per
+game like the story's. The libraries and seed reach an existing game through
+the *sweep*; `<script>` tags and `Moments.say()` calls stay a helper's job.
 
 The **visual novel** is the second, and the one that says what a template is
-for. Its heart is `config/story.js`: `CAST` — who speaks, and their moods —
-and `SCENES`, each a picture, an optional sound, and lines said one at a time,
-followed by exactly one of three exits: `choices` branch, `go` carries
-straight on, neither ends the story. A choice may `set` a switch, and one that
-`need`s a switch is only offered once something has set it. It is DOM rather
-than a canvas, because a story is mostly text and text wants to wrap on a
-phone; it uses the sound and screens libraries and neither input nor sprites.
+for. Its heart is `config/story.js`: `CAST` (who speaks, and their moods) and
+`SCENES`, each a picture, an optional sound, and lines said one at a time,
+ending in exactly one of `choices` (branch), `go` (carry on), or neither
+(end). A choice may `set` a switch; one that `need`s a switch is only
+offered once something has set it. DOM rather than canvas, since a story is
+mostly text that wants to wrap on a phone; it uses the sound and screens
+libraries, neither input nor sprites.
 
-⚠️ It came before the point-and-click adventure on purpose. The two share
+⚠️ It came before the point-and-click adventure on purpose: the two share
 scenes and switches, but an adventure's spots are rectangles on a picture and
-agents cannot see pictures (§14) — a visual novel has no coordinates anywhere,
-so nothing about it is blocked on eyes. Building it first also settles the
-vocabulary the adventure inherits, `set`/`need` on a switch rather than the
-`flip` the sketch had.
+agents cannot see pictures (§14) — a visual novel has no coordinates
+anywhere, so nothing about it is blocked on eyes. Building it first also
+settled the vocabulary the adventure inherits, `set`/`need` rather than the
+sketch's `flip`.
 
-A visual novel is the first **game type** (§3), and its `config/story.js` is
-edited in the **story editor**: an *editor* in the centre pane (the shell,
-above) rather than a form in the rail, with TyranoBuilder's three regions
-inside one tab. The **scene strip** down the left — every scene with its
-problems and its tail (*3 choices* / *→ hall* / *the end*), then the cast —
-is the editor's own navigation, which is what lets a type bring several
-editors without each wanting a rail tab. For the selected scene, the
-**stage** shows what the player sees at the selected **step**, drawn by the
-studio from the *unsaved* model — instant, no commit: the scene's picture,
-the line's portrait and speaker, the words along the bottom, and on the exit
-step the choices, the go or the end (`stageFor` in `story-editor.js`, pure and
-tested). Its pictures are object URLs in a cache keyed by path — the
-reserved-images pattern, since the file routes send `no-store` — dropped for
-the paths a `files.changed` names. Under it the **steps**: what happens in the
-scene, top to bottom — one row per line, the selected one open in place with
-who, mood and the words, rows dragged into order by a handle or moved from
-the row's `···` (Move up, Move down, Delete); then the exit — the player
-chooses, go straight on, or the end, each choice with its own `···` — and the
-scene's problems. What the scene *is* — its name (renaming brings every way in
-with it), the *comes from* links, the note about it, its picture and its
-music — is the **inspector**'s, in the rail under the preview (below); what
-can be done to it whole — *Start here*, *Duplicate*, *Delete*, the last
-absent while something leads here — is the `···` on its row in the strip. A
-selected person shows their moods and the file
-each expects. Typing repaints the stage and the status in place; anything that
-changes the shape renders.
+A visual novel is the first **game type** (§3), edited in the **story
+editor** — an *editor* in the centre pane, with TyranoBuilder's three regions
+in one tab. The **scene strip** down the left — every scene with its
+problems and tail (*3 choices* / *→ hall* / *the end*), then the cast — is
+the editor's own navigation, letting a type bring several editors without
+each wanting a rail tab. For the selected scene, the **stage** draws what the
+player sees at the selected **step**, from the *unsaved* model, instantly and
+without a commit (`stageFor` in `story-editor.js`, pure and tested); its
+pictures are cached object URLs, dropped when `files.changed` names their
+path. Under it, the **steps**: one row per line, dragged into order or moved
+from its `···`, then the exit (choices, go, or end) and the scene's problems.
+What the scene *is* — name, *comes from* links, note, picture, music — lives
+in the **inspector** in the rail; what can be done to it whole (*Start
+here*, *Duplicate*, *Delete*) is the `···` on its strip row.
 
 Like the quiz editor it regenerates the whole file and is byte-identical on
-an untouched save. It still says the five things no single field can: a scene
-nothing leads to, a way out pointing at a scene that is gone, a switch nothing
-sets, a picture or portrait the game does not have, and a mood the cast does
-not have. **No Save button**: the story saves itself two seconds after the
-last edit and sooner on the way out of a field, a scene, the editor or the
-game, with `if-match` and a `story-conflict` dialog on a 409; a save is a
-write and a preview reload, and its commit is the project's *pending commit*
-(§5), which is what made an editor that saves itself affordable. The pixel
-editor, the sound editor and the quiz form save themselves the same way,
-because every state they pass through is a picture, a sound or a quiz; Code's
-text editor keeps its Save, because half-typed code is a broken game the
-*reporter* would post and the helpers would read. The bar's whisper says
-*Saved* or *Saving…*. *Show the text* saves first and opens
-the file as plain text in the rail, where it is now text and nothing else —
-the editor is in the middle, and a form there too would be a second surface
-writing the same file — while the tab's body says so and waits. *Try this
-scene* saves first, then reloads the preview at the game's own `?scene=` —
-the studio only puts the parameter on the iframe's `src`; honouring it is the
-template's four lines, and a game that does not ignores it. A story that has
-grown past the shape keeps its tab, and the tab's body says why and offers
-the text on the right: the type decides the tabs, the file's shape decides
-what a tab can show. ⚠️ Unsaved edits are parked per game when the game is
-left and put back on return while the file's etag still matches — the
-composer's words are the one other thing git cannot recover, and a mis-click
-in the sidebar must not cost a scene; a file changed underneath drops them
-with a word. ⚠️ A reload after a save keeps the story on screen until the new
-one is read: nulling it for the length of a fetch let a render write the
-address without its scene as a new history entry, and the reload write it back
-as another.
+an untouched save, and it says five things no single field can: a scene
+nothing leads to, a dangling way out, a switch nothing sets, a missing
+picture or portrait, and a mood the cast lacks. **No Save button** — the
+story saves itself two seconds after the last edit or sooner on leaving a
+field, scene, editor or game, with `if-match` and a conflict dialog on 409;
+its commit is the project's *pending commit* (§5), which is what makes an
+editor that saves itself affordable. The pixel editor, sound editor and quiz
+form save themselves the same way, since every state they pass through is a
+picture, sound or quiz; Code's text editor keeps its Save, since half-typed
+code is a broken game the *reporter* would post. *Show the text* saves first
+and opens the file as plain text — the editor is in the middle, and a form
+there too would be a second surface writing the same file. *Try this scene*
+saves first, then reloads the preview at the game's own `?scene=`. ⚠️
+Unsaved edits park per game on leaving and return while the file's etag
+still matches, so a mis-click in the sidebar can't cost a scene; a changed
+file drops them with a word. ⚠️ A reload after a save keeps the story on
+screen until the new one is read, so the address isn't written without its
+scene as a spurious history entry.
 
-**The title screen** is a row in the strip above the scenes — the first thing
-a player sees, and the one thing here that is not a scene. Its two lines, the
-title and the one under it, are `config/words.js`'s: read the way the config
-form reads (`titleWords`) and spliced back in place by Save (`withTitleWords`,
-a commit of its own, made first), so the End, the buttons and the how-to-play
-line stay that form's and are one link away on the right. Until this row the
-only way to change "My Story" was to find the file in the rail. A words file a
-helper has reshaped past the two lines shows no row rather than a wrong one,
-and a save whose story text is unchanged makes no story commit. **Duplicate**
-is in a scene's `···` beside Delete: a copy right after it under the next
-free name, its lines and choices its own. The shape has no lines after a
-choice on purpose, so a choice that keeps the player where they are — "the
-door is locked", still in the hall — is a second scene, and Duplicate is how
-one is made without retyping it.
+**The title screen** is a row above the scenes — the one thing here that
+isn't a scene. Its two lines are `config/words.js`'s, read and spliced back
+by Save (`titleWords`/`withTitleWords`, its own commit made first), so the
+rest of that form stays one link away. A words file reshaped past the two
+lines shows no row rather than a wrong one. **Duplicate** sits in a scene's
+`···` beside Delete: a copy under the next free name. The shape has no lines
+after a choice on purpose, so "the door is locked, still in the hall" is a
+second scene, and Duplicate is how one is made without retyping it.
 
 The template **ships empty** — no cast, no scenes — so the first thing an
-author meets is the **guide**'s first question, and `js/story.js` treats a
-scene with nothing in it as the end, so an empty story shows its title and
-then The End rather than a blank stage. The guide is one card at the top of
-the scene column asking one thing: who the main character is, how they look,
-where the story starts, what that looks like, what happens first, who else is
-there, then where each scene leads — and every scene the story points at but
-has not filled comes round as its own question, saying how it is reached
-(*“Knock” leads to the hall. What does the hall look like?*). **Deterministic**:
+author meets is the **guide**: one card asking who the main character is,
+how they look, where the story starts, what happens first, who else is
+there, then where each scene leads, with every scene the story points at but
+hasn't filled coming round as its own question. **Deterministic**:
 `nextQuestion(model, paths, skipped)` in `story-editor.js` reads the next
-question off the story and the game's file list, the same facts the checks
-read, so the guide needs no state of its own beyond what the author set aside
-(*Later*, a set per game in prefs, cleared by *Ask me again*) and works on a
-new story, a half-built one and one hand-edited for a week. An ending looks
-like a scene without a way out, so *Then what?* is asked once per such scene
-and *The story ends here* is the answer that sets it aside. Every answer is an
-edit to the model and selects what it changed; the autosave writes it, as
-always. The card is built once per question and re-appended by later renders, like a
-dialog, so a helper's reply landing does not wipe what is being typed.
+question off the story and the file list — the same facts the checks read —
+so the guide carries no state of its own beyond what the author set aside
+(*Later*, cleared by *Ask me again*), and works on a new story, a half-built
+one, or one hand-edited for a week. An ending looks like a scene without a
+way out, so *Then what?* is asked once per such scene, and *The story ends
+here* sets it aside. Every answer edits the model and the autosave writes it.
 
-A picture is a file, so the guide's four ways to one commit at once: **Draw
-it** writes a blank PNG at the path the story expects and opens it in the
-pixel editor under Code; **Upload one** takes any picture from this device and
-saves it as a PNG at that path; **Make one for me** asks the studio to draw
-one (below); and **A plain card for now** is the **plain stand-in** — a flat
-card in the game's *look*, the deep colour, a primary border, a round face for
-a person, the name in white, drawn on a canvas (128×128 for a face, 480×270
-for a place). It costs nothing and never fails, which is what keeps a story
-from getting stuck on art, and it is where the drawn one falls back to.
+A picture is a file, so the guide offers four ways to it: **Draw it** (a
+blank PNG opened in the pixel editor), **Upload one**, **Make one for me**
+(below), or **A plain card for now** — a flat card in the game's *look*, a
+round face or place drawn on canvas. It costs nothing and never fails, and
+is where the drawn one falls back to.
 
-The shape grows two optional keys, `about` on a cast member and on a scene: a
-line about them for the studio and its helpers, which the game never reads
-and the editor shows as one field on the open person or scene — and on the
-picture card, where it doubles as what to draw. Absent keys write nothing, so
-a story without them is byte-identical through a save.
+The shape grows two optional keys, `about` on a cast member and a scene: a
+line for the studio and its helpers (never the game), shown as one field and
+doubling as what to draw on the picture card. Absent, it writes nothing, so
+a story without it is byte-identical through a save.
 
 #### Music, and sound as a step
 
-Two ways to be heard, and the difference is whether it belongs to the scene or
-to a moment in it.
+Two ways to be heard, depending on whether it belongs to the scene or to a
+moment in it.
 
-**Music** is `music:` on a scene — a whole path under `assets/music/`, like
-`picture:` and unlike `sound:`, because a track arrives as whatever the file
-was and there is no one ending a bare name could be given. The player calls
-`Sound.loop(track, 0.4)` on entering a scene and stops the previous one only
-when it differs, so the same track **carries from one scene into the next
-without restarting** — the sound library already leaves a running loop alone,
-which is why this needed no library change and no sweep. Quieter than a noise,
-because people are talking over it.
+**Music** is `music:` on a scene — a whole path under `assets/music/`, unlike
+`sound:`, since a track has no one ending a bare name could give it. The
+player calls `Sound.loop(track, 0.4)` on entering a scene and stops the
+previous one only when it differs, so the same track **carries into the next
+scene without restarting** — the sound library already leaves a running loop
+alone, so this needed no library change. Quieter than a noise, since people
+talk over it.
 
 **A sound is a step among the lines**: an entry in `lines` that is only
-`{ sound: "page" }`, sitting wherever the noise should happen. It plays the
-moment it is passed and the story carries straight on — waiting for a tap
-would leave the box empty for a beat — and a noise written after the last
-spoken line plays as the scene is left, on the tap or the choice that leaves
-it. `isSoundStep` is the one field that tells the two kinds apart, and they
-live in one list so a noise drags in between two lines and back out again
-with the same `moveLine`.
+`{ sound: "page" }`, playing the moment it's passed while the story carries
+straight on (waiting for a tap would leave the box empty), or on leaving the
+scene if written after the last line. `isSoundStep` tells the two kinds
+apart; they share one list, so a noise drags between lines with the same
+`moveLine`.
 
-⚠️ **Scene-level `sound:` is the older shape** and meant "at the start". The
+⚠️ **Scene-level `sound:` is the older shape**, meaning "at the start". The
 editor reads it as a sound step in front of the lines and **never writes it
-back**, so opening an old story and saving it moves the sound into the
-timeline where it can be dragged. The template's player still plays the old
-key, so a story nobody has re-saved is unchanged — and because a template is
-the game's own code with no sweep behind it, every existing visual novel needs
-its `js/story.js` brought forward by hand or its sound goes quiet on that
-first save.
+back** — saving an old story moves the sound into the draggable timeline, but
+the template's player still plays the old key, so an unsaved story is
+unchanged. Because a template is the game's own code with no sweep behind
+it, every existing visual novel needs its `js/story.js` brought forward by
+hand or its sound goes quiet on the first re-save.
 
-On the stage a noise has nothing of its own to show, so `stageFor` keeps the
-words that are still on screen and names the sound beside them. The guide
-counts *said* lines (`saidIn`), so a scene holding nothing but a door slam is
-still a scene nobody has written yet.
+On the stage a noise has nothing to show, so `stageFor` names it beside the
+words still on screen. The guide counts *said* lines (`saidIn`), so a scene
+holding only a door slam is still unwritten.
 
 #### The two small asks
 
-**Fill it in for me** and **Make one for me** are the studio's own requests to
-the model: no helper row, no chat, no message, no receipt, no eligibility, no
-cooldown, no tools, no transcript and no file block. One request built from
-the story, one answer, nothing kept — `llm.complete()`, thinking off, a small
-`max_tokens`. Server-side, because the key never reaches a browser, and
-through the same two walls every reply goes through: the studio-wide budget
-and the presser's own allowance, charged to whoever pressed (§10). Neither is
-a *fire*, so neither leaves a row anywhere but `user_tokens` and
-`studio_state`. The UI never says "prompt" or "model"; the buttons keep their
-own words.
+**Fill it in for me** and **Make one for me** are the studio's own requests
+to the model: no helper row, chat, message, receipt, eligibility, cooldown,
+tools, transcript or file block. One request, one answer, nothing kept —
+`llm.complete()`, thinking off, a small `max_tokens`. Server-side, since the
+key never reaches a browser, through the same two walls every reply goes
+through: the studio-wide budget and the presser's own allowance, charged to
+whoever pressed (§10). Neither is a *fire*, so neither leaves a row anywhere
+but `user_tokens` and `studio_state`; the UI never says "prompt" or "model".
 
 JSON is asked for in the system prompt and parsed by taking the outermost
-braces, not requested through `response_format` — §14 measured what this API
-does and that was never one of the things measured, and an unrecognised
-parameter fails open there, so the defensive parse would be needed anyway.
+braces, not through `response_format` — unmeasured by §14, and an
+unrecognised parameter fails open there anyway, so the defensive parse is
+needed regardless.
 
-⚠️ **The story comes up from the browser, not off the disk.** The guide works
-on the unsaved model — the scene it is asking about is usually one made a
-moment ago and the save may not have gone in yet — so a disk read would be
-asking about a scene that is not there yet. It is the author's own words going into a prompt billed
-to them, so the trust is theirs either way; what matters is that it is
-bounded, and every field is cut to a cap rather than refused (§10). A `who`
-the cast does not hold comes back as the story narrating, so a fill cannot
-leave a line said by nobody for the checks to flag straight back.
+⚠️ **The story comes up from the browser, not off disk.** The guide works on
+the unsaved model — the scene it asks about was likely made a moment ago and
+may not be saved yet. It's the author's own words going into a prompt billed
+to them, so the trust is theirs either way; every field is cut to a cap
+rather than refused (§10), and a `who` the cast doesn't hold comes back as
+the story narrating, so a fill can't leave a line said by nobody.
 
-The **drawn stand-in** asks for a flat SVG at the size the kind wants and the
-game's own colours. The server checks only that the answer is plainly an SVG
-and within 20 KB; the browser probes it in an `<img>` — where an SVG runs no
-scripts and loads nothing, the same probe the `.svg` editor paints unsaved
-text through (§7) — draws it to a canvas and saves it as the PNG the story
-already expects, so the pixel editor opens it like any other picture and
-drawing over it is the next thing rather than a fresh start. ⚠️ The probe is
-constructed at the size it should be: an SVG carrying only a `viewBox` has no
-intrinsic size and left to itself draws as nothing. An answer that will not
-draw falls back to the plain card, saying so; a refusal — not yours to change,
-out of tokens, no connection — writes nothing and lets its own banner stand.
+The **drawn stand-in** asks for a flat SVG at the kind's size and the game's
+colours. The server checks only that it's plainly an SVG within 20 KB; the
+browser probes it in an `<img>` (an SVG runs no scripts there, the same
+probe the `.svg` editor uses, §7), draws it to canvas, and saves it as the
+PNG the story expects — so the pixel editor opens it like any picture and
+drawing over it is the next step. ⚠️ The probe is sized explicitly, since an
+SVG with only a `viewBox` has no intrinsic size and draws as nothing. An
+answer that won't draw falls back to the plain card; a refusal writes
+nothing and lets its own banner stand.
 
-These are the second and third *microhelper*: a fixed-purpose helper the studio
-ships rather than a row somebody makes, the achievements helper being the
-first. Smaller than it, too — no tools, one request, JSON back.
+These are the second and third *microhelper* — smaller even than the first
+(the achievements helper): no tools, one request, JSON back.
 
 The Mila story is the **example**: *Or put in an example story* on the first
-card while the story is still empty copies its seven files in from the
-**standard set** and writes and saves the story, marking its endings as meant.
+card, while the story is empty, copies its seven files from the **standard
+set** and saves the story with its endings marked meant.
 
 #### The standard set
 
-`public/story-art/` — pictures and sounds an author can put into a visual
-novel without drawing. Studio-side rather than in the template tree, which is
-copied whole into every new game, so a set of any size would bloat every
-repository; one file is copied in when it is picked, one commit, no history
-and no link back, and a game's repository holds exactly the art it uses.
-`index.json` is the whole registry: `art` (file, kind, name, `by`, `licence`,
-and `who`/`mood` on a portrait) and `examples`, whole stories the guide can
-put in, each naming the art it uses.
+`public/story-art/` — pictures and sounds an author can use without drawing.
+Studio-side rather than in the template tree (which is copied whole into
+every game, so any size here would bloat every repository): one file copies
+in when picked, one commit, no history or link back. `index.json` is the
+registry: `art` (file, kind, name, `by`, `licence`, `who`/`mood` on a
+portrait) and `examples`, whole stories the guide can insert.
 
-The **shelf** is how it is picked: the pictures of the kind being asked for.
-Two places, because the guide stops asking the moment a scene has a picture,
-so without the second the set could never be used to *change* one: a row that
-scrolls sideways across the top of the guide's picture card, before the field
-and the buttons; and a **dialog with a filter** behind `Pick a picture…` on
-the scene's Picture field in the inspector — a grid of every picture of that
-kind, the shipped set and the collection together, found by name or by who
-made it, because forty-two pictures before anybody adds one is not a strip
-(ideas/calm-shell.md). ⚠️ Picking copies the bytes to the path the *story* expects,
-not to the set's own landing path, so the set says what a picture looks like
-and the story says what it is called: "Mila, worried" becomes
-`assets/sprites/ben-normal.png` when that is the face being asked for. The
-credit and the licence ride the banner as well as the tooltip. The index is
-read once a session and only a good read is held; the shelf is filled in when
-it lands rather than through `render()`, because the card is one node kept for
-as long as its question stands. A plain `<img src>` is right for these, unlike
-a game's own files, whose routes send `no-store`.
+The **shelf** is how it's picked, in two places — the guide stops asking once
+a scene has a picture, so a second entry point is needed to *change* one: a
+sideways-scrolling row on the guide's picture card, and a **filtered dialog**
+behind `Pick a picture…` on the scene's Picture field — every picture of
+that kind, shipped set and collection together, found by name or maker
+(forty-two pictures is not a strip, ideas/calm-shell.md). ⚠️ Picking copies
+the bytes to the path the *story* expects, not the set's own path — the set
+says what a picture looks like, the story says what it's called ("Mila,
+worried" becomes `assets/sprites/ben-normal.png`). Credit and licence ride
+the banner and tooltip; the index is read once a session, the shelf filled
+in as it lands rather than through `render()`, since the card persists for
+as long as its question stands. A plain `<img src>` works here, unlike a
+game's own files, whose routes send `no-store`.
 
-Pictures only: a sound has `+ Make a sound`, which beats a shelf of stock
-ones, and an example is the only thing that uses the set's `sound` kind today.
+Pictures only — a sound has `+ Make a sound`, which beats stock ones.
 
-What it holds: 33 portraits and 9 backgrounds, all CC0. The studio's own
-three-and-three from the example story, 30 animal faces by **Kenney** (the
-`Round` variant of the animal pack — one face each, no moods), and 6 pixel-art
-scenes by **Stealthix**. Two styles that do not match each other, which is a
-known compromise: the alternative was three faces.
+What it holds: 33 portraits and 9 backgrounds, all CC0 — the studio's own
+three-and-three from the example story, 30 animal faces by **Kenney**, and 6
+pixel-art scenes by **Stealthix**.
 
-`test/story-art.test.js` is what keeps a growing set honest — every entry's
-file present and in the folder its kind lands from, every licence named, a
-portrait's file named for its `who` and `mood`, and every example's art listed
-in `art` rather than merely present. The shape rules are deliberately loose,
-because real art does not arrive at the studio's own 480×270 and 128² and the
-studio scales: a background must be landscape, and ⚠️ **a portrait must not be
-a whole multiple of its own height** — it is copied into `assets/sprites/`,
-where the sprites library reads that shape as a *strip* of square frames, so a
-2:1 portrait would animate instead of standing still with nothing in the story
-saying why. Exact squareness was the rule until real art arrived; every animal
-in the set is slightly off-square.
+`test/story-art.test.js` keeps a growing set honest: every file present in
+the right folder, every licence named, a portrait's file matching its `who`
+and `mood`, every example's art actually listed. ⚠️ A portrait must not be a
+whole multiple of its own height — copied into `assets/sprites/`, that shape
+reads as a *strip* of square frames to the sprites library, so a 2:1
+portrait would animate instead of standing still.
 
-The quiz editor grew the same read, because the authoring bug in a quiz is
-never a typo: four endings of which three are unreachable, or one a single
-answer feeds.
+The quiz editor grew the same read, since a quiz's authoring bug is never a
+typo: endings unreachable, or all fed by one answer.
 
 The module reads its bindings through `try`/`catch` rather than assuming
-`CONTROLS` is there, so a game whose `index.html` loads only one of the two
-files falls back to a playable default instead of throwing on the first frame.
+`CONTROLS` exists, so a game loading only one of the two config files falls
+back to playable rather than throwing on the first frame.
 
 #### History
 
