@@ -1612,12 +1612,12 @@ select.ctl-add { font-size: 12px; padding: 3px 6px; max-width: 14rem; }
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
-.ach-card.on { border-color: color-mix(in oklab, var(--primary) 65%, transparent); }
+.ach-card.on { border-color: color-mix(in oklab, var(--look-primary) 65%, transparent); }
 .ach-row {
   display: flex; align-items: baseline; gap: 8px; cursor: pointer;
   margin: -9px -11px; padding: 9px 11px; border-radius: var(--radius);
 }
-.ach-row:hover { background: color-mix(in oklab, var(--primary) 14%, transparent); }
+.ach-row:hover { background: color-mix(in oklab, var(--look-primary) 14%, transparent); }
 .ach-row .aname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Squeezed, the rule gives way first and the name after it; the marker and
    the player count never do. */
@@ -1642,12 +1642,12 @@ select.ctl-add { font-size: 12px; padding: 3px 6px; max-width: 14rem; }
   display: grid;
   gap: 6px;
 }
-.story-scene.on { border-color: color-mix(in oklab, var(--primary) 65%, transparent); }
+.story-scene.on { border-color: color-mix(in oklab, var(--look-primary) 65%, transparent); }
 .story-scene .row { flex-wrap: nowrap; }
 .story-scene .cfg-text { flex: 1; min-width: 4rem; }
 /* The whole row opens the scene, so the whole row lights up. */
 .story-scene-row { cursor: pointer; margin: -9px -11px; padding: 9px 11px; border-radius: var(--radius); }
-.story-scene-row:hover { background: color-mix(in oklab, var(--primary) 14%, transparent); }
+.story-scene-row:hover { background: color-mix(in oklab, var(--look-primary) 14%, transparent); }
 .story-first {
   flex: 1;
   min-width: 0;
