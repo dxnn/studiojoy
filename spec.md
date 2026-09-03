@@ -1141,7 +1141,7 @@ A file matching `config/<name>.js` opens as a **config form** — one labelled
 field per value, with the value's own comment beside it — instead of as text.
 Entirely client-side: `public/config-file.js` reads the `const NAME = value;`
 subset (§8) and returns each value with its span in the source, and an edit
-splices that span, so comments, alignment and every other byte survive. Three
+splices that span, so comments, alignment and every other byte survive. Four
 rules hold it together:
 
 - **Nothing is executed.** No `eval`, no `new Function`. Config files are
@@ -1153,6 +1153,12 @@ rules hold it together:
 - **A value it writes is a value it can read.** A number field validates against
   the same pattern the reader accepts, so the form cannot produce a file it would
   then refuse to open.
+- **A comment belongs to one value.** It is read from the raw text — a `//`
+  inside a string is not a comment — and only counts as a value's own if it
+  follows that value with nothing but a comma or a closing semicolon between,
+  or if it sits above a line that value's own text starts. `{ width: 320,
+  height: 200 };  // the play area` describes the group, so both fields inside
+  it show no note rather than repeating that one.
 
 Each edit re-reads the file and finds the value by path rather than reusing the
 last render's offsets: a splice moves every offset behind it, and re-rendering

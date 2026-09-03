@@ -51,6 +51,34 @@ test('a comment above a value is used when there is none beside it', () => {
   assert.equal(out.decls[0].node.comment, 'how much gravity pulls');
 });
 
+// A comment describes the thing that ends the line it is on, or the line under
+// it — not everything nested inside. The form puts a note beside every field,
+// and each field inside a one-line group was showing the group's own note.
+test('a value sharing a line with its group does not take the group comment', () => {
+  const out = parseConfigFile([
+    'const SIZE = { width: 320, height: 200 };  // the play area in pixels',
+    'const CAST = {',
+    '  // the hero',
+    '  hero: { name: "Ana", moods: ["happy"] },',
+    '};',
+  ].join('\n'));
+  assert.ok(out.ok, out.reason);
+  const [size, cast] = out.decls;
+
+  assert.equal(size.node.comment, 'the play area in pixels');
+  assert.deepEqual(size.node.props.map((p) => p.node.comment), ['', '']);
+
+  const hero = cast.node.props[0].node;
+  assert.equal(hero.comment, 'the hero');
+  assert.deepEqual(hero.props.map((p) => p.node.comment), ['', '']);
+  assert.deepEqual(hero.props[1].node.items.map((n) => n.comment), ['']);
+
+  // Nor does a list item, which has no key to start its line with.
+  const laps = parseConfigFile('const LAPS = [1, 2, 3];  // how many laps\n');
+  assert.equal(laps.decls[0].node.comment, 'how many laps');
+  assert.deepEqual(laps.decls[0].node.items.map((n) => n.comment), ['', '', '']);
+});
+
 test('editing a value leaves every other byte alone', () => {
   const out = parseConfigFile(SAMPLE);
   const laps = out.decls.find((d) => d.name === 'LAPS_TO_WIN');

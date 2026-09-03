@@ -31,14 +31,27 @@ function lineOf(text, index) {
 // else the run of `//` lines directly above the line it starts on. Read from
 // the raw text by offset rather than collected while tokenising, so a `//`
 // inside a string can never be mistaken for a comment.
-function commentFor(text, start, end) {
+//
+// Both halves are anchored to the value's *slot* — where its own text begins,
+// its key included — because a value sharing a line with the group holding it
+// has no comment of its own. A note at the end of a line of colours describes
+// the list, not the fifth colour, and the form was captioning all five fields
+// with it.
+function commentFor(text, slot, end) {
   const lineEnd = text.indexOf('\n', end);
   const rest = text.slice(end, lineEnd === -1 ? text.length : lineEnd);
   const trailing = rest.indexOf('//');
-  if (trailing !== -1) return rest.slice(trailing + 2).trim();
+  // Only a comma, or the semicolon closing a declaration, may stand between a
+  // value and its comment. A bracket in there means the comment is describing
+  // whatever that bracket closes.
+  if (trailing !== -1 && /^[\s,;]*$/.test(rest.slice(0, trailing))) {
+    return rest.slice(trailing + 2).trim();
+  }
 
-  const lines = text.slice(0, start).split('\n');
-  lines.pop();
+  const lines = text.slice(0, slot).split('\n');
+  // The lines above describe the line below them, so they are this value's
+  // only if this value is what starts that line.
+  if (lines.pop().trim() !== '') return '';
   const above = [];
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i].trim();
@@ -118,11 +131,15 @@ export function parseConfigFile(text) {
 
   // Returns a node: {kind, value, start, end} plus items/props for the
   // containers, and comment where one is attached.
-  function value() {
+  // slotStart is where the whole entry begins — the `const`, or the key of the
+  // property this value belongs to. It defaults to the value itself, which is
+  // all a list item has.
+  function value(slotStart) {
     skip();
     const start = i;
+    const slot = slotStart ?? start;
     const done = (kind, parsed, extra = {}) => ({
-      kind, value: parsed, start, end: i, comment: commentFor(text, start, i), ...extra,
+      kind, value: parsed, start, end: i, comment: commentFor(text, slot, i), ...extra,
     });
     const ch = text[i];
 
@@ -148,9 +165,10 @@ export function parseConfigFile(text) {
       for (;;) {
         if (at('}')) { i += 1; break; }
         skip();
+        const keyStart = i;
         const key = (text[i] === '"' || text[i] === "'") ? string() : ident();
         eat(':');
-        props.push({ key, node: value() });
+        props.push({ key, node: value(keyStart) });
         if (at(',')) { i += 1; continue; }
         eat('}');
         break;
@@ -176,7 +194,7 @@ export function parseConfigFile(text) {
       // A number followed by an operator is arithmetic, not a value.
       skip();
       if (/[-+*/%]/.test(text[i] ?? '')) refuse('a sum, rather than a plain number');
-      return { kind: 'number', value: Number(number[0]), start, end: start + number[0].length, comment: commentFor(text, start, start + number[0].length) };
+      return { kind: 'number', value: Number(number[0]), start, end: start + number[0].length, comment: commentFor(text, slot, start + number[0].length) };
     }
 
     return refuse('something that is not a plain value');
@@ -192,10 +210,11 @@ export function parseConfigFile(text) {
     skip();
     while (i < text.length) {
       if (!at('const')) refuse('only `const NAME = value;` lines can be shown as a form');
+      const declStart = i;
       i += 'const'.length;
       const name = ident();
       eat('=');
-      const node = value();
+      const node = value(declStart);
       if (at(';')) i += 1;
       decls.push({ name, node });
       skip();
