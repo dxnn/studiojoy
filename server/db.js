@@ -197,6 +197,19 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_mentions_waiting
      ON mentions (user_id, seen, project_id)`,
 
+  // The newest message id one person has read in one chat — the generic
+  // "something is unread here" flag, independent of `mentions`, which is
+  // only "you were named". A row per (user, chat) for the same reason a
+  // mention is: the mark has to outlive the tab that was open when it
+  // landed, and per chat because reading one conversation says nothing
+  // about another. Absent is nothing read yet.
+  `CREATE TABLE IF NOT EXISTS chat_reads (
+    user_id INTEGER NOT NULL REFERENCES users,
+    chat_id INTEGER NOT NULL REFERENCES chats,
+    last_read_message_id INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, chat_id)
+  )`,
+
   `CREATE TABLE IF NOT EXISTS studio_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     tokens_used_today INTEGER NOT NULL DEFAULT 0,

@@ -16,13 +16,19 @@ import { liveMapFor } from './stream.js';
 // there and you have not read it. The studio's own cyan, because it is the
 // studio talking to you rather than the game — and not gold, which is a score
 // or a version and nothing else.
-export const calledMark = (n) => (n
+const calledMark = (n) => (n
   ? h('span', {
     class: 'called',
     text: `@${n}`,
     title: n === 1 ? 'Somebody called you by name here' : `${n} messages here call you by name`,
   })
   : null);
+
+// The same mark, generic: a plain dot once anything else here is unread.
+// Dropped the moment the @n badge already shows — a mention already says
+// there is something unread, and showing both would say it twice.
+export const readMark = (row) => calledMark(row.mentions)
+  ?? (row.unread ? h('span', { class: 'unread', title: 'There are unread messages here' }) : null);
 
 // Clicking somebody in the Crew list points what you are typing at them. The
 // handle is the first word of their name — a mention is one token, and the
@@ -55,17 +61,26 @@ export function mentionPerson(person) {
   if (S.slug) S.drafts.set(S.slug, box.value);
 }
 
-// Opening a chat is reading it, so anything in it that called you stops
-// asking. The counts are dropped here rather than refetched: the answer is
-// arithmetic, and a round trip would repaint the sidebar a beat late.
-export async function readMentions() {
+// Opening a chat is reading it, so anything in it that called you, or simply
+// happened while you were away, stops asking. The counts are dropped here
+// rather than refetched: the answer is arithmetic, and a round trip would
+// repaint the sidebar a beat late.
+export async function readChat() {
   const chat = S.chats.find((c) => c.id === S.chat?.id);
-  if (!chat?.mentions) return;
+  if (!chat || (!chat.mentions && !chat.unread)) return;
   const had = chat.mentions;
   chat.mentions = 0;
+  chat.unread = false;
+  const stillUnread = S.chats.some((c) => c.unread);
   const row = S.projects.find((p) => p.slug === S.slug);
-  if (row) row.mentions = Math.max(0, (row.mentions ?? 0) - had);
-  if (S.project) S.project.mentions = Math.max(0, (S.project.mentions ?? 0) - had);
+  if (row) {
+    row.mentions = Math.max(0, (row.mentions ?? 0) - had);
+    row.unread = stillUnread;
+  }
+  if (S.project) {
+    S.project.mentions = Math.max(0, (S.project.mentions ?? 0) - had);
+    S.project.unread = stillUnread;
+  }
   await api('POST', `/api/projects/${S.slug}/chats/${S.chat.id}/seen`);
 }
 
@@ -135,7 +150,7 @@ export async function openChat(id) {
     // Coming out from behind the editor is opening the chat: what called you
     // there while it was hidden has now been seen.
     if (fromEditor) {
-      readMentions();
+      readChat();
       render();
     }
     return;
@@ -153,7 +168,7 @@ export async function openChat(id) {
   // just left keeps writing into that one.
   S.live = liveMapFor(S.slug, S.chat.id);
   S.autoscroll = true;
-  readMentions();
+  readChat();
   prefs.set(`chat-${S.slug}`, S.chat.id);
   render();
 }

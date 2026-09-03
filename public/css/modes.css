@@ -83,3 +83,4 @@
   background: color-mix(in oklab, var(--look-primary) 32%, transparent);
 }
 .modes .mode .called { margin-left: 6px; }
+.modes .mode .unread { margin-left: 6px; }

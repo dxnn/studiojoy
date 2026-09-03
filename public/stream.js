@@ -183,20 +183,31 @@ function onEvent(name, data) {
         if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
         map.delete(data.agent_id);
       }
-      // Somebody called you by name. Where the message landed decides what
+      // Somebody other than you said something. Where it landed decides what
       // happens to it: in the chat you are looking at it is already read, and
       // anywhere else — the chat behind an editor included — it leaves a mark
-      // on that game, and on that chat's pill, until you go and look.
-      if (data.mentions?.includes(S.me?.id)) {
+      // on that game and on that chat's pill until you go and look: the @n
+      // badge when it named you, otherwise the plain unread flag.
+      if (data.user_id !== S.me?.id) {
         if (here(data) && S.mode === 'chat') {
           api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
         } else {
+          const named = data.mentions?.includes(S.me?.id);
           const row = S.projects.find((p) => p.slug === data.project_slug);
-          if (row) row.mentions = (row.mentions ?? 0) + 1;
+          if (row) {
+            row.unread = true;
+            if (named) row.mentions = (row.mentions ?? 0) + 1;
+          }
           if (mine(data)) {
             const chat = S.chats.find((c) => c.id === data.chat_id);
-            if (chat) chat.mentions = (chat.mentions ?? 0) + 1;
-            if (S.project) S.project.mentions = (S.project.mentions ?? 0) + 1;
+            if (chat) {
+              chat.unread = true;
+              if (named) chat.mentions = (chat.mentions ?? 0) + 1;
+            }
+            if (S.project) {
+              S.project.unread = true;
+              if (named) S.project.mentions = (S.project.mentions ?? 0) + 1;
+            }
           }
           render();
         }

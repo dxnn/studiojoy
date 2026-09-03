@@ -26,6 +26,7 @@ import {
   addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
 } from '../authors.js';
 import { unseenInProject, unseenInChat } from '../mentions.js';
+import { projectHasUnread, chatHasUnread } from '../reads.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -85,6 +86,9 @@ function projectPublic(ctx, row, user = null) {
     // been read. Yours alone — every list in the sidebar is drawn for one
     // person, so this is never somebody else's mark.
     mentions: user ? unseenInProject(db, user.id, row.id) : 0,
+    // Whether anything at all is unread here, named or not — the plain flag
+    // under the @n badge above.
+    unread: user ? projectHasUnread(db, user.id, row.id) : false,
   };
 }
 
@@ -268,6 +272,7 @@ export function projectRoutes(r) {
       chats: listChats(ctx.db, project.id).map((c) => ({
         ...chatPublic(c),
         mentions: unseenInChat(ctx.db, user.id, c.id),
+        unread: chatHasUnread(ctx.db, user.id, c.id),
       })),
       chat: chatPublic(chat),
       // No games origin means the request carried no usable hostname to build

@@ -13,7 +13,7 @@ import {
 import { toolLabel, thinkingFor } from './stream.js';
 import { loadDiff } from './history.js';
 import {
-  toggleChatty, detachAgent, openChat, calledMark,
+  toggleChatty, detachAgent, openChat, readMark,
 } from './chats.js';
 import { modesFor } from './game-types.js';
 
@@ -522,7 +522,7 @@ function renderModes(p) {
     title: m.what,
     // ⚠️ Returned, not fired: Share reads before it shows (see syncUrl).
     onclick: () => openMode(m.id),
-  }, m.label, m.id === 'chat' && S.mode !== 'chat' ? calledMark(p.mentions) : null)));
+  }, m.label, m.id === 'chat' && S.mode !== 'chat' ? readMark(p) : null)));
 }
 
 // One pill per conversation, and at the right the things that are about this
@@ -575,9 +575,9 @@ function renderChatTabs(p) {
     },
     c.bots ? null : h('span', { class: 'hush', text: '·' }),
     c.name,
-    // The mark on the game says somebody called you; this says in which
-    // conversation.
-    calledMark(c.mentions)))) : null,
+    // The mark on the game says somebody called you, or that something is
+    // unread; this says in which conversation.
+    readMark(c)))) : null,
     // The chat you are in. Humans only keeps its name — it is furniture, and
     // the words the studio uses for it — so it has nothing to offer and no ···.
     rooms && S.chat.bots && !S.chat.builder && !frozen() ? more(`chat:${S.chat.id}`, [

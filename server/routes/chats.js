@@ -6,6 +6,7 @@ import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { markSeen } from '../mentions.js';
+import { markRead } from '../reads.js';
 import { requireProject, requireString } from './helpers.js';
 import {
   createChat, listChats, requireChat, chatPublic,
@@ -48,9 +49,10 @@ export function chatRoutes(r) {
   });
 
   // "I have read this one." Clears the marks left on this chat by anything
-  // that called you by name. Not a side effect of the GET that opens the chat:
-  // a read that writes is a read somebody else's tab can trip, and the client
-  // also calls this when a mention lands in the chat already on screen.
+  // that called you by name, and stamps how far you have read it generally.
+  // Not a side effect of the GET that opens the chat: a read that writes is a
+  // read somebody else's tab can trip, and the client also calls this when a
+  // message lands in the chat already on screen.
   //
   // Every account may do it, for any chat: reading is everybody's (spec.md
   // §3), and it clears nothing but your own rows.
@@ -59,6 +61,7 @@ export function chatRoutes(r) {
     const project = requireProject(ctx);
     const chat = requireChat(ctx.db, project, ctx.params.chat_id);
     markSeen(ctx.db, user.id, chat.id);
+    markRead(ctx.db, user.id, chat.id);
     noContent(ctx.res);
   });
 

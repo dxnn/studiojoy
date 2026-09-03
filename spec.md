@@ -444,6 +444,23 @@ project in `GET /api/projects` and on each chat in the project detail — and th
 `message.new` broadcast carries `mentions: [user_id]` so a tab that is not
 looking can paint its own mark without refetching.
 
+### `chat_reads`
+
+| column | type | notes |
+|---|---|---|
+| `user_id` | INTEGER NOT NULL → users | |
+| `chat_id` | INTEGER NOT NULL → chats | |
+| `last_read_message_id` | INTEGER NOT NULL DEFAULT 0 | the newest message id this person has read here |
+
+PK `(user_id, chat_id)`. The generic "something is unread" flag underneath
+`mentions`' "you were named" one: `unread` on a project in `GET /api/projects`
+and on each chat in the project detail is true when that chat holds a message
+from somebody else newer than this row says, `server/reads.js`'s `chatHasUnread`
+/ `projectHasUnread`. `POST …/chats/:id/seen` stamps this alongside clearing
+`mentions`, so opening a chat clears both together; the client mirrors it the
+same way it mirrors a mention — optimistically, on the same `message.new`
+broadcast, never for a message the reader wrote themselves.
+
 ### `message_writes`
 
 | column | type | notes |

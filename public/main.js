@@ -41,7 +41,7 @@ import {
   loadHistory, loadDiff, historyNeedsLoad, keepDiffInView,
 } from './history.js';
 import { loadScores, bestScore, showScore, renderScoreboardTab } from './scoreboard.js';
-import { readMentions, openChat, stickToBottom, sendMessage } from './chats.js';
+import { readChat, openChat, stickToBottom, sendMessage } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor } from './stream.js';
@@ -865,7 +865,7 @@ export async function openProject(slug, { view = null } = {}) {
   S.autoscroll = true;
   // Opening the chat is reading it. Behind another mode it is not on screen,
   // so its marks wait for the pill to be pressed.
-  if (S.mode === 'chat') readMentions();
+  if (S.mode === 'chat') readChat();
   S.palette = null;
   // Off with the last game's dressing before the first paint, like the
   // palette: this game's own arrives with its colours below.

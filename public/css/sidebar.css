@@ -207,6 +207,18 @@
 }
 .chat-tab .called { margin-left: 6px; }
 
+/* Something here is unread, with no @mention to say what: the same voice as
+   .called, a plain dot with nothing to count. */
+.unread {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.chat-tab .unread { margin-left: 6px; }
+
 .tag {
   font-family: var(--mono);
   font-size: 10px;

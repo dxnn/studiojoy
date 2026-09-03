@@ -5,7 +5,7 @@ import { h } from './dom.js';
 import {
   S, render, prefs, api, openProject, SIDE_SEARCH, frozen,
 } from './main.js';
-import { attachAgent, mentionPerson, calledMark } from './chats.js';
+import { attachAgent, mentionPerson, readMark } from './chats.js';
 
 /* Render: sidebar --------------------------------------------------------- */
 
@@ -146,7 +146,7 @@ function gameRows(matches) {
       ? h('img', { class: 'item-icon', src: S.icons.get(p.slug), alt: '' })
       : null,
     h('span', { class: 'iname', text: p.name }),
-    calledMark(p.mentions)),
+    readMark(p)),
   // Somebody else's game says whose: that is the thing you want to know
   // about a game you cannot change.
   h('div', {
@@ -175,7 +175,7 @@ function chatRows(matches) {
         class: 'hname', text: p.name, title: p.name,
         onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
       }),
-      calledMark(p.mentions)));
+      readMark(p)));
   return rows.length ? rows : nothing('No chats yet. Start one with + New chat.');
 }
 

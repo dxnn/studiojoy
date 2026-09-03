@@ -8,15 +8,9 @@ deliberately deferred.
   Achievements are today full editors with delete/toggle controls and no
   compact variant, and achievements aren't even fetched outside Share mode
   (main.js's renderInspector, scoreboard.js, achievements-form.js)
-- move Versions out of Share into a sub-tab under Code, beside Files — Code
-  has no existing sub-tab pattern to reuse, so this means building one, and
-  GLOSSARY.md's `mode`/`view` entries plus three spec.md sections document
-  Versions as part of Share today and would need rewriting alongside it
-- a generic unread flag on a game/chat/conversation pill, not only
-  @mentions — the schema has no per-user "last read" state at all today;
-  `mentions` is the only read-tracking table and it's keyed to being named,
-  not to any message existing, so this wants a new table (e.g.
-  `last_read_message_id` per user per chat) plus route and stream wiring
+- move Versions out of Share into its own top-level chip, kept out of Code
+  for now — GLOSSARY.md's `mode`/`view` entries plus three spec.md sections
+  document Versions as part of Share today and need rewriting alongside it
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
   the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
   description is a database row, so it does not ride the deploy the way the
