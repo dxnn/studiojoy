@@ -24,13 +24,10 @@
   a password on stdin with echo off, and the admin panel does the same thing
   from a browser.
 - ⚠️ Account **removal** is a terminal job and only a terminal job — no route,
-  no button. `npm run deluser -- <email>` sets `users.deleted = 1` and drops
-  their sessions, never a DELETE (§3); `npm run restoreuser -- <email>` puts
-  them back, and with no email it lists who is out. `deluser` refuses the last
-  admin, the same wall the panel keeps against demoting one. The asymmetry is
-  the point: adding somebody is an everyday thing, taking somebody out is not,
-  and a red button beside Save invites a press that a `cd` and a command
-  do not.
+  no button (§3 has why). `npm run deluser -- <email>` sets `users.deleted = 1`
+  and drops their sessions, never a DELETE; `npm run restoreuser -- <email>`
+  puts them back, and with no email it lists who is out. `deluser` refuses the
+  last admin, the same wall the panel keeps against demoting one.
 - A removed account takes the unknown-email path at login: the same 401, the
   same dummy-hash derivation, so the form does not say who was taken out. A
   player account takes it at the *studio* door for the same reason — which

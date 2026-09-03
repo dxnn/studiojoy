@@ -82,11 +82,9 @@ somebody else knew it has to end the somebody else's session too.
 
 ⚠️ **There is no `DELETE /api/admin/users/:id`, and no Remove in the panel.**
 Taking somebody out of the studio is `npm run deluser -- <email>` and nothing
-else, undone with `npm run restoreuser` (§3, §11). Adding an account is an
-everyday thing and belongs here; removing one is rare and costs a terminal on
-purpose. Every route above refuses a person who is already out — the panel
-lists only the people still in the studio, and a `PATCH` naming a removed id
-is a 404.
+else, undone with `npm run restoreuser` (§3, §11 has why). Every route above
+refuses a person who is already out — the panel lists only the people still
+in the studio, and a `PATCH` naming a removed id is a 404.
 
 #### Chats
 
@@ -275,11 +273,10 @@ them, so opening an uploaded picture loses nothing. The tools are in
 sound editor is; the canvas, the pointer and `toBlob` stay in `main.js`. Five
 choices worth naming:
 
-- **There is no look-only view of a picture.** There was, behind a link, and it
-  showed the picture at exactly the same size as the editor did — a control
-  whose only effect was to cost a click. A PNG too big to draw on stays on
-  screen as a picture with the reason underneath, which is the one case where
-  the two differ.
+- **There is no look-only view of a picture** — one would look identical to
+  the editor, so it would cost a click for nothing. A PNG too big to draw on
+  stays on screen as a picture with the reason underneath, which is the one
+  case where the two differ.
 - **The picture comes out of the file, not out of the studio's memory.** Every
   open re-reads the bytes, so a version brought back from history is what gets
   drawn on.
@@ -428,10 +425,7 @@ may not press it: Fork is everybody's; Rename, Editors, the games list and Add
 chat are an editor's; Archive is the *originator*'s, and only while the game
 is out of the games list (§11). Nothing to offer means no `···`. The bar
 itself holds state and nothing else: the padlock, the `archived` tag, and a
-whisper saying whether the game is in the games list. This reverses an
-earlier decision — three buttons at the end of the bar, and a drawer under
-the name before that — for a reason that is no longer local: every thing in
-the studio has one `···` (ideas/calm-shell.md), and the game is a thing.
+whisper saying whether the game is in the games list.
 
 **Every thing has one `···`, on its row, and nothing else that changes it.**
 A scene, a line, a choice, a mood, a file, a version, a helper in a chat, the
@@ -444,8 +438,7 @@ a link on the row (`Show changes`, `All files changed`, a scene's *comes
 from*); what makes a new one stays a bordered button where it lands (`Add a
 file`, `+ Add a scene`). One `Duplicate…` covers the three places a file can
 go — this game, another, or a picture into the *studio collection* — with
-the dialog asking where (formerly a `Copy…` beside it, before that `Copy
-to…` and `Share to studio…`). `more()` in `main.js` is the one
+the dialog asking where. `more()` in `main.js` is the one
 implementation; `S.menu` holds which is open, keyed by the thing, so a
 render keeps it, and a click anywhere else closes it.
 
@@ -602,9 +595,8 @@ the root the same way it routes a strip to `assets/sprites/`. All optional —
 a game without one wears the studio's own look — and person-made like any
 other picture; the preamble names them so a helper asks rather than filing a
 wallpaper where nothing looks. In the studio they sit under a wash of the
-game's `deep` colour, and on the catalog card under a plain dark one — the
-front door wears the studio's own dark now, and no light surface is left
-anywhere. The client holds the open game's
+game's `deep` colour, and on the catalog card under a plain dark one. The
+client holds the open game's
 two, and every game's icon, as object URLs replaced on `files.changed` and
 revoked on replace — the file routes send `no-store`, and a background
 rebuilt by every render would refetch on every keystroke; `has_icon` on the
@@ -674,16 +666,16 @@ and each of the three is a real game's stylesheet:
 | `* { margin: 0 }` | 0-0-0 | the library | a reset is not an opinion about a title screen |
 
 ⚠️ **A cascade layer is the wrong tool here, and worse than doing nothing.**
-`@layer screens` was the first answer and it shipped for four versions. An
-unlayered rule beats a layered one at *any* specificity, and the first line of
-a game's stylesheet is almost always `* { margin: 0; padding: 0 }` — under a
-layer that reset flattened every margin and padding on the screen, the panel
-lost its `margin:auto` and sat squashed against the left edge with no rhythm
-between anything. Bare `:where()` was the second answer and is 0-0-0, which
-then lost the Start button to the game's own `button { … }`. Both were found in
-a browser on asteriskoids; neither was visible in a harness page written
-without a reset, which is the lesson worth keeping — **a styling contract is
-only tested against a stylesheet that did not expect it.**
+`@layer screens` was the first answer. An unlayered rule beats a layered one
+at *any* specificity, and the first line of a game's stylesheet is almost
+always `* { margin: 0; padding: 0 }` — under a layer that reset flattened
+every margin and padding on the screen, the panel lost its `margin:auto` and
+sat squashed against the left edge with no rhythm between anything. Bare
+`:where()` was the second answer and is 0-0-0, which then lost the Start
+button to the game's own `button { … }`. Neither failure was visible in a
+harness page written without a reset, which is the lesson worth keeping —
+**a styling contract is only tested against a stylesheet that did not expect
+it.**
 
 The library's variables are the deliberate exception: they are declared at
 `:where(:root)`, specificity zero, so a game's own `:root` *replaces* a default
@@ -718,9 +710,7 @@ with the four either side, numbered where they really are rather than from 1.
 `Screens.rows()` is a label-and-value list, `Screens.signin()` is who is playing
 or the link to the catalog, and `Screens.me()`/`Screens.post()` are the two
 calls behind them. `title({ score, post: true, board: true })` is the whole
-game-over dance in one line, which is what every game was writing by hand —
-asteriskoids' version is where the bracket rule came from, and where the
-off-by-four it had (a rank of 11 repeated four rows already shown) was fixed.
+game-over dance in one line, which is what every game was writing by hand.
 Signed out, the post answers 401 and the screen offers the sign-in link instead
 of a name box (§6).
 
@@ -780,15 +770,10 @@ writes the files under `studio/`, seeds the game's companions, records the
 versions) in one commit right after `init`. The sweep below is the same
 install pointed at a game that already exists.
 
-**Every game is kept current by the sweep.** An earlier shape of this section
-pinned each game to the version it was born with: the per-library install
-buttons (`+ Controls`, `+ Sounds`, `+ Sprites`) were deleted as ~150 lines
-whose whole subject was games made before the current shape, and updating was
-left to hand-edits over cloned repositories. The stated cost — "a bug fixed
-in `studio/input.js` today reaches only games made after today, until
-somebody sweeps" — came due in practice: the fleet split into generations,
-and a helper asked to use a library its game lacked had no file and no API
-note to find, because the note rides the manifest. `npm run sweep`
+**Every game is kept current by the sweep.** Pinning each game to the version
+it was born with left the fleet split into generations: a helper asked to use
+a library its game lacked had no file and no API note to find, because the
+note rides the manifest. `npm run sweep`
 (`bin/sweep.js`), run on the machine holding the games, closes the gap:
 every non-archived game gets the libraries it lacks and the current version
 of the ones it holds, one readable, revertable commit per game, authored as
@@ -831,12 +816,11 @@ Two rules make it a library rather than a folder, and both are load-bearing:
   to add from in here.
 - **A note closes its surface.** It says its calls are the whole of it, and
   names the things the library deliberately lacks — no init, no unlock, no
-  registry. Observed in a real migration trace: what an agent porting
-  hand-rolled code goes looking for is the equivalents of what it had, and a
-  note that only lists what exists leaves every absence reading as
-  uncertainty — the agent re-read the source "to be safe" despite recalling
-  the note correctly. Stating the negative space is what makes the note
-  authoritative enough not to re-check.
+  registry. An agent porting hand-rolled code goes looking for the
+  equivalents of what it had, and a note that only lists what exists leaves
+  every absence reading as uncertainty rather than a closed question. Stating
+  the negative space is what makes the note authoritative enough not to
+  re-check.
 
 `config/controls.js` is **not** part of the library: it is the game's own
 bindings, seeded once from `public/templates/` and never replaced, because it
@@ -913,12 +897,10 @@ from `index.json`, because the dialog already offers it as the empty choice.
 Read from `publicDir` like every other scaffold, so a `public/` without it
 writes nothing: that is what keeps the suite's games born empty, and what
 leaves "a game with no page" a state still worth testing. It loads every
-library the game holds, the input module included. That one used to be left
-out — a plain page had no *control scheme* because it had nothing to steer,
-and on a phone `input.js` drew a stick and buttons over its two lines — and
-what answers that now is the shape being a choice: the null controller draws
-nothing, and a game whose maker picked an arcade shape wants the two tags
-from its first minute rather than after a helper has noticed.
+library the game holds, the input module included, since a game's *control
+scheme* is a choice made at creation: the null controller draws nothing, and
+a game whose maker picked an arcade shape wants the two tags from its first
+minute rather than after a helper has noticed.
 
 A `BRIEF.md` is committed with the page, from the same directory and copied
 byte for byte (§8, Project documents). Every template ships one; a game made
@@ -1120,7 +1102,7 @@ timeline where it can be dragged. The template's player still plays the old
 key, so a story nobody has re-saved is unchanged — and because a template is
 the game's own code with no sweep behind it, every existing visual novel needs
 its `js/story.js` brought forward by hand or its sound goes quiet on that
-first save. There was one (`bloop-s-quest-two-the-questening`), and it was.
+first save.
 
 On the stage a noise has nothing of its own to show, so `stageFor` keeps the
 words that are still on screen and names the sound beside them. The guide

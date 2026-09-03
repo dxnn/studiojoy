@@ -152,6 +152,6 @@ something git cannot recover.
 - ⚠️ In the story editor a button's click bubbles to the row it was in *after*
   the button has already moved the line and rendered, so a row ignores button
   clicks; fields still select the row in place, because a render would close
-  the select as it opened. And the story on screen stays put while a reload
-  reads the file — nulling it for a fetch let a render write the address
-  without its scene as a new entry, and the reload write it back as another.
+  the select as it opened. A reload keeping the story on screen until the new
+  file lands is the same discipline as above — §6 has the story editor's own
+  case.

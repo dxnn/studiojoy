@@ -113,8 +113,6 @@ magnitude more headroom than the original design assumed. So an agent is given
 the **whole project** by default rather than only the files a human
 remembered to attach. Pinning becomes emphasis, not the sole channel.
 
-The system prompt is, in order:
-
 The system prompt is, in order, **most stable part first** — the ordering is
 what prompt caching pays for (below):
 
@@ -287,12 +285,9 @@ kept in step, and `test/orchestrator.test.js` asserts each one is present:
 Naming a capability is not the same as asking for it to be used, and the
 difference cost a game. Each library's **API note** says what its calls do and
 nothing says a game is *expected* to make them, so an agent reading six notes
-reads six optional conveniences: one on 2026-09-02 read all six and then
-hand-rolled a title screen, a game-over banner, a restart and a controls hint
-onto its canvas, reasoning its way there in the open — *"let me use my own
-lightweight overlay drawing directly on the canvas"* — and the two games in
-`TODO.md` whose own menus sit under the drawn touch controls got there the same
-way. So the notes are followed by the **shape of a game**: the title and
+reads six optional conveniences: one hand-rolled its own title screen,
+game-over banner, restart and controls hint rather than calling any of them.
+So the notes are followed by the **shape of a game**: the title and
 game-over screen are one call with the score as the difference, the HUD strip
 is `Screens.chips`, a frame begins with `Input.update()`, choosing `SCHEME` is
 the game's job, `Moments.say` goes on the line where the thing happens. ⚠️ Each
@@ -305,9 +300,8 @@ Two paragraphs on **method** sit beside the turn budget, and both were paid for
 by the same fire. The preview reports what a game throws back into the next
 turn (below), which an agent had no way to know, so it guessed instead: nothing
 is tested until somebody presses play, and asking them to is part of the job.
-And a design is settled before it is written — that fire spent twenty-odd turns
-patching a file it had written minutes earlier, never read one back, and
-shipped a game with a doubled `function update(dt) {` in it.
+And a design is settled before it is written — the same fire spent many turns
+patching a file it had written minutes earlier without ever reading it back.
 
 One exception is worth stating, because it is easy to get wrong in both
 directions: `.svg` is in the text extensions, so `write_file` and `patch_file`

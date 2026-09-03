@@ -304,9 +304,8 @@ Index `idx_chats_project ON chats (project_id, id)`.
 `UNIQUE (chat_id, agent_id)`. A helper is in a conversation, not in a game: the
 line-up, the chatty switch, the cooldown and the dirty bit are all per chat,
 because every one of them is about one conversation. Hard delete on detach —
-nothing references these rows (cooldown state is disposable), so `new-y`'s
-soft-delete dance
-isn't needed here.
+nothing references these rows (cooldown state is disposable), so no
+soft-delete dance is needed here.
 
 ### `messages`
 
@@ -328,8 +327,8 @@ A normal message has exactly one set. A `'system'` banner has `user_id` NULL
 and `agent_id` set to the agent it concerns (or NULL for project-level
 banners); clients render it centred with no author pill.
 
-`new-y`'s `sender_participant_id` indirection is gone: humans have no
-per-project participant row, so messages point straight at `users` / `agents`.
+There is no per-project participant indirection: humans have no per-project
+participant row, so messages point straight at `users` / `agents`.
 
 A **reasoning trace** is never stored here. See §8.
 
@@ -367,7 +366,7 @@ turn. Drives the context chips in the UI and the pin rules in §8.
 
 PK `(message_id, user_id, emoji)` — the key is the toggle: adding the same
 emoji twice is a conflict, so taking one back is a DELETE and nothing ever
-counts double (the pattern proved in `new-y`). Index on `message_id`.
+counts double. Index on `message_id`.
 
 `messagePublic` embeds the grouped result on every message as
 `reactions: [{emoji, users: [{id, name}]}]` — ids for the "is this yours"
@@ -551,18 +550,17 @@ side by side later (TODO.md).
 | `created_at` | TEXT NOT NULL | when they first earned it |
 
 What a player has earned in a game, posted by the *achievements library* from
-inside the running game and served back by the games origin (§6). Like the
-scoreboard it lives here rather than in the working tree — an earned row is not
-a commit, so it spams nothing and never enters an agent's context. Unlike a
-score it is the same kind of thing as a *personal best*: `INSERT OR IGNORE` on
-the composite key, so earning one twice is a no-op, and ⚠️ **permanent** — no
-route deletes a row, no button, no per-row ✕ like the scoreboard has. The
-definitions are **not** here: they are the game's own `config/achievements.js`,
-read from the working tree per request (§6), so removing one from the file
-leaves the rows and simply shows them nowhere until the id comes back. Renaming
-an id orphans everybody's, which is why the *achievements editor* derives an id
-from the name once and never lets it change. `VACUUM INTO` backs it up with the
-chats and accounts; git cannot recover it. `npm run deluser --scores` should
+inside the running game and served back by the games origin (§6). Like
+`scores`, it lives here rather than in the working tree, for the same reason
+(above). Unlike a score it is the same kind of thing as a *personal best*:
+`INSERT OR IGNORE` on the composite key, so earning one twice is a no-op, and
+⚠️ **permanent** — no route deletes a row, no button, no per-row ✕ like the
+scoreboard has. The definitions are **not** here: they are the game's own
+`config/achievements.js`, read from the working tree per request (§6), so
+removing one from the file leaves the rows and simply shows them nowhere
+until the id comes back. Renaming an id orphans everybody's, which is why the
+*achievements editor* derives an id from the name once and never lets it
+change. Backed up the same way as `scores`; `npm run deluser --scores` should
 take these with it when it is built (TODO.md).
 
 ⚠️ Forgeable exactly as a *score* is: the rule was met in the browser, which is
@@ -629,8 +627,6 @@ One studio-wide daily budget rather than `new-y`'s per-user accounting —
 agents aren't owned by anyone, and the purpose here is narrower: stop a
 runaway tool loop from draining the API key.
 
-`default_agent_id` was the **starter helper**: an admin-picked row that joined
-every new game's `Building` chat so a new game was somewhere you could ask for
-something. The *builder* is that now, for every game and by construction
-(`chats`, §8), so the setting left Studio settings and the routes; the column
-stays so a rollback lands on its feet, the way `agents.reasoning` did.
+The *builder* fills that role now, for every game and by construction
+(`chats`, §8); the column stays only so a rollback lands on its feet, the way
+`agents.reasoning` did.
