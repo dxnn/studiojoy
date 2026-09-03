@@ -3,11 +3,6 @@
 v0 is built and green. `spec.md` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- add a compact, read-only scores+achievements strip under the rail's
-  preview so it shows in every mode, not just Share — Scoreboard and
-  Achievements are today full editors with delete/toggle controls and no
-  compact variant, and achievements aren't even fetched outside Share mode
-  (main.js's renderInspector, scoreboard.js, achievements-form.js)
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
   the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
   description is a database row, so it does not ride the deploy the way the

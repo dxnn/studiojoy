@@ -1283,6 +1283,12 @@ called. Its fields keep the ids the focus snapshot knows (§17), so the caret
 survives a render there the way it does in the centre. A file has none: its
 bar in the centre already says what it is.
 
+**With nothing more specific selected, the inspector falls back to the
+game's own achievements** — an icon per one defined in `config/achievements.js`,
+dimmed until a player holds it, read-only. Clicking one, or the label above
+them, opens Share, where the real editor lives — a summary is not where you
+go to change one. Empty when the game defines none yet.
+
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 **Chat**, then the type's editors (**Write** for a visual novel), then

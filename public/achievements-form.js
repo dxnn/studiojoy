@@ -176,7 +176,11 @@ function paintCounts(slug) {
   for (const [id, node] of countNodes) node.textContent = countText(have.players.get(id) ?? 0);
 }
 
-async function loadCounts(slug) {
+// The rail's default summary reads the same counts, snapshotted at game-open
+// rather than repainted live — a glance, not the editor.
+export const countsFor = (slug) => counts.get(slug)?.players;
+
+export async function loadCounts(slug) {
   const have = counts.get(slug);
   if (have && Date.now() - have.at < COUNTS_FRESH_MS) return;
   counts.set(slug, { players: have?.players ?? new Map(), at: Date.now() });

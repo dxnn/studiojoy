@@ -16,7 +16,7 @@ import { h } from './dom.js';
 import { isFileDrag } from './upload.js';
 import { QUIZ_FILE } from './quiz-editor.js';
 import {
-  loadAchievements, parkAchievements, renderAchievementsTab,
+  loadAchievements, parkAchievements, renderAchievementsTab, loadCounts, countsFor,
 } from './achievements-form.js';
 import { renderControlsEditor } from './controls-form.js';
 import {
@@ -885,6 +885,10 @@ export async function openProject(slug, { view = null } = {}) {
   // picture is opened.
   if (!isChat()) {
     await loadScores();
+    // The rail's default summary wants a count of what each achievement holds
+    // too, so both are fetched with the game the same way the best score is.
+    if (!S.achievements || S.achievements.grown) await loadAchievements();
+    await loadCounts(slug);
     await loadPalette();
     await loadReservedImages();
     // And the story, when this game has the editor for it — before applyView,
@@ -1104,10 +1108,30 @@ function renderRail() {
 
 // The selected thing's fields, for the mode that has one: the story editor's
 // scene, person or title screen; Pics' picture or person; Hear's open sound.
+// Nothing more specific selected, and the rail falls back to the game's own
+// achievements — read-only, the real editor one click away under Share.
 function renderInspector() {
   if (editorShowing()?.id === 'story') return renderStoryInspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
-  return null;
+  return renderAchievementsSummary();
+}
+
+function renderAchievementsSummary() {
+  if (!S.achievements || S.achievements.grown) return null;
+  const { entries } = S.achievements.model;
+  if (entries.length === 0) return null;
+  const counts = countsFor(S.slug);
+  const open = () => openMode('share');
+  return h('div', { class: 'pad rail-achievements' },
+    h('button', { class: 'link tiny', text: 'Achievements', onclick: open }),
+    h('div', { class: 'rail-ach-row' }, entries.map((a) => {
+      const held = counts?.get(a.id) ?? 0;
+      return h('span', {
+        class: `rail-ach${held ? ' got' : ''}`,
+        title: `${a.name || '(no name yet)'} — ${held ? `${held} player${held === 1 ? '' : 's'}` : 'nobody yet'}`,
+        onclick: open,
+      }, a.icon || '🏆');
+    })));
 }
 
 // The centre's body for every mode but the chat, whose thread and composer

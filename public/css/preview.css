@@ -90,3 +90,23 @@
   border-radius: 6px;
 }
 .preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
+
+/* The rail's default when nothing more specific is selected: the game's own
+   achievements, read-only — icons only, dimmed until somebody holds them, a
+   title for the rest. The real editor is one click away, under Share. */
+.rail-achievements > button.link { display: block; margin-bottom: 6px; }
+.rail-ach-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rail-ach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 14px;
+  background: var(--panel-3);
+  border: 1px solid var(--border-soft);
+  opacity: 0.45;
+  cursor: pointer;
+}
+.rail-ach.got { opacity: 1; border-color: color-mix(in oklab, var(--look-primary) 55%, transparent); }
