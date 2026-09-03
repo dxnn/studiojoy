@@ -198,12 +198,12 @@ test('a database from before chats comes forward with its history', (t) => {
 
   // The game with a history gets three: the human-only one it now opens on;
   // the room the conversation was in, which had a helper of its own in it and
-  // so keeps it under `Building with helpers`; and a fresh Building for the
-  // builder (server/builder.js, intoBuilderRooms).
+  // so keeps it under `Old building`; and a fresh Building for the builder
+  // (server/builder.js, intoBuilderRooms).
   const old = chats.filter((c) => c.project_id === 1);
   assert.deepEqual(
     old.map((c) => [c.name, c.bots, c.builder]),
-    [['Humans only', 0, 0], ['Building with helpers', 1, 0], ['Building', 1, 1]],
+    [['Humans only', 0, 0], ['Old building', 1, 0], ['Building', 1, 1]],
   );
   const building = old[1];
 

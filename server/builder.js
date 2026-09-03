@@ -14,7 +14,7 @@ export const BUILDER_CHAT = 'Building';
 // What an existing game's Building becomes when it had helpers in it: the room
 // and its words are kept under a name that says what it now is, and a fresh
 // Building is made for the builder (intoBuilderRooms).
-export const CARRIED_BUILDING = 'Building with helpers';
+export const CARRIED_BUILDING = 'Old building';
 
 // Item 3 of the system prompt, after the preamble and the brief. The preamble
 // says what the studio is and BRIEF.md what this game is, so this says only
@@ -91,9 +91,9 @@ export function makeBuilderRoom(db, projectId, userId, now = new Date().toISOStr
 // Every game gets the builder's room, an upgraded database included. A game's
 // first room that takes helpers is its Building: empty, it becomes the
 // builder's in place; with helpers in it, it keeps them and its words under
-// `Building with helpers`, and a fresh Building is made beside it. A room the
-// people renamed is theirs and is left alone. Nothing runs twice: a game with
-// a builder room is skipped.
+// `Old building`, and a fresh Building is made beside it. A room the people
+// renamed is theirs and is left alone. Nothing runs twice: a game with a
+// builder room is skipped.
 export function intoBuilderRooms(db, now = new Date().toISOString()) {
   const builder = ensureBuilder(db, now);
   if (!builder) return;
