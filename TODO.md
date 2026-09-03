@@ -115,6 +115,14 @@ deliberately deferred.
   four assertions each. ⚠️ Two of the four rules still have nothing checking
   them: every `.scroll` has a `data-scroll` name, and an `onclick` that opens
   something returns its promise (callable, so assertable)
+- keep style.css honest on its own: a rule for a class nothing renders any
+  more. ⚠️ Two ways to get this wrong, both met on 2026-09-03: a substring
+  match hides a dead class behind a live *id* (`story-choice` inside
+  `story-choice-0`, so nine rules read as seven), and splitting `class:`
+  template literals naively calls a composed name dead (`tok-${cls}`,
+  `ctl-shape${' manner'}` — 6 of 13, then 47 hits of which most were noise).
+  A test that cries wolf gets ignored, so it wants the `${…}` handling right
+  before it goes in
 - `npm run ui`: the Playwright checks that a DOM stand-in cannot do — layout
   at 390px and 1280px, computed colour, a real pointer sliding between drawn
   buttons. Outside `npm test`, because playwright is a browser and the

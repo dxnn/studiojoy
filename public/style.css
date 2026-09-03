@@ -1630,53 +1630,6 @@ select.ctl-add { font-size: 12px; padding: 3px 6px; max-width: 14rem; }
 .ach-when { flex-wrap: wrap; }
 .ach-when .cfg-text { flex: 0 1 9rem; }
 .ach-when select { max-width: 12rem; }
-/* The story editor: a row per scene, and the open one grows in place. Same
-   card as a quiz question, because they are the same kind of thing — a piece
-   of the game rather than a field of it. */
-.story-scene {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: oklch(0.22 0.05 295 / 0.5);
-  padding: 9px 11px;
-  margin: 8px 0;
-  display: grid;
-  gap: 6px;
-}
-.story-scene.on { border-color: color-mix(in oklab, var(--look-primary) 65%, transparent); }
-.story-scene .row { flex-wrap: nowrap; }
-.story-scene .cfg-text { flex: 1; min-width: 4rem; }
-/* The whole row opens the scene, so the whole row lights up. */
-.story-scene-row { cursor: pointer; margin: -9px -11px; padding: 9px 11px; border-radius: var(--radius); }
-.story-scene-row:hover { background: color-mix(in oklab, var(--look-primary) 14%, transparent); }
-.story-first {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-.story-open { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
-.story-line, .story-choice { padding-left: 16px; }
-.story-line select, .story-choice select { max-width: 9rem; }
-/* A choice is two lines: the words, then where they lead. Its second line
-   wraps, because five controls do not fit a narrow rail and a wrapped row is
-   readable where a squeezed one is not. */
-.story-choice { display: grid; gap: 3px; margin: 4px 0; }
-.story-wiring { flex-wrap: wrap; padding-left: 8px; }
-.story-wiring .cfg-text { flex: 0 1 8rem; min-width: 4rem; }
-.story-wiring .hint { white-space: nowrap; }
-.story-moods { flex-wrap: wrap; }
-.story-mood {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 4px 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 12.5px;
-}
 /* Something to look at, not something broken: a story with a scene nothing
    leads to still runs. Crimson is danger and this is not that. */
 .hint.warn { color: var(--accent); }
