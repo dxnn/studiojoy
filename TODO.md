@@ -23,8 +23,18 @@ deliberately deferred.
   (ideas/point-and-click.md)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
-- the file editors out of the rail into the centre pane as tabs, the way the
-  story editor already is — try the smaller step first (ideas/editors-in-the-centre.md)
+- ! land lazy commits: a write reaches the tree at once and history on idle,
+  on leaving, and always before a fire or a history read — calm shell step 1
+  (ideas/calm-shell.md)
+- ! build the mode row and take the tabs out of the rail: Chat as a mode, the
+  game's ··· with Archive behind a confirmation, `npm run unarchive` and no
+  Reopen — calm shell step 2 (ideas/calm-shell.md)
+- put a ··· on every thing and the selected thing's fields in the rail, with
+  one Copy… whose dialog asks where, and the shelf as a dialog — calm shell
+  step 3 (ideas/calm-shell.md)
+- show Pics and Hear by kind, Characters and Places for a visual novel, and
+  open the file editors in the centre — calm shell step 4 (ideas/calm-shell.md,
+  which absorbs ideas/editors-in-the-centre.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The last of ideas/vn-builder.md's step 1
   — the type, the guide, the fill and both stand-ins are built and green,
