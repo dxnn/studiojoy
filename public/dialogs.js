@@ -1007,18 +1007,15 @@ export function dialogFor(d) {
   if (d.kind === 'fork') {
     const name = h('input');
     name.value = `${S.project.name} copy`;
-    const slug = h('input', { placeholder: 'leave empty to pick one for you' });
     const err = h('p', { class: 'error' });
     return wrap('Fork this game',
       h('p', { text: 'The new game starts with all the same files and helpers. The chat starts fresh.' }),
       h('label', { text: 'What is the fork called?' }), name,
-      h('label', { text: 'Web address' }), slug,
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Fork it',
         onclick: async () => {
           const body = { name: name.value.trim() };
-          if (slug.value.trim()) body.slug = slug.value.trim();
           const res = await api('POST', `/api/projects/${S.slug}/fork`, body);
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not copy that.'; return; }
           close();
