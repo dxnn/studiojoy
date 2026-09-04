@@ -66,9 +66,15 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! deploy input v6 / screens v12: npm run sweep on the studio machine, then
+- ! deploy input v6 / screens v13: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
-  were never checkable headless)
+  were never checkable headless). ⚠️ asteriskoids and vroooooooom already hold
+  screens 13 by hand — their code calls `Screens.fit`, so the library had to
+  ride the same commit; the sweep will find them level and skip them
+- move the other games onto `Screens.fit`: every canvas game still sizes
+  itself, and the two that sized themselves on width alone both came off the
+  bottom of a phone held sideways. One line each, and a `#wrap` width rule to
+  delete — but each one wants eyes at 393×659 and 852×393 before it goes
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
   in its code, so a rename in a form is a silent code break. It wants either a

@@ -692,6 +692,14 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   assert.match(system, /Screens\.title\(\{ score, post: true,/);
   assert.match(system, /there is no\n\s+Screens\.close/, 'the one call it invents');
   assert.match(system, /Screens\.chips\(\{ Score: 12, Lives: 3 \}\)/);
+  // How big the game is on the screen is the studio's answer too. Left to the
+  // game it was written as width alone twice, and both came off the bottom of
+  // a phone held sideways.
+  assert.match(system, /Screens\.fit\(el\)/);
+  assert.match(system, /not width css of your own/);
+  // A meter and a node of the game's own are what a hand-rolled HUD was for.
+  assert.match(system, /A bar is a chip too/);
+  assert.match(system, /a node of\n\s+your own as a value/);
   assert.match(system, /Every frame begins with Input\.update\(\)/);
   assert.match(system, /SCHEME says what a touchscreen gets/, 'and where the shape is declared');
   // Picking it is the person's, since New game asks and the choice can be

@@ -141,8 +141,14 @@ function shapeLines(held) {
     '  Screens.close. Do not draw a title, a game-over banner or a play-again prompt of your own: those',
     '  three are the ones most often rebuilt by hand, and a hand-rolled one sits under the drawn touch',
     '  controls instead of stepping aside for them.',
+    '- How big the game is on the screen is Screens.fit(el), called once at boot with the canvas or the',
+    '  box holding it — not width css of your own, which is the thing fit overrules. A game sized on the',
+    '  window\'s width alone comes off the bottom of a phone held sideways, and every game here that was',
+    '  written that way did.',
     '- The numbers on screen while it runs are Screens.chips({ Score: 12, Lives: 3 }), a whole strip per',
-    '  call and cheap to call every frame — not text the game draws for itself.',
+    '  call and cheap to call every frame — not text the game draws for itself. A bar is a chip too:',
+    '  { Risk: { value: 43, max: 100, text: "43/100" } } draws a meter beside the number, and a node of',
+    '  your own as a value puts anything else in the row, so there is no reason to build a HUD by hand.',
   );
   if (held.has('input')) out.push(
     '- Every frame begins with Input.update(), before anything reads it, and the game asks Input.held,',
@@ -378,10 +384,13 @@ function pinnedPaths(db, chatId) {
 // source. Read from the game's own copy under studio/, not from the studio's
 // current one, so the note always matches the version this game holds. Capped
 // so a note stays a note — raised from 2 KB when the input header grew the
-// buttons shape and toggles, which were worth the bytes. Exported because a
-// note that outgrows it is cut in silence: the suite holds every library's
-// header against this number.
-export const NOTE_BYTES = 3072;
+// buttons shape and toggles, and from 3 KB when screens grew fit(), the meter
+// and a chip a game fills itself. Both times the alternative was deleting a
+// documented call to make room for a new one, which buys nothing: the note is
+// the only place a helper learns the call exists. Exported because a note that
+// outgrows it is cut in silence: the suite holds every library's header
+// against this number.
+export const NOTE_BYTES = 4096;
 
 function libraryNote(buffer) {
   const lines = [];

@@ -36,8 +36,39 @@ display-only overlay. `+ Draw a picture` offers the frame count that makes a
 strip.
 
 The **screens library** (`studio/screens.js`) is the fourth, and the first
-presentational one: `Screens.hint()`, the phone-fit `Screens.title()`, and
-the `Screens.chips()` HUD strip. Three decisions worth stating.
+presentational one: `Screens.fit()`, `Screens.hint()`, the phone-fit
+`Screens.title()`, and the `Screens.chips()` HUD strip. Five decisions worth
+stating.
+
+**How big the game is on the screen is the studio's answer, not the game's.**
+`Screens.fit(el)` takes the game's shape from its canvas's `width`/`height`
+attributes and gives it the smallest of three widths: what it is worth at
+most, what the window is wide, and what the window's *height* can pay for at
+that shape. Left to each game it was written as width alone — twice, in the
+two games that had one — and a fixed 8:5 rectangle at 96vw of an 852pt window
+is 818 across and so 512 tall, in 393pt of height: the top and bottom of the
+game off the screen on a phone held sideways. ⚠️ It writes the size **inline**,
+the one place the library overrules a game rather than yielding to it, because
+the rule it replaces is normally `#wrap { width: … }` and no rule this file can
+write beats an id. A game that wants a different answer does not call it.
+⚠️ The height term is `100dvh` with a `100vh` line before it: on iOS `100vh`
+is the window with the toolbars *gone*, which the browser only honours once
+you scroll, and a game never scrolls. The older line survives in a browser
+that cannot parse `dvh`, because the CSSOM drops a value it cannot read
+rather than throwing.
+
+**The HUD goes in the letterbox band above the game when there is one.** Once
+`fit()` has said where the game is, `chips()` places the row against it —
+above it when the band can hold the row, over the top of the game when it
+cannot, which is the desktop case. A chip's value may be a number, a **meter**
+(`{ value, max, text }`, a bar beside the number), or a node the game built
+itself, which the strip places once and never touches again; the key is both
+the label and, by its place in the object, the chip's place in the row.
+⚠️ Placement measures the row, so it must never run in the per-frame path: it
+runs when the row gains or loses a chip, when the window or the game moves,
+and when a `ResizeObserver` on the row itself reports it can be measured
+again — the case a screen closing creates, which the library cannot otherwise
+hear about when the screen is the game's own.
 
 **Every injected rule weighs exactly one element selector.** `injectStyle()`
 appends a `<style>` after the game's own `<link>`, so at equal specificity
@@ -66,7 +97,11 @@ names carry the colour; the shapes — halftone dots, a hairline, a panel
 card, a glowing pill button, tabular-figure numbers — are the studio's own,
 a fallback rather than white-on-black since most games haven't picked
 colours yet. ⚠️ Gold is policed here as everywhere: the game-over score, a
-board score, a chip value, nothing else.
+board score, a chip value that is a number, a meter's fill, nothing else. A
+chip's value is not always a number — `Guns · Cannon` in gold is the colour
+losing its meaning — so a value with no digit in it takes the reading face and
+the reading ink instead. Every chip in the fleet the day that rule landed had
+a digit in it, so it changed nothing anybody could see.
 
 **It carries its own typefaces.** Space Grotesk and Space Mono (OFL 1.1,
 `studio/fonts-license.txt`), four `.woff2` files beside the library — ~60 KB,

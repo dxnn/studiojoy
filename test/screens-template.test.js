@@ -35,6 +35,10 @@ function fakeDom() {
   function element(tag) {
     const node = {
       tag,
+      // What the library asks an element for when it is deciding whether
+      // something handed to it is a node at all, and what kind.
+      nodeType: 1,
+      tagName: tag.toUpperCase(),
       className: '',
       textContent: '',
       children: [],
@@ -43,8 +47,31 @@ function fakeDom() {
       style: { setProperty: (k, v) => { node.styleProps[k] = v; } },
       handlers: new Map(),
       focused: false,
+      // Nothing here lays anything out. A test that cares where something
+      // landed says where the game is — rect and offsetHeight are given, not
+      // measured — and then asks what the library did with that.
+      attrs: {},
+      rect: { top: 0, left: 0, width: 0, height: 0 },
+      offsetHeight: 0,
+      setAttribute(name, value) { node.attrs[name] = String(value); },
+      getAttribute(name) { return name in node.attrs ? node.attrs[name] : null; },
+      getBoundingClientRect() { return node.rect; },
+      querySelector(sel) {
+        for (const kid of node.children) {
+          if (kid.tag === sel) return kid;
+          const deeper = kid.querySelector ? kid.querySelector(sel) : null;
+          if (deeper) return deeper;
+        }
+        return null;
+      },
       append(...kids) {
-        for (const kid of kids) { kid.parent = node; node.children.push(kid); }
+        // Appending a node that is already somewhere *moves* it, which is how
+        // a real one behaves and how the chips row keeps the hint last.
+        for (const kid of kids) {
+          if (kid.parent) kid.remove();
+          kid.parent = node;
+          node.children.push(kid);
+        }
       },
       remove() {
         if (!node.parent) return;
@@ -68,8 +95,10 @@ function fakeDom() {
   return {
     title: 'Page Title',
     head: element('head'),
+    documentElement: element('html'),
     body,
     createElement: element,
+    querySelector(sel) { return body.querySelector(sel); },
   };
 }
 
@@ -113,6 +142,16 @@ const madeUpScores = (n) => Array.from(
 const settle = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 
 // Depth-first, so "the .screens-name" is one line in a test.
+// A node wearing a class among others, where find() wants the whole attribute.
+function withClass(node, className) {
+  for (const kid of node.children) {
+    if (String(kid.className).split(' ').includes(className)) return kid;
+    const deeper = withClass(kid, className);
+    if (deeper) return deeper;
+  }
+  return null;
+}
+
 function find(node, className) {
   for (const kid of node.children) {
     if (kid.className === className) return kid;
@@ -151,6 +190,14 @@ function bootDom(opts = {}) {
     navigator: { getGamepads: () => (opts.pads || []) },
     matchMedia: (q) => ({ matches: !!opts.coarse && q === '(pointer: coarse)' }),
     console,
+    // The page's own padding, which fit() measures rather than assumes.
+    getComputedStyle: () => ({
+      paddingTop: opts.pad || '0px',
+      paddingBottom: opts.pad || '0px',
+      marginTop: '0px',
+      marginBottom: '0px',
+    }),
+    innerWidth: opts.innerWidth || 1440,
     document: fakeDom(),
     location: { pathname: opts.pathname || '/asteriskoids/' },
     Event: function Event(type) { this.type = type; },
@@ -458,6 +505,140 @@ test('each chips() call says the whole strip', () => {
   assert.equal(document.body.children.length, 0, 'chips({}) clears the strip');
   Screens.chips({ Score: 9 });
   assert.equal(document.body.children.length, 1, 'and it comes back on the next call');
+});
+
+// How big the game is on the screen. The arithmetic is CSS and the browser
+// does it; what is checked here is that the right sum is written, on the right
+// element, from the canvas's own shape — and ⚠️ that the vh line goes in
+// before the dvh one, since a browser too old for dvh drops the second and
+// keeps the first.
+test('fit() sizes the game by the window\'s height as well as its width', () => {
+  const { Screens, document } = bootDom({ pad: '12px' });
+  const wrap = document.createElement('div');
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('width', 960);
+  canvas.setAttribute('height', 600);
+  wrap.append(canvas);
+  document.body.append(wrap);
+  wrap.rect = { top: 12, left: 175, width: 590, height: 369 };
+
+  const written = [];
+  wrap.style.setProperty = (k, v) => { written.push([k, v]); wrap.styleProps[k] = v; };
+  Screens.fit(wrap);
+
+  assert.deepEqual(written.map(([k]) => k), ['width', 'width'], 'one line, then its better half');
+  assert.match(written[0][1], /min\(960px, 100%, \(100vh - 24px\) \* 1\.6\)/);
+  assert.match(written[1][1], /min\(960px, 100%, \(100dvh - 24px\) \* 1\.6\)/);
+});
+
+test('fit() publishes where the game landed, for anything drawn over it', () => {
+  const { Screens, document } = bootDom({});
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('width', 800);
+  canvas.setAttribute('height', 400);
+  document.body.append(canvas);
+  canvas.rect = { top: 40, left: 20, width: 760, height: 380 };
+  Screens.fit();
+  assert.equal(document.documentElement.styleProps['--screens-fit-top'], '40px');
+  assert.equal(document.documentElement.styleProps['--screens-fit-left'], '20px');
+  assert.equal(document.documentElement.styleProps['--screens-fit-width'], '760px');
+  assert.equal(document.documentElement.styleProps['--screens-fit-height'], '380px');
+  // Nothing to size a game by is not an error, it is a game that keeps its
+  // own css: no canvas, no attributes, nothing written.
+  const bare = bootDom({});
+  assert.equal(bare.Screens.fit(), null);
+});
+
+// Where the HUD goes once fit() has said where the game is: in the letterbox
+// band above it when the band can hold the row, over the top of the game when
+// it cannot — which is the desktop case, where the game has the window.
+test('the chips row sits in the band above the game when there is one', () => {
+  const { Screens, document } = bootDom({});
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('width', 960);
+  canvas.setAttribute('height', 600);
+  document.body.append(canvas);
+  canvas.rect = { top: 220, left: 12, width: 369, height: 231 };
+  Screens.fit(canvas);
+  Screens.chips({ Score: 1 });
+  const root = find(document.body, 'screens-chips');
+  root.offsetHeight = 20;
+  Screens.chips({ Score: 1, Lives: 3 }); // a chip arriving is what re-places the row
+  assert.equal(root.styleProps.left, '12px');
+  assert.equal(root.styleProps.width, '369px');
+  assert.equal(root.styleProps.top, '192px', '20 tall, 8 clear of a game at 220');
+
+  // The same game with the window's height: no band, so the row goes over it.
+  canvas.rect = { top: 12, left: 240, width: 960, height: 600 };
+  Screens.fit(canvas);
+  assert.equal(root.styleProps.top, '20px', 'over the top of the game, not above it');
+});
+
+test('a chip can be a meter, and the fill only moves when the number does', () => {
+  const { Screens, document } = bootDom({});
+  Screens.chips({ Risk: { value: 43, max: 100, text: '43/100 ×1.4' } });
+  const chip = find(document.body, 'screens-chip');
+  assert.equal(find(chip, 'screens-chip-label').textContent, 'Risk');
+  assert.equal(find(chip, 'screens-chip-value').textContent, '43/100 ×1.4');
+  const fill = find(chip, 'screens-chip-fill');
+  assert.equal(fill.style.width, '43.0%');
+  Screens.chips({ Risk: { value: 43, max: 100, text: '43/100 ×1.4' } });
+  assert.equal(find(document.body, 'screens-chips').children.length, 1, 'not rebuilt');
+  Screens.chips({ Risk: { value: 200, max: 100, text: 'over' } });
+  assert.equal(fill.style.width, '100.0%', 'past the top is the top');
+  Screens.chips({ Risk: { value: -5, max: 100, text: 'under' } });
+  assert.equal(fill.style.width, '0.0%');
+  // Text where a number was expected, and a max of nothing: quiet, not broken.
+  Screens.chips({ Risk: { value: 1, max: 0 } });
+  assert.equal(fill.style.width, '100.0%');
+});
+
+// ⚠️ The highlight is a number's colour and nothing else. A chip's value is
+// not always a number — a weapon name in gold is the colour losing its
+// meaning — so a value with no digit in it wears the reading ink instead.
+test('only a number in a chip is gold', () => {
+  const { Screens, document } = bootDom({});
+  Screens.chips({ Score: 1204, Guns: 'Cannon', Risk: { value: 1, max: 2, text: '1/2' } });
+  const row = find(document.body, 'screens-chips');
+  const valueOf = (chip) => chip.children[1].className;
+  assert.equal(valueOf(row.children[0]), 'screens-chip-value', 'a number is');
+  assert.equal(valueOf(row.children[1]), 'screens-chip-value screens-chip-words', 'a word is not');
+  assert.equal(valueOf(row.children[2]), 'screens-chip-value', 'and a meter is');
+  Screens.chips({ Score: 1204, Guns: 'Cannon x2', Risk: { value: 1, max: 2, text: '1/2' } });
+  assert.equal(valueOf(row.children[1]), 'screens-chip-value', 'a count in it makes it one');
+});
+
+test('a chip holds a node the game made, in the place its key sits', () => {
+  const { Screens, document } = bootDom({});
+  const own = document.createElement('div');
+  own.className = 'my-own-thing';
+  Screens.chips({ Score: 1, Fuel: own, Lives: 3 });
+  const root = find(document.body, 'screens-chips');
+  assert.equal(root.children.length, 3);
+  assert.equal(root.children[1].children[1], own, 'after its label, second in the row');
+  own.textContent = 'the game changed this';
+  Screens.chips({ Score: 2, Fuel: own, Lives: 3 });
+  assert.equal(own.textContent, 'the game changed this', 'never touched again');
+  assert.equal(root.children[1].children[1], own, 'and never replaced');
+});
+
+test('{ hint: true } ends the row, and stands down when the game is narrow', () => {
+  const wide = bootDom({ controls: SEED });
+  wide.Screens.chips({ Score: 1 }, { hint: true });
+  const row = find(wide.document.body, 'screens-chips');
+  const hint = row.children[row.children.length - 1];
+  assert.equal(hint.className, 'screens-chip screens-chip-hint');
+  assert.ok(hint.textContent.length > 0, 'the how-to-play line itself');
+  assert.equal(hint.style.display, '', 'a 1440 window has room for it');
+  wide.Screens.chips({ Score: 2, Combo: 'x3' }, { hint: true });
+  assert.equal(row.children[row.children.length - 1], hint, 'still last');
+  wide.Screens.chips({ Score: 3 });
+  assert.equal(withClass(row, 'screens-chip-hint'), null, 'and gone when not asked for');
+
+  const narrow = bootDom({ controls: SEED, innerWidth: 393 });
+  narrow.Screens.chips({ Score: 1 }, { hint: true });
+  const small = withClass(narrow.document.body, 'screens-chip-hint');
+  assert.equal(small.style.display, 'none', 'no room on a phone');
 });
 
 test('chips wear the look, and without a document stay quiet', () => {

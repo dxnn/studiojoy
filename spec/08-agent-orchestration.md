@@ -320,10 +320,12 @@ but nothing says a game is *expected* to make them, so an agent reading six
 notes reads six optional conveniences — one hand-rolled its own title
 screen, game-over banner, restart and controls hint rather than calling any
 of them. So the notes are followed by the **shape of a game**: the title and
-game-over screen are one call with the score as the difference, the HUD
-strip is `Screens.chips`, a frame begins with `Input.update()`, choosing
-`SCHEME` is the game's job, `Moments.say` goes on the line where the thing
-happens. ⚠️ Each line is gated on the manifest exactly as the notes are — a
+game-over screen are one call with the score as the difference, how big the
+game is on the screen is `Screens.fit` rather than width css of the game's
+own, the HUD strip is `Screens.chips` — meters and the game's own nodes
+included, so nothing about a HUD is left worth hand-rolling — a frame begins
+with `Input.update()`, choosing `SCHEME` is the game's job, `Moments.say` goes
+on the line where the thing happens. ⚠️ Each line is gated on the manifest exactly as the notes are — a
 game without `screens.js` is told nothing about `Screens`, since a call into
 nothing is worse than silence — and `test/orchestrator.test.js` asserts both
 the presence and the gating.

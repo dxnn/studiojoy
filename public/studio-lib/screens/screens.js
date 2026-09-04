@@ -1,34 +1,45 @@
-// The words around the game: a how-to-play hint, the title and game-over
-// screen, the HUD strip, and snippets to go inside them — the scoreboard
-// above all.
+// The furniture around the game: how big it is on the screen, a how-to-play
+// hint, the title and game-over screen, the HUD strip, and snippets to go
+// inside them — the scoreboard above all.
+//
+//   Screens.fit(document.getElementById("wrap"));  // once, at boot
+//
+// fit() gives the game as much of the window as its shape allows, taking that
+// shape from the canvas's own width/height. ⚠️ Sizing on the window's width
+// alone is what takes a game off the bottom of a sideways phone, so delete any
+// width/height css of your own on that element: fit writes over it. Pass the
+// box the game lives in — the canvas, or whatever holds it and its overlays.
+// { max, width, height } override the cap and the shape; it sets
+// --screens-fit-top/-left/-width/-height on :root for your own css.
 //
 //   ctx.fillText(Screens.hint(), x, y);  // "Arrows / WASD to move · Space to fire"
 //
-// hint() is worked out from config/controls.js and the device, so it is never
-// wrong: a keyboard gets player1's keys, a touchscreen the shape SCHEME draws
-// and nothing that is not on it, a plugged-in controller is folded in. The
-// doing-words are the binding names; start is left out, and so is any verb in
-// HIDDEN in that file — the ones that make the game rather than play it.
-// WORDS.howToPlay replaces the line verbatim.
+// hint() is read off config/controls.js and the device, so it is never wrong:
+// player1's keys, or the shape SCHEME draws and nothing that is not on it,
+// with a plugged-in controller folded in. start and every verb in HIDDEN are
+// left out. WORDS.howToPlay replaces the line verbatim.
 //
-//   Screens.title({ onStart: start });               // the title screen
-//   Screens.title({ onStart: start, board: true });  // + the top ten
+//   Screens.title({ onStart: start });   // the title screen
 //   Screens.title({ score: 12, onStart: start, post: true, board: true });
 //
 // title() fills the window over the game: the name (WORDS.title, else the page
-// title), WORDS.tagline, one focused Start button — Enter or Space press it,
-// the drawn controls step aside, and a tap reaches Input as one frame of
-// "start" — and the hint. A score shows big; the button says Play again
-// (WORDS.again). Any part can be passed instead — { name, tagline, hint,
-// start, score, onStart } beat config. Returns { close }.
-// `post: true` puts the score on the scoreboard and the board shows where it
-// landed; `board: true` adds the top ten, or pass { limit, around, title };
-// `extra` is your own node, or a list, put in the panel.
+// title), WORDS.tagline, one Start button that Enter, Space or a tap presses,
+// and the hint. The drawn controls step aside while it is up. A score shows
+// big and the button says Play again (WORDS.again). { name, tagline, hint,
+// start, score, onStart } beat config; `post: true` puts the score on the
+// scoreboard, `board: true` adds the top ten (or { limit, around, title }),
+// `extra` is your own node put in the panel. Returns { close }.
 //
-//   Screens.chips({ Score: 12, Lives: 3 });   // the HUD strip, top of screen
+//   Screens.chips({ Score: 12, Lives: 3 }, { hint: true });   // the HUD strip
+//   Screens.chips({ Risk: { value: 43, max: 100, text: "43/100" } });  // a meter
+//   Screens.chips({ Fuel: myOwnDiv });        // your node, in that place
 //
-// chips() is cheap every frame: built once, only changed text touched. Each
-// call says the whole strip; a key not named is removed, chips({}) clears it.
+// chips() sits over the game — in the band above it when there is one — and is
+// cheap every frame: built once, only what changed touched. Each call says the
+// whole strip, in order; a key not named is removed, chips({}) clears it. A
+// value is text, a meter, or a node of your own it never touches again.
+// { hint: true } ends the row with the how-to-play line, left out where the
+// game is too narrow for it.
 //
 // Snippets are nodes you place yourself, in a screen or your own page:
 //
@@ -38,17 +49,16 @@
 //   await Screens.me()                       // { name } or null
 //   await Screens.post(score)                // {rank} | {signin:true} | {}
 //
-// board() asks for /_scores itself and fills in when it answers. `around:
-// rank` marks that row, and past the list it adds the four above and four
-// below, numbered where they really are.
+// board() asks /_scores itself and fills in when it answers; `around: rank`
+// marks that row and adds the four either side.
 //
 // Styling: every part wears a screens- class and your own css wins — a rule
-// here weighs one element selector, so `.screens-name { … }` beats it and
-// !important is never needed. The screen wears screens-over on game over.
-// Colours come from LOOK in
-// config/look.js: primary (name, button), accent (tagline), highlight (⚠️ a
-// score and nothing else), deep (the ground). --screens-font and -mono, -text,
-// -muted, -ink, -panel, -border, -radius are yours on :root.
+// here weighs one element selector, so `.screens-name { … }` beats it, and
+// !important is never needed. LOOK in config/look.js gives primary (name,
+// button), accent (tagline), highlight (⚠️ a score, a meter, nothing else),
+// deep (the ground). --screens-font and -mono, -text, -muted, -ink, -panel,
+// -border, -radius are yours on :root; the screen wears screens-over on game
+// over.
 //
 // Missing pieces are quiet — an empty string or a no-op, never an error.
 // Load config/controls.js first.
@@ -496,6 +506,20 @@ const Screens = (function () {
     + "body :where(.screens-chip-value){font-family:var(--screens-mono);font-weight:700;"
     + "font-size:clamp(13px,3.4vw,16px);font-variant-numeric:tabular-nums;"
     + "color:var(--screens-highlight)}"
+    // Words in a chip are not a number: the reading face, the reading ink.
+    + "body :where(.screens-chip-words){font-family:var(--screens-font);font-weight:600;"
+    + "color:var(--screens-text)}"
+    // A meter is the same number drawn twice, so it is gold like the number —
+    // ⚠️ the one colour with a rule on it, and a bar of it is still a number.
+    + "body :where(.screens-chip-meter){flex:none;width:clamp(30px,9vw,64px);height:6px;"
+    + "border-radius:99px;overflow:hidden;align-self:center;"
+    + "background:color-mix(in oklab,var(--screens-highlight) 20%,transparent)}"
+    + "body :where(.screens-chip-fill){display:block;height:100%;width:0;border-radius:99px;"
+    + "background:var(--screens-highlight)}"
+    // The how-to-play chip is a sentence rather than a number, so it takes the
+    // reading face and the muted ink. Whether it is there at all is measured
+    // rather than declared — see placeChips.
+    + "body :where(.screens-chip-hint){color:var(--screens-muted)}"
     // The HUD steps aside under a title or game-over screen, the same way the
     // drawn touch controls do. The screen is not quite opaque — the game shows
     // faintly through it on purpose — and a score bleeding through the top of
@@ -776,6 +800,11 @@ const Screens = (function () {
     if (!list) return;
     if (open) list.add("screens-open");
     else list.remove("screens-open");
+    // ⚠️ The chips row is display:none under a screen, and a hidden row
+    // measures zero — so the one placed while the title screen was up was put
+    // where a row of no height would go, and landed across the top of the
+    // game. It is placed again the moment it can be measured.
+    if (!open) placeChips();
   }
 
   // The Start button's tap, said to the input library, so a game that waits
@@ -901,57 +930,306 @@ const Screens = (function () {
     return handle;
   }
 
-  // The HUD strip: one row of chips pinned to the top of the screen, built
-  // on the first call and touched only where the text changed, so calling
-  // it every frame costs nothing when nothing moved.
-  let chipsRoot = null;
-  let chipNodes = new Map(); // label -> { chip, value, text }
+  /* How big the game is ---------------------------------------------------- */
 
-  function chips(values) {
+  // A game is a fixed rectangle — its canvas says 960×600 — and the only
+  // question a window asks is how much of itself the game may have. Deciding
+  // that on the window's *width* alone is what took two of these games off the
+  // bottom of a phone held sideways: 96vw of an 852pt window is 818pt across,
+  // and 818 across is 512 tall in 393pt of height. So the width is the
+  // smallest of three things: what the game is worth at most, what the window
+  // is wide, and what the window's height can pay for at the game's own shape.
+  //
+  // ⚠️ Inline rather than a class, which is the one place this file overrules
+  // a game instead of yielding to it: the line being replaced is usually
+  // `#wrap { width: … }`, an id, and no rule this file can write beats an id.
+  // A game that wants a different answer does not call fit.
+  //
+  // ⚠️ dvh, with a vh line written first for a browser too old to know it: on
+  // iOS 100vh is the window with the toolbars *gone*, a promise the browser
+  // keeps only once you scroll, which a game never does. An invalid value is
+  // dropped by the CSSOM rather than throwing, so the older line survives
+  // exactly where it is needed.
+  let fitEl = null;
+  let fitBox = null;
+  let fitAspect = 0;
+  let fitMax = 0;
+  let fitWatching = false;
+
+  function resolveEl(target) {
+    if (target && typeof target === "object" && target.nodeType === 1) return target;
+    if (typeof target === "string" && target !== "") return document.querySelector(target);
+    return document.querySelector("canvas");
+  }
+
+  // The room the page keeps around the game: its own padding, and the game's
+  // own margins. Measured rather than assumed, because it is the game's
+  // stylesheet that sets it and it may be in any unit.
+  function fitGap(node) {
+    if (typeof getComputedStyle !== "function") return 0;
+    const page = getComputedStyle(document.body);
+    const mine = getComputedStyle(node);
+    const px = (v) => (parseFloat(v) || 0);
+    return px(page.paddingTop) + px(page.paddingBottom)
+      + px(mine.marginTop) + px(mine.marginBottom);
+  }
+
+  function sizeFit() {
+    if (!fitEl) return;
+    const gap = Math.round(fitGap(fitEl));
+    const room = "(100" + "%s" + "h - " + gap + "px) * " + fitAspect;
+    fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "v") + ")");
+    fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "dv") + ")");
+    measureFit();
+  }
+
+  // Where the game ended up, for anything the studio puts over it — the chips
+  // row today. Published on :root as well, so a game's own stylesheet can put
+  // something in the same place without measuring it a second time.
+  function measureFit() {
+    if (!fitEl || typeof fitEl.getBoundingClientRect !== "function") return;
+    const r = fitEl.getBoundingClientRect();
+    fitBox = { top: r.top, left: r.left, width: r.width, height: r.height };
+    const root = document.documentElement;
+    if (root && root.style) {
+      root.style.setProperty("--screens-fit-top", Math.round(r.top) + "px");
+      root.style.setProperty("--screens-fit-left", Math.round(r.left) + "px");
+      root.style.setProperty("--screens-fit-width", Math.round(r.width) + "px");
+      root.style.setProperty("--screens-fit-height", Math.round(r.height) + "px");
+    }
+    placeChips();
+  }
+
+  function fit(target, options) {
+    if (typeof document !== "object" || !document || !document.body) return null;
+    const o = typeof options === "object" && options ? options : {};
+    const node = resolveEl(target);
+    if (!node) return null;
+    const canvas = node.tagName === "CANVAS" ? node : node.querySelector("canvas");
+    const w = Number(o.width) || (canvas ? Number(canvas.getAttribute("width")) : 0);
+    const h = Number(o.height) || (canvas ? Number(canvas.getAttribute("height")) : 0);
+    if (!(w > 0) || !(h > 0)) return null;
+    injectStyle();
+    fitEl = node;
+    fitAspect = Math.round((w / h) * 10000) / 10000;
+    fitMax = Number(o.max) || w;
+    sizeFit();
+    if (!fitWatching) {
+      fitWatching = true;
+      // The size is CSS, so a rotation is right before anything here runs;
+      // these are for where the game *is*, which only the browser knows.
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(measureFit).observe(node);
+      }
+      if (typeof window.addEventListener === "function") {
+        window.addEventListener("resize", sizeFit);
+        window.addEventListener("orientationchange", sizeFit);
+      }
+    }
+    return { box: function () { return fitBox; } };
+  }
+
+  /* The HUD strip ----------------------------------------------------------- */
+
+  // One row of chips over the game, built on the first call and touched only
+  // where something changed, so calling it every frame costs nothing when
+  // nothing moved.
+  //
+  // A value is text, a meter — { value, max, text } — or a node the game made
+  // itself, and the key is both the label and, by where it sits in the object,
+  // the chip's place in the row.
+  const CHIP_GAP = 8; // between the row and the game, above it or over it
+  let chipsRoot = null;
+  let chipNodes = new Map(); // label -> { chip, value, text, fill, width, own }
+  let hintChip = null;
+  let chipsAbove = null;
+
+  // Above the game when the letterbox band is deep enough to hold the row,
+  // over the top of it when it is not — which is the desktop case, where the
+  // game has the window and there is no band. Only ever after fit() has said
+  // where the game is; on its own the row stays across the top of the window.
+  // ⚠️ Never from inside the per-frame path: it reads offsetHeight, which
+  // makes the browser lay the page out there and then. It runs when the row
+  // gains or loses a chip, and when the window or the game moves — all of
+  // which are rare — and never for a number that merely changed.
+  let placed = null;
+
+  function placeChips() {
+    if (!chipsRoot) return;
+    const s = chipsRoot.style;
+    // Narrow is a question about the *game*, not the window: sideways on a
+    // phone the window is wide and the game is not. Without a fit there is no
+    // game box to ask, so the window is the best answer there is.
+    const room = fitBox ? fitBox.width : (window.innerWidth || 0);
+    if (hintChip) hintChip.style.display = room > 0 && room < 640 ? "none" : "";
+    if (!fitBox) {
+      for (const name of ["left", "width", "top", "padding"]) s.setProperty(name, "");
+      chipsAbove = null;
+      placed = null;
+      return;
+    }
+    // ⚠️ The padding goes before the measurement, not with the rest of the
+    // placement after it: the stylesheet's own top padding is for a row
+    // across the top of the window, and a row measured with it and then
+    // placed without it is placed ten pixels wrong. Reading offsetHeight
+    // right after setting it is what makes the browser answer for the row as
+    // it will actually be — and the observer would never have caught this,
+    // since padding moves the border box and it watches the content box.
+    s.setProperty("padding", "0");
+    // A row nobody can see has no height, and a height of nothing is not an
+    // answer: leave it where it is and place it when it is back.
+    const rowH = chipsRoot.offsetHeight || 0;
+    if (rowH === 0) return;
+    const above = fitBox.top >= rowH + CHIP_GAP * 2;
+    const at = {
+      left: Math.round(fitBox.left),
+      width: Math.round(fitBox.width),
+      top: Math.round(above ? fitBox.top - CHIP_GAP - rowH : fitBox.top + CHIP_GAP),
+    };
+    // ⚠️ Settling on the answer rather than refusing to look twice. Narrowing
+    // the row to the game's width is itself what rewraps it and changes its
+    // height, so the placement that matters is the *second* one — a guard
+    // against running again would throw away the only pass with the real
+    // height in it. The width never moves after the first pass, so the height
+    // stops moving too, and this returns.
+    if (placed && placed.left === at.left && placed.width === at.width && placed.top === at.top) {
+      return;
+    }
+    placed = at;
+    s.setProperty("left", at.left + "px");
+    s.setProperty("width", at.width + "px");
+    s.setProperty("top", at.top + "px");
+    chipsAbove = above;
+  }
+
+  function meterOf(v) {
+    return v && typeof v === "object" && typeof v.nodeType !== "number"
+      && (typeof v.value === "number" || typeof v.max === "number") ? v : null;
+  }
+
+  function chips(values, options) {
     if (typeof document !== "object" || !document || !document.body) return;
     const o = typeof values === "object" && values ? values : {};
+    const opts = typeof options === "object" && options ? options : {};
     const labels = Object.keys(o);
-    if (labels.length === 0) {
+    if (labels.length === 0 && !opts.hint) {
       if (chipsRoot) {
         chipsRoot.remove();
         chipsRoot = null;
         chipNodes = new Map();
+        hintChip = null;
       }
       return;
     }
     injectStyle();
+    // Whether the row changed *shape*. A number ticking over is not a change
+    // of shape and must not cost a layout; a chip arriving or leaving is.
+    let moved = false;
     if (!chipsRoot) {
       chipsRoot = el("div", "screens-chips");
       lookColours(chipsRoot);
       document.body.append(chipsRoot);
+      if (typeof window.addEventListener === "function") {
+        window.addEventListener("resize", placeChips);
+      }
+      // ⚠️ The row is measured to be placed, and there are three ways it can
+      // change height without chips() being the one to do it: a screen it was
+      // hidden under closing — the game's own screen, which this file never
+      // hears about — the typefaces arriving, and the row wrapping to two
+      // lines. Watching the row itself covers all three, and costs nothing
+      // per frame. Placing it changes its width, so the observer fires once
+      // more and then settles; `placing` keeps that from going round.
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(placeChips).observe(chipsRoot);
+      }
+      moved = true;
     }
     for (const [label, node] of chipNodes) {
       if (!(label in o)) {
         node.chip.remove();
         chipNodes.delete(label);
+        moved = true;
       }
     }
     for (const label of labels) {
+      const raw = o[label];
+      const meter = meterOf(raw);
+      const own = raw && typeof raw === "object" && raw.nodeType === 1 ? raw : null;
       let node = chipNodes.get(label);
       if (!node) {
         const chip = el("span", "screens-chip");
         chip.append(el("span", "screens-chip-label", label));
-        const value = el("span", "screens-chip-value", "");
-        chip.append(value);
+        node = { chip: chip, value: null, text: null, fill: null, width: null, own: null };
         chipsRoot.append(chip);
-        node = { chip: chip, value: value, text: null };
         chipNodes.set(label, node);
+        moved = true;
       }
-      const text = String(o[label]);
+      // The game's own node goes in whole and is never touched again: what is
+      // inside it is the game's business, frame by frame, not this file's.
+      if (own) {
+        if (node.own !== own) {
+          clear(node.chip);
+          node.chip.append(el("span", "screens-chip-label", label));
+          node.chip.append(own);
+          node.own = own;
+          node.value = null;
+          node.text = null;
+          node.fill = null;
+        }
+        continue;
+      }
+      if (!node.value) {
+        node.value = el("span", "screens-chip-value", "");
+        node.chip.append(node.value);
+      }
+      const text = String(meter ? (meter.text === undefined ? meter.value : meter.text) : raw);
       if (node.text !== text) {
         node.text = text;
         node.value.textContent = text;
+        // ⚠️ The highlight is for a number and nothing else, and a chip's
+        // value is not always one: "Guns · Cannon" in gold is the colour
+        // losing its meaning. A value with a digit in it counts, which keeps
+        // 43/100 ×1.4 and 1,204 gold and puts words in the reading ink.
+        node.value.className = "screens-chip-value"
+          + (meter || typeof raw === "number" || /\d/.test(text) ? "" : " screens-chip-words");
+      }
+      if (meter && !node.fill) {
+        const track = el("span", "screens-chip-meter");
+        node.fill = el("span", "screens-chip-fill");
+        track.append(node.fill);
+        node.chip.append(track);
+      }
+      if (meter) {
+        const max = Number(meter.max) > 0 ? Number(meter.max) : 1;
+        const part = Math.max(0, Math.min(1, (Number(meter.value) || 0) / max));
+        const width = (part * 100).toFixed(1) + "%";
+        if (node.width !== width) {
+          node.width = width;
+          node.fill.style.width = width;
+        }
       }
     }
+    // The how-to-play line, last in the row and label-less: it is a sentence,
+    // not a number. Left out where the game is too narrow to spare the room —
+    // it is for somebody with a keyboard, and a touchscreen has the drawn
+    // buttons saying the same thing.
+    if (opts.hint && !hintChip) {
+      hintChip = el("span", "screens-chip screens-chip-hint", hint());
+      chipsRoot.append(hintChip);
+      moved = true;
+    } else if (!opts.hint && hintChip) {
+      hintChip.remove();
+      hintChip = null;
+      moved = true;
+    } else if (hintChip && moved) {
+      chipsRoot.append(hintChip); // a new chip went in behind it; it stays last
+    }
+    if (moved) placeChips();
   }
 
   return {
     hint: hint,
+    fit: fit,
     title: title,
     chips: chips,
     board: board,

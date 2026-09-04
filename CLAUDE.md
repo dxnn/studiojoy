@@ -124,8 +124,10 @@ walk into, each paid for once already.
   once and cannot know better; break it and the fix is by hand, game by game.
 - A library is *named* to an agent rather than sent — each one's top comment
   block rides the preamble as its API note, read from the game's own copy.
-  ⚠️ screens.js's is 3,035 bytes against a 3,072 cap: condense before adding
-  to it. The notes are followed by the **shape of a game**, which is what says
+  ⚠️ screens.js's is 3,693 bytes against a 4,096 cap (raised from 3,072 when
+  `fit` and the meter arrived): condense before adding to it, and raise the
+  cap only when the alternative is deleting a call somebody can still make.
+  The notes are followed by the **shape of a game**, which is what says
   a game is expected to *make* those calls rather than merely being able to;
   every line of it is gated on the manifest, and both halves are tested.
 - The ambient file block lives in the **system prompt**, after the brief and
@@ -251,7 +253,10 @@ specified:
   installability-only service worker each, no offline caching (§7).
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by
-  `npm run sweep` (§4).
+  `npm run sweep` (§4). Screens owns how big a game is on the screen
+  (`Screens.fit`) as well as its words: a game that sizes its own canvas on
+  the window's width alone comes off the bottom of a sideways phone, which
+  two of them did.
 - Two templates carry their own editors, so a game can be made with no helper
   at all: the quiz, and the visual novel with a guide that builds a story by
   asking one question at a time (§4).
