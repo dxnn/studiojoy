@@ -42,6 +42,39 @@ export const HERO_IMAGE = 'hero.png';
 export const ICON_IMAGE = 'icon.png';
 export const RESERVED_IMAGES = [CHAT_IMAGE, HERO_IMAGE, ICON_IMAGE];
 
+// What each of the three is, in the studio's own words, and the blank one it
+// makes when somebody asks for one. These words are the only explanation the
+// three ever get — the card under Pics wears `what`, and the dialog that
+// offers them asks with `name` — so they live here, beside the names
+// themselves, rather than being written out twice.
+//
+// `draw` is the blank canvas: a tile that repeats, a wide banner, a small
+// square. `fit` is the most a picture from the device is scaled down to, which
+// is generous — the studio would rather keep the picture than the bytes.
+export const DRESSING = {
+  [CHAT_IMAGE]: {
+    name: 'Behind the conversation',
+    what: 'behind the conversation',
+    hint: 'It tiles, so it repeats across the whole pane — something small and quiet works best.',
+    draw: [64, 64],
+    fit: [512, 512],
+  },
+  [HERO_IMAGE]: {
+    name: 'Over the conversation',
+    what: 'behind the game\u2019s name, and on its card',
+    hint: 'It backs the bar over the chat, and the game\u2019s card on the games page. Wide suits it.',
+    draw: [320, 120],
+    fit: [1280, 480],
+  },
+  [ICON_IMAGE]: {
+    name: 'Beside the game\u2019s name',
+    what: 'beside the game\u2019s name in the list',
+    hint: 'The little picture in the sidebar, so it is only ever seen small.',
+    draw: [32, 32],
+    fit: [256, 256],
+  },
+};
+
 // Held as object URLs rather than pointing a src at the file route: that
 // route sends no-store, and a background rebuilt by every render would
 // refetch on every keystroke. Fetched once, replaced on files.changed,
@@ -148,7 +181,6 @@ export async function openFile(path) {
     || (S.mode === 'quiz' && isQuizPath(path))
     || (S.mode === 'controls' && isControlsPath(path));
   showMode(stays ? S.mode : 'code');
-  if (S.mode === 'pics') S.pick = { kind: 'picture', path };
   render();
   // A picture opens as a picture you can draw on. There was a second way to
   // look at one and it showed it at exactly the same size, so it was a control

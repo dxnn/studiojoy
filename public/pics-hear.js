@@ -1,6 +1,6 @@
 // Pics and Hear (spec.md §6): every picture in the game by what it is, and
-// every sound over its music, each a card or row that selects into the
-// inspector on one click and opens the file itself on the next.
+// every sound over its music. A picture opens in the pixel editor on one
+// click; a sound opens its editor in the rail on one click.
 
 import { h } from './dom.js';
 import {
@@ -11,7 +11,7 @@ import {
   S, frozen, sizeText, render, hasEditor,
 } from './main.js';
 import {
-  chooseFile, closeOpenFile, RESERVED_IMAGES, CHAT_IMAGE, HERO_IMAGE, ICON_IMAGE,
+  chooseFile, closeOpenFile, RESERVED_IMAGES, DRESSING,
 } from './files.js';
 import { fileMore, renderOpenFile, renderMedia } from './files-tab.js';
 import { renderSoundEditor, createSound } from './sound-editor.js';
@@ -23,22 +23,26 @@ const baseName = (path) => path.split('/').pop().replace(/\.[a-z0-9]+$/i, '');
 const inDir = (f, dir) => f.path.startsWith(`${dir}/`);
 
 // A card under Pics: the picture, its name, a line under it, its ···. Pressing
-// it selects it into the inspector; pressing it again opens it to draw on. A
-// strip wears its first frame — the picture is pinned to the card's left edge.
+// it opens it in the pixel editor. ⚠️ One click, not two: selecting a picture
+// into the rail first showed it at a size nothing could be done with, and cost
+// a click on the way to the only thing anybody opens a picture for. Code's
+// rows already went straight to the editor, and two panes treating a picture
+// differently is the studio contradicting itself. A strip wears its first
+// frame — the picture is pinned to the card's left edge.
 function pictureCard({
   path, name, sub, strip = false,
 }) {
-  const on = S.pick?.kind === 'picture' && S.pick.path === path;
+  const on = S.open?.path === path;
   const img = h('img', { alt: '' });
   pictureInto(img, path);
   return h('div', {
     class: `card${on ? ' on' : ''}${strip ? ' strip' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button')) return undefined;
-      if (on) return chooseFile(path);
-      S.pick = { kind: 'picture', path };
-      render();
-      return undefined;
+      // A person may be selected into the rail; opening a picture is not about
+      // them any more.
+      S.pick = null;
+      return chooseFile(path);
     },
   },
   h('div', { class: 'cpic' }, img),
@@ -61,12 +65,37 @@ function personCard(person) {
   h('div', { class: 'csub', text: plural(person.moods.length, 'mood') }));
 }
 
-// What each reserved image dresses (spec.md §6), for its card.
-const DRESSES = {
-  [CHAT_IMAGE]: 'behind the conversation',
-  [HERO_IMAGE]: 'behind the game\'s name, and on its card',
-  [ICON_IMAGE]: 'beside the game\'s name in the list',
-};
+// Studio dressing is the one section that shows with nothing in it (spec.md
+// §6). The three pictures a game can wear are the studio's rather than the
+// game's, and a game wearing none had no way of saying they exist: the section
+// was simply absent, so the only way to find out about hero.png was to be told
+// its name. The button is the way in and the dialog is where each is explained.
+function dressingSection(pictures, take) {
+  const cards = pictures.filter((f) => RESERVED_IMAGES.includes(f.path))
+    .map((f) => pictureCard({
+      path: take(f).path, name: baseName(f.path), sub: DRESSING[f.path].what,
+    }));
+  // On a game nobody here may change, an empty section is an offer that cannot
+  // be taken up.
+  if (frozen() && cards.length === 0) return [];
+  return [
+    h('div', { class: 'section-row' },
+      h('div', { class: 'section-label', text: 'Studio dressing' }),
+      frozen() ? null : h('button', {
+        class: 'quiet tiny',
+        text: cards.length === RESERVED_IMAGES.length ? 'Change dressing' : 'Add dressing',
+        title: 'The three pictures a game wears in the studio',
+        onclick: () => { S.dialog = { kind: 'add-dressing' }; render(); },
+      })),
+    cards.length
+      ? h('div', { class: 'cards' }, cards)
+      : h('div', {
+        class: 'pad muted',
+        text: 'None yet. A game can wear three pictures of its own: one behind the '
+          + 'conversation, one over it, and a little one beside its name.',
+      }),
+  ];
+}
 
 // Pics: every picture in the game by what it is, not by folder (spec.md §6).
 // A visual novel shows its Characters — a card per person — over its Places;
@@ -104,8 +133,7 @@ export function renderPicsMode() {
     parts.push(...section('Pictures', pictures.filter((f) => inDir(f, IMAGE_DIR))
       .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: sizeText(f.size) }))));
   }
-  parts.push(...section('Studio dressing', pictures.filter((f) => RESERVED_IMAGES.includes(f.path))
-    .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: DRESSES[f.path] }))));
+  parts.push(...dressingSection(pictures, take));
   parts.push(...section('Other pictures', pictures.filter((f) => !covered.has(f.path))
     .map((f) => pictureCard({ path: f.path, name: f.path, sub: sizeText(f.size) }))));
   return [
@@ -121,9 +149,13 @@ export function renderPicsMode() {
         onclick: () => { S.dialog = { kind: 'add-file', only: 'picture' }; render(); },
       })),
     h('div', { class: 'pics scroll', 'data-scroll': 'pics' },
-      parts.length ? parts : h('div', {
+      // Said over the dressing section rather than instead of it: a game with
+      // no pictures at all is exactly the one that has never been told what
+      // the three it can wear are.
+      pictures.length ? null : h('div', {
         class: 'pad muted', text: 'No pictures yet. Draw one, or ask a helper what the game needs.',
-      })),
+      }),
+      parts),
   ];
 }
 
@@ -196,26 +228,27 @@ export function renderPickInspector() {
       S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused }) : null,
       fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: path })));
   }
-  if (S.mode !== 'pics' || !S.pick) return null;
-  if (S.pick.kind === 'person') {
+  if (S.mode !== 'pics') return null;
+  // The open picture first: it is what the pane is about, and a person left
+  // selected from before is not.
+  if (S.open && isPictureFile(S.open)) {
+    const { path } = S.open;
+    const f = S.files.find((x) => x.path === path);
+    if (!f) return null;
+    const sprite = inDir(f, SPRITE_DIR);
+    const dressing = RESERVED_IMAGES.includes(path);
+    // No thumbnail: the picture itself is in the editor beside this, and the
+    // rail showing a second smaller copy of it was the whole of what made the
+    // old two-click open feel pointless.
+    return box(
+      head(dressing ? 'Studio dressing' : sprite ? 'Sprite' : 'Picture', path.split('/').pop(),
+        fileMore(path), shut(() => closeOpenFile())),
+      fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: `${path} · ${sizeText(f.size)}` })),
+      dressing ? fieldRow('Dresses', h('span', { class: 'hint muted', text: DRESSING[path].what })) : null);
+  }
+  if (S.pick?.kind === 'person') {
     const person = S.story?.model?.cast.find((p) => p.key === S.pick.key);
     return person ? renderPersonInspector(person, { close: () => { S.pick = null; render(); } }) : null;
   }
-  const { path } = S.pick;
-  const f = S.files.find((x) => x.path === path);
-  if (!f) return null;
-  const img = h('img', { class: 'thumb', alt: '' });
-  pictureInto(img, path);
-  const sprite = inDir(f, SPRITE_DIR);
-  const dressing = RESERVED_IMAGES.includes(path);
-  return box(
-    head(dressing ? 'Studio dressing' : sprite ? 'Sprite' : 'Picture', path.split('/').pop(),
-      fileMore(path), shut(() => { S.pick = null; render(); })),
-    img,
-    fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: `${path} · ${sizeText(f.size)}` })),
-    dressing ? fieldRow('Dresses', h('span', { class: 'hint muted', text: DRESSES[path] })) : null,
-    frozen() ? null : h('div', { class: 'row wrap' },
-      f.mime === 'image/png' && S.open?.path !== path ? h('button', {
-        class: 'quiet tiny', text: 'Draw on it', onclick: () => chooseFile(path),
-      }) : null));
+  return null;
 }

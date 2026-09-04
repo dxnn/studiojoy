@@ -1,0 +1,144 @@
+// Pics, over the DOM stand-in: the studio's own conventions on a second
+// surface (spec.md §17), and the two things that changed about the pane —
+// a picture opens on one click, and the studio's dressing is offered to a
+// game wearing none.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  install, all, withClass, pressable, hasClass,
+} from './dom-stand-in.js';
+
+// ⚠️ Before main.js, which reads `document` on the way in.
+install();
+
+// ⚠️ A picture card fetches its own thumbnail — the one render in the studio
+// that reaches the network on purpose. Answered with a 404 rather than left
+// to reject: a rejection lands after the test as a dropped connection and a
+// render nobody asked for.
+const asked = [];
+globalThis.fetch = async (url) => {
+  asked.push(String(url));
+  return {
+    ok: false, status: 404, headers: new Headers(), blob: async () => new Blob(), text: async () => '',
+  };
+};
+
+const { S } = await import('../public/main.js');
+const { renderPicsMode, renderPickInspector } = await import('../public/pics-hear.js');
+const { dialogFor } = await import('../public/dialogs.js');
+const { RESERVED_IMAGES, DRESSING, HERO_IMAGE } = await import('../public/files.js');
+
+const picture = (path, size = 900) => ({
+  path, mime: 'image/png', size, text: false,
+});
+
+// A game open on Pics with these files in it, and nothing open.
+function pics(files, { canEdit = true } = {}) {
+  S.project = {
+    slug: 'tank', can_edit: canEdit, archived: false, type: null, agents: [],
+  };
+  S.slug = 'tank';
+  S.mode = 'pics';
+  S.files = files;
+  S.open = null;
+  S.pick = null;
+  S.story = null;
+  return renderPicsMode();
+}
+
+const labels = (tree) => withClass(tree, 'section-label').map((n) => n.textContent);
+const texts = (tree) => all(tree).map((n) => n.textContent).filter(Boolean);
+
+test('what lights up is what can be clicked', () => {
+  const tree = pics([picture('assets/images/tree.png'), picture('hero.png')]);
+  const cards = withClass(tree, 'card');
+  assert.ok(cards.length > 0, 'there are cards');
+  for (const card of cards) assert.ok(pressable(card), 'a card that lights up is pressable');
+});
+
+test('a picture opens on one click, with nothing selected on the way', async () => {
+  const tree = pics([picture('assets/images/tree.png')]);
+  const card = withClass(tree, 'card')[0];
+  asked.length = 0;
+  // The card guards against a click that landed on its ···, so the event has
+  // to answer closest().
+  await card.handlers.get('click')({ target: { closest: () => null } });
+  assert.equal(S.pick, null, 'nothing is selected into the rail on the way');
+  assert.ok(
+    asked.some((url) => url.includes('tree.png')),
+    'the file itself is asked for — one click, not two',
+  );
+});
+
+test('studio dressing is offered to a game wearing none', () => {
+  const tree = pics([picture('assets/images/tree.png')]);
+  assert.ok(labels(tree).includes('Studio dressing'), 'the section is there with nothing in it');
+  const add = all(tree).find((n) => n.textContent === 'Add dressing');
+  assert.ok(add && pressable(add), 'and a way in');
+});
+
+test('nothing is offered where it could not be taken up', () => {
+  // An archived game, or somebody else's: an empty section here would be an
+  // offer with no button under it.
+  const tree = pics([picture('assets/images/tree.png')], { canEdit: false });
+  assert.equal(labels(tree).includes('Studio dressing'), false);
+  const worn = pics([picture('hero.png')], { canEdit: false });
+  assert.ok(labels(worn).includes('Studio dressing'), 'dressing already worn still shows');
+  assert.equal(all(worn).some((n) => n.textContent === 'Add dressing'), false);
+});
+
+test('the dressing a game already wears says what it dresses', () => {
+  const tree = pics([picture(HERO_IMAGE)]);
+  assert.ok(texts(tree).includes(DRESSING[HERO_IMAGE].what));
+});
+
+test('the dressing dialog names all three and says what each is for', () => {
+  S.files = [];
+  const dialog = dialogFor({ kind: 'add-dressing' });
+  const choices = withClass(dialog, 'choice');
+  assert.equal(choices.length, RESERVED_IMAGES.length);
+  for (const choice of choices) assert.ok(pressable(choice));
+  const names = withClass(dialog, 'cname').map((n) => n.textContent);
+  const said = withClass(dialog, 'cwhat').map((n) => n.textContent);
+  for (const path of RESERVED_IMAGES) {
+    assert.ok(names.includes(DRESSING[path].name), `${path} is named`);
+    assert.ok(said.some((s) => s.includes(DRESSING[path].hint)), `${path} says what it is for`);
+  }
+});
+
+test('a dressing already there says so before it is replaced', () => {
+  S.files = [picture(HERO_IMAGE)];
+  const dialog = dialogFor({ kind: 'add-dressing' });
+  const said = withClass(dialog, 'cwhat').map((n) => n.textContent);
+  assert.equal(said.filter((s) => s.includes('replaces it')).length, 1);
+});
+
+test('a dressing is drawn here or brought from the device', () => {
+  const dialog = dialogFor({ kind: 'dressing', path: HERO_IMAGE });
+  const choices = withClass(dialog, 'choice');
+  assert.equal(choices.length, 2);
+  for (const choice of choices) assert.ok(pressable(choice));
+  // The name is the whole reason the dialog exists: nothing else in the studio
+  // would ever tell you that a file called hero.png is the one that shows.
+  assert.ok(texts(dialog).some((t) => t.includes(HERO_IMAGE)));
+});
+
+test('the inspector belongs to the picture that is open', () => {
+  pics([picture(HERO_IMAGE, 2048)]);
+  assert.equal(renderPickInspector(), null, 'nothing open, nothing to inspect');
+  S.open = { path: HERO_IMAGE, mime: 'image/png', content: null };
+  const box = renderPickInspector();
+  const said = texts(box).join(' ');
+  assert.ok(said.includes(HERO_IMAGE));
+  assert.ok(said.includes(DRESSING[HERO_IMAGE].what), 'a dressing says what it dresses');
+  // The picture is in the editor beside this; a second smaller copy of it is
+  // what made the old two-click open feel like a step for nothing.
+  assert.equal(withClass(box, 'thumb').length, 0);
+});
+
+test('gold is a number and nothing else', () => {
+  const tree = pics([picture('assets/images/tree.png'), picture(HERO_IMAGE)]);
+  for (const node of all(tree)) {
+    assert.equal(hasClass(node, 'num'), false, 'nothing in Pics is a number');
+  }
+});

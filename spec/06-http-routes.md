@@ -461,15 +461,32 @@ cards: for a visual novel, **Characters** (one per *cast* member, first
 mood) over **Places** (backgrounds, with scene counts); for every game,
 **Sprites** (first frame), **Pictures**, the three *reserved images* under
 **Studio dressing**, and **Other pictures** last, so nothing the tree holds
-is missing. A card pressed once selects into the inspector — where it
-lives, its size, *Draw on it*; pressed again it opens full width in the
-*pixel editor*, the bar's ✕ the way back. Hear is rows, sounds over music;
+is missing. ⚠️ A card pressed **once** opens full width in the *pixel
+editor*, the bar's ✕ the way back, and the rail carries the open picture's
+fields — where it lives, what it dresses. Selecting into the rail first and
+opening on the second click was a step that bought nothing: what the rail
+showed was the same picture at a size nothing could be done with, and Code's
+rows already went straight to the editor, so the two panes contradicted each
+other about what a picture is. Hear is rows, sounds over music;
 the open one's *sound editor* — or a player, for one not made here — lands
 in the rail, closed by the same row. Each has its maker at the top: *Add a
 picture* is the add-file dialog narrowed to drawing, uploading, and the
 *shelf* (below) as a source for a new file; *Make/Upload a sound* the same
 for sounds, minus the shelf, which is pictures only. The tree is still
 Code's — a file opened elsewhere still opens under Code.
+
+⚠️ **Studio dressing is the one section that shows with nothing in it**, with
+**Add dressing** on its label row. The three are the only files in the studio
+whose *name* is what makes them work, so nothing on any pane could ever have
+said they exist: a game wearing none simply had no section, and the only way
+to learn that a file called `hero.png` would show was to be told. The button
+asks in two steps — which of the three, each with what it dresses and whether
+one is there already, then drawn here on a blank canvas of the right shape or
+brought from the device. A picture from the device is made a `.png` whatever
+it arrived as (`asPng`, shared with the story guide): the studio looks for
+these three by name, and a JPEG called `hero.png` is a lie the browser happens
+to forgive. On a game nobody here may change the section is absent again —
+an empty section with no button under it is an offer that cannot be taken up.
 
 **Questions** is the quiz's editor as a mode: `config/questions.js` opens on
 arriving, its bar has no ✕ — nowhere to close it to — and the form saves

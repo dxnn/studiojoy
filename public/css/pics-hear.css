@@ -53,6 +53,11 @@
 }
 .card .csub { font-size: 11.5px; color: var(--muted); }
 
+/* A section label with a control at its right-hand end. The label keeps the
+   padding it has everywhere else, so the row only has to close the right. */
+.section-row { display: flex; align-items: center; gap: 8px; padding-right: 16px; }
+.section-row .section-label { flex: 1; min-width: 0; }
+
 /* Hear: a row per sound, lit while it is open in the rail. */
 .hear-row {
   display: flex;

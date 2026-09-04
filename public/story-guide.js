@@ -227,7 +227,7 @@ function svgToPng(svg, width, height) {
 // ⚠️ Never a whole multiple of its height wider: under assets/sprites/ that
 // shape is a *strip* and the face would animate, so a picture that lands on
 // exactly 2:1 or 3:1 is made one pixel narrower.
-async function asPng(file, [maxWidth, maxHeight]) {
+export async function asPng(file, [maxWidth, maxHeight]) {
   const bitmap = await createImageBitmap(file).catch(() => null);
   if (!bitmap) return null;
   const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);

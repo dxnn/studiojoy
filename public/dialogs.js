@@ -14,22 +14,29 @@ import { syncAttached, attachAgent, createChat } from './chats.js';
 import {
   openFile, saveOpenFile, saveAndClose, createFile, renameFile, duplicateFile,
   deleteFile, setAuthors, setOpenEdit, setPublished, copyFileTo, LIBRARY_DIR,
-  shareArt, unshareArt,
+  shareArt, unshareArt, RESERVED_IMAGES, DRESSING,
 } from './files.js';
 import { restore, rollback } from './history.js';
-import { createPicture } from './drawing.js';
+import { createPicture, createPictureAt } from './drawing.js';
 import { createSound } from './sound-editor.js';
 import { loadStudio, studioChange } from './people.js';
 import { deleteScore, clearScores } from './scoreboard.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
-import { renderShelfDialog, artCredit } from './story-guide.js';
+import { renderShelfDialog, artCredit, asPng } from './story-guide.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { discardAchievements, saveAchievements } from './achievements-form.js';
 
 /* Render: dialogs -------------------------------------------------------- */
 
 const inLibrary = (path) => path === LIBRARY_DIR || path.startsWith(`${LIBRARY_DIR}/`);
+
+// One way in, out of several: a big name and a line saying what it does. Three
+// dialogs ask this shape of question — which kind of file, which dressing, and
+// how that dressing is made — so the button they ask it with is one thing.
+const choice = (label, what, onclick) => h('button', { class: 'choice', onclick },
+  h('span', { class: 'cname', text: label }),
+  h('span', { class: 'cwhat', text: what }));
 
 // What a new name will mean. Crossing into or out of `studio/` is the one move
 // that changes who may edit the file rather than only where it lives — helpers
@@ -511,10 +518,6 @@ export function dialogFor(d) {
         if (files.length) openUpload(files);
       },
     });
-    const choice = (label, what, onclick) => h('button', { class: 'choice', onclick },
-      h('span', { class: 'cname', text: label }),
-      h('span', { class: 'cwhat', text: what }));
-
     return wrap(only === 'picture' ? 'Add a picture' : only === 'sound' ? 'Add a sound' : 'Add a file',
       h('div', { class: 'choices' },
         only ? null : choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
@@ -562,6 +565,59 @@ export function dialogFor(d) {
         // in the pane.
         only === 'picture' ? null : choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
           () => { close(); createSound(); })),
+      picker,
+      h('div', { class: 'actions' }, cancel));
+  }
+
+  // The three pictures a game wears in the studio (spec.md §6). They are the
+  // one kind of file whose *name* is what makes it work, so a dialog is the
+  // only honest way to offer them: nothing in Pics or Code could tell you that
+  // a file called hero.png would end up behind the game's name.
+  if (d.kind === 'add-dressing') {
+    return wrap('Studio dressing',
+      h('p', {
+        class: 'hint muted',
+        text: 'Three pictures dress a game in the studio. Each one is optional, '
+          + 'and the studio knows what each is for by its name.',
+      }),
+      h('div', { class: 'choices' }, RESERVED_IMAGES.map((path) => choice(
+        DRESSING[path].name,
+        S.files.some((f) => f.path === path)
+          ? `${DRESSING[path].hint} There is one already — this replaces it.`
+          : DRESSING[path].hint,
+        () => { S.dialog = { kind: 'dressing', path }; render(); },
+      ))),
+      h('div', { class: 'actions' }, cancel));
+  }
+
+  // The second half of that question: drawn here, or from this device. A
+  // picture from the device is made a .png whatever it arrived as — the studio
+  // looks for these three by name, and a JPEG called hero.png would be a lie
+  // the browser happens to forgive.
+  if (d.kind === 'dressing') {
+    const info = DRESSING[d.path];
+    const [width, height] = info.draw;
+    const picker = h('input', {
+      type: 'file', hidden: true, accept: 'image/*',
+      onchange: async (e) => {
+        const file = e.currentTarget.files[0];
+        e.currentTarget.value = '';
+        if (!file) return;
+        const body = await asPng(file, info.fit);
+        if (!body) { say('The studio could not read that picture.', true); return; }
+        close();
+        const { failure } = await writeFiles([{ path: d.path, body }]);
+        if (failure) { say(failure, true); return; }
+        say(`Saved ${d.path}. The game wears it now.`);
+      },
+    });
+    return wrap(info.name,
+      h('p', { class: 'hint muted', text: `${info.hint} It is called ${d.path}, at the top of the game's files.` }),
+      h('div', { class: 'choices' },
+        choice('+ Draw it', `A blank ${width} × ${height} canvas, ready to draw on.`,
+          async () => { close(); await createPictureAt(d.path, width, height); }),
+        choice('+ Upload one', 'A picture from this device, saved under that name.',
+          () => picker.click())),
       picker,
       h('div', { class: 'actions' }, cancel));
   }

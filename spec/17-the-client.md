@@ -138,6 +138,9 @@ holds something git cannot recover.
 
 - `MEDIA_KINDS` in `public/files-tab.js` is the one list to extend when the
   studio should show a new kind of file.
+- A picture opens on **one** click under Pics as it always did under Code, so
+  `S.pick` is a *person* and nothing else; the picture the rail describes is
+  `S.open` (§6).
 - The preview reloads itself: every `files.changed` bumps `previewNonce`, which
   is in the iframe's `src`, so a helper's write, a save or an upload all
   restart the game — on the write, not on the commit, which for a save comes

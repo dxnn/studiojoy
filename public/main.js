@@ -120,8 +120,9 @@ export const S = {
   errors: [],
   pinned: new Set(),
   open: null, // {path, content, etag, dirty, conflict}
-  // What Pics has selected into the inspector: {kind: 'picture', path} or
-  // {kind: 'person', key}. Hear's selection is the open sound itself.
+  // The person Pics has selected into the inspector: {kind: 'person', key}.
+  // A picture is not one of these — it opens in the editor on one click, and
+  // the inspector reads S.open. Hear's selection is the open sound itself.
   pick: null,
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
