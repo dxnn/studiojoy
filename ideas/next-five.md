@@ -6,14 +6,14 @@ Four are built. The **input module** (controllers, touch and couch
 multiplayer), the **sound editor**, and the **pixel editor** forced nothing:
 the pane already opened a file as something other than text, and `PUT`
 already took raw bytes and committed one file per request, so each was a
-branch in the pane and a `PUT` at the end of it. See spec.md §6 and the
+branch in the pane and a `PUT` at the end of it. See spec/ §6 and the
 glossary.
 
 **Scoreboards** was the cheap pilot for the games origin holding state, and
 it did what it was for: the first write route on that origin now exists, with
 the rules a public write needs — reads no cookie, has its own rate limit,
 caps on name length, score range and rows per game. `POST /_scores/:slug`,
-rows in the SQLite that was already open, spec.md §6. What it settled is what
+rows in the SQLite that was already open, spec/ §6. What it settled is what
 the relay inherits.
 
 ⚠️ Still the true thing about it: scores are forged by anyone who opens
@@ -48,7 +48,7 @@ second, and a sweeper for rooms nobody left.
 Three tiers, and the first is already free:
 
 1. **Per player, per device** — works today. `localStorage` on the games
-   origin was deliberately preserved (spec.md §7 chose separate origins over
+   origin was deliberately preserved (spec/ §7 chose separate origins over
    `CSP: sandbox` partly for it), so a single-player game saves without any
    server. Worth a preamble line some day: a capability an agent is not told
    about may as well not exist.

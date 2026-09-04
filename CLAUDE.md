@@ -12,9 +12,10 @@ publicly playable on a second origin; the studio needs a login.
 
 ## Source of truth
 
-`spec.md` is the design-of-record: data model, routes, files on disk, the
-studio library and templates, agent orchestration, SSE events, limits, auth,
-accepted tradeoffs, invariants. Read it before any non-trivial change.
+`spec/` is the design-of-record, one file per section: data model, routes,
+files on disk, the studio library and templates, agent orchestration, SSE
+events, limits, auth, accepted tradeoffs, invariants. Read it before any
+non-trivial change.
 
 - **§14** is DeepSeek's API behaviour as *measured*, not assumed. Don't
   re-guess it.
@@ -38,7 +39,7 @@ holds plans and sketches. Completed work is git history, not this file.
   it lists who is out.
 - `npm run unarchive -- <slug>` — ⚠️ the *only* way an archived game comes
   back: archiving is one way from the studio, the originator's alone, and
-  never a published game's (spec.md §11). With no slug it lists what is
+  never a published game's (spec/ §11). With no slug it lists what is
   archived.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
@@ -67,7 +68,7 @@ one pm2 app — the thing every generic guide gets wrong here.
 
 ## Invariants worth keeping
 
-spec.md §12 is the tested list. These are the ones a change is most likely to
+spec/ §12 is the tested list. These are the ones a change is most likely to
 walk into, each paid for once already.
 
 - `server/files/paths.js` is the security boundary. Everything touching a file
@@ -80,13 +81,13 @@ walk into, each paid for once already.
   Unquoted, a path with an accent comes back escaped and matches nothing.
 - The games listener never reads the `session` cookie and serves nothing but
   static files, the catalog, the wrapper, and the scoreboard and achievement
-  routes. It exists to be a separate origin (spec.md §7).
+  routes. It exists to be a separate origin (spec/ §7).
 - ⚠️ Two headers on the catalog are load-bearing — `frame-ancestors 'none'`
   and `COOP: same-origin` — because a password form now shares an origin with
   LLM-written game code.
 - Write-and-commit is serialised per project through `files/mutex.js`.
 - ⚠️ A save is written at once and committed later, as the project's **pending
-  commit** (`files/pending.js`, spec.md §5). Anything that commits directly, or
+  commit** (`files/pending.js`, spec/ §5). Anything that commits directly, or
   reads the tree into history — a helper's write, a move, a restore, a fork —
   lands it first, inside the mutex, or a commit carries somebody else's
   uncommitted work under the wrong name. The preview follows `files.changed`
@@ -96,15 +97,15 @@ walk into, each paid for once already.
   context or thrashes its prompt cache.
 - A reasoning trace is never persisted and never replayed into a later fire.
   The one time one enters a request is the thinking cap's hand-on — the same
-  fire, once, as text — and the receipt keeps a placeholder for it (spec.md §8).
+  fire, once, as text — and the receipt keeps a placeholder for it (spec/ §8).
 - `Humans only` is enforced where a helper would be *put in*
   (`assertBotsAllowed`), not where one would answer: a room that promises
   nobody is listening keeps that promise at the door. `Building` is the
   **builder**'s room and is refused at the same door: its one seat, no `+`,
-  no rename, and the builder itself goes nowhere else (spec.md §3, §8).
+  no rename, and the builder itself goes nowhere else (spec/ §3, §8).
 - ⚠️ The **sizing** ask rides the last user message *after* everything else on
   it. Ahead of an attachment it was swamped, and anywhere but the last message
-  it would break the cache prefix the fire shares with it (spec.md §8, §14).
+  it would break the cache prefix the fire shares with it (spec/ §8, §14).
 - ⚠️ The preamble in `orchestrator.js` names every capability **by the words on
   the button**, and `orchestrator.test.js` asserts each name — so renaming a
   button without updating the prompt fails a test. A capability an agent is
@@ -114,7 +115,7 @@ walk into, each paid for once already.
   preamble says so, and the shape modules are shared rather than restated.
 - ⚠️ A game's type is `projects.type`, a column rather than a file, so no
   `write_file` can change which editors somebody sees.
-- ⚠️ The studio library's **compatibility law** (spec.md §4): a library version
+- ⚠️ The studio library's **compatibility law** (spec/ §4): a library version
   N+1 must run every game that ran N. `npm run sweep` raises every game at
   once and cannot know better; break it and the fix is by hand, game by game.
 - A library is *named* to an agent rather than sent — each one's top comment
@@ -126,8 +127,8 @@ walk into, each paid for once already.
 - The ambient file block lives in the **system prompt**, after the brief and
   the agent description, never on the last user message; the order inside it
   and the history trim boundary hold still between fires. All of it is for the
-  prompt cache, and all of it was measured (spec.md §8, §14).
-- The client's rules are spec.md §17. The three most often walked into: a new
+  prompt cache, and all of it was measured (spec/ §8, §14).
+- The client's rules are spec/ §17. The three most often walked into: a new
   `.scroll` container needs a `data-scroll` name; nothing calls `fetch`
   directly, `send()` does; and an `onclick` that opens something must return
   its promise all the way up, or Back stops working.
@@ -285,7 +286,7 @@ Open questions:
   have never been felt on a real phone. Both are TODO lines.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
-- Deferred by choice: spec.md §15. Typing previews are permanently out (§2).
+- Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)
 
@@ -298,10 +299,10 @@ Workflow:
 - Commit after each meaningful change passes its tests. One logical change
   per commit.
 - Stage only the files relevant to the change. Use `git add <path>`, never `git add .`.
-- **A feature's docs ride its last commit, not each one.** spec.md,
+- **A feature's docs ride its last commit, not each one.** spec/,
   GLOSSARY.md and the TODO line land together in the commit that finishes the
   job — which is what the global "same commit, no exceptions" rule asks for
-  anyway. Editing spec.md four times across four commits costs four reads of
+  anyway. Editing spec/ four times across four commits costs four reads of
   its neighbourhood and buys nothing.
 - Conventional commit messages: feat:, fix:, refactor:, docs:, test:, chore:.
   First line under 72 chars. Body if useful, omitted if not.

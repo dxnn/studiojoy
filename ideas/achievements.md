@@ -9,7 +9,7 @@ after that is a rule over those moments, written in a form.
 ## What the studio already has that this rides on
 
 - **The scoreboard shape.** Rows in SQLite, never the working tree, because a
-  tree write is a commit (spec.md §3). The games origin's write rules — the
+  tree write is a commit (spec/ §3). The games origin's write rules — the
   `player` cookie, a per-player rate limit, every field capped, a plain 404
   for anything that is not a game's — are settled and tested. An earned
   achievement is the same kind of thing as a personal best: one row per
@@ -25,7 +25,7 @@ after that is a rule over those moments, written in a form.
   the calls with no orchestrator edit; the sweep gives every existing game
   the files and the empty seed.
 - **The reporter.** Already injected into the preview, already posting what
-  happens inside the game to the studio page (spec.md §8). Moments ride the
+  happens inside the game to the studio page (spec/ §8). Moments ride the
   same channel, so the studio can watch a game say them while it is played.
 - **A helper is a row.** Its `description` is its system prompt, layered
   under the studio preamble. A specialised achievements helper is data, not
@@ -185,7 +185,7 @@ anyone can satisfy from devtools. Accepted for the same reason.
 4. The editor, with the moment picker fed by 3.
 5. Preamble lines and their assertions; the templates load the tags and say
    their moments.
-6. spec.md §3 §4 §6 §8 §10, GLOSSARY.md, CLAUDE.md; one live run of the
+6. spec/ §3 §4 §6 §8 §10, GLOSSARY.md, CLAUDE.md; one live run of the
    helper below.
 
 ## The achievements helper
@@ -247,7 +247,7 @@ move it later.
 
 ## For the build session
 
-- Read CLAUDE.md, then spec.md §3 (`scores`, `personal_bests` — the shape to
+- Read CLAUDE.md, then spec/ §3 (`scores`, `personal_bests` — the shape to
   copy), §4 (the library and the compatibility law), §6 (the games origin
   table and the scoreboard's studio-side routes), §8 (the reporter feed and
   the preamble), then this file. `server/scores.js`, `server/games.js` and
@@ -260,10 +260,10 @@ move it later.
   from the preview are painted in place, never through `render()` (the
   problems panel's reason, CLAUDE.md); and the server's `parseConfigFile`
   import is from `public/config-file.js`, the first of its kind — say so in
-  a comment where it happens and in spec.md §16.
+  a comment where it happens and in spec/ §16.
 - Every button and file name the preamble gains is asserted in
   `orchestrator.test.js`, like the two editors before it.
-- Docs are part of the build, not after it: spec.md §3 §4 §6 §8 §10 §12,
+- Docs are part of the build, not after it: spec/ §3 §4 §6 §8 §10 §12,
   GLOSSARY.md (*moment*, *moments library*, *achievement*, *achievements
   editor*, *achievements library*; widen *reporter*), CLAUDE.md's current
   state, and the TODO.md line deleted in the same commit as the last step.

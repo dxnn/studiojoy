@@ -1,0 +1,1039 @@
+## 6. HTTP routes
+
+Two listeners in one process, on two origins (§7).
+
+### Studio origin (`PORT`)
+
+All `/api` routes require a valid `session` cookie and return JSON unless
+noted. A request for an unknown project slug gets 404. A write to an archived
+project gets 409. A JSON body must be declared `Content-Type:
+application/json` (parameters and case ignored) or the request is a 415
+before its handler runs — that check is a security boundary, not hygiene (§7).
+
+#### Auth
+
+| method | path | body | effect |
+|---|---|---|---|
+| POST | `/api/login` | `{email, password}` | set cookie, return user |
+| POST | `/api/logout` | — | delete session, clear cookie |
+| GET | `/api/me` | — | current user |
+| GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
+
+There is no signup route **on this origin**: studio accounts come from
+`npm run adduser` and the admin panel, and the games origin's public sign-up
+only feeds a waiting list whose approval makes a player account (§3,
+`signups`). Login requires `studio_access = 1`; a player account takes the
+unknown-email path, same as a removed one. `/api/users` lists who is *in the
+studio* for the sidebar's Crew tab — players excluded — and carries no
+address: a list of names needn't be a list of emails to do its job.
+
+#### Projects
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/projects` | — | all projects incl. archived, with last-message preview; each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
+| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, and a chat project's one room |
+| GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
+| PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
+| GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
+| DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
+| DELETE | `/api/projects/:slug/scores` | — | delete them all |
+| GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
+| GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
+| POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height. Broadcasts `collection.changed` |
+| GET | `/api/collection/:id` | — | the bytes. The one studio read that may be cached hard (`immutable`): a row's bytes never change |
+| DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
+| POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
+| POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
+| POST | `/api/projects/:slug/archive` | — | archive, one way: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first. Unarchiving is `npm run unarchive` |
+| POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
+| DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
+| POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
+| POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game — neither the thread nor the original's helpers come along; the copy has the *builder* in its own `Building` like any game; games only |
+| POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
+
+⚠️ The three author and open routes are the exception to **open**: they need
+an *author*, not merely somebody who may write, even when the game is open.
+Open is about the work, not about who decides (§11).
+
+#### Running the studio
+
+Every route here requires `users.admin`; everything else in the API is open to
+any account (§11).
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, and `waiting` — the undecided sign-ups |
+| POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
+| PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
+| POST | `/api/admin/signups/:id/approve` | — | the waiting list's yes: makes the player account, marks the row; 404 once decided |
+| POST | `/api/admin/signups/:id/refuse` | — | the waiting list's no: marks the row and keeps it (§3) |
+| PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody. (`starter_agent_id` used to ride here too; the *builder* made it moot, §3) |
+
+The panel has no Save buttons: every field saves itself on `change` — when
+focus leaves it, so a half-typed number is never sent — and the row repaints
+from the server's answer, so a refused value reverts.
+
+⚠️ A password set here ends that person's sessions: a password changed because
+somebody else knew it has to end the somebody else's session too.
+
+⚠️ **There is no `DELETE /api/admin/users/:id`, and no Remove in the panel.**
+Taking somebody out of the studio is `npm run deluser -- <email>` and nothing
+else, undone with `npm run restoreuser` (§3, §11 has why). Every route above
+refuses a person who is already out — the panel lists only the people still
+in the studio, and a `PATCH` naming a removed id is a 404.
+
+#### Chats
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/projects/:slug/chats` | — | this project's conversations |
+| POST | `/api/projects/:slug/chats` | `{name}` | a new one, always allowing helpers |
+| PATCH | `/api/projects/:slug/chats/:chat_id` | `{name}` | rename |
+| POST | `/api/projects/:slug/chats/:chat_id/seen` | — | clear your own *marks* on that chat |
+
+`GET /api/projects/:slug` and `GET /api/projects/:slug/messages` both take
+`?chat=`; `POST .../messages` takes `chat_id` in the body. Absent, all three
+mean the chat the project opens on — so a client that knows nothing about
+chats posts into the human-only one rather than into whichever one it guessed.
+A chat id belonging to another project is a 404: from here it is simply not
+one of this project's.
+
+There is no route that deletes a chat.
+
+#### Agents
+
+| method | path | body | effect |
+|---|---|---|---|
+| GET | `/api/agents` | — | every agent people made — never the *builder*, which is in every game's `Building` already and goes nowhere else |
+| POST | `/api/agents` | `{name, description, model?, thinking?, file_tools?}` | create |
+| PATCH | `/api/agents/:id` | any of the above | update; 403 for the builder |
+| DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects; 403 for the builder |
+| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat; 409 for `Humans only`, for the builder's room, and for the builder itself |
+| PATCH | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | `{chatty}` | update |
+| DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out |
+
+#### Messages
+
+| method | path | body | effect |
+|---|---|---|---|
+| POST | `/api/projects/:slug/messages` | `{body, context_paths?: string[]}` | post a human message; fires eligible agents (§8) |
+| GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history |
+| POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
+| GET | `/api/messages/:id/receipt` | — | `{breakdown, prompt_held}`: what that reply was given and what each request cost (§8); 404 for a message with no receipt |
+| GET | `/api/messages/:id/prompt` | — | the last request of that fire as plain text; 404 unless the message is the one reply in its project whose prompt is still held |
+| POST | `/api/messages/:id/reactions/toggle` | `{emoji}` | toggle that emoji on that message for the signed-in person; answers `{action: 'add'\|'remove'}` and broadcasts `message.reaction` (§9) |
+
+Message ids are global and every account sees every project (§3), so the two
+receipt routes and the reaction toggle check only that someone is signed in.
+For the toggle that is deliberate: a reaction is talk about the work, not a
+change to it, so neither authorship nor archiving stands in the way.
+
+#### Files
+
+| method | path | notes |
+|---|---|---|
+| GET | `/api/projects/:slug/files` | recursive listing: `[{path, size, mime, modified_at}]`, sorted |
+| GET | `/api/projects/:slug/files/*path` | raw bytes, `ETag: "<sha256>"` |
+| PUT | `/api/projects/:slug/files/*path` | raw request body is the content; honours `If-Match`; creates or updates; written at once, committed with the project's *pending commit* (§5) — answers `{path, size, etag, pending}` |
+| POST | `/api/projects/:slug/commit` | land the pending commit now: the client saying it is leaving. `{commit}`, null when nothing was owed |
+| DELETE | `/api/projects/:slug/files/*path` | commits, the pending commit first |
+| POST | `/api/projects/:slug/files/move` | `{from, to}` — `git mv`, commits |
+| POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
+| POST | `/api/projects/:slug/files/import` | `{from_slug, from_path, to_path?}` — copies a file **in from another game**, commits; 409 if `to_path` exists |
+
+`import` is the copy/paste between games: reading the source is every
+account's, so only the destination's rights matter — `write: true` on
+`:slug`, nothing on the source. Bytes only, no history, no link; the two
+games stay strangers afterwards.
+
+`PUT` takes a **raw body**, not `multipart/form-data` — no multipart parsing
+to hand-roll, and it fits a file tree better than an upload endpoint: the
+browser reads a dropped `File` and `PUT`s its bytes at the path it should
+occupy.
+
+`If-Match` carries the ETag from the last `GET`; on mismatch the server
+returns 409 with the current content, so the editor can't silently clobber an
+agent's write while you had the file open. Omitting the header forces the
+write.
+
+The tag is matched by the sha inside it, not byte for byte — comparing the
+hash *is* the conflict check the header is for. A compressing proxy renames a
+strong ETag per encoding (Caddy's `encode` suffixes it `-zstd`, stripped only
+from `If-None-Match`; nginx's gzip weakens it to `W/"<sha>"`), so behind the
+recommended Caddyfile every save 409'd as a phantom conflict until the
+comparison allowed for the rename.
+
+`+ Upload` — one of **Add a file**'s four choices — puts **any** file into
+the game the same way: the studio `PUT`s the dropped or picked `File`'s
+bytes, one request and one commit per file. Client-side only; no route
+distinguishes an upload from an edit or one kind of file from another —
+`checkProjectPath` validates a path's shape, never its extension, so
+accepting a `.zip` needed no server change, only a button that no longer
+claims to take just pictures and sounds.
+
+What the pane can *show* is separate, answered by `MEDIA_KINDS` in
+`public/files-tab.js`: one entry per kind, matched in order — the only place
+a new kind gets added. A file no entry matches gets a plain description with a link to
+save it, since an unknown extension is already served as a download (§4).
+Three choices worth naming:
+
+- **Four folders under `assets/`, by what the file is** (named in the agent
+  preamble): a short noise to `assets/sounds/`, a track to `assets/music/`, a
+  *strip* to `assets/sprites/`, any other picture to `assets/images/`,
+  anything else to `assets/`. Not tidiness: `Sound.play("laser")` and
+  `Sprites.draw(ctx, "hero", x, y)` resolve a plain name inside the first and
+  third folders unaided; a still picture or a track (whose ending varies)
+  can't, so those are drawn by whole path instead. A dropped file is
+  **measured** first — shape says strip, length says noise or tune (over ten
+  seconds is music, as wrong for a long wav or sting as the strip test can
+  be) — with one override box for whatever the guess gets wrong, and
+  anything undecodable treated the same way.
+- **The filename is tidied, not trusted.** Lowercased, runs of
+  non-alphanumerics collapsed to one dash, extension kept, and
+  `checkProjectPath` validates the result regardless. Two files that tidy to
+  one name are refused, not silently overwritten.
+- **One commit per file.** A dozen sprites make a dozen versions, exactly as a
+  dozen agent writes would. Batching them would need a route that takes several
+  files, and nothing else in the app wants one.
+
+An asset opens as the thing itself — a picture in the *pixel editor* full
+width under Pics or Code, a sound's sliders or player in the rail under Hear,
+an `img`, `audio` or `video` pointed at the studio's own read route for
+anything it cannot edit. An agent never sees its bytes (§8), and `write_file`
+takes text, so a helper can point a game at `assets/sprites/hero.png` but
+cannot create or change it.
+
+A code file opens with its syntax coloured by the studio's own tokenizer
+(`public/highlight.js`) rather than a library: comments, strings, numbers,
+keywords, tags and attributes for `.js`/`.json`, `.css` and `.html`, else
+plain. The mechanism is an overlay — the same characters tokenized onto a
+`<pre>` behind a transparent-ink textarea — so the textarea stays the only
+editor: caret, selection, focus snapshot, dirty state and save are untouched,
+and a mistokenized read is a wrong colour, never a changed file. ⚠️ Token
+styles may vary `color` only — a bold or italic glyph is a different width,
+and the overlay must sit exactly on the text. A file past 128 KB stays
+plain, and a JS regex literal stays plain too: telling `/` the operator from
+`/` the regex needs a parser, and a wrong guess would paint the rest of the
+line as a comment or string. The tokenizer is pure — no DOM — and covered by
+`npm test`.
+
+An asset can also be **made** here rather than added, by two tools that end in
+the same `PUT`, at the same tidied path, in one commit each.
+
+`+ Make a sound` asks two things — what it's called, and which preset it
+starts from — writes the `.wav`, and opens it in the **sound editor**: a
+preset row, a shape, and a slider per number with its comment beside it. The
+render is arithmetic in `public/sound-maker.js` rather than Web Audio — a few
+hundred samples per millisecond of blip, then a 44-byte PCM header — so what
+the studio plays is what got saved, not a live approximation, and the whole
+thing is checked in `npm test` without a browser, which no `AudioContext`
+would allow.
+
+The editor is also simply how a `.wav` opens, which is the point: a sound is
+worth changing a week later, and samples can't be turned back into sliders.
+So the numbers ride inside the file, as the **sound note** — a JSON comment
+in a `LIST`/`INFO`/`ICMT` chunk, ~200 bytes, between `fmt ` and `data`. RIFF
+is a list of chunks any player skips what it doesn't know, so the samples
+stay byte for byte unchanged. Three choices worth naming:
+
+- **In the file, not beside it.** A sidecar `laser.json` would break on
+  rename, duplicate or restore, since those all move one file at a time.
+- **A comment chunk rather than a private one.** `ICMT` is the documented
+  place for a note about a sound, so any audio editor shows it instead of
+  dropping it on save — a chunk of the studio's own invention would be
+  invisible everywhere and no easier to write.
+- **Nothing in the file is trusted.** The bytes may have been uploaded — a
+  value the sliders couldn't have produced is replaced by the default, so a
+  hand-edited note is a strange sound at worst, never a broken editor. A
+  `.wav` with no note opens as the plain player it always did, with one line
+  saying why.
+
+`+ Draw a picture` makes a transparent PNG at the size asked for and opens it
+in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
+side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas
+keeps them, so an uploaded picture loses nothing on open. The tools live in
+`public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
+editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
+Five choices worth naming:
+
+- **There is no look-only view of a picture** — one would look identical to
+  the editor, so it would cost a click for nothing. A PNG too big to draw on
+  stays on screen as a picture with the reason underneath, which is the one
+  case where the two differ.
+- **The picture comes out of the file, not out of the studio's memory.** Every
+  open re-reads the bytes, so a version brought back from history is what gets
+  drawn on.
+- **Which tool, how wide and what colour live outside the open file.** A save
+  is a commit, a commit is a `files.changed`, which re-opens the file
+  underneath the editor — so anything held per-file would be thrown away on
+  every save. The picture and its undo stack are per-file; the choices are
+  not.
+- **The canvas element fills its box and the picture is fitted inside it.**
+  Sizing it by width and height instead squashes it: a canvas has an
+  intrinsic size, so a definite width with a capped height draws a 16-square
+  sprite at 16 by 7. The pointer maths takes the resulting empty strip back
+  off.
+- **The palette is the game's, and it is built rather than chosen from.**
+  Thirty-two colours in `PALETTE` in the game's own `config/look.js` — two
+  rows of sixteen, greys then rainbow then the ones with character. The
+  chosen square is both what the pencil draws with and what the colour box
+  and the eyedropper write into, so lifting a colour off a picture is how the
+  palette fills up.
+
+  Being a *config file* is the point, not an implementation detail: a colour
+  change is a commit on the game, appears in Versions, and a helper reads the
+  same list — the file also opens as a config form of thirty-two colour
+  fields (an earlier design's tradeoff: spec/alternatives.md). A game with no
+  `look.js` sees the studio's own thirty-two, written on first change; a
+  `look.js` with no `PALETTE` gets one appended rather than overwritten.
+  Otherwise each changed colour is a splice of that one value, so every
+  comment and untouched colour survives.
+
+  **Colour changes are batched** — held in memory and written when the
+  picture is saved, when the editor is left for another file, or on
+  `pagehide` with `keepalive` for the tab simply closing (a plain `fetch` is
+  cancelled on unload and `sendBeacon` can't `PUT`). Writing each one as it
+  happened turned eyedropping six colours into six commits — versioning
+  working against the drawing instead of for it. The picture saves itself two
+  seconds after a stroke and the colours go with it (§5's *pending commit* is
+  what makes that affordable); the bar says which is on its way. There is no
+  Save. The four tools are icons, with words on `title` and `aria-label` so
+  nothing is only a picture.
+
+- **A step is the pixels it changed, not a copy of the picture.** One
+  gesture — a stroke from pointer down to up, or a fill — records each pixel
+  it touched with its colour on both sides: a few kilobytes for a stroke at
+  any picture size, where a copy would be 4 MB, and what makes redo possible
+  at all — undo writes the old colours back, redo the new ones. The recording
+  happens inside `setPixel`, the one function every tool goes through, so a
+  tool added later gets undo by existing. Measured in a browser: a fill of a
+  670×330 background took 57 ms and undoing it took 8 ms (why not replay
+  actions instead: spec/alternatives.md).
+
+  ⚠️ Undo applies its entries **last to first**. A stroke that crosses itself
+  writes the same pixel twice, so that pixel has two entries: the first holds
+  the colour it really started as, the second holds what the first left behind.
+  In record order, undo would stop at the middle colour.
+
+- **Both stacks together are bounded by bytes**, because one case is
+  genuinely large: flooding a whole 1024-square picture is twelve bytes a
+  pixel — a 4-byte index and 4 bytes of colour each side — 12 MB. One step is
+  always kept however big; the alternative is a fill that can't be undone.
+
+A conflict is reported rather than merged. The save carries `If-Match` like the
+text editor, but two pictures cannot be offered side by side in a dialog, and
+nothing but a person writes a PNG — so a 409 says what happened and changes
+nothing.
+
+In **Versions**, a commit that touched a picture shows it as a thumbnail
+unasked, and opening the row shows it whole. The unified diff of a PNG is the
+sentence "Binary files differ" — git talking about itself, not the game — so
+the patch renders only when it has a real hunk. `logCommits` carries the
+paths each commit touched, from `--name-only` in the same process: fifty
+extra git invocations just to learn a version has no picture would cost more
+than the feature is worth.
+
+A commit that touched a sound gets a player on the same terms, pointed at
+the same read-at-a-commit route — a subject line can't say what a version of
+a blip sounded like. It sits beside the row's controls, not inside the button
+that opens them, since pressing play must not open the changes; it preloads
+metadata only, so a version that deleted the sound removes its own row the
+way a picture with nothing behind it does.
+
+The history route answers `{ commits, total }` — a page of versions and how
+many there are. The count, a `rev-list --count` beside the log, is what the
+open file's bar says (`12 versions` rather than `Versions`, asked for with
+`limit=1` on open) — worth knowing before deciding whether the list is worth
+opening at all, rather than a page-size count quietly meaning "or more".
+
+A file matching `config/<name>.js` opens as a **config form** — one labelled
+field per value, its own comment beside it — instead of as text. Entirely
+client-side: `public/config-file.js` reads the `const NAME = value;` subset
+(§8), returns each value with its span in the source, and an edit splices
+that span so comments, alignment and every other byte survive. Four rules
+hold it together:
+
+- **Nothing is executed.** No `eval`, no `new Function`. Config files are
+  written by LLMs and by kids and are served from the games origin; running one
+  in the studio would hand game code the studio's own context (§7).
+- **All or nothing.** A file holding anything outside the subset — a function, a
+  sum, a template literal — opens as text with a line number, rather than a form
+  showing the part it understood and hiding the rest.
+- **A value it writes is a value it can read.** A number field validates against
+  the same pattern the reader accepts, so the form cannot produce a file it would
+  then refuse to open.
+- **A comment belongs to one value.** Read from the raw text — a `//` inside
+  a string isn't a comment — and counted as a value's own only if it follows
+  with nothing but a comma or closing semicolon between, or sits above the
+  line that value's text starts. `{ width: 320, height: 200 };  // the play
+  area` describes the group, so both fields show no note rather than
+  repeating that one.
+
+Each edit re-reads the file and finds the value by path rather than reusing the
+last render's offsets: a splice moves every offset behind it, and re-rendering
+the pane per keystroke would replace the Save button under the pointer.
+
+#### The shell
+
+Three panes: the sidebar, the conversation, the rail. Each choice is about
+where a thing is reachable from, not how it looks.
+
+**The sidebar is one list at a time** — Games, Chats, Crew — with tabs and a
+filter box, not the three stacked foldable sections that fought each other
+for the pane's height before. Crew is everyone in the studio, **Humans** over
+**Helpers**, since both belong to the studio rather than a game, from `GET
+/api/users` — names and ids, no addresses — read once at boot; the empty
+state says where accounts come from, since nothing here makes one. The tab is
+remembered per browser next to the rail width; the filter isn't, since a
+stale filter is a list with things missing. The button above the tabs makes
+whatever it holds, so `+ New chat` is never a click away.
+
+**Everything you can do to the whole game is behind one `···` beside its
+name** — Rename, Fork, Editors, the games list, Add chat, Archive — absent
+rather than greyed for anybody who may not press it: Fork is everybody's;
+Rename, Editors, the games list and Add chat are an editor's; Archive is the
+*originator*'s, only while the game is out of the games list (§11). Nothing
+to offer means no `···`. The bar itself holds only state: the padlock, the
+`archived` tag, and a whisper saying whether the game is in the games list.
+
+**Every thing has one `···`, on its row, and nothing else that changes it.**
+A scene, a line, a choice, a mood, a file, a version, a helper, the chat
+you're in: each row's `···` holds what can be done to it, in one order —
+Rename, Duplicate, then what is its own (Start here, Move up, Move down,
+Bring back), Delete last in crimson — with nothing the reader may not press:
+a refused item is absent, and a thing with nothing to offer has no `···`.
+What *looks* at a thing is a link on the row (`Show changes`, `All files
+changed`, a scene's *comes from*); what makes a new one is a bordered button
+where it lands (`Add a file`, `+ Add a scene`). One `Duplicate…` covers all
+three destinations a file can go — this game, another, or a picture into the
+*studio collection*. `more()` in `main.js` is the one implementation;
+`S.menu` holds which is open, keyed by the thing, so a render keeps it and a
+click elsewhere closes it.
+
+**The inspector** (a working name, ideas/calm-shell.md) is the rail under the
+preview, holding the selected thing's fields when the mode has one: in the
+story editor a scene's name, ways in, note, picture and music; a person's
+name and note; the title screen's two lines — letting the centre be what
+happens rather than what things are called. Its fields keep the ids the
+focus snapshot knows (§17), so the caret survives a render there too. A file
+has none: its bar in the centre already says what it is.
+
+With nothing more specific selected, the inspector falls back to the game's
+own achievements — an icon per one defined in `config/achievements.js`,
+dimmed until a player holds it, read-only. Clicking one, or the label above
+them, opens Share, where the real editor lives — a summary is not where you
+go to change one. Empty when the game defines none yet.
+
+**The row under it is the mode row**: one pill per surface the centre can
+show, in the order the type gives (`modesFor` in `public/game-types.js`) —
+**Chat**, then the type's editors (**Write** for a visual novel), then
+**Pics**, **Hear**, **Controls**, **Code**, **Versions**, **Share**. A chat
+project has no row. Which is showing is the centre's one piece of state
+(`S.mode`), in the address as `?mode=`, remembered per game; a game opens on
+what the address says, else what the browser remembers, else its type's
+first editor, else Chat. There is no Play — the preview lives in the rail
+only, so the ask-commit-reload-play loop stays one pane away regardless of
+mode. Leaving a mode lands the game's *pending commit* (§5).
+
+**The body of the centre pane is the mode's.** Chat is the chat's own row —
+pills, the helpers listening and the `+` that calls another in (⚠️ each its
+own horizontal scroller, so chats and helpers give way to each other rather
+than one pushing the other off the end) — over the thread and composer. An
+**editor** is a surface a *game type* brings, one mode each
+(`public/game-types.js` maps `projects.type` to its editors — the whole
+registry), taking the whole pane like the chat does. Code is the file list
+with the open file's editor under it, as the rail's Files tab was; Versions
+is every past version of the game — `git log`, one row a commit, each
+opening its diff — its own mode now, no longer folded into Share; Share is
+one page — the game's address and games-list status, then the scoreboard and
+achievements, each keeping the rendering it had as a rail tab. `S.chat` is
+untouched by the mode, so the chat behind another mode keeps filling and a
+mention marks the Chat pill rather than being read. The *story editor* is
+the first editor (below); a type may bring several. Old addresses still
+read: `?edit=` is a mode, `?tab=files` is Code, `?tab=versions` is Versions,
+the rest are Share.
+
+**Pics and Hear are the game's files by kind, not by folder.** Pics is
+cards: for a visual novel, **Characters** (one per *cast* member, first
+mood) over **Places** (backgrounds, with scene counts); for every game,
+**Sprites** (first frame), **Pictures**, the three *reserved images* under
+**Studio dressing**, and **Other pictures** last, so nothing the tree holds
+is missing. A card pressed once selects into the inspector — where it
+lives, its size, *Draw on it*; pressed again it opens full width in the
+*pixel editor*, the bar's ✕ the way back. Hear is rows, sounds over music;
+the open one's *sound editor* — or a player, for one not made here — lands
+in the rail, closed by the same row. Each has its maker at the top: *Add a
+picture* is the add-file dialog narrowed to drawing, uploading, and the
+*shelf* (below) as a source for a new file; *Make/Upload a sound* the same
+for sounds, minus the shelf, which is pictures only. The tree is still
+Code's — a file opened elsewhere still opens under Code.
+
+**Questions** is the quiz's editor as a mode: `config/questions.js` opens on
+arriving, its bar has no ✕ — nowhere to close it to — and the form saves
+itself like the story does.
+
+**Controls** is how the game is held, the same way: `config/controls.js`
+opens on arriving, no ✕, saves itself. Two halves.
+
+The **shape** is one wide row per thing the studio offers, in the registry's
+order and words — the same four New game asks about (§4) — with the
+*arcade* family opening into its three manners underneath while the game
+wears one: one open at a time, in its row. The row already worn is cyan and
+*not a button* — a greyed-out row is a question it can't answer — nor is
+any row in a game you may not change. Picking one writes `SCHEME` only —
+⚠️ never the bindings, whose left-hand words are the game's own code, and
+⚠️ not the notes above it either, which still describe the shape it was
+seeded with (a TODO line).
+
+Then **what each player does**: a row per verb with its bindings as chips,
+read-only for the same reason. A verb **opens in the row it belongs to**,
+into a row per binding — the chip, its words for a player ("the space bar",
+"the controller's right stick pushed left"), and *Take it out* in its `···`
+— over the three ways to add one. A key is **pressed** rather than picked
+from a list of a hundred: the button installs one `keydown` listener that
+takes itself off with the first key, Esc cancels, and the friendly name is
+what gets written (`key:space`, not a space nobody can see). A controller
+button or on-screen control is a select of the shape's own vocabulary, so a
+shape can only be given what it draws; a drawn button also carries its
+**name** (starting as the verb's own) and *it latches* (`touch:` ↔
+`toggle:`) — only a drawn one does, since a key or pad button staying
+momentary keeps the desktop feel.
+
+The shape's two knobs sit under it: `BUTTON_SIDE` where anything is drawn,
+`STICK_DEADZONE` where a thumb works a stick — ⚠️ **written the first time
+one is used**, since a shape seeded without them never declared them, and
+`input.js` reads `"right"`/`0.35` for itself until one is there.
+
+Under the verbs, every binding this shape lacks — a `stick:` in a swipe
+game, a drawn button in a `none` one — is said in words, with *Take it out*
+in its `···` too, and struck through in the verb rows above, or a row would
+show a control that looks like it works. One check runs over the whole
+file: a shape that draws something with bindings that never name it is
+unplayable on a phone — exactly what picking a shape without rebinding
+causes. That's what declaring the shape is for: a file claiming `swipe-tap`
+while binding six drawn buttons has left its shape, and the panel says so.
+
+⚠️ Shape-locked like the quiz: `CONTROLS` must be a group of players, each a
+group of things to do, each **one line** of bindings. A list where a line
+belongs, or anything the reader won't touch, falls back through the generic
+form to the text with the reason said; a declaration the panel doesn't know
+is named at the foot rather than hidden. The model is
+`public/controls-editor.js`, shared with `npm test`; the panel is
+`public/controls-form.js` — both render wherever the file is open, Code
+included, since one renderer reached two ways isn't two surfaces (the
+*story editor*'s rule).
+
+**A game a person makes is open** — the whole studio may change it — until
+an editor closes it in the `Editors` dialog, putting a padlock on its name.
+This is a studio of people who trust each other: a game nobody else may
+touch should be a decision somebody made, not the default. A fork starts
+open too, whatever the original was. ⚠️ Stated at the INSERT rather than the
+column's default (which stays 0), since a database from before already has
+the column and SQLite can't change a default after the fact. Chat projects
+stay closed — no working tree, and `open_edit` there is about who may start
+chats in somebody's conversation.
+
+**The rail is the running game and nothing else**: the preview, `Open` and
+`Hide` on the frame since both act on the game, and under it the problems
+and moments it reported. Folded, it is one row that still plays, remembered
+per browser. `Reload` is gone — a save already reloads it. Files, Versions,
+Scoreboard and Achievements are modes of the centre now (above); the file
+editors open by kind: a picture under Pics or Code, a sound in the rail
+under Hear, everything else under Code.
+
+**A game lends the studio its four colours** — its *look* — while it is
+open. `config/look.js` is read once for both the *palette* and these; the
+four are set on the shell as `--look-*`, read only by the chat pane, its
+buttons, the composer, the game's actions and the rail. The sidebar stays
+the studio's own cyan on purpose, so the studio never looks like whichever
+game is open. ⚠️ Each value is checked before reaching a style attribute —
+no colon or semicolon, so it can't close the declaration and open another,
+and no `url()` or `var()`. A game naming none of them wears the studio's
+defaults, so a partial look is fine; a helper's edit to `look.js` re-reads
+unless the editor holds unsaved colours.
+
+**Three picture names at a game's root are reserved images** — the studio's
+dressing, not the game's: `chat.png` tiles behind the conversation,
+`hero.png` backs the bar over it and the game's card in the catalog (§7),
+`icon.png` sits before the game's name in the sidebar. Root rather than
+`assets/` on purpose, so a sprite happening to be named `icon.png` doesn't
+become the studio's dressing; the upload dialog routes the three names to
+the root the same way it routes a strip to `assets/sprites/`. All optional
+— a game without one wears the studio's own look — and person-made like
+any other picture; the preamble names them so a helper asks rather than
+filing a wallpaper where nothing looks. They sit under a wash of the game's
+`deep` colour in the studio, a plain dark one on the catalog card. The
+client holds the open game's two, and every game's icon, as object URLs
+replaced on `files.changed` and revoked on replace — the file routes send
+`no-store`, and a background rebuilt by every render would refetch on
+every keystroke; `has_icon` on the project list keeps the sidebar from
+probing every game for an icon it lacks.
+
+The six libraries under `studio/` — what each does, the manifest, the
+compatibility law, the sweep, and picking a game's control scheme — are
+documented separately, in spec/06-studio-library.md.
+
+### Game templates
+
+A **game template** is a starter tree: New game offers "Start from", and the
+chosen template's files are copied in server-side right after the library
+scaffold, as one commit. From then on they are the game's own — no version,
+no updates — unlike a library, since genre code must stay editable: "add a
+timer to my quiz" has to land in files a helper can change, not behind the
+`studio/` write-wall. Not a fork either: a fork copies history and attached
+agents; a template wants a clean thread and current libraries.
+`public/game-templates/` is the source (distinct from `public/templates/`,
+the seeds); its `index.json` carries the dialog's words and is the
+validation list. Every template follows one shape: a remixable heart in a
+config file, a pre-written `BRIEF.md` and `SPEC.md`, the library script tags
+already in `index.html`, and placeholder assets the studio's own makers can
+replace. Server-side copying is byte-safe, so templates can ship sounds and
+pictures.
+
+"A blank page" — the dialog's other, default choice — is one page, committed
+after the library scaffold like a template, from
+`public/game-templates/blank/index.html`; a game with no `index.html` is
+nothing the games origin can serve. That page is the one thing under
+`game-templates/` not copied byte for byte (`{{name}}` becomes the game's
+name, escaped), and is absent from `index.json` since the dialog already
+offers it as the empty choice. It loads every library the game holds,
+including input, since a game's *control scheme* is chosen at creation: the
+null controller draws nothing, and an arcade shape wants its two tags from
+the first minute.
+
+A `BRIEF.md` is committed with the page, copied byte for byte (§8, Project
+documents) — every template ships one, and it's the only place saying which
+script tags the page carries and which `SCHEME` was chosen.
+
+`index.json` also names each template's **heart**: the file the studio opens
+the new game on, since a template with its own editor is made in that editor
+rather than asked for. The *builder* sits in a template game's `Building`
+like any game's; opening on the heart just keeps it out of the way until
+wanted.
+
+The **quiz** template is the first, with its own editor: a quiz is a form
+pretending to be a game. `config/questions.js` holds `QUESTIONS` (each answer
+counting toward an ending) and `RESULTS`; while the file keeps that shape,
+the studio opens it as the **quiz editor** — add and remove questions,
+answers and endings, wire each answer to an ending by name, no code in
+sight. Ending keys (`ending_4`) are internal wiring the editor invents and
+never shows. Unlike the generic form's one-value splicing, the quiz editor
+regenerates the whole file with the template's standard comments, so opening
+and saving the shipped template is byte-identical (tested). A file that
+outgrows the shape falls back to the generic form, then to text, and a
+helper can grow it freely from there.
+
+The **achievements editor** is the third, and the first every game has:
+`config/achievements.js` is seeded into every game (§4), so its editor is
+the studio's own — the **Achievements** part of Share: each achievement in
+its own row with name, how to get it, an icon and the *moment* it waits for;
+`+ Add an achievement`; `Take it out`, confirmed with how many players keep
+what they earned. Like the quiz and story it regenerates the whole file and
+is byte-identical on an untouched save; a file that outgrows the shape keeps
+its tab with a reason and the text. Under Files it opens as plain text only
+— one surface writes it. It reads two things no field can: how many players
+hold each achievement (`GET /api/projects/:slug/achievements`), and the
+moments the *reporter* has heard this game say this session (§8) — offered
+where a rule names one, flagged where a rule names one never heard. Explicit
+Save with `if-match` and a conflict dialog on 409; unsaved edits park per
+game like the story's. The libraries and seed reach an existing game through
+the *sweep*; `<script>` tags and `Moments.say()` calls stay a helper's job.
+
+The **visual novel** is the second, and the one that says what a template is
+for. Its heart is `config/story.js`: `CAST` (who speaks, and their moods) and
+`SCENES`, each a picture, an optional sound, and lines said one at a time,
+ending in exactly one of `choices` (branch), `go` (carry on), or neither
+(end). A choice may `set` a switch; one that `need`s a switch is only
+offered once something has set it. DOM rather than canvas, since a story is
+mostly text that wants to wrap on a phone; it uses the sound and screens
+libraries, neither input nor sprites.
+
+⚠️ It came before the point-and-click adventure on purpose: the two share
+scenes and switches, but an adventure's spots are rectangles on a picture and
+agents cannot see pictures (§14) — a visual novel has no coordinates
+anywhere, so nothing about it is blocked on eyes. Building it first also
+settled the vocabulary the adventure inherits, `set`/`need` rather than the
+sketch's `flip`.
+
+A visual novel is the first **game type** (§3), edited in the **story
+editor** — an *editor* in the centre pane, with TyranoBuilder's three regions
+in one tab. The **scene strip** down the left — every scene with its
+problems and tail (*3 choices* / *→ hall* / *the end*), then the cast — is
+the editor's own navigation, letting a type bring several editors without
+each wanting a rail tab. For the selected scene, the **stage** draws what the
+player sees at the selected **step**, from the *unsaved* model, instantly and
+without a commit (`stageFor` in `story-editor.js`, pure and tested); its
+pictures are cached object URLs, dropped when `files.changed` names their
+path. Under it, the **steps**: one row per line, dragged into order or moved
+from its `···`, then the exit (choices, go, or end) and the scene's problems.
+What the scene *is* — name, *comes from* links, note, picture, music — lives
+in the **inspector** in the rail; what can be done to it whole (*Start
+here*, *Duplicate*, *Delete*) is the `···` on its strip row.
+
+Like the quiz editor it regenerates the whole file and is byte-identical on
+an untouched save, and it says five things no single field can: a scene
+nothing leads to, a dangling way out, a switch nothing sets, a missing
+picture or portrait, and a mood the cast lacks. **No Save button** — the
+story saves itself two seconds after the last edit or sooner on leaving a
+field, scene, editor or game, with `if-match` and a conflict dialog on 409;
+its commit is the project's *pending commit* (§5), which is what makes an
+editor that saves itself affordable. The pixel editor, sound editor and quiz
+form save themselves the same way, since every state they pass through is a
+picture, sound or quiz; Code's text editor keeps its Save, since half-typed
+code is a broken game the *reporter* would post. *Show the text* saves first
+and opens the file as plain text — the editor is in the middle, and a form
+there too would be a second surface writing the same file. *Try this scene*
+saves first, then reloads the preview at the game's own `?scene=`. ⚠️
+Unsaved edits park per game on leaving and return while the file's etag
+still matches, so a mis-click in the sidebar can't cost a scene; a changed
+file drops them with a word. ⚠️ A reload after a save keeps the story on
+screen until the new one is read, so the address isn't written without its
+scene as a spurious history entry.
+
+**The title screen** is a row above the scenes — the one thing here that
+isn't a scene. Its two lines are `config/words.js`'s, read and spliced back
+by Save (`titleWords`/`withTitleWords`, its own commit made first), so the
+rest of that form stays one link away. A words file reshaped past the two
+lines shows no row rather than a wrong one. **Duplicate** sits in a scene's
+`···` beside Delete: a copy under the next free name. The shape has no lines
+after a choice on purpose, so "the door is locked, still in the hall" is a
+second scene, and Duplicate is how one is made without retyping it.
+
+The template **ships empty** — no cast, no scenes — so the first thing an
+author meets is the **guide**: one card asking who the main character is,
+how they look, where the story starts, what happens first, who else is
+there, then where each scene leads, with every scene the story points at but
+hasn't filled coming round as its own question. **Deterministic**:
+`nextQuestion(model, paths, skipped)` in `story-editor.js` reads the next
+question off the story and the file list — the same facts the checks read —
+so the guide carries no state of its own beyond what the author set aside
+(*Later*, cleared by *Ask me again*), and works on a new story, a half-built
+one, or one hand-edited for a week. An ending looks like a scene without a
+way out, so *Then what?* is asked once per such scene, and *The story ends
+here* sets it aside. Every answer edits the model and the autosave writes it.
+
+A picture is a file, so the guide offers four ways to it: **Draw it** (a
+blank PNG opened in the pixel editor), **Upload one**, **Make one for me**
+(below), or **A plain card for now** — a flat card in the game's *look*, a
+round face or place drawn on canvas. It costs nothing and never fails, and
+is where the drawn one falls back to.
+
+The shape grows two optional keys, `about` on a cast member and a scene: a
+line for the studio and its helpers (never the game), shown as one field and
+doubling as what to draw on the picture card. Absent, it writes nothing, so
+a story without it is byte-identical through a save.
+
+#### Music, and sound as a step
+
+Two ways to be heard, depending on whether it belongs to the scene or to a
+moment in it.
+
+**Music** is `music:` on a scene — a whole path under `assets/music/`, unlike
+`sound:`, since a track has no one ending a bare name could give it. The
+player calls `Sound.loop(track, 0.4)` on entering a scene and stops the
+previous one only when it differs, so the same track **carries into the next
+scene without restarting** — the sound library already leaves a running loop
+alone, so this needed no library change. Quieter than a noise, since people
+talk over it.
+
+**A sound is a step among the lines**: an entry in `lines` that is only
+`{ sound: "page" }`, playing the moment it's passed while the story carries
+straight on (waiting for a tap would leave the box empty), or on leaving the
+scene if written after the last line. `isSoundStep` tells the two kinds
+apart; they share one list, so a noise drags between lines with the same
+`moveLine`.
+
+⚠️ **Scene-level `sound:` is the older shape**, meaning "at the start". The
+editor reads it as a sound step in front of the lines and **never writes it
+back** — saving an old story moves the sound into the draggable timeline, but
+the template's player still plays the old key, so an unsaved story is
+unchanged. Because a template is the game's own code with no sweep behind
+it, every existing visual novel needs its `js/story.js` brought forward by
+hand or its sound goes quiet on the first re-save.
+
+On the stage a noise has nothing to show, so `stageFor` names it beside the
+words still on screen. The guide counts *said* lines (`saidIn`), so a scene
+holding only a door slam is still unwritten.
+
+#### The two small asks
+
+**Fill it in for me** and **Make one for me** are the studio's own requests
+to the model: no helper row, chat, message, receipt, eligibility, cooldown,
+tools, transcript or file block. One request, one answer, nothing kept —
+`llm.complete()`, thinking off, a small `max_tokens`. Server-side, since the
+key never reaches a browser, through the same two walls every reply goes
+through: the studio-wide budget and the presser's own allowance, charged to
+whoever pressed (§10). Neither is a *fire*, so neither leaves a row anywhere
+but `user_tokens` and `studio_state`; the UI never says "prompt" or "model".
+
+JSON is asked for in the system prompt and parsed by taking the outermost
+braces, not through `response_format` — unmeasured by §14, and an
+unrecognised parameter fails open there anyway, so the defensive parse is
+needed regardless.
+
+⚠️ **The story comes up from the browser, not off disk.** The guide works on
+the unsaved model — the scene it asks about was likely made a moment ago and
+may not be saved yet. It's the author's own words going into a prompt billed
+to them, so the trust is theirs either way; every field is cut to a cap
+rather than refused (§10), and a `who` the cast doesn't hold comes back as
+the story narrating, so a fill can't leave a line said by nobody.
+
+The **drawn stand-in** asks for a flat SVG at the kind's size and the game's
+colours. The server checks only that it's plainly an SVG within 20 KB; the
+browser probes it in an `<img>` (an SVG runs no scripts there, the same
+probe the `.svg` editor uses, §7), draws it to canvas, and saves it as the
+PNG the story expects — so the pixel editor opens it like any picture and
+drawing over it is the next step. ⚠️ The probe is sized explicitly, since an
+SVG with only a `viewBox` has no intrinsic size and draws as nothing. An
+answer that won't draw falls back to the plain card; a refusal writes
+nothing and lets its own banner stand.
+
+These are the second and third *microhelper* — smaller even than the first
+(the achievements helper): no tools, one request, JSON back.
+
+The Mila story is the **example**: *Or put in an example story* on the first
+card, while the story is empty, copies its seven files from the **standard
+set** and saves the story with its endings marked meant.
+
+#### The standard set
+
+`public/story-art/` — pictures and sounds an author can use without drawing.
+Studio-side rather than in the template tree (which is copied whole into
+every game, so any size here would bloat every repository): one file copies
+in when picked, one commit, no history or link back. `index.json` is the
+registry: `art` (file, kind, name, `by`, `licence`, `who`/`mood` on a
+portrait) and `examples`, whole stories the guide can insert.
+
+The **shelf** is how it's picked, from three places — the guide stops asking
+once a scene or a mood has a picture, so the other two exist to *change*
+one: a sideways-scrolling row on the guide's picture card; `Pick a face…` on
+a mood's `···` in the story editor's person inspector, confirming first
+(*Replace \<name\>'s \<mood\> face?*) when one is already drawn there; and
+`+ Pick a face from the shelf` / `+ Pick a picture from the shelf` in the
+*Add a picture* dialog, beside Upload and Draw — every picture of that kind,
+shipped set and collection together, found by name or maker (forty-two
+pictures is not a strip, ideas/calm-shell.md). ⚠️ From the guide's card or a
+mood's `···`, picking copies the bytes to the path the *story* expects, not
+the set's own path — the set says what a picture looks like, the story says
+what it's called ("Mila, worried" becomes `assets/sprites/ben-normal.png`);
+from *Add a picture* there is no such path to expect, so it lands under a
+name of its own, counted up past any collision — that dialog only ever adds
+a file, never swaps one already there. Credit and licence ride the banner
+and tooltip; the index is read once a session, the shelf filled in as it
+lands rather than through `render()`, since the guide's card persists for as
+long as its question stands. A plain `<img src>` works here, unlike a game's
+own files, whose routes send `no-store`.
+
+Pictures only — a sound has `+ Make a sound`, which beats stock ones.
+
+What it holds: 33 portraits and 9 backgrounds, all CC0 — the studio's own
+three-and-three from the example story, 30 animal faces by **Kenney**, and 6
+pixel-art scenes by **Stealthix**.
+
+`test/story-art.test.js` keeps a growing set honest: every file present in
+the right folder, every licence named, a portrait's file matching its `who`
+and `mood`, every example's art actually listed. ⚠️ A portrait must not be a
+whole multiple of its own height — copied into `assets/sprites/`, that shape
+reads as a *strip* of square frames to the sprites library, so a 2:1
+portrait would animate instead of standing still.
+
+The quiz editor grew the same read, since a quiz's authoring bug is never a
+typo: endings unreachable, or all fed by one answer.
+
+The module reads its bindings through `try`/`catch` rather than assuming
+`CONTROLS` exists, so a game loading only one of the two config files falls
+back to playable rather than throwing on the first frame.
+
+#### History
+
+| method | path | notes |
+|---|---|---|
+| GET | `/api/projects/:slug/history` | `?path=&limit=` — commits, newest first: `{sha, short, author, subject, at, paths}` |
+| GET | `/api/projects/:slug/history/:sha/*path` | file content at that commit |
+| GET | `/api/projects/:slug/diff/:sha` | the whole commit: `{sha, paths, patch}` |
+| POST | `/api/projects/:slug/restore` | `{sha, path}` — write the old content, new commit |
+| POST | `/api/projects/:slug/rollback` | `{sha}` — the whole tree back to that commit, new commit; returns `{commit, restored, removed}`, with `commit: null` when the tree already matched |
+
+**A version is always sent whole.** `?path=` on the log selects which commits
+come back and nothing else: `paths` names every file each one touched, and the
+diff route has no filter at all. Narrowing to one file — its part of the patch,
+its picture, nothing else — is done by the reader, in `public/patch.js`.
+
+A **rename** is one section under two names — git heads it `a/<old> b/<new>` —
+so `patchFor` matches either side, and a move with nothing else in it, which has
+no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
+*Renamed from* when the reader is standing on the destination, rather than as an
+empty drawer.
+
+`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`
+and `Delete…`, and takes the whole path, so it also moves: `sprite.png` to
+`art/hero.png` is the same one commit. The dialog says what the new name
+will mean before it happens, and ⚠️ crossing into or out of `studio/` gets
+its own sentence, because that is the one move that changes who may edit the
+file rather than only where it lives. It is allowed either way — the
+library is refused to *agents*, not to people (§4) — but not silently.
+
+`Duplicate…` sits beside it and copies instead of moving, to one of three
+places its own `Where to?` picks between: **this game** (the default), one
+new file, one commit, the original untouched; **another game**, which opens
+a second select for which one and calls `files/import` instead, the two
+trees staying strangers to each other; or, for a picture, the **studio
+collection** (§3), which calls `POST /api/collection` instead of either. The
+name field for the first two is the *rename* dialog's own shape — just the
+stem to begin with, the folder and ending fixed until "Change the folder or
+the ending too" opens the whole path — pre-filled with a free `-copy` name
+for this game, and the file's own name unchanged into another one, since
+that tree has never heard of it. Landing in `studio/` gets the same sentence
+a rename there gets. The within-game copy is made server-side from the bytes
+on disk — so a picture duplicates without a round trip through the browser,
+and unsaved editor text stays where it is, which the dialog says when it
+applies — and its route refuses an occupied name rather than overwriting.
+
+The reason is that the two halves have to agree. Git's pathspec filters the
+*names* along with the commits, so a log scoped to one file used to report
+every version of it as a one-file version: a nine-file refactor read from one
+of its files looked like it changed nothing else, and there was nothing to
+click through to. The fix could have been a second count beside the filtered
+list, and was for one commit; sending the whole thing and narrowing in the UI
+is the same information with one field, one endpoint and no way for the two to
+disagree. The cost is one extra `git log --no-walk` over the page's shas —
+never one call per commit — and a filtered drawer fetching a patch bigger than
+it shows.
+
+#### Stream
+
+| method | path | notes |
+|---|---|---|
+| GET | `/api/stream?tab=<id>` | one SSE per tab; `: ping` heartbeat every 25 s |
+
+The stream is also how the client knows it is connected at all: `error` fires on
+the drop and on every retry, `open` when the studio is back. A request that
+cannot be sent says so too, but only the stream reopening clears it, because the
+stream is the one connection held open. While it is down the studio says **Not
+connected** at the top of the window and stays usable — nothing typed is thrown
+away, and a message refused by a dead connection stays in the composer.
+
+#### Static
+
+`GET /` and `GET /p/:slug` serve `public/index.html` for client-side routing.
+Other paths serve from `public/`.
+
+The rest of the view is in the query string, which the server never reads:
+`?mode=<id>` for the centre's *mode* when it is not the chat — an editor's
+id, `code` or `share` — with `?scene=<key>` for the story editor's selected
+scene when it is not the first, `?file=<path>` for the open file under Code
+or the filter on Share's versions, and `?version=<sha>` for the changes opened
+there; or `?chat=<id>` for a conversation other than the one the project
+opens on — never both, because a mode stands in front of whichever chat was
+open, so Back to the chat is the address without `?mode=`. Addresses from
+before are still read: `?edit=<id>` is a mode, `?tab=files` is Code, the
+other tabs are Share, and `?tab=play` is nothing at all.
+Switching tab or scene is a navigation and its own entry; selecting a step
+inside a scene is not. The client writes it from its own state on every render
+rather than at each click, so no control can forget to, and every view is an
+entry of its own: Back walks back through the files, tabs and versions opened
+inside a game the way it walks back through games. `replaceState` is used only
+while *following* an address the browser already has — the load, Back itself —
+where a push would duplicate the entry being arrived at.
+
+Reading it back is the same code path on load and on Back, and it takes away
+what the address does not say as well as putting in what it does: Back out of a
+file closes it. Within one game the rail moves on its own rather than the
+project being refetched, because reopening a project clears the pins, the
+reasoning traces and anything mid-stream. A part that no longer exists — a
+deleted file, a commit past the end of the list — simply does not open.
+
+An open dialog is a decision in progress, and two rules keep it one. The
+address is held while it is open, so Back out of unsaved work cannot overwrite
+the entry it was going to. And the dialog's node is built once and re-appended
+by every later render rather than rebuilt — a background render (a helper's
+commit landing, the banner timer firing) used to replace the form and wipe
+what was being typed into it. Focus and caret are snapshotted across a render
+for a dialog's controls the same way as for the composer.
+
+### Games origin (`GAMES_PORT`)
+
+| method | path | effect |
+|---|---|---|
+| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `hero.png` when its tree holds one (§6) under a dark wash and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. Under each card, *Scores & trophies* links to the game's players page. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
+| GET, HEAD | `/:slug/_players` | the game's **players page** (`catalog.js`): one *personal best* per person, the game's achievements with who holds each — *nobody yet* when nobody does — and under those the board's top 100, the viewer's own rows marked in cyan. Nothing about scores while the game's `scores_on` is off (a moderated board is not public in either direction, as for both `_scores` routes); the trophies stay, because earned is forever. Removed accounts are joined out; a run posted before the sign-in shows under the name it was posted with. A plain 404 for anything that is not a game's. Same headers as the catalog: no form here, but one posture for the two studio-authored pages |
+| GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error |
+| POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
+| POST | `/_logout` | delete the player session, clear the cookie |
+| POST | `/_signup` | `{name, email, password}` → a `signups` row (§3), rate-limited per IP; answers 202 `{waiting: true}` whether or not it wrote, so the form never says what an address is to this studio |
+| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
+| GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
+| GET, HEAD | `/:slug/*path` | that file from the project directory |
+| GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
+| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in |
+| POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool}` when it counts; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
+
+The `/_achievements` routes are the origin's **third write** and sit in the
+scoreboard's posture: a plain 404 for anything that is not a game's, no cookie
+but the player's, every dimension bounded. The definitions are read from the
+game's own `config/achievements.js` on every request — parsed, never run, by
+the client's own `parseConfigFile` (§16) — so a helper's edit is live at once
+and a *fork* carries its achievements with it. The server never sees a
+*moment*, only the unlock a rule produced in the browser. Archived games keep
+handing them out; a chat is a 404. The earned rows have no route on this origin
+— no list, no delete — because earned is forever (§3). The studio side is one
+route, `GET /api/projects/:slug/achievements`, which returns each definition
+with how many players hold it, for the *achievements editor*.
+
+A game whose `scores_on` switch is off answers the same plain 404 on both
+`/_scores` routes: a moderated board is not public in either direction. The
+rows are kept — the switch, the admin's list, and per-row deletion all live
+on the studio origin under `/api`, because moderation is running the studio.
+The studio shows it as the Scoreboard part of Share.
+
+The underscore routes cannot collide with a game: an underscore is not legal
+in a slug. No `/api` surface, no directory index, any other method 405.
+Archived projects stay playable — and keep taking scores. `Cache-Control:
+no-store` throughout, so iterating on a game shows fresh bytes on reload
+without cache-busting.
+
+⚠️ The one cookie this listener reads is its own `player` cookie, backed by
+`player_sessions` (§3) — never `session`, which still opens nothing here.
+Everything a player token can do, LLM-written game code running in that
+player's browser can do silently with it; that is why the authenticated
+surface is exactly three routes, and why the biggest of them is "post a
+score as yourself" — which is what the game was going to do anyway. The
+game files themselves are served to anybody, signed in or not, exactly as
+before.
+
+The catalog, the wrapper, and the scoreboard are not the project's own bytes.
+`_studio.html` is reserved in every project — a working tree containing a
+file of that name has it shadowed and never served.
+
+⚠️ The origin's writes are the scoreboard and the waiting list, each one
+bounded table, never a working tree — so a score commits nothing, restarts
+no preview, and never enters an agent's context, and a sign-up is a row an
+admin has to turn into anything. Both hold the rules a public write needs:
+every field capped (§10), a 1 KB `application/json`-only body, and their own
+rate limits — per player for a score, per address for a sign-up — in-memory
+like the lockouts (§11); `/_login` carries the login lockouts themselves. A
+score is keyed by the player because every post has an account behind it
+and a household shares one address: siblings on one wifi were sharing one
+ration of ten.
+
+"Per address" is only true if the address is. Deployed, everyone arrives from
+the reverse proxy, so this listener reads `X-Forwarded-For` under the same
+`TRUST_PROXY` flag as the login limiter (§13) and shares its rule: unproxied
+the header is ignored, because a client that can name its own address can
+name a fresh one per request and never be limited. Unset behind a proxy, the
+limits still hold — as one bucket for everybody, so the whole world shares
+five sign-up asks in ten minutes and one `/_login` lockout. Scores, keyed by
+player, never notice.
+
+⚠️ And an IPv6 address is not a client. Every residential connection holds a
+/64 at least, so a limiter keyed on the whole address is stepped around with
+a fresh one per request, each a new map entry. `clientIp` folds an IPv6
+address to its /64 before anything keys on it — the login lockouts on both
+origins and the sign-up limiter — so the household is the bucket. IPv4 stays
+whole, the `::ffff:` mapped form included.
+
+⚠️ The wrapper is the one unauthenticated route that spawns a process. It is
+cheap and read-only, but it is a bigger amplification than a file read, and it
+sits alongside the "no rate limiting outside login" tradeoff in §11.

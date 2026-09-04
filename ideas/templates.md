@@ -71,7 +71,7 @@ effect each (`go` to a scene, `take` an item, `need` an item, `say` a line,
 `set` a switch — `flip` as first sketched is out; the visual novel settled on
 one-way switches and the two should say the same thing). `js/adventure.js`
 draws, hit-tests, keeps inventory.
-⚠️ The constraint that shapes it: helpers cannot see images (spec.md §14), so
+⚠️ The constraint that shapes it: helpers cannot see images (spec/ §14), so
 spot rectangles are human-authored numbers. Ship it with worked example
 scenes; the real ergonomics fix is a follow-up studio affordance — drag a box
 on the open picture and it writes the spot into config/scenes.js.

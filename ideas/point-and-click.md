@@ -6,7 +6,7 @@ brought up to what the story editor settled.)
 
 ## What the visual novel already decided for it
 
-The two share their vocabulary on purpose (spec.md §4): a **scene** is one
+The two share their vocabulary on purpose (spec/ §4): a **scene** is one
 screen with a picture; a **switch** is one-way, `set` by an action and
 `need`ed by another, never `flip`ped. The adventure adds one word — a
 **spot**: a rectangle on the scene's picture that does something when clicked.
@@ -45,7 +45,7 @@ click back into picture pixels through the img's rendered box. The same
 
 ## ⚠️ The constraint that makes the editor the point
 
-Helpers cannot see pictures (spec.md §14). A spot is four numbers about a
+Helpers cannot see pictures (spec/ §14). A spot is four numbers about a
 picture, and nobody types those — so without an editor this template is
 worked example scenes and a helper guessing. The editor is not a nicety here;
 it is the only authoring surface that can exist.
