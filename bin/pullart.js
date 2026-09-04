@@ -4,6 +4,7 @@
 // small; this is the half that is large and machine-gathered (spec.md §4).
 //
 //   npm run pullart                 # every source below, writing the set whole
+//   npm run pullart -- --dry        # fetch everything, write nothing
 //   npm run pullart -- --list       # what would be pulled, fetching nothing
 //
 // Run it on a machine that can reach the sources, the way `npm run sweep` is
@@ -145,6 +146,45 @@ const PHYLOPIC_TAXA = [
 const PHYLOPIC = 'https://api.phylopic.org';
 const CC0 = 'creativecommons.org/publicdomain/zero';
 
+// svgsilh: ~358,000 CC0 silhouettes — flat, transparent, and the shape a
+// game wants most. Two things make it awkward, and both are arguments for
+// mirroring it rather than reaching for it while somebody waits:
+//
+// ⚠️ It publishes no index of its own, so **Openverse** is asked which
+// silhouettes exist and svgsilh is asked for the bytes. Openverse is also
+// where the CC0 claim comes from — svgsilh's own licence page has not been
+// read by anything here.
+// ⚠️ Cloudflare refuses a datacenter address outright — 403 on every path,
+// `/svg/<id>.svg` included — so this half runs from a laptop or not at all.
+//
+// **The word list is the curation.** A silhouette only enters the set if a
+// word below asked for it, which is why nobody has to audit 358,000 rows:
+// the same rule as Kenney's pack list, in a different shape. Twelve a word,
+// which comes to about a thousand.
+const SVGSILH_WORDS = [
+  'dragon', 'robot', 'rocket', 'spaceship', 'alien', 'ghost', 'monster', 'skull',
+  'castle', 'tower', 'house', 'door', 'ladder', 'bridge', 'fence', 'window',
+  'sword', 'shield', 'crown', 'key', 'gem', 'coin', 'treasure', 'chest',
+  'bomb', 'arrow', 'target', 'flag', 'clock', 'lamp', 'book', 'map',
+  'star', 'heart', 'moon', 'sun', 'cloud', 'snowflake', 'fire', 'lightning',
+  'tree', 'flower', 'mushroom', 'leaf', 'cactus', 'mountain', 'rock', 'wave',
+  'boat', 'car', 'train', 'plane', 'bicycle', 'balloon', 'kite', 'anchor',
+  'wheel', 'gear', 'magnet', 'telescope', 'camera', 'guitar', 'drum', 'bell',
+  'ball', 'dice', 'cake', 'apple', 'banana', 'carrot', 'cheese', 'pizza',
+  'fish', 'bird', 'cat', 'dog', 'horse', 'cow', 'pig', 'sheep',
+  'rabbit', 'mouse', 'bear', 'lion', 'monkey', 'elephant', 'snake', 'frog',
+  'spider', 'butterfly', 'bee', 'crab', 'octopus', 'whale', 'dinosaur', 'wizard',
+];
+const SVGSILH_PER_WORD = 12;
+const OPENVERSE = 'https://api.openverse.org/v1/images/';
+// Openverse allows 20 a minute to an unregistered caller, so the pull waits
+// between words rather than being turned away halfway through a run it cannot
+// resume. About five minutes for the list above.
+const OPENVERSE_PAUSE = 3200;
+// An SVG is text, and a silhouette is one path. Anything much larger is a
+// traced photograph, which is not what this set is for.
+const MAX_SVG_BYTES = 64 * 1024;
+
 /* Fetching ------------------------------------------------------------------ */
 
 // Every source here answers a browser and some of them refuse a bare script,
@@ -284,6 +324,57 @@ async function phylopicTaxon([taxon, tags], build, seen, report) {
   return art;
 }
 
+/* svgsilh --------------------------------------------------------------------- */
+
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// Openverse hands back svgsilh's PNG rendering — `/png/46748-3f51b5.png` —
+// and the number in front of the dash is the silhouette's id, which is what
+// `/svg/<id>.svg` wants. The SVG is the one worth keeping: 2 KB against 40,
+// and it draws at whatever size the browser asks for rather than at whatever
+// size somebody rendered it.
+const SVGSILH_ID = /svgsilh\.com\/(?:png|svg)\/(\d+)/;
+
+async function svgsilhWord(word, seen, report) {
+  const query = new URLSearchParams({
+    q: word, license: 'cc0', source: 'svgsilh', page_size: String(SVGSILH_PER_WORD),
+  });
+  const found = await grab(`${OPENVERSE}?${query}`, 'json');
+
+  const art = [];
+  for (const result of found.results ?? []) {
+    const id = SVGSILH_ID.exec(result.url ?? '')?.[1];
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+
+    // ⚠️ Openverse is the only thing saying this is CC0; svgsilh's own
+    // licence page is not read here. Its answer is still checked, so a row
+    // that came back under something else is left where it is.
+    if (result.license !== 'cc0') { report.notCc0 += 1; continue; }
+
+    const text = await grab(`https://svgsilh.com/svg/${id}.svg`, 'text').catch(() => null);
+    if (!text || !text.includes('<svg')) { report.unread += 1; continue; }
+    if (Buffer.byteLength(text) > MAX_SVG_BYTES) { report.big += 1; continue; }
+
+    // ⚠️ No strip check here, unlike every other source: a vector has no
+    // pixel size to measure. `svgBox` in the browser does it instead, on the
+    // size it is about to draw at (public/story-guide.js).
+    art.push({
+      file: `pictures/svgsilh-${slug(word)}-${id}.svg`,
+      kind: 'sprite',
+      // The word that was asked for, because a silhouette's own title is
+      // often one noun with no relation to it — and the word is what somebody
+      // will type again.
+      name: title(result.title || word),
+      tags: `${word} silhouette shadow outline`,
+      by: 'SVG Silh',
+      licence: 'CC0',
+      bytes: Buffer.from(text, 'utf8'),
+    });
+  }
+  return art;
+}
+
 /* The run -------------------------------------------------------------------- */
 
 const SOURCES = {
@@ -325,6 +416,39 @@ const SOURCES = {
       return art;
     },
   },
+  svgsilh: {
+    what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes from svgsilh.com,`
+      + ` found through Openverse by ${SVGSILH_WORDS.length} words`,
+    async pull(report) {
+      const seen = new Set();
+      const art = [];
+      // Counted here rather than on `report`, which phylopic also writes to:
+      // the check below is about *this* source's words.
+      let lost = 0;
+      for (const [i, word] of SVGSILH_WORDS.entries()) {
+        if (i) await wait(OPENVERSE_PAUSE);
+        try {
+          const got = await svgsilhWord(word, seen, report);
+          art.push(...got);
+          console.log(`  ${word}: ${got.length}`);
+        } catch (e) {
+          // ⚠️ A 429 here is the run outpacing Openverse's 20 a minute, and a
+          // 403 from svgsilh.com is Cloudflare refusing this address — a
+          // datacenter will see the second on every word. Neither is worth
+          // stopping the whole set for, but a run that lost most of its words
+          // is not a set either, so the count is checked when it finishes.
+          console.error(`  ${word}: ${e.message}`);
+          report.missing += 1;
+          lost += 1;
+        }
+      }
+      if (lost > SVGSILH_WORDS.length / 2) {
+        throw new Error(`${lost} of ${SVGSILH_WORDS.length} words failed`
+          + ' — svgsilh refuses a datacenter address, so run this from a laptop');
+      }
+      return art;
+    },
+  },
 };
 
 // Every source, every time. ⚠️ There is deliberately no way to pull one:
@@ -360,6 +484,17 @@ if (!art.length) {
   process.exit(1);
 }
 
+// Everything really fetched, nothing written. What a first run wants: the
+// svgsilh half in particular depends on two hosts that answer a laptop and
+// refuse a datacenter, so finding out costs a few minutes rather than a
+// commit that has to be undone.
+if (process.argv.includes('--dry')) {
+  const kinds = art.reduce((n, a) => n.set(a.by, (n.get(a.by) ?? 0) + 1), new Map());
+  console.log(`\n${art.length} pictures would be written, and nothing was:`);
+  for (const [who, n] of [...kinds].sort((a, b) => b[1] - a[1])) console.log(`  ${who}: ${n}`);
+  process.exit(0);
+}
+
 // Written whole rather than merged into what is there: the sources are the
 // truth and a re-run is how the set changes, so a picture dropped upstream
 // leaves rather than lingering. A partial run is refused above for the same
@@ -381,7 +516,9 @@ fs.writeFileSync(path.join(OUT, 'index.json'), `${JSON.stringify({
   _what: 'The big set: CC0 art mirrored into this repository by `npm run pullart`, '
     + 'offered on the same shelf as the hand-picked standard set and the studio '
     + 'collection. Written whole by the pull — edit bin/pullart.js, not this file. '
-    + 'A `sprite` is one thing on a transparent background and lands in assets/sprites/.',
+    + 'A `sprite` is one thing on a transparent background and lands in assets/sprites/. '
+    + 'A .svg entry is a silhouette, rasterised to a PNG by the browser when it is '
+    + 'picked (artBytes in public/story-guide.js); everything else is already a PNG.',
   art: index,
 }, null, 1)}\n`);
 
@@ -398,8 +535,15 @@ ${by.map((who) => `  ${who} — ${index.filter((a) => a.by === who).length}`).jo
 
 Kenney's packs come from https://kenney.nl/assets and are CC0; he asks for a
 donation rather than for credit, and https://kenney.nl/donate is the place.
+
 PhyloPic silhouettes come from https://api.phylopic.org — that archive is
 mixed, and only its CC0 images are here.
+
+SVG Silh silhouettes come from https://svgsilh.com, found through Openverse
+(https://api.openverse.org) and fetched from svgsilh.com itself. ⚠️ Openverse
+is what says these are CC0: svgsilh's own licence page has not been read by
+anything in this repository, and if that claim is ever wrong it is wrong for
+every file named svgsilh-* above.
 `);
 
 const bytes = index.reduce((n, a) => n + fs.statSync(path.join(OUT, a.file)).size, 0);

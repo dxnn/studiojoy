@@ -915,34 +915,56 @@ dialog matches name, tags and maker, and ⚠️ draws at most **120** at a time
 with `loading="lazy"` — 1,775 `<img>` at once is a second of layout for a
 grid nobody scrolls.
 
-Two sources, both hand-listed in `bin/pullart.js` because ⚠️ **safety here is
-the source list, not a filter**: every pack is one author's CC0 game art,
-safe by what it is rather than by a flag somebody set, and there is no
-moderation queue behind it. **Kenney** — 16 packs, 1,685 pictures, shooter
-packs left out on purpose; the pack page is scraped for its zip and read with
-`bin/unzip.js` (no dependency reads a zip). **PhyloPic** — 90 silhouettes,
-the only dinosaurs in the studio. ⚠️ PhyloPic is mostly CC BY, so its licence
-is checked per image and roughly half are left behind, and its `filter_name`
-is lowercase and taxonomic: `owl` and `cow` answer 404, so the list names
-taxa and carries the common word as a tag.
+Three sources, all hand-listed in `bin/pullart.js` because ⚠️ **safety here is
+the source list, not a filter**: a pack or a word is added by somebody who
+looked at it, and there is no moderation queue behind that and none intended.
+
+- **Kenney** — 16 packs, 1,685 pictures, shooter packs left out on purpose.
+  The pack page is scraped for its zip and read with `bin/unzip.js`, which
+  exists so no dependency has to.
+- **PhyloPic** — 90 silhouettes, the only dinosaurs in the studio. ⚠️ Mostly
+  CC BY, so its licence is checked per image and roughly half are left
+  behind; ⚠️ its `filter_name` is lowercase and taxonomic — `owl` and `cow`
+  answer 404 — so the list names taxa and carries the common word as a tag.
+- **svgsilh** — up to 1,152 CC0 silhouettes, 12 for each of 96 game words.
+  ⚠️ It publishes no index, so Openverse is asked which silhouettes exist and
+  svgsilh is asked for the bytes; **the word list is the curation**, which is
+  why nobody has to audit its 358,000 rows. ⚠️ Openverse is also the only
+  thing claiming these are CC0 — svgsilh's own licence page has not been read
+  by anything here, and `licences.txt` says so. ⚠️ Cloudflare refuses a
+  datacenter address outright (403 on every path, `/svg/<id>.svg` included),
+  so this source runs from a laptop or not at all; the pull stops if more
+  than half its words fail, which is what that looks like.
+
+svgsilh's half is kept as **SVG** — 2 KB against 40, and sharp at whatever
+size is asked for. `artBytes()` rasterises one to PNG when somebody picks it,
+through the same `<img>` probe the drawn *stand-in* uses (an SVG there runs no
+scripts and loads nothing); every other entry is already a PNG and comes back
+untouched. ⚠️ `svgBox()` reads the `viewBox` for the shape, because svgsilh's
+files carry no width or height and an SVG with neither draws as nothing —
+and it shaves a pixel off a whole multiple of its own height, because the
+*strip* rule cannot be checked at pull time on a vector with no pixel size.
 
 Nothing is resized by the pull — a decoder and an encoder is what that would
 cost in a repository with no dependencies. Anything over 512 a side or 128 KB
-is skipped instead, and `asPng()` in the browser does the fitting when
-somebody picks one, exactly as it does for an upload. Also skipped: a picture
-that reads as a *strip*, and one whose name is a word and a number
-(`characterBlue (13)`, `tile_0044`) — one of a run of near-identical variants
-that would bury every picture somebody could have named.
+(64 KB for an SVG) is skipped instead, and `asPng()` in the browser does the
+fitting when somebody picks a bitmap, exactly as it does for an upload. Also
+skipped: a picture that reads as a *strip*, and one whose name is a word and a
+number (`characterBlue (13)`, `tile_0044`) — one of a run of near-identical
+variants that would bury every picture somebody could have named.
 
 `npm run pullart` is run on a machine that can reach the sources, like
-`npm run sweep`, and never in `npm test`, which has no network. It writes the
-folder whole, so a re-run is how the set changes and git says what moved —
-⚠️ which is why there is deliberately no way to pull one source, and why a
-source that fails outright stops the run rather than writing what the others
-managed. `test/big-set.test.js` checks what it left behind: every file
-present, every picture drawable and under the caps, no strips, no unsearchable
-names, every licence CC0 and credited in `licences.txt`, and nothing on disk
-the index does not name.
+`npm run sweep`, and never in `npm test`, which has no network. `--dry`
+fetches everything and writes nothing, which is what a first run wants. It
+writes the folder whole, so a re-run is how the set changes and git says what
+moved — ⚠️ which is why there is deliberately no way to pull one source, and
+why a source that fails outright stops the run rather than writing what the
+others managed. `test/big-set.test.js` checks what it left behind: every file
+present, every picture drawable and under the caps, every silhouette carrying
+a viewBox, no strips, no unsearchable names, every licence CC0 and credited in
+`licences.txt`, and nothing on disk the index does not name.
+`test/svg-box.test.js` covers the fit arithmetic, which is the half of the
+rasterising that does not need a browser.
 
 The quiz editor grew the same read, since a quiz's authoring bug is never a
 typo: endings unreachable, or all fed by one answer.

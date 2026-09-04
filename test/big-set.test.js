@@ -32,6 +32,7 @@ function pngSize(buf) {
 // because the pull is the thing that could be wrong.
 const MAX_SIDE = 512;
 const MAX_BYTES = 128 * 1024;
+const MAX_SVG_BYTES = 64 * 1024;
 
 test('the set is a set: every entry names a file that is there', () => {
   assert.ok(Array.isArray(index.art) && index.art.length > 0, 'the big set has art in it');
@@ -51,13 +52,16 @@ test('the set is a set: every entry names a file that is there', () => {
     // ⚠️ A path is a path: these are joined onto a URL and onto a project
     // path, and one walking upwards would be the set reaching out of its own
     // folder. The same rule the standard set is held to.
-    assert.ok(/^pictures\/[a-z0-9][a-z0-9-]*\.png$/.test(a.file), `${a.file} is a plain name`);
+    assert.ok(/^pictures\/[a-z0-9][a-z0-9-]*\.(png|svg)$/.test(a.file), `${a.file} is a plain name`);
     assert.ok(fs.existsSync(new URL(a.file, DIR)), `${a.file} is on disk`);
   }
 });
 
+const pngs = () => index.art.filter((a) => a.file.endsWith('.png'));
+const svgs = () => index.art.filter((a) => a.file.endsWith('.svg'));
+
 test('every picture is one a game could draw', () => {
-  for (const a of index.art) {
+  for (const a of pngs()) {
     const buf = bytes(a.file);
     assert.ok(buf.length > 0, `${a.file} is not empty`);
     assert.ok(buf.length <= MAX_BYTES, `${a.file} is ${buf.length} bytes, over the cap`);
@@ -74,6 +78,23 @@ test('every picture is one a game could draw', () => {
       !(width > height && width % height === 0),
       `${a.file} is ${width}x${height}, which the sprites library reads as a strip`,
     );
+  }
+});
+
+// A silhouette is kept as the vector it arrived as — 2 KB rather than 40, and
+// it draws at whatever size is asked for — and rasterised in the browser when
+// somebody picks it. ⚠️ `svgBox` reads the viewBox to decide how tall to draw
+// it beside how wide, so one without a viewBox comes out square: not a
+// failure, but not the shape it was drawn at either.
+test('every silhouette says its own shape', () => {
+  for (const a of svgs()) {
+    const text = bytes(a.file).toString('utf8');
+    assert.ok(text.includes('<svg'), `${a.file} is an SVG`);
+    assert.ok(
+      /viewBox\s*=\s*["']\s*[-\d.]+[,\s]+[-\d.]+[,\s]+([\d.]+)[,\s]+([\d.]+)/.test(text),
+      `${a.file} has a viewBox`,
+    );
+    assert.ok(text.length <= MAX_SVG_BYTES, `${a.file} is ${text.length} bytes, over the cap`);
   }
 });
 

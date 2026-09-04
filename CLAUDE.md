@@ -44,10 +44,12 @@ holds plans and sketches. Completed work is git history, not this file.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
-- `npm run pullart` — write the **big set** (`public/big-set/`): 1,775 CC0
-  pictures from Kenney and PhyloPic, committed to this repo so a kid types a
-  word and gets a picture offline. Run it on a machine that can reach the
-  sources; not in `npm test`, which has no network. ⚠️ It writes the folder
+- `npm run pullart` — write the **big set** (`public/big-set/`): CC0 pictures
+  from Kenney, PhyloPic and svgsilh, committed to this repo so a kid types a
+  word and gets a picture offline. `--dry` fetches everything and writes
+  nothing; `--list` fetches nothing at all. ⚠️ Run it from a **laptop**:
+  svgsilh sits behind Cloudflare, which refuses a datacenter address on every
+  path. Not in `npm test`, which has no network. ⚠️ It writes the folder
   whole — there is no way to pull one source, and a source that fails stops
   the run rather than deleting the others' work.
 - `npm run sweep` — bring every game's studio library up to date: missing
@@ -292,7 +294,9 @@ specified:
   is the hand-written source list in `bin/pullart.js`, not a filter, and there
   is no moderation queue behind it. Reached from `+ Find a thing to put in`
   in *Add a picture*; the interface says **thing** where the code says
-  `sprite` (spec/ §6).
+  `sprite` (spec/ §6). The svgsilh half is written and **never run** — no
+  address here can reach either svgsilh or Openverse, so the first real pull
+  is somebody's laptop and `--dry` is how to try it.
 - A scene takes **music** (`assets/music/`, looped, carried into the next
   scene naming the same track) and a **sound step** — a noise among the lines
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is

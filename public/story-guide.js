@@ -249,6 +249,43 @@ export async function asPng(file, [maxWidth, maxHeight]) {
   return new Promise((resolve) => { canvas.toBlob(resolve, 'image/png'); });
 }
 
+// What a silhouette is drawn at. A vector has no size of its own, so unlike
+// asPng this scales **up** as well as down: a 24-unit viewBox drawn at 24
+// pixels would be a speck, and drawing it at 256 costs nothing but pixels.
+const SVG_FIT = [256, 256];
+
+// An SVG states its shape in its viewBox and nowhere else — svgsilh's carry
+// no width or height at all — so that is what says how tall a silhouette is
+// beside how wide. Square is the fallback for one with no viewBox: wrong, but
+// a picture, which is better than nothing drawn.
+// ⚠️ Never a whole multiple of its height wider, for the same reason asPng
+// says so: under assets/sprites/ that shape is a *strip* and the thing would
+// animate instead of sitting still.
+export function svgBox(text, [maxWidth, maxHeight]) {
+  const box = /viewBox\s*=\s*["']\s*[-\d.]+[,\s]+[-\d.]+[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(text);
+  const wide = Number(box?.[1]) || 1;
+  const tall = Number(box?.[2]) || 1;
+  const scale = Math.min(maxWidth / wide, maxHeight / tall);
+  let width = Math.max(1, Math.round(wide * scale));
+  const height = Math.max(1, Math.round(tall * scale));
+  if (width > height && width % height === 0) width -= 1;
+  return [width, height];
+}
+
+// A shelf entry's bytes, as the PNG every path downstream expects — the file
+// it lands as is named `.png` by `shelfDestination`, and a story asks for
+// .png by name. Most of the shelf is PNG already and comes back untouched;
+// the *big set*'s silhouettes are SVG, which is 2 KB in the repository rather
+// than 40 and draws at whatever size is asked for, so they are rasterised
+// here, once, on the way in. Null is "could not read it", the caller's cue.
+export async function artBytes(a) {
+  const res = await send(a.src);
+  if (!res.ok) return null;
+  if (!a.file?.endsWith('.svg')) return res.blob();
+  const text = await res.text();
+  return svgToPng(text, ...svgBox(text, SVG_FIT));
+}
+
 /* Answers ---------------------------------------------------------------------- */
 
 const model = () => S.story.model;
@@ -387,9 +424,9 @@ export function artShelf(kind, place, label = 'Ready to use:') {
           // "Made here" and stops.
           title: artTitle(a),
           onclick: async () => {
-            const res = await send(a.src);
-            if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
-            await place(a, await res.blob());
+            const bytes = await artBytes(a);
+            if (!bytes) { say(`Could not read ${a.name}.`, true); return; }
+            await place(a, bytes);
           },
         }, h('img', { src: a.src, alt: a.name }));
         // Yours to take back out, which the sharing dialog promised. Only on
@@ -435,10 +472,10 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
     const pick = h('button', {
       class: 'art', title: artTitle(a),
       onclick: async () => {
-        const res = await send(a.src);
-        if (!res.ok) { say(`Could not read ${a.name}.`, true); return; }
+        const bytes = await artBytes(a);
+        if (!bytes) { say(`Could not read ${a.name}.`, true); return; }
         close();
-        await d.place(a, await res.blob());
+        await d.place(a, bytes);
       },
     }, h('img', { src: a.src, alt: a.name, loading: 'lazy' }), h('span', { class: 'art-name', text: a.name }));
     if (!a.mine) return pick;

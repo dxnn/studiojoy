@@ -37,12 +37,14 @@ deliberately deferred.
 - moderation of the studio collection is "an admin can take anything out" and
   no queue, which suits a few trusted people and would not suit more. Same
   trigger as the line above
-- ! add svgsilh to `npm run pullart`: ~358k CC0 silhouettes, and the source
-  that started this. ⚠️ It refuses this sandbox's address outright (Cloudflare,
-  403 on every path including `/svg/<id>.svg`) and answers a laptop, so it is
-  written blind or not at all — and its files are SVG, which means the browser
-  rasterises at pick time through `svgToPng()` rather than the pull storing a
-  PNG. That is a second pick path, so its own commit (ideas/summon.md)
+- ! run `npm run pullart -- --dry` on a laptop and see whether the svgsilh
+  half works: it is written and has never been run, because nothing here can
+  reach svgsilh (Cloudflare, 403 on every path) *or* Openverse, which is what
+  tells it which silhouettes exist. The pick path it feeds — SVG rasterised by
+  `artBytes`/`svgBox` — **is** browser-verified against a stand-in silhouette
+  (600×300 in, 255×128 PNG out, the strip shave firing). If the dry run comes
+  back with a thousand, run it for real and commit; if it comes back empty,
+  the shape of the failure says which of the two hosts said no
 - live **summon**: an Openverse-backed search past the repo, server-proxied,
   restricted to subject-bounded CC0 sources. Designed and measured, unbuilt —
   the big set may turn out to be enough, which is why it waits (ideas/summon.md)

@@ -12,10 +12,17 @@ from Kenney (1,685) and PhyloPic (90), written by `npm run pullart`, searched
 offline by name and tags, picked from `+ Find a thing to put in`. Half two is
 unbuilt. Two things this plan said that the building corrected:
 
-- **svgsilh is not in it.** Cloudflare refuses this sandbox outright and its
-  files are SVG, so the pull would store SVG and the browser would rasterise
-  at pick time through the existing `svgToPng()` — a second pick path, and
-  its own commit. Written blind or not at all, since nothing here can run it.
+- **svgsilh is written and has never been run.** Nothing here can reach
+  svgsilh (Cloudflare refuses a datacenter address on every path) *or*
+  Openverse, which is what tells it which silhouettes exist — so the fetching
+  is blind and `--dry` exists to make finding out cost minutes rather than a
+  commit. What is **not** blind is the pick path it feeds: a silhouette is
+  kept as SVG and rasterised by `artBytes`/`svgBox` when somebody picks it,
+  browser-verified against a stand-in (600×300 viewBox in, 255×128 PNG out,
+  the strip shave firing), with the fit arithmetic covered offline in
+  `test/svg-box.test.js`. ⚠️ Openverse's word is the only claim that
+  svgsilh's files are CC0; its own licence page has not been read here, and
+  `licences.txt` says so beside the files.
 - **Nothing is resized at pull time.** The plan said every fetch would be.
   Resizing in Node with no dependencies means a PNG decoder *and* encoder;
   asking the sources for art that is already small costs nothing, and
