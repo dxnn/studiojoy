@@ -66,6 +66,9 @@ export function element(tag = 'div') {
       top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0,
     }),
     focus() { node.focused = true; },
+    // A text box remembers where its caret is; the @ menu reads it to know
+    // what is being typed and writes it back after it puts a name in.
+    setSelectionRange(start, end) { node.selectionStart = start; node.selectionEnd = end; },
     click() { (node.handlers.get('click') ?? node.onclick)?.({ stopPropagation() {} }); },
   };
   return node;

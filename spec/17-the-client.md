@@ -12,7 +12,11 @@ ever be checked by eye in a browser. They are tests now
 (`test/conventions.test.js`) over a hand-rolled DOM stand-in
 (`test/dom-stand-in.js`, ~100 lines of code): what lights up is what can be
 clicked, nothing is greyed where a row would have to explain why, one thing
-open at a time in the row it belongs to, and gold only on a number. ⚠️ Each
+open at a time in the row it belongs to, and gold only on a number. Pics is the second surface held to
+them (`test/pics.test.js`), and the @ menu is checked the same way
+(`test/at-menu.test.js`) — through the composer's own keydown handler rather
+than its own function, or the two would pass having never been wired
+together. ⚠️ Each
 one was held to the only standard a convention test has — the bug put back,
 the test watched failing, the bug taken out again — because a convention
 test that cannot fail is decoration. ⚠️ Zero dependencies still holds: a
@@ -35,6 +39,13 @@ is gone unless it is snapshotted and put back.
 - **The open dialog**, which is built once and re-appended as the same node,
   never rebuilt mid-decision — a background render used to wipe what was
   being typed into it. ⚠️
+- **The @ menu over the composer**, for the same reason the composer itself
+  survives a render: it is one node on the body, painted in place and never
+  through `render()`. Rendering it would rebuild the whole thread on every
+  keystroke of a name — and the composer is the one box in the studio that is
+  typed into while helpers are writing into the pane behind it. ⚠️ Its keys
+  are read *before* the composer's own handler, or Enter sends half a
+  sentence instead of picking the name. `chats.js`.
 - **The preview iframe** — which is why it is no longer in the tree. ⚠️ An
   `<iframe>` reloads the moment it leaves the document, so while it lived in
   the tree every render restarted the game: a banner arriving and leaving six

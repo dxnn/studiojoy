@@ -6,7 +6,7 @@
 
 import { h } from './dom.js';
 import {
-  S, api, say, render, composerBox, canTalk, showMode, prefs,
+  S, api, say, render, composerBox, canTalk, showMode, prefs, frozen,
 } from './main.js';
 import { liveMapFor, pendingMapFor, applyMessage } from './stream.js';
 
@@ -30,15 +30,19 @@ const calledMark = (n) => (n
 export const readMark = (row) => calledMark(row.mentions)
   ?? (row.unread ? h('span', { class: 'unread', title: 'There are unread messages here' }) : null);
 
-// Clicking somebody in the Crew list points what you are typing at them. The
-// handle is the first word of their name — a mention is one token, and the
-// server matches on a prefix of the whole name, so "@Robin" reaches Robin Fox.
+// The one token that reaches somebody: the first word of their name, stripped
+// to what a mention may hold. A mention is one token, and the server matches
+// on a prefix of the whole name, so "@Robin" reaches Robin Fox. Empty for a
+// name with no letters or digits in it, which cannot be written as one at all.
+export const handleFor = (name) => (name ?? '').trim().split(/\s+/)[0].replace(/[^A-Za-z0-9_-]/g, '');
+
+// Clicking somebody in the Crew list points what you are typing at them.
 export function mentionPerson(person) {
   // The Crew tab is reachable with no game open and with somebody else's
   // Building on screen, and the row lights up either way — so it answers
   // rather than going dead under the pointer.
   if (!canTalk()) { say('Open a chat you can write in first, then click a name.'); return; }
-  const handle = (person.display_name ?? '').trim().split(/\s+/)[0].replace(/[^A-Za-z0-9_-]/g, '');
+  const handle = handleFor(person.display_name);
   // A name with no letters or digits in it cannot be written as one token, so
   // there is nothing honest to insert.
   if (!handle) {
@@ -59,6 +63,156 @@ export function mentionPerson(person) {
   box.focus();
   box.setSelectionRange(caret, caret);
   if (S.slug) S.drafts.set(S.slug, box.value);
+}
+
+/* The @ menu ---------------------------------------------------------------
+
+   Type an @ and the studio offers everybody this message could reach, the way
+   every other chat does. It is not decoration: an @ is what makes a helper
+   answer at all, and what leaves a person a mark on the game — and the only
+   way to find out a name was mentionable used to be to guess it or to go and
+   click it in the sidebar.
+
+   ⚠️ One node on the body, painted in place and never through render(). The
+   composer is not rebuilt by a render (main.js) and neither is this: a menu
+   in the tree would rebuild the whole thread on every keystroke of a name,
+   which is the trap §17 names for every other live surface. */
+
+const atMenu = h('div', { class: 'at-menu' });
+document.body.append(atMenu);
+
+// What the menu is showing: the rows, which one is lit, and the span of the
+// box the pick replaces — from the @ to the caret. Null when it is shut.
+let at = null;
+
+// The same two rules the server parses with (server/mentions.js): a name is
+// compared as its lowercase letters and digits alone, and an @ counts only at
+// the start or after something that is not one of those — so typing an email
+// address never opens this.
+const normalize = (value) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const TYPING_AT = /(?:^|[^A-Za-z0-9])@([A-Za-z0-9_-]*)$/;
+
+// Most rows at once. Past this it is a list to read rather than a name to
+// pick, and the studio has a Crew tab for reading lists.
+const AT_MOST = 8;
+
+// Everybody this message could reach, in the order the Crew tab lists them:
+// the people, then the helpers. A helper who is not in this room is offered
+// too, because naming one is what puts them in it — except where the + that
+// does the same thing is not offered either: the human-only room, the
+// builder's, and a game this account may not change.
+function atRows(typed) {
+  const want = normalize(typed);
+  const rows = [];
+  for (const person of S.people) {
+    if (person.id === S.me?.id) continue;
+    rows.push({ name: person.display_name, what: 'leaves them a mark on this game' });
+  }
+  if (S.chat?.bots) {
+    const here = S.project?.agents ?? [];
+    for (const a of here) {
+      rows.push({
+        name: a.name,
+        helper: true,
+        what: a.chatty ? 'always answers here' : 'answers when called',
+      });
+    }
+    if (!S.chat.builder && !frozen()) {
+      const inRoom = new Set(here.map((a) => a.agent_id));
+      for (const a of S.agents) {
+        if (inRoom.has(a.id)) continue;
+        rows.push({ name: a.name, helper: true, what: 'not in here yet — this brings them in' });
+      }
+    }
+  }
+  return rows
+    .filter((row) => handleFor(row.name) && normalize(row.name).startsWith(want))
+    .slice(0, AT_MOST);
+}
+
+// Over the composer, at its left edge, never wider than it is. Fixed like the
+// ··· menus and for the same reason: the pane around it moves.
+export function placeAtMenu() {
+  if (!at) return;
+  const box = composerBox.getBoundingClientRect();
+  atMenu.style.left = `${box.left}px`;
+  atMenu.style.bottom = `${Math.max(0, window.innerHeight - box.top + 6)}px`;
+  atMenu.style.maxWidth = `${Math.max(220, box.width)}px`;
+}
+window.addEventListener('resize', placeAtMenu);
+
+export function closeAtMenu() {
+  if (!at) return;
+  at = null;
+  atMenu.replaceChildren();
+  atMenu.className = 'at-menu';
+}
+
+function paintAtMenu() {
+  atMenu.replaceChildren(...at.rows.map((row, i) => h('div', {
+    class: `at-row${i === at.lit ? ' on' : ''}`,
+    // ⚠️ The composer must not lose the caret to a click in here: the pick
+    // puts the words back into the box they came from, and a blur first would
+    // shut the menu before the click landed.
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => pickAt(i),
+  },
+  h('span', { class: `at-name${row.helper ? ' helper' : ''}`, text: row.name }),
+  h('span', { class: 'at-what', text: row.what }))));
+  atMenu.className = 'at-menu on';
+  placeAtMenu();
+}
+
+// Read the box and show or hide the menu. Called on every keystroke and
+// wherever else the caret can move.
+export function followAt() {
+  const to = composerBox.selectionStart ?? composerBox.value.length;
+  const typing = composerBox.disabled ? null : TYPING_AT.exec(composerBox.value.slice(0, to));
+  if (!typing) { closeAtMenu(); return; }
+  const rows = atRows(typing[1]);
+  if (rows.length === 0) { closeAtMenu(); return; }
+  // Whichever row was lit stays lit while the list shrinks under it.
+  const lit = at ? Math.min(at.lit, rows.length - 1) : 0;
+  at = { rows, lit, from: to - typing[1].length - 1, to };
+  paintAtMenu();
+}
+
+function pickAt(index) {
+  const row = at?.rows[index];
+  if (!row) return;
+  const handle = handleFor(row.name);
+  const before = composerBox.value.slice(0, at.from);
+  const after = composerBox.value.slice(at.to);
+  // A space after unless there is one already, so the next word is not run
+  // into the name and swallowed by it.
+  const tail = after.startsWith(' ') ? '' : ' ';
+  const caret = at.from + handle.length + 1 + tail.length;
+  composerBox.value = `${before}@${handle}${tail}${after}`;
+  closeAtMenu();
+  composerBox.focus();
+  composerBox.setSelectionRange(caret, caret);
+  if (S.slug) S.drafts.set(S.slug, composerBox.value);
+}
+
+// ⚠️ The keys the menu answers while it is open, before the composer's own
+// handler sees them: Enter picks a name rather than sending the message, which
+// is what every other chat does and what stops half a sentence being sent.
+// True means the key has been taken.
+export function keyAt(event) {
+  if (!at) return false;
+  if (event.key === 'Escape') { closeAtMenu(); return true; }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    at.lit = (at.lit + (event.key === 'ArrowDown' ? 1 : -1) + at.rows.length) % at.rows.length;
+    paintAtMenu();
+    event.preventDefault();
+    return true;
+  }
+  if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault();
+    pickAt(at.lit);
+    return true;
+  }
+  return false;
 }
 
 // Opening a chat is reading it, so anything in it that called you, or simply
@@ -160,6 +314,8 @@ export async function openChat(id) {
     say(res.body?.error ?? 'Could not open that chat.', true);
     return;
   }
+  // Who is in the room is about to change, and the menu is a list of them.
+  closeAtMenu();
   S.chat = res.body.chat;
   S.chats = res.body.chats;
   S.project.messages = res.body.messages;

@@ -391,6 +391,18 @@ remembered per browser next to the rail width; the filter isn't, since a
 stale filter is a list with things missing. The button above the tabs makes
 whatever it holds, so `+ New chat` is never a click away.
 
+**Typing an `@` in the composer opens the menu of everybody it could reach**
+— the people, then the helpers, in the order the Crew tab lists them, each
+with a line saying what naming them does. Arrows walk it, Enter or Tab picks,
+Escape shuts it, and what has been typed after the `@` narrows it by the
+server's own rule, so an email address in a message never opens it
+(`server/mentions.js`, §3). A helper who is not in this room is offered too,
+because naming one is what puts them in it — except where the `+` that does
+the same thing is not offered either: the human-only room, the *builder*'s,
+and a game this account may not change. An `@` is what makes a helper answer
+at all and what leaves a person a mark, and the only way to find out a name
+was mentionable used to be to guess it or go and click it in the sidebar.
+
 **Everything you can do to the whole game is behind one `···` beside its
 name** — Rename, Fork, Editors, the games list, Add chat, Archive — absent
 rather than greyed for anybody who may not press it: Fork is everybody's;

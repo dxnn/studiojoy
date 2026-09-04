@@ -41,7 +41,9 @@ import {
   loadHistory, loadDiff, historyNeedsLoad, keepDiffInView,
 } from './history.js';
 import { loadScores, bestScore, showScore, renderScoreboardTab } from './scoreboard.js';
-import { readChat, openChat, stickToBottom, sendMessage } from './chats.js';
+import {
+  readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
+} from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
@@ -222,12 +224,23 @@ export const S = {
 // whatever was being typed. Keeping the node keeps the text.
 export const composerBox = h('textarea', {
   onkeydown: (event) => {
+    // ⚠️ First: while the @ menu is open Enter picks a name, and sending on it
+    // instead would send half a sentence (chats.js).
+    if (keyAt(event)) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       sendComposer();
     }
   },
-  oninput: () => { if (S.slug) S.drafts.set(S.slug, composerBox.value); },
+  oninput: () => {
+    if (S.slug) S.drafts.set(S.slug, composerBox.value);
+    followAt();
+  },
+  // The caret moves without the text changing too — an arrow, a click, a tap
+  // — and the menu is about where the caret is.
+  onkeyup: (event) => { if (event.key?.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') followAt(); },
+  onclick: () => followAt(),
+  onblur: () => closeAtMenu(),
 });
 
 export async function sendComposer() {
@@ -239,6 +252,7 @@ export async function sendComposer() {
   // itself, pending or failed, until they are actually gone (chats.js).
   const slug = S.slug;
   composerBox.value = '';
+  closeAtMenu();
   S.drafts.delete(slug);
   S.autoscroll = true;
   await sendMessage(text);
@@ -776,6 +790,9 @@ export async function openProject(slug, { view = null } = {}) {
   // here on the way out and put back on the way in.
   if (S.slug) S.drafts.set(S.slug, composerBox.value);
   composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
+  // The names in the menu are this game's; the words under it are not even
+  // the same words any more.
+  closeAtMenu();
   // Story lines typed in the last two seconds go in now — the autosave is
   // that far behind the typing — and are parked against the game being left
   // only if that failed. Achievements edits are parked as they always were,
@@ -1031,6 +1048,9 @@ function placePreview() {
 function settlePreview() {
   if (!previewSlot) showPreview('about:blank');
   placePreview();
+  // The other thing laid over the tree rather than in it: a notice appearing
+  // over the composer moves the box the @ menu is sitting on.
+  placeAtMenu();
 }
 window.addEventListener('resize', placePreview);
 document.addEventListener('scroll', placePreview, true);

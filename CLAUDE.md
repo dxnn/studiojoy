@@ -287,10 +287,25 @@ specified:
   the scoreboard and the achievements editor as one page. The pixel editor,
   the sound editor, the story and the quiz save themselves; Code's text editor
   keeps Save. Everything done to a thing is behind its one `···` (§6,
-  ideas/calm-shell.md).
+  ideas/calm-shell.md). A picture opens on one click, wherever it is pressed;
+  the preview's `···` holds the shape to try the game in.
+- Typing an `@` in the composer opens the menu of everybody it could reach,
+  people over helpers, filtered by the server's own rule (§6). ⚠️ It reads its
+  keys before the composer does, or Enter sends half a sentence.
 
 Open questions:
 
+- **The modes' names.** A suggestion on the table: Speak, See, Hear, Touch,
+  Smell, Taste, Recall in place of Chat, Pics, Hear, Controls, Share, Code,
+  Versions. Four of the seven land (Speak, See, Hear, Touch); Smell and Taste
+  do not name anything. ⚠️ Renaming any of them is a prompt change too — the
+  preamble names every capability by the words on the button and
+  `orchestrator.test.js` asserts each name.
+- **What the rail is for.** The preview earns less of the pane than expected,
+  but the rail is also where the story editor's scene fields, Hear's sound
+  editor and Pics' picture fields live, so "close the rail" is blocked on
+  deciding where those go. The preview already folds to one row, which is most
+  of what closing would buy.
 - Touch schemes and the story editor are browser-checked at phone width but
   have never been felt on a real phone. Both are TODO lines.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
