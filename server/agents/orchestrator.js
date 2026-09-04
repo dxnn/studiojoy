@@ -17,7 +17,7 @@ import {
   pausedPlan, createPlan, planFor, setPiece, setPlanStatus, planPublic,
 } from '../plans.js';
 import {
-  sizingAsk, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner,
+  sizingAsk, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner, begunNote,
   SIZING_MAX_TOKENS,
 } from './sizing.js';
 
@@ -67,6 +67,15 @@ const MAX_TOOL_CALLS = 40;
 // counted from the last human message. Without this a stall needs a human to
 // type "keep going", which is the whole complaint.
 const MAX_CONTINUATIONS = 3;
+// The budget of a *small* ask in the builder's room (spec.md §8): sized as
+// one job, so it gets the room for one. The whole tree is already in its
+// prompt, so a change is a patch, a read-back and a note — three turns — and
+// six is twice that path. Past it the fire stops, what it did is kept, and
+// what is left goes back to the sizing as a plan. The 24 above is for a room
+// with no sizing in front of it; a real receipt showed a "small" ask running
+// to 24 turns and carrying on, which is what the plan was for.
+const SMALL_TURNS = 6;
+const SMALL_TOOL_CALLS = 12;
 
 // A tool call cut off mid-arguments wrote nothing at all — the JSON never
 // parsed, so there was no path and no content. The model does not know that
@@ -767,8 +776,15 @@ export function createOrchestrator({
   maxAssistantTurns = MAX_ASSISTANT_TURNS,
   maxToolCalls = MAX_TOOL_CALLS,
   maxContinuations = MAX_CONTINUATIONS,
+  smallTurns = SMALL_TURNS,
+  smallToolCalls = SMALL_TOOL_CALLS,
 }) {
   if (!llm) throw new Error('createOrchestrator requires an llm');
+  // The loop's guards, as one value: a room's by default, a small ask's in
+  // the builder's room. The preamble names them, so a context is built with
+  // the pair its fire will run under.
+  const roomLimits = { turns: maxAssistantTurns, tools: maxToolCalls };
+  const smallLimits = { turns: smallTurns, tools: smallToolCalls };
 
   const timers = new Map();
   // Agents mid-fire. A message arriving now sets the dirty bit; the running
@@ -860,6 +876,7 @@ export function createOrchestrator({
   // already carrying a trace, thinking off — the retry a caller runs itself.
   async function runLoop({
     agent, system, messages: initial, toolset, thinking, emit, capMode = 'retry', handoff = null,
+    limits = roomLimits,
   }) {
     const messages = initial.map((m) => ({ ...m }));
     // Everything the loop appends is counted, so a fire cannot grow past
@@ -888,7 +905,13 @@ export function createOrchestrator({
       thinkingOff = true;
       cappedThinking = true;
     }
-    let replyText = '';
+    // What each turn said, in order. The last of them is the **reply** — the
+    // note a helper leaves once it stops calling tools — and everything
+    // before it is its **working**: said on the way, kept on the row, never
+    // shown as the reply and never replayed into a later fire (spec.md §8).
+    // Joined into one body, twenty-four turns of "now I'll write…" were the
+    // wall of text a real receipt traced to here.
+    const said = [];
     let charged = 0;
     let toolCallCount = 0;
     let turnsUsed = 0;
@@ -917,12 +940,14 @@ export function createOrchestrator({
     let lastReasoning = 0;
     let lastOut = 0;
     const outcome = (extra = {}) => ({
-      replyText, charged, requests, turnsUsed, toolCallCount, grown, sheds, sentPrompt,
+      reply: said[said.length - 1] ?? '',
+      working: said.slice(0, -1).join('\n\n'),
+      charged, requests, turnsUsed, toolCallCount, grown, sheds, sentPrompt,
       pendingCut, hitLength, hitLimit, streamFailed, lastReasoning, lastOut, cappedThinking,
       capped: null, ...extra,
     });
 
-    for (let turn = 0; turn < maxAssistantTurns; turn += 1) {
+    for (let turn = 0; turn < limits.turns; turn += 1) {
       let text = '';
       const calls = [];
       let cutCalls = 0;
@@ -1003,11 +1028,11 @@ export function createOrchestrator({
         // trace when the stream died on its last turn.
         console.error('agent stream failed', err);
         streamFailed = true;
-        if (text) replyText += replyText ? `\n\n${text}` : text;
+        if (text) said.push(text);
         break;
       }
 
-      if (text) replyText += replyText ? `\n\n${text}` : text;
+      if (text) said.push(text);
       pendingCut = cutCalls > 0;
 
       // Nothing to run and nothing cut off: a plain reply, so the turn is
@@ -1027,7 +1052,7 @@ export function createOrchestrator({
         });
 
         for (const call of calls) {
-          if (toolCallCount >= maxToolCalls) {
+          if (toolCallCount >= limits.tools) {
             hitLimit = 'tool';
             append({
               role: 'tool',
@@ -1052,7 +1077,7 @@ export function createOrchestrator({
       // a tool_call_id, and a continuation resumes from a context built
       // fresh from disk, which is the recovery anyway.
       if (grown > LOOP_GROWTH_BYTES) hitLimit = 'context';
-      if (turn === maxAssistantTurns - 1 && !hitLimit) hitLimit = 'turn';
+      if (turn === limits.turns - 1 && !hitLimit) hitLimit = 'turn';
       if (hitLimit) break;
 
       // Another round is coming: shed the reasoning pile if carrying it is
@@ -1072,12 +1097,14 @@ export function createOrchestrator({
   // What a loop left — prose, files, cost — kept as one message row, one
   // commit and one receipt, with the events that say so. `body` is the row's
   // text when it is not the reply itself: a piece with nothing to say still
-  // gets its row. `subject` heads the commit. Answers the row's id — null when
-  // nothing was worth a row — and `nothing` when the loop died with nothing
-  // to show, which is the one end that leaves no word behind.
+  // gets its row. The working rides beside it in its own column, so the body
+  // — what the thread shows and a later fire replays — is the reply alone.
+  // `subject` heads the commit. Answers the row's id — null when nothing was
+  // worth a row — and `nothing` when the loop died with nothing to show,
+  // which is the one end that leaves no word behind.
   async function persistReply({
     row, project, chat, agent, dir, asker, context, emit, state, snapshot, toolset, outcome,
-    subject, body = outcome.replyText, kind = null,
+    subject, body = outcome.reply, kind = null,
   }) {
     consumeBudget(db, outcome.charged);
     chargeUser(db, asker?.id, outcome.charged);
@@ -1116,14 +1143,16 @@ export function createOrchestrator({
     const messageId = tx(db, () => {
       const info = db
         .prepare(
-          `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at, tokens, trimmed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO messages
+             (project_id, chat_id, agent_id, kind, body, working, created_at, tokens, trimmed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         // Null rather than 0 when nothing was trimmed: the column is a
-        // report of something having happened, not a running total.
+        // report of something having happened, not a running total. Null
+        // likewise for a reply said in one breath.
         .run(
-          project.id, chat.id, agent.id, kind, body, now, outcome.charged,
-          context.trimmed || null,
+          project.id, chat.id, agent.id, kind, body, outcome.working || null, now,
+          outcome.charged, context.trimmed || null,
         );
       const id = Number(info.lastInsertRowid);
       // A write of identical bytes produces no commit, so there is
@@ -1168,14 +1197,49 @@ export function createOrchestrator({
     return { messageId, commitSha, changed, nothing: false };
   }
 
+  // Re-arm the agent to pick up where it stopped, if it still may: a fresh
+  // fire rebuilds its context from disk, which is what clears the weight.
+  // The 'system' row is not decoration: it enters the transcript as a user
+  // turn, which is what gives the next fire something to answer — without it
+  // the agent's own reply would be newest and the fire would no-op. Answers
+  // whether it did; the caller says what happens when it may not.
+  function carryOn({ row, project, chat, agent, asker }) {
+    const used = continued.get(row.id) ?? 0;
+    if (used >= maxContinuations
+        || !hasBudget(db, studioLimit(db, dailyTokenBudget))
+        || !userHasBudget(db, asker)) return false;
+    continued.set(row.id, used + 1);
+    postSystemMessage(db, broker, {
+      project, chat, agentId: agent.id,
+      body: `${row.agent_name} is not finished yet — carrying on from where they stopped.`,
+    });
+    db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?').run(row.id);
+    return true;
+  }
+
+  // Out of room and not carrying on: said with the number the fire ran under.
+  function stopBanner({ row, project, chat, agent }, hitLimit, limits) {
+    const why = {
+      context: 'had too much to hold in one reply and stopped',
+      tool: `stopped after ${limits.tools} tool calls in one turn`,
+      turn: `stopped after ${limits.turns} turns without finishing`,
+    }[hitLimit];
+    postSystemMessage(db, broker, {
+      project, chat, agentId: agent.id,
+      body: `${row.agent_name} ${why}. Ask them to keep going if you want more.`,
+    });
+  }
+
   // The banners: how the reply was produced and how the loop stopped, said
-  // in words a person can act on. `continuation` is whether running out of
-  // room may re-arm the agent; a piece never does, its plan carries on.
+  // in words a person can act on. `onLimit` is what running out of room
+  // means here: 'continue' may re-arm the agent, 'stop' never does — a piece's
+  // plan carries on by itself — and 'plan' is the builder's small ask, whose
+  // caller sizes what is left (spec.md §8).
   function reportOutcome({
-    row, project, chat, agent, asker, outcome, changed, continuation,
+    row, project, chat, agent, asker, outcome, changed, onLimit = 'continue', limits = roomLimits,
   }) {
     const {
-      cappedThinking, streamFailed, hitLength, replyText, lastReasoning, lastOut,
+      cappedThinking, streamFailed, hitLength, reply, lastReasoning, lastOut,
       pendingCut, hitLimit,
     } = outcome;
     const banner = (body) => postSystemMessage(db, broker, {
@@ -1197,7 +1261,7 @@ export function createOrchestrator({
       // chose to stop, and this loop did not choose. No continuation either
       // — a dead upstream retried automatically could loop on the failure.
       banner(`${row.agent_name} was cut off mid-reply; everything it said and saved up to then is kept.`);
-    } else if (hitLength && !replyText && changed.length === 0
+    } else if (hitLength && !reply && changed.length === 0
         && lastReasoning > 0 && lastReasoning >= lastOut * 0.9) {
       // It never got past thinking. Nothing was cut in half, because
       // nothing was started: the trace filled the whole output allowance.
@@ -1207,31 +1271,20 @@ export function createOrchestrator({
       banner(`${row.agent_name} spent the whole reply thinking and never got as far as writing anything. Ask for one piece at a time — one screen, one rule, one file.`);
     } else if (pendingCut || (hitLength && changed.length === 0)) {
       banner(`${row.agent_name} ran out of output budget mid-reply; a file may be missing or incomplete.`);
+    } else if (hitLimit !== null && onLimit === 'plan') {
+      // A small ask that used up a small budget was not small. What it did
+      // is kept and committed; the caller hands what is left to the sizing.
+      banner(`${row.agent_name} got this far, and it turned out bigger than one go. Working out what is left…`);
     } else if (hitLimit === 'tool') {
-      banner(`${row.agent_name} stopped after ${maxToolCalls} tool calls in one turn.`);
+      banner(`${row.agent_name} stopped after ${limits.tools} tool calls in one turn.`);
     } else if (hitLimit === 'turn' || hitLimit === 'context') {
       // Out of room mid-build: out of turns, or the loop grew past what one
       // request may carry. Rather than making a human type "keep going",
-      // re-arm the agent and let it pick up where it stopped — a fresh fire
-      // rebuilds its context from disk, which is what clears the weight.
-      // The system message is not decoration: a 'system' row enters the
-      // transcript as a user turn, which is what gives the next fire
-      // something to answer — without it the agent's own reply would be
-      // newest and the fire would no-op.
-      const used = continued.get(row.id) ?? 0;
-      if (continuation && used < maxContinuations
-          && hasBudget(db, studioLimit(db, dailyTokenBudget))
-          && userHasBudget(db, asker)) {
-        continued.set(row.id, used + 1);
-        banner(`${row.agent_name} is not finished yet — carrying on from where they stopped.`);
-        db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?')
-          .run(row.id);
-      } else {
-        banner(hitLimit === 'context'
-          ? `${row.agent_name} had too much to hold in one reply and stopped. Ask them to keep going if you want more.`
-          : `${row.agent_name} stopped after ${maxAssistantTurns} turns without finishing. Ask them to keep going if you want more.`);
+      // re-arm the agent and let it pick up where it stopped.
+      if (!(onLimit === 'continue' && carryOn({ row, project, chat, agent, asker }))) {
+        stopBanner({ row, project, chat, agent }, hitLimit, limits);
       }
-    } else if (!replyText && changed.length === 0) {
+    } else if (!reply && changed.length === 0) {
       // Ended cleanly and produced nothing at all: no prose, no files, no
       // limit reached. The end event has already taken the live entry away,
       // so without this the row just vanishes and the person is left
@@ -1251,10 +1304,10 @@ export function createOrchestrator({
       thinking: agent.thinking, emit,
     });
     const kept = await persistReply({
-      ...fire, toolset, outcome, subject: firstLine(outcome.replyText) || 'update files',
+      ...fire, toolset, outcome, subject: firstLine(outcome.reply) || 'update files',
     });
     if (kept.nothing) return;
-    reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: true });
+    reportOutcome({ ...fire, outcome, changed: kept.changed });
   }
 
   // The sizing call (spec.md §8, §14; agents/sizing.js): one whole answer,
@@ -1262,14 +1315,18 @@ export function createOrchestrator({
   // the pieces. Fails open to small — today's fire, the cap behind it — on an
   // answer that will not parse or an upstream that will not answer. Charged to
   // the asker like the fire it goes ahead of.
-  async function sizeRequest(fire, { paused = null, notes = null } = {}) {
+  async function sizeRequest(fire, { paused = null, notes = null, begun = null } = {}) {
     const { agent, context, asker } = fire;
     const messages = context.messages.map((m) => ({ ...m }));
     const last = messages[messages.length - 1];
     // Notes ahead of the ask, never after: a long attachment behind the ask
-    // swamps it (§14).
+    // swamps it (§14). `begun` is what a small ask did before it ran out of
+    // room, handed on the same way.
     last.content = [
-      last.content, notes ? notesForPlanner(notes) : null, sizingAsk({ paused }),
+      last.content,
+      notes ? notesForPlanner(notes) : null,
+      begun ? begunNote(begun) : null,
+      sizingAsk({ paused, begun: begun !== null }),
     ].filter(Boolean).join('\n\n');
     try {
       const answer = await llm.complete({
@@ -1313,13 +1370,15 @@ export function createOrchestrator({
     }
   }
 
-  // The builder's room (spec.md §8; ideas/planner.md): size first, then
-  // today's fire for a small ask or one fire per piece for a big one. A plan
+  // The builder's room (spec.md §8; ideas/planner.md): size first, then a
+  // small fire for a small ask or one fire per piece for a big one. A plan
   // an earlier message paused is the sizing's to carry on, set aside or
   // replace. On a small ask the cap, on a first turn, hands its trace to the
   // sizing call rather than to a retry — a request that thought that long
   // wanted splitting — and only if that still says small does the retry run,
-  // with the trace in hand.
+  // with the trace in hand. A small ask runs under the small budget, and one
+  // that uses it up was not small: what it did is kept, and what is left
+  // goes back to the sizing as a plan (planRest) rather than carrying on.
   async function builderFire(fire) {
     const { row, chat, agent, dir, asker, context, emit } = fire;
     const paused = pausedPlan(db, chat.id);
@@ -1340,7 +1399,7 @@ export function createOrchestrator({
     const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
     let outcome = await runLoop({
       agent, system: context.system, messages: context.messages, toolset,
-      thinking: agent.thinking, emit, capMode: 'return',
+      thinking: agent.thinking, emit, capMode: 'return', limits: smallLimits,
     });
     if (outcome.capped !== null) {
       const abandoned = outcome.charged;
@@ -1354,24 +1413,56 @@ export function createOrchestrator({
       }
       outcome = await runLoop({
         agent, system: context.system, messages: context.messages, toolset,
-        thinking: agent.thinking, emit, handoff: outcome.capped,
+        thinking: agent.thinking, emit, handoff: outcome.capped, limits: smallLimits,
       });
       outcome.charged += abandoned;
     }
     const kept = await persistReply({
-      ...fire, toolset, outcome, subject: firstLine(outcome.replyText) || 'update files',
+      ...fire, toolset, outcome, subject: firstLine(outcome.reply) || 'update files',
     });
     if (kept.nothing) return;
-    reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: true });
+    reportOutcome({
+      ...fire, outcome, changed: kept.changed, onLimit: 'plan', limits: smallLimits,
+    });
+    if (outcome.hitLimit !== null) {
+      await planRest(fire, { paused, request, changed: kept.changed, outcome });
+      return;
+    }
 
     if (!paused) return;
     if (sized.resume) await runPieces(fire, planFor(db, paused.message_id));
     else dropPlan(fire, paused, `${row.agent_name} set the plan aside.`);
   }
 
+  // What is left of a small ask that outran its budget: sized again with what
+  // was done as notes — the files it changed and what it said — and run as a
+  // plan. The sizing's system prompt is the fire's, with the files as they
+  // were before it wrote: that is the cache prefix, and the note names what
+  // changed, so the planner is told rather than shown. Small again, or no
+  // answer, and the builder carries on the way any room does, one more go at
+  // a time and bounded by the same count; each go is sized again first, so
+  // the next overrun gets another chance at a plan. A paused plan stays
+  // paused through all of it; the next message decides its fate.
+  async function planRest(fire, { paused, request, changed, outcome }) {
+    const { emit, state } = fire;
+    emit('agent.stream.start');
+    state.live = true;
+    const said = [outcome.working, outcome.reply].filter(Boolean).join('\n\n');
+    const sized = await sizeRequest(fire, { paused, begun: { changed, said } });
+    if (sized.size === 'big') {
+      if (paused) dropPlan(fire, paused);
+      await runPlan(fire, { request, pieces: sized.pieces, begun: true });
+      return;
+    }
+    emit('agent.stream.end');
+    state.live = false;
+    if (!carryOn(fire)) stopBanner(fire, outcome.hitLimit, smallLimits);
+  }
+
   // A plan: the card — a message of kind 'plan', the builder's own words in
-  // the transcript and a checklist on screen — then the pieces.
-  async function runPlan(fire, { request, pieces }) {
+  // the transcript and a checklist on screen — then the pieces. `begun` is a
+  // plan for the rest of something a small fire started on.
+  async function runPlan(fire, { request, pieces, begun = false }) {
     const { row, project, chat, agent, emit, state, snapshot } = fire;
     const now = new Date().toISOString();
     const messageId = tx(db, () => {
@@ -1380,7 +1471,7 @@ export function createOrchestrator({
           `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at)
            VALUES (?, ?, ?, 'plan', ?, ?)`,
         )
-        .run(project.id, chat.id, agent.id, planBody(pieces), now);
+        .run(project.id, chat.id, agent.id, planBody(pieces, { begun }), now);
       const id = Number(info.lastInsertRowid);
       createPlan(db, {
         messageId: id, projectId: project.id, chatId: chat.id, request, pieces, now,
@@ -1437,17 +1528,17 @@ export function createOrchestrator({
         agent, system: context.system, messages: context.messages, toolset,
         thinking: 'none', emit,
       });
-      const note = firstLine(outcome.replyText) || `Piece ${i + 1} of ${n}: ${piece.title}`;
+      const note = firstLine(outcome.reply) || `Piece ${i + 1} of ${n}: ${piece.title}`;
       const kept = await persistReply({
         ...fire, context, toolset, outcome,
         subject: `piece ${i + 1} of ${n} — ${piece.title}`,
-        body: outcome.replyText || note,
+        body: outcome.reply || note,
       });
       if (kept.nothing) {
         pausePlan(fire, current, `${row.agent_name} was cut off during piece ${i + 1} of ${n}, so the plan is paused. Ask them to carry on.`);
         return;
       }
-      reportOutcome({ ...fire, outcome, changed: kept.changed, continuation: false });
+      reportOutcome({ ...fire, outcome, changed: kept.changed, onLimit: 'stop' });
       current = setPiece(db, plan.message_id, i, {
         status: 'done', message_id: kept.messageId, note,
       });
@@ -1560,9 +1651,15 @@ export function createOrchestrator({
       // swallow them, and the problems the preview filed against those saves
       // are HEAD's by the time the context reads them (files/pending.js).
       if (dir !== null && pending) await pending.settle(row.slug);
+      // The builder's room sizes first (spec.md §8); everywhere else is the
+      // one fire it always was. Its context names the small budget, since
+      // that is what a small ask there runs under and the sizing shares the
+      // prefix; a piece builds its own.
+      const builderRoom = row.builder === 1 && agent.file_tools && dir !== null;
+      const limits = builderRoom ? smallLimits : roomLimits;
       const context = await buildContext({
         db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
-        maxAssistantTurns, maxToolCalls, historyFloor,
+        maxAssistantTurns: limits.turns, maxToolCalls: limits.tools, historyFloor,
       });
       if (!context) return;
 
@@ -1572,9 +1669,7 @@ export function createOrchestrator({
       const fire = {
         row, project, chat, agent, dir, asker, context, emit, state, snapshot,
       };
-      // The builder's room sizes first (spec.md §8); everywhere else is the
-      // one fire it always was.
-      if (row.builder === 1 && agent.file_tools && dir !== null) await builderFire(fire);
+      if (builderRoom) await builderFire(fire);
       else await openFire(fire);
     } catch (err) {
       // ⚠️ Nothing above this catches. fireAgent is called from a timer, and

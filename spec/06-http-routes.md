@@ -122,10 +122,12 @@ There is no route that deletes a chat.
 | POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
 | GET | `/api/messages/:id/receipt` | — | `{breakdown, prompt_held}`: what that reply was given and what each request cost (§8); 404 for a message with no receipt |
 | GET | `/api/messages/:id/prompt` | — | the last request of that fire as plain text; 404 unless the message is the one reply in its project whose prompt is still held |
+| GET | `/api/messages/:id/working` | — | what the helper said on the way to that reply — its *working*, every turn's words but the last — as plain text (§8); 404 when it said nothing more than the reply |
 | POST | `/api/messages/:id/reactions/toggle` | `{emoji}` | toggle that emoji on that message for the signed-in person; answers `{action: 'add'\|'remove'}` and broadcasts `message.reaction` (§9) |
 
 Message ids are global and every account sees every project (§3), so the two
-receipt routes and the reaction toggle check only that someone is signed in.
+receipt routes, the working route and the reaction toggle check only that
+someone is signed in.
 For the toggle that is deliberate: a reaction is talk about the work, not a
 change to it, so neither authorship nor archiving stands in the way.
 

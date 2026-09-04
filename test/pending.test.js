@@ -112,7 +112,7 @@ test("a helper's turn lands the person's saves first, under their name", async (
 
   const commits = await logCommits(dir);
   assert.deepEqual(commits.slice(0, 2).map((c) => [c.subject, c.author]), [
-    ['Designer: Writing.', 'Designer'],
+    ['Designer: Done.', 'Designer'],
     ['create js/story.js', 'Dann'],
   ]);
   // And every commit, whoever made it, is announced as a version.

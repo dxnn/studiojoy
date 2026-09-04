@@ -18,7 +18,7 @@ export const SIZING_MAX_TOKENS = 1200;
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-export function sizingAsk({ paused = null } = {}) {
+export function sizingAsk({ paused = null, begun = false } = {}) {
   const lines = [
     '[studio] Before anything is built, size this request. Answer with JSON only — no prose, no code fence:',
     '{"size":"small"} when it is one change a helper can make in one go — a value, a line, a bug, one',
@@ -39,6 +39,13 @@ export function sizingAsk({ paused = null } = {}) {
       'and the plan carries on after your reply. If it says to stop, answer {"size":"small","resume":false}.',
       'If it changes the plan or asks for more, answer big with every piece still to do, changed as the',
       'message asks, the message\'s own work first when it is separate.',
+    );
+  }
+  if (begun) {
+    lines.push(
+      '',
+      'A helper has already begun on this — its notes are above. Size what is left, not the whole:',
+      'small if one more go finishes it, big with the pieces still to do otherwise.',
     );
   }
   return lines.join('\n');
@@ -101,10 +108,13 @@ export function pieceTurn({ request, pieces, index }) {
 }
 
 // The plan card's text: what the transcript keeps and a later fire reads as
-// the builder's own words.
-export function planBody(pieces) {
+// the builder's own words. `begun` is a plan for the rest of something a
+// small fire started on and could not finish in one go.
+export function planBody(pieces, { begun = false } = {}) {
   return [
-    `That's a big one — I'll do it in ${pieces.length} pieces:`,
+    begun
+      ? `That's more than one go — here's the rest in ${pieces.length} pieces:`
+      : `That's a big one — I'll do it in ${pieces.length} pieces:`,
     ...pieces.map((p, i) => `${i + 1}. ${p.title} — ${p.files.join(', ')}`),
   ].join('\n');
 }
@@ -121,6 +131,21 @@ export function handoffNote(trace) {
     trace,
     '--- end of notes ---',
   ].join('\n');
+}
+
+// What a small ask did before it ran out of turns, handed to the sizing call
+// the same way — ahead of the ask — so what is left is planned from where it
+// stopped. The planner's file block is the fire's, from before the fire wrote
+// (the cache prefix), so the files that changed are named here rather than
+// shown.
+export function begunNote({ changed, said }) {
+  const lines = [
+    '[studio] A helper already began on this and used up its turns before finishing. What it changed',
+    'is on disk now, so do not plan that again — plan the rest.',
+    changed.length ? `Files it changed: ${changed.join(', ')}` : 'It changed no files.',
+  ];
+  if (said) lines.push('', '--- what it said while working ---', said, '--- end ---');
+  return lines.join('\n');
 }
 
 // The same trace handed to the sizing call instead, ahead of its ask.

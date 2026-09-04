@@ -107,6 +107,47 @@ test('an agent reply does not trigger another round', async (t) => {
   assert.equal(llm.calls.length, 1, 'the agent must not answer itself');
 });
 
+// A reply is what the helper said once it stopped calling tools — the last
+// turn's words. Everything it said on the way is the reply's working: kept on
+// the row, opened on a click, and never replayed into a later fire, since
+// twenty-four turns of "now I'll write…" joined into one body was the wall of
+// text a real receipt traced here — and the next fire paid for it every time.
+test('a reply is the last thing said; the rest is its working, kept but never replayed', async (t) => {
+  const llm = createFakeLlm([
+    calls([{ name: 'read_file', input: { path: 'index.html' } }],
+      { text: 'Let me read the page first.' }),
+    calls([{ name: 'write_file', input: { path: 'js/game.js', content: 'go()' } }],
+      { text: 'Now the loop.' }),
+    says('Done: the loop runs. Press play.'),
+    says('Glad it works.'),
+  ]);
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make a start');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+  assert.equal(reply.data.body, 'Done: the loop runs. Press play.');
+  assert.equal(reply.data.working, true, 'a flag, like the receipt: the text is fetched');
+  const working = await app.client.request('GET', `/api/messages/${reply.data.id}/working`);
+  assert.equal(working.status, 200);
+  assert.equal(await working.text(), 'Let me read the page first.\n\nNow the loop.');
+  // The commit is headed by the reply, not by the first thing muttered.
+  const [head] = await logCommits(dir, { limit: 1 });
+  assert.equal(head.subject, 'Designer: Done: the loop runs. Press play.');
+
+  // The next fire is given the reply and none of the working.
+  await send(app, 'nice');
+  const again = await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Glad it works.');
+  assert.equal(again.data.working, false, 'said in one breath: nothing to open');
+  assert.equal((await app.client.request('GET', `/api/messages/${again.data.id}/working`)).status, 404);
+  const history = JSON.stringify(llm.calls[3].messages);
+  assert.ok(history.includes('Done: the loop runs.'));
+  assert.ok(!history.includes('Let me read the page first'));
+});
+
 test('write_file lands on disk, in a commit, and in the message', async (t) => {
   const llm = createFakeLlm([
     calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
@@ -136,8 +177,11 @@ test('write_file lands on disk, in a commit, and in the message', async (t) => {
 
   assert.deepEqual(reply.data.writes.map((w) => [w.path, w.action]), [['index.html', 'create']]);
   assert.equal(reply.data.writes[0].commit_sha, head.sha);
-  assert.match(reply.data.body, /Scaffolding the page/);
+  // The body is the last thing said; what the first turn said on the way is
+  // the reply's working, behind a flag.
   assert.match(reply.data.body, /index\.html is up/);
+  assert.ok(!reply.data.body.includes('Scaffolding'));
+  assert.equal(reply.data.working, true);
 
   const changed = await stream.waitFor((e) => e.event === 'files.changed');
   assert.deepEqual(changed.data.paths, ['index.html']);
@@ -1224,12 +1268,14 @@ test('a failed stream still commits the files earlier turns wrote', async (t) =>
   const reply = await stream.waitFor(
     (e) => e.event === 'message.new' && e.data.agent_id !== null,
   );
-  // Both turns' prose, joined the way a normal multi-turn reply is.
-  assert.equal(reply.data.body, 'Working on it.\n\nAnd then');
+  // The dying turn's words are the last thing said, so they are the reply;
+  // the first turn's are its working, kept the way any reply's are.
+  assert.equal(reply.data.body, 'And then');
+  assert.equal(reply.data.working, true);
 
   // The write is committed and credited, not stranded dirty in the tree.
   const [head] = await logCommits(dir, { limit: 1 });
-  assert.match(head.subject, /^Designer: Working on it\./);
+  assert.match(head.subject, /^Designer: And then/);
   assert.deepEqual(reply.data.writes.map((w) => [w.path, w.commit_sha]), [['js/game.js', head.sha]]);
   const changed = await stream.waitFor((e) => e.event === 'files.changed');
   assert.deepEqual(changed.data.paths, ['js/game.js']);

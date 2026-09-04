@@ -1,9 +1,10 @@
 /* What the running game and the helper report ------------------------------ */
 
-/* Three things that appear inside the thread but are nobody's message: the
-   problems the game reported, the moments it said happened, and the reasoning
-   trace behind a reply. Plus the working dots, which is the studio saying a
-   helper is still going. */
+/* Four things that appear inside the thread but are nobody's message: the
+   problems the game reported, the moments it said happened, the reasoning
+   trace behind a reply, and the working a reply left — what the helper said
+   on the way. Plus the busy dots, which is the studio saying a helper is
+   still going. */
 
 /* Problems the running game reported. Stated plainly and not dressed up as an
    alarm: a game breaking while you build it is normal. */
@@ -68,9 +69,11 @@
 }
 .moment .mvalue { color: var(--text); }
 
-/* The reasoning trace: present, clearly secondary, and collapsed. */
-details.thinking { font-size: 13px; }
-details.thinking summary {
+/* The reasoning trace, and the working: present, clearly secondary, and
+   collapsed. One shape for both — a folded box under a one-word summary — so
+   Thinking and Working read as the same kind of thing above the bubble. */
+details.thinking, details.working { font-size: 13px; }
+details.thinking summary, details.working summary {
   cursor: pointer;
   font-family: var(--mono);
   font-size: 10.5px;
@@ -78,11 +81,12 @@ details.thinking summary {
   color: var(--muted);
   list-style: none;
 }
-details.thinking summary:hover { color: var(--agent); }
-details.thinking summary::-webkit-details-marker { display: none; }
-details.thinking summary::before { content: '▸ '; }
-details.thinking[open] summary::before { content: '▾ '; }
-details.thinking .trace {
+details.thinking summary:hover, details.working summary:hover { color: var(--agent); }
+details.thinking summary::-webkit-details-marker,
+details.working summary::-webkit-details-marker { display: none; }
+details.thinking summary::before, details.working summary::before { content: '▸ '; }
+details.thinking[open] summary::before, details.working[open] summary::before { content: '▾ '; }
+details.thinking .folded, details.working .folded {
   margin-top: 6px;
   padding: 9px 12px;
   border-left: 2px solid color-mix(in oklab, var(--agent) 40%, transparent);
@@ -93,7 +97,7 @@ details.thinking .trace {
   overflow-y: auto;
 }
 
-.working { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--agent); }
+.busy { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--agent); }
 .dots::after {
   content: '';
   animation: dots 1.2s steps(4, end) infinite;

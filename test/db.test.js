@@ -219,6 +219,53 @@ test('games from before the type column are marked to be looked at', () => {
   db.close();
 });
 
+// A reply from before `working` existed is every turn's words in one body —
+// the wall. Reopening splits the long ones at their last paragraph, the words
+// moving rather than going, and leaves alone what is not a wall: a short
+// reply, a person's message however long, and a long reply with no paragraph
+// to cut at.
+test('long replies from before working existed are split at their last paragraph', () => {
+  const file = path.join(scratchDir('db'), 'studio.db');
+  let db = openDb(file);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO users (email, password_hash, display_name, created_at)
+     VALUES ('a@b.c', 'x', 'Dann', ?)`,
+  ).run(now);
+  db.prepare(
+    `INSERT INTO projects (slug, name, kind, created_by, created_at)
+     VALUES ('tank', 'Tank', 'game', 1, ?)`,
+  ).run(now);
+  db.prepare("INSERT INTO chats (project_id, name, bots, created_at) VALUES (1, 'Building', 1, ?)").run(now);
+  db.prepare("INSERT INTO agents (name, description, created_by, created_at) VALUES ('Designer', 'd', 1, ?)").run(now);
+  const say = (who, body) => db
+    .prepare(`INSERT INTO messages (project_id, chat_id, ${who}, body, created_at) VALUES (1, 1, 1, ?, ?)`)
+    .run(body, now);
+  const para = (line) => Array(200).fill(line).join(' ');
+  const wall = `${para('Now I will write the tanks.')}\n\n${para('Then the walls.')}\n\nDone — press play.`;
+  say('agent_id', wall);
+  say('agent_id', 'Short.\n\nTwo paragraphs, one breath.');
+  say('user_id', `${para('A person can go on.')}\n\nTheir words are theirs.`);
+  say('agent_id', para('No paragraph anywhere in this one.'));
+  // Put the table back the way a database from before this looked.
+  db.exec('ALTER TABLE messages DROP COLUMN working');
+  db.close();
+
+  db = openDb(file);
+  // Spread: node:sqlite hands back null-prototype rows, which strict deepEqual
+  // will not match against a literal.
+  const row = (id) => ({ ...db.prepare('SELECT body, working FROM messages WHERE id = ?').get(id) });
+  assert.deepEqual(row(1), {
+    body: 'Done — press play.',
+    working: wall.slice(0, wall.lastIndexOf('\n\n')),
+  });
+  assert.deepEqual(row(2), { body: 'Short.\n\nTwo paragraphs, one breath.', working: null });
+  assert.equal(row(3).working, null);
+  assert.equal(row(4).working, null);
+  assert.equal(row(4).body.length, para('No paragraph anywhere in this one.').length);
+  db.close();
+});
+
 test('tx commits on success and rolls back on throw', () => {
   const db = seeded();
   const count = () => db.prepare('SELECT COUNT(*) c FROM messages').get().c;

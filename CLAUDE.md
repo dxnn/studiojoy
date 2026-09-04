@@ -98,6 +98,10 @@ walk into, each paid for once already.
 - A reasoning trace is never persisted and never replayed into a later fire.
   The one time one enters a request is the thinking cap's hand-on — the same
   fire, once, as text — and the receipt keeps a placeholder for it (spec/ §8).
+- A reply's `body` is the **last** turn's words; what earlier turns said is
+  its **working**, in its own column, never shown as the reply and never
+  replayed. Joining the turns back into one body is how a 167 KB wall got
+  replayed into every fire in a chat (spec/ §8).
 - `Humans only` is enforced where a helper would be *put in*
   (`assertBotsAllowed`), not where one would answer: a room that promises
   nobody is listening keeps that promise at the door. `Building` is the

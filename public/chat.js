@@ -201,6 +201,45 @@ function renderReceipt(msg, receipt) {
       }));
 }
 
+/* Working ------------------------------------------------------------------
+   What a helper said on the way to its reply — every turn's words but the
+   last — folded above the bubble the way the trace is, and fetched when the
+   panel is first opened: it can run to tens of kilobytes, so the thread does
+   not carry it. Kept here, not on the message, so a render mid-read does
+   not close the panel or fetch it twice. Bounded like the traces. */
+
+const MAX_KEPT_WORKINGS = 20;
+const workings = new Map();
+
+function workingPanel(msg) {
+  if (!msg.working) return null;
+  let kept = workings.get(msg.id);
+  if (!kept) {
+    kept = { text: null, loading: false, open: false };
+    workings.set(msg.id, kept);
+    while (workings.size > MAX_KEPT_WORKINGS) workings.delete(workings.keys().next().value);
+  }
+  return h('details', {
+    class: 'working',
+    open: kept.open,
+    ontoggle: (event) => {
+      kept.open = event.currentTarget.open;
+      if (kept.open && kept.text === null && !kept.loading) loadWorking(msg, kept);
+    },
+  },
+  h('summary', { text: 'Working' }),
+  h('div', { class: 'folded', text: kept.text ?? 'Reading…' }));
+}
+
+async function loadWorking(msg, kept) {
+  kept.loading = true;
+  const res = await send(`/api/messages/${msg.id}/working`);
+  kept.loading = false;
+  if (!res.ok) { say('Could not read what this helper said on the way.', true); return; }
+  kept.text = await res.text();
+  render();
+}
+
 /* Reactions -----------------------------------------------------------------
    An emoji a person puts on a message. The chips under a bubble are the
    reactions it has, each carrying who on its tooltip; + opens a fixed
@@ -363,12 +402,13 @@ function renderMessage(msg) {
       ontoggle: (event) => { kept.open = event.currentTarget.open; },
     },
     h('summary', { text: 'Thinking' }),
-    h('div', { class: 'trace', text: kept.text }))
+    h('div', { class: 'folded', text: kept.text }))
     : null;
 
   return h('div', { class: `msg ${isAgent ? 'from-agent' : 'from-human'}` },
     h('div', { class: 'from', text: who }),
     thinking,
+    workingPanel(msg),
     msg.body && h('div', {
       class: 'bubble',
       style: tintStyle(isAgent, isAgent ? msg.agent_id : msg.user_id),
@@ -390,7 +430,7 @@ function renderLive(agentId, entry) {
   // and a box measured there looks scrolled-up when it is simply new — which
   // would pin the trace to its first ten lines for the rest of the reply.
   const trace = h('div', {
-    class: 'trace',
+    class: 'folded',
     text: entry.trace,
     onscroll: (event) => {
       const box = event.currentTarget;
@@ -404,23 +444,35 @@ function renderLive(agentId, entry) {
   }, h('summary', { text: 'Thinking' }), trace);
   thinking.hidden = entry.trace === '';
 
+  // What earlier turns said, folded away as they end (stream.js, agent.tool):
+  // the bubble below holds only the latest thing said, so a long reply is a
+  // short line that changes rather than a wall that grows.
+  const working = h('div', { class: 'folded', text: entry.working });
+  const workingPanel = h('details', {
+    class: 'working',
+    open: entry.workingOpen,
+    ontoggle: (event) => { entry.workingOpen = event.currentTarget.open; },
+  }, h('summary', { text: 'Working' }), working);
+  workingPanel.hidden = entry.working === '';
+
   const reply = h('div', {
     class: 'bubble', style: tintStyle(true, agentId), text: entry.reply,
   });
   reply.hidden = entry.reply === '';
 
   const tool = h('div', {
-    class: 'working dots', text: toolLabel(entry.tool) || thinkingFor(entry),
+    class: 'busy dots', text: toolLabel(entry.tool) || thinkingFor(entry),
   });
 
-  entry.nodes = { trace, thinking, reply, tool };
+  entry.nodes = { trace, thinking, working, workingPanel, reply, tool };
 
   return h('div', { class: 'msg from-agent' },
     h('div', { class: 'from', text: agentName(agentId) }),
     thinking,
+    workingPanel,
     reply,
     entry.error
-      ? h('div', { class: 'working error', text: 'Something went wrong. Try asking again.' })
+      ? h('div', { class: 'busy error', text: 'Something went wrong. Try asking again.' })
       : tool);
 }
 

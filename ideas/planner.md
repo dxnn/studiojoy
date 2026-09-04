@@ -234,10 +234,22 @@ already named its files:
   is unnamed — *piece* is the candidate, from the banners' "ask for one piece
   at a time".
 
-## Still open
+## Answered 2026-09-03, from a real receipt
 
-- Where the wall of text comes from. Not the retry (probe 4). Find one real
-  instance in the production studio and read its receipt before assuming.
+- **Where the wall of text comes from**: the second candidate above. Every
+  turn's `content` — *now I'll write js/tank.js…* — was joined into one body
+  and persisted, so a 24-turn fire left 24 paragraphs and its continuations
+  added more. The receipt: 167 KB of builder replies across three collapsed
+  turns, replayed into the next fire as ~48 K new tokens (the file block
+  ahead of it had changed) and then carried at a tenth on each of that
+  fire's 24 requests — about half of its ~334 K. Fixed in spec/ §8: the body
+  is the last turn's words and the rest is the reply's *working*, kept but
+  never replayed; walls already in the database were split at their last
+  paragraph on upgrade.
+- **The same receipt showed a "small" ask running to 24 turns and carrying
+  on**, three times allowed. So a small ask now has a budget of its own
+  (6 turns, 12 calls) and one that outruns it hands what it did back to the
+  sizing as a plan for the rest — the plan is the room's continuation.
 
 ## Build order (done; kept for the shape of it)
 

@@ -108,8 +108,10 @@ deliberately deferred.
   not whether they were any good (spec/ §14, the caveat)
 - ! watch the first real plans in production: whether the pieces the sizing
   cuts are the right size, whether `none` pieces come out as good as `low`
-  ones, and where the wall of text a helper used to leave actually came from —
-  read one real receipt before assuming (ideas/planner.md, "Still open")
+  ones, and whether the small ask's 6-turn budget is right — a real small
+  change that keeps outrunning it and getting planned means it is too tight,
+  a "small" that fills it every time means the sizing is calling big things
+  small (spec/ §8, `SMALL_TURNS`)
 - hold the other surfaces to the conventions the way Controls is now
   (test/conventions.test.js): the story editor, the achievements editor,
   Pics, Hear, Share and the mode row itself — a `render` call and the same

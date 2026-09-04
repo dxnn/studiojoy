@@ -121,6 +121,8 @@ export async function setup({
   maxAssistantTurns = undefined,
   maxToolCalls = undefined,
   maxContinuations = undefined,
+  smallTurns = undefined,
+  smallToolCalls = undefined,
   publicDir = undefined,
 } = {}) {
   const db = openDb(':memory:');
@@ -155,6 +157,8 @@ export async function setup({
       ...(maxAssistantTurns === undefined ? {} : { maxAssistantTurns }),
       ...(maxToolCalls === undefined ? {} : { maxToolCalls }),
       ...(maxContinuations === undefined ? {} : { maxContinuations }),
+      ...(smallTurns === undefined ? {} : { smallTurns }),
+      ...(smallToolCalls === undefined ? {} : { smallToolCalls }),
     });
   }
   const handler = createApp({

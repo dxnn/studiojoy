@@ -231,6 +231,18 @@ export function messageRoutes(r) {
     });
   });
 
+  // What the helper said on the way to that reply — every turn's words but
+  // the last, its working. Kept on the row and never replayed into a fire;
+  // shown only when somebody opens the panel (spec.md §8).
+  r.get('/api/messages/:id/working', (ctx) => {
+    requireAuth(ctx);
+    const row = ctx.db
+      .prepare('SELECT working FROM messages WHERE id = ?')
+      .get(requireMessageId(ctx));
+    if (!row?.working) throw new HttpError(404, 'nothing more was said on the way to that reply');
+    text(ctx.res, 200, row.working);
+  });
+
   // The prompt itself, exactly as the last request of that fire carried it.
   // Held only for the newest reply in each project — the next fire takes it.
   r.get('/api/messages/:id/prompt', (ctx) => {

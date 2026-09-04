@@ -358,6 +358,11 @@ export function openDb(dbPath) {
   // context. Null on anything but an agent reply, and on a reply that saw the
   // whole conversation (spec.md §8).
   addColumnIfMissing(db, 'messages', 'trimmed', 'INTEGER');
+  // What a helper said on the way to its reply — every turn's words but the
+  // last — kept beside the body and never in it, so the thread shows the
+  // reply and a later fire replays only that (spec.md §3, §8). Added with the
+  // walls already in the database split the same way, once (splitLongReplies).
+  addColumnIfMissing(db, 'messages', 'working', 'TEXT', splitLongReplies);
   // Which conversation a message is in. A database from before chats existed
   // has one thread per project; the upgrade gives that thread a home rather
   // than leaving it stranded (see intoChats).
@@ -540,6 +545,29 @@ function intoChats(db) {
   // Dropped rather than left behind: two tables that disagree about who is in
   // a conversation is the kind of thing that reads as a bug for a year.
   if (hasOld) db.exec('DROP TABLE project_agents');
+}
+
+// A reply from before `working` existed is every turn's words joined into one
+// body — up to 160 KB of it, replayed into every later fire in that chat. The
+// loop splits at the last turn; here there is no turn boundary left, so a long
+// reply keeps its last paragraph and moves the rest into `working`. A turn's
+// closing note is a paragraph, so that is the nearest cut to the loop's own,
+// and nothing is lost: the words move, they do not go. Short replies are left
+// whole — a two-paragraph answer said in one breath is not a wall — and a long
+// one with no paragraph break has nowhere to cut and stays as it is.
+const LONG_REPLY_CHARS = 4096;
+function splitLongReplies(db) {
+  const rows = db.prepare(
+    `SELECT id, body FROM messages
+      WHERE agent_id IS NOT NULL AND kind IS NULL AND length(body) > ?`,
+  ).all(LONG_REPLY_CHARS);
+  const update = db.prepare('UPDATE messages SET body = ?, working = ? WHERE id = ?');
+  for (const row of rows) {
+    const text = row.body.trim();
+    const cut = text.lastIndexOf('\n\n');
+    if (cut <= 0) continue;
+    update.run(text.slice(cut + 2).trim(), text.slice(0, cut).trim(), row.id);
+  }
 }
 
 // A chat project is one room. It used to be born with two — the human-only

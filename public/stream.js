@@ -124,8 +124,8 @@ function liveFor(slug, chatId, agentId) {
   let entry = map.get(agentId);
   if (!entry) {
     entry = {
-      reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
-      startedAt: Date.now(),
+      reply: '', working: '', trace: '', tool: null, error: false, nodes: null,
+      open: false, workingOpen: false, startedAt: Date.now(),
     };
     map.set(agentId, entry);
   }
@@ -172,6 +172,20 @@ function paintReply(entry) {
   entry.nodes.reply.textContent = entry.reply;
   entry.nodes.reply.hidden = false;
   stickToBottom();
+}
+
+// A turn ended on a tool call: the line under the name says which, and what
+// the turn said moves from the bubble into the working panel. Painted in
+// place for the same reason the reply is — a render mid-stream would rebuild
+// the preview and restart the game.
+function paintTool(entry) {
+  const { nodes } = entry;
+  nodes.tool.textContent = toolLabel(entry.tool);
+  nodes.working.textContent = entry.working;
+  nodes.workingPanel.hidden = entry.working === '';
+  nodes.working.scrollTop = nodes.working.scrollHeight;
+  nodes.reply.textContent = entry.reply;
+  nodes.reply.hidden = entry.reply === '';
 }
 
 // A message landing, from wherever it came from: the SSE broadcast, or —
@@ -279,8 +293,8 @@ function onEvent(name, data) {
 
     case 'agent.stream.start': {
       liveMapFor(data.project_slug, data.chat_id).set(data.agent_id, {
-        reply: '', trace: '', tool: null, error: false, nodes: null, open: false,
-        startedAt: Date.now(),
+        reply: '', working: '', trace: '', tool: null, error: false, nodes: null,
+        open: false, workingOpen: false, startedAt: Date.now(),
       });
       if (here(data)) render();
       return;
@@ -307,8 +321,16 @@ function onEvent(name, data) {
     case 'agent.tool': {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.tool = data.path ? `${data.tool} ${data.path}` : data.tool;
+      // A tool call ends a turn, and what the turn said ahead of it was said
+      // on the way, not to the person: fold it into the working panel, so
+      // the bubble holds the latest thing said and never grows into a wall.
+      // The same cut the server makes when the reply lands (spec.md §8).
+      if (entry.reply) {
+        entry.working += entry.working ? `\n\n${entry.reply}` : entry.reply;
+        entry.reply = '';
+      }
       if (!here(data)) return;
-      if (entry.nodes) entry.nodes.tool.textContent = toolLabel(entry.tool);
+      if (entry.nodes) paintTool(entry);
       else render();
       return;
     }

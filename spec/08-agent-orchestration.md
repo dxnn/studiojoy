@@ -33,8 +33,10 @@ in-process `Map`; a restart loses scheduled wakes (accepted).
    without calling the API.
 3. Build context (below).
 4. Run the tool loop, streaming `agent.stream.chunk` deltas as they arrive.
-5. Persist one `messages` row, one git commit covering every file the turn
-   wrote, and one `message_writes` row per path.
+5. Persist one `messages` row — its `body` the **reply**, the last turn's
+   words, and its `working` the turns before it (below) — one git commit
+   covering every file the turn wrote, headed by the reply's first line, and
+   one `message_writes` row per path.
 6. Add the turn's tokens to `studio_state`.
 7. Broadcast `message.new`, `agent.stream.end`, and `files.changed`.
 8. Unmark firing, set `cooldown_until = now + 5 s`, re-check the pending flag.
@@ -42,6 +44,26 @@ in-process `Map`; a restart loses scheduled wakes (accepted).
 The tool loop (step 4) and the persisting (steps 5–7) are functions of their
 own, `runLoop` and `persistReply`, because the builder's room runs them more
 than once per fire.
+
+### The reply and its working
+
+A tool-using fire says something on most turns — *now I'll write js/tank.js*
+— and used to keep all of it, joined, as the reply. A real receipt
+(2026-09-03) showed where that goes: 167 KB of it across three builder
+replies, replayed into the next fire as ~48 K new tokens and then carried at
+a tenth on each of that fire's 24 requests, about half its bill, and a chat
+nobody could read. So a reply is cut at its last turn. `messages.body` is the
+**reply**, the last thing said — the note a helper leaves once it stops
+calling tools — and `messages.working` is its **working**, everything said
+before that. The body is what the thread shows, what the commit subject comes
+from and what history replays; the working sits behind a `Working` panel
+above the bubble, beside `Thinking`, fetched on open
+(`GET /api/messages/:id/working`) and never replayed. Live, the client folds
+each turn's words into the same panel as the turn ends — on `agent.tool`, the
+same cut the server makes — so the bubble is a short line that changes rather
+than a wall that grows. A stream that dies mid-turn leaves the dying turn's
+words as the reply. A closing request for a synopsis was considered and
+declined: ~10 K tokens a fire for a note the model already writes.
 
 ### The builder's room: sizing and pieces
 
@@ -61,7 +83,24 @@ finishable in one sitting. An answer that won't parse, or an upstream that
 won't answer, is small — today's fire, its cap intact — charged to the asker
 like the fire it precedes.
 
-**Small** is the ordinary fire, at the builder's own thinking level (`low`).
+**Small** is the ordinary fire, at the builder's own thinking level (`low`),
+under a budget of its own: `SMALL_TURNS` turns and `SMALL_TOOL_CALLS` tool
+calls (6 and 12, against a room's 24 and 40). The whole tree is already in
+the prompt, so one change is a patch, a read-back and a note — three turns —
+and six is twice that path. The room's preamble names the small pair, since
+the sizing shares the prefix. A small ask that uses the budget up was not
+small: what it did is kept and committed as any reply is, a banner says it
+turned out bigger than one go, and what is left goes back to the sizing with
+the files it changed and its working as notes, ahead of the ask (`begunNote`),
+told to size the rest rather than the whole. Big, and a plan for the rest runs
+— its card says so. Small again, or no answer, and the builder carries on the
+way any room does, one more go and sized again first, so the next overrun
+gets another chance at a plan; bounded by the same continuation count. There
+is no other continuation in this room: the plan is the continuation. The
+sizing's file block is the fire's, from before it wrote — that is the cache
+prefix — so the note *names* the changed files rather than showing them, and
+the pieces read the tree fresh. Why: a real receipt (2026-09-03) showed an
+ask sized small running to 24 turns and carrying on.
 
 **Big** is a **plan**: a message of kind `'plan'` by the builder — *That's a
 big one — I'll do it in N pieces*, and the list — over a `plans` row (§3),
@@ -181,8 +220,9 @@ re-derives it, costing one fire of misses. The seam is marked twice: a
 shown, and `messages.trimmed` on the reply, rendered under the bubble (§3) —
 the one drop in the whole context that isn't silent, since a trimmed
 conversation still needs to say it began later than it had before. Past
-turns' tool calls are not replayed, only the persisted reply text, so
-history stays compact and no stale `tool_call_id` can dangle.
+turns' tool calls are not replayed, and neither is a reply's working — only
+the reply, the last turn's words (above) — so history stays compact and no
+stale `tool_call_id` can dangle.
 
 Budgets, in one constants block so they are easy to retune:
 

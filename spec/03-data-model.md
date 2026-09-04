@@ -316,7 +316,8 @@ soft-delete dance is needed here.
 | `user_id` | INTEGER NULL → users | set for human messages; the API adds `user_name` beside it, read at the time it is served rather than stored, so the thread says what somebody is called today. The client has no user list to look one up in — an agent's name it can resolve, a person's it cannot |
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner; `'plan'` = the *builder*'s plan card, with a `plans` row behind it (§8) |
-| `body` | TEXT NOT NULL | utf-8, ≤ 32 KB |
+| `body` | TEXT NOT NULL | utf-8, ≤ 32 KB for a person's; for an agent's reply, the **reply** — the last turn's words (§8) |
+| `working` | TEXT NULL | the reply's **working**: what the agent said on the way to `body`, every turn's words but the last. Kept here, shown behind a panel and fetched on open, never in the body and never replayed into a later fire (§8). NULL on a reply said in one breath and on anything but an agent reply |
 | `tokens` | INTEGER NULL | what the fire that produced this reply cost; NULL for anything a person or the studio wrote |
 | `trimmed` | INTEGER NULL | how many earlier messages the history budget kept out of this reply's context; NULL when none were, and on anything but an agent reply |
 | `created_at` | TEXT NOT NULL | |
@@ -330,6 +331,14 @@ There is no per-project participant indirection: humans have no per-project
 participant row, so messages point straight at `users` / `agents`.
 
 A **reasoning trace** is never stored here. See §8.
+
+**The upgrade to `working`.** A reply from before the column existed is every
+turn's words joined into one body — up to 160 KB, replayed into every later
+fire in its chat. When the column is added, `splitLongReplies` in `db.js`
+gives each agent reply over 4 KB the cut the loop would have made: the last
+paragraph stays as `body` and the rest moves into `working`. Once, lossless,
+and only for walls — a shorter reply, a person's message and a long reply with
+no paragraph break are left as they are.
 
 Indexes `idx_messages_project ON messages (project_id, id)` and
 `idx_messages_chat ON messages (chat_id, id)` — the second is created after the

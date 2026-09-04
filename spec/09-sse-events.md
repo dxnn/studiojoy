@@ -9,13 +9,13 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, created_at, tokens, trimmed, context_paths, writes, reactions, plan}` — `plan` is `{status, pieces}` on a card of kind `'plan'`, null otherwise |
+| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, working, created_at, tokens, trimmed, context_paths, writes, reactions, plan}` — `working` is whether the reply has *working* to open (a flag; the text is fetched, §6), `plan` is `{status, pieces}` on a card of kind `'plan'`, null otherwise |
 | `plan.update` | `{project_slug, chat_id, message_id, plan: {status, pieces}}` — a *piece* landed, or the plan paused, finished or was set aside; the client puts it on the card and re-renders (§8) |
 | `message.reaction` | `{project_slug, chat_id, message_id, user_id, user_name, emoji, action: 'add'\|'remove'}` — a delta, applied by the same idempotent merge as the reacting tab's own optimistic click |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |
-| `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator |
+| `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator, and folds what the turn said into the live reply's `Working` panel, since a tool call ends a turn (§8) |
 | `agent.stream.end` | `{project_slug, agent_id, message_id?, error?}` |
 | `chats.changed` | `{project_slug}` — a chat was added or renamed; the client refetches the list rather than being sent it |
 | `files.changed` | `{project_slug, paths: string[]}` — the tree changed: client refreshes the tree and reloads the preview iframe. Fires on the write, which for a save is before its commit (§5) |

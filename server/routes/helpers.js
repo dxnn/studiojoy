@@ -167,6 +167,10 @@ export function messagePublic(db, row, slug) {
     // How many earlier messages the history budget kept out of this reply's
     // context. The agent is told in its prompt; this is how the person is.
     trimmed: row.trimmed ?? null,
+    // Whether the helper said more on the way than the reply — the earlier
+    // turns' words, its working. A flag like the receipt's: the text can run
+    // to tens of kilobytes and is fetched when the panel is opened (§8).
+    working: Boolean(row.working),
     context_paths: contextPaths,
     writes: writes.map((w) => ({ ...w })),
     reactions,

@@ -191,6 +191,81 @@ test('a small ask is sized first, then answered as one fire', async (t) => {
   assert.ok(llm.calls[0].tools.length > 0, 'file tools, like any fire in a game');
 });
 
+// A small ask gets the room for one job, and a real receipt showed why: sized
+// small, a fire ran to 24 turns and carried on three times. Past its budget
+// what it did is kept and committed, and what is left goes back to the sizing
+// with the changed files and its working as notes — a plan for the rest, not
+// another twenty-four turns.
+test('a small ask that outruns its budget keeps what it did and plans the rest', async (t) => {
+  const rest = [
+    { title: 'Walls that break', files: ['js/walls.js'], what: 'Walls.' },
+    { title: 'The loop', files: ['js/game.js'], what: 'Loop.' },
+  ];
+  const llm = scriptedLlm([
+    calls([write('index.html', '<h1>Tank</h1>')], { text: 'Page first.' }),
+    calls([write('js/tank.js', 'drive()')], { text: 'Now the tanks.' }),
+    calls([write('js/walls.js', 'walls()')], { text: 'Walls break.' }),
+    says(''),
+    calls([write('js/game.js', 'loop()')], { text: 'It runs.' }),
+    says(''),
+  ], [sized({ size: 'small' }), sized({ size: 'big', pieces: rest })]);
+  const { app, chatId } = await studio(t, { llm, smallTurns: 2, smallToolCalls: 4 });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  // The small fire, under the small budget its prompt names — the same prompt
+  // the sizing shared.
+  const reply = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null
+    && e.data.kind === null);
+  assert.equal(reply.data.body, 'Now the tanks.');
+  assert.equal(reply.data.working, true);
+  assert.deepEqual(reply.data.writes.map((w) => w.path), ['index.html', 'js/tank.js']);
+  assert.match(llm.calls[0].system, /at most 2 turns and 4 tool calls/);
+  assert.equal(llm.asked[0].system, llm.calls[0].system);
+
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system'
+    && /bigger than one go/.test(e.data.body));
+  const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  assert.match(card.data.body, /here's the rest in 2 pieces/);
+  // The second sizing was told what was done, ahead of its ask.
+  assert.equal(llm.asked.length, 2);
+  const ask = llm.asked[1].messages.at(-1).content;
+  assert.match(ask, /Files it changed: .*index\.html/);
+  assert.match(ask, /Files it changed: .*js\/tank\.js/);
+  assert.match(ask, /Page first\.\n\nNow the tanks\./);
+  assert.ok(ask.indexOf('what it said while working') < ask.indexOf('size this request'));
+  assert.match(ask, /Size what is left, not the whole/);
+
+  await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
+  const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
+  assert.ok(!detail.body.messages.some((m) => m.kind === 'system' && /carrying on/.test(m.body)),
+    'the plan is the continuation');
+  assert.equal(llm.calls.length, 6);
+});
+
+test('still small after an overrun, the builder gets one more go — sized again first', async (t) => {
+  const llm = scriptedLlm([
+    calls([write('index.html')], { text: 'Page first.' }),
+    calls([write('js/tank.js')], { text: 'Now the tanks.' }),
+    says('All done — press play.'),
+  ], [sized({ size: 'small' }), sized({ size: 'small' }), sized({ size: 'small' })]);
+  const { app, chatId } = await studio(t, { llm, smallTurns: 2 });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system'
+    && /bigger than one go/.test(e.data.body));
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system'
+    && /carrying on from where they stopped/.test(e.data.body));
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'All done — press play.');
+  assert.equal(llm.asked.length, 3, 'the second go was sized too');
+  assert.equal(llm.calls.length, 3);
+  assert.match(llm.asked[1].messages.at(-1).content, /already began on this/);
+  assert.ok(!llm.asked[2].messages.at(-1).content.includes('already began'), 'a fresh fire, a plain ask');
+});
+
 test('a sizing answer that will not parse is a small ask', async (t) => {
   const llm = createFakeLlm([says('Here you go.')], [answers('Sure thing, let me build that.')]);
   const { app, chatId } = await studio(t, { llm });
