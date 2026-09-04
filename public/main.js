@@ -44,7 +44,7 @@ import { loadScores, bestScore, showScore, renderScoreboardTab } from './scorebo
 import { readChat, openChat, stickToBottom, sendMessage } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { loadPeople } from './people.js';
-import { connectStream, liveMapFor } from './stream.js';
+import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
 
 const root = document.getElementById('root');
 
@@ -171,6 +171,7 @@ export const S = {
   historyStale: false,
   drafts: new Map(), // slug -> unsent composer text
   live: new Map(), // the open game's map from liveBySlug; see connectStream
+  pending: new Map(), // the open chat's map from pendingBySlug; see connectStream
   traces: new Map(), // message_id -> {text, open}; this session only
   // The one open receipt under a reply's token note: {id, breakdown,
   // promptHeld}. One at a time, like a row's changes in the versions list.
@@ -227,24 +228,15 @@ export const composerBox = h('textarea', {
 export async function sendComposer() {
   const text = composerBox.value.trim();
   if (!text) return;
-  // Emptied on the way out so the thread does not look stuck, but the words are
-  // the one thing in the studio that git cannot get back, so a send that fails
-  // gives them back rather than swallowing them.
+  // Emptied on the way out so the thread does not look stuck. The words are
+  // the one thing in the studio that git cannot get back, but a send that
+  // fails no longer needs to give them back here — the pane shows them
+  // itself, pending or failed, until they are actually gone (chats.js).
   const slug = S.slug;
   composerBox.value = '';
   S.drafts.delete(slug);
   S.autoscroll = true;
-  if (await sendMessage(text)) return;
-
-  // Back where they were typed: into the box if that is still this game and
-  // nothing newer has been typed into it, and otherwise into that game's
-  // draft — never over the top of something newer.
-  if (S.slug === slug && !composerBox.value) {
-    composerBox.value = text;
-    S.drafts.set(slug, text);
-  } else if (!S.drafts.has(slug)) {
-    S.drafts.set(slug, text);
-  }
+  await sendMessage(text);
 }
 
 // The node surviving is not enough: removing it from the document blurs it
@@ -810,6 +802,7 @@ export async function openProject(slug, { view = null } = {}) {
     S.palette = null;
     setReservedImages({ chat: null, hero: null });
     S.live = new Map();
+    S.pending = new Map();
     S.receipt = null;
     render();
     return;
@@ -863,6 +856,7 @@ export async function openProject(slug, { view = null } = {}) {
   // game's up again. Kept traces are bounded and keyed by message id, so they
   // survive the switch the same way.
   S.live = liveMapFor(slug, S.chat?.id);
+  S.pending = pendingMapFor(slug, S.chat?.id);
   S.autoscroll = true;
   // Opening the chat is reading it. Behind another mode it is not on screen,
   // so its marks wait for the pill to be pressed.

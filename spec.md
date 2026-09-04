@@ -3886,10 +3886,18 @@ somebody typing into a studio that could not hear them. Without it a dropped
 connection looked like a picture pane blank with nothing said, a click that
 did nothing, and a message wiped out of the composer.
 
-The composer is emptied on send but the words come back if the send fails —
-into the box if it is still empty and still that game, otherwise into that
-game's draft, never over anything newer. Nothing else in the studio holds
-something git cannot recover.
+The composer is emptied on send, but the words never rest on that alone: a
+message paints into the pane the moment it is sent, pending, from
+`S.pending` (`stream.js`'s `pendingMapFor`, the same per-chat-buffer shape as
+a streaming reply's `liveMapFor`) — not waiting on the **stream** to echo it
+back, which is what used to lose a message on a bad connection: the POST
+could land and be broadcast while the SSE was mid-reconnect and missed it,
+and nothing but a reload would show it again. `applyMessage` (`stream.js`)
+now runs the moment the POST answers, from its own response, and a second
+time — a no-op, guarded by id — if the SSE echo still arrives. A send that
+truly fails is never removed either: the pending bubble turns to a marked
+"could not send", pressed to try again in place. Nothing else in the studio
+holds something git cannot recover.
 
 ### Panes
 

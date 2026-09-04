@@ -117,6 +117,20 @@
   text-align: center;
 }
 
+/* A send still going, or one that did not land. Never removed on its own —
+   the words stay on screen either way — so the colour is what says which. */
+.send-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.msg.pending .bubble { opacity: 0.6; }
+.msg.failed .bubble { opacity: 0.75; border-color: var(--danger); }
+.msg.failed .send-status { color: var(--danger); }
+.msg.failed { cursor: pointer; }
+.msg.failed:hover .bubble { opacity: 1; }
+
 /* A plan card: what the Builder split a big ask into, as a checklist that
    ticks as the pieces land (spec.md §8). Pink is a helper's colour; the
    count is not a score, so it is not gold. */

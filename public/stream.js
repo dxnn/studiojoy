@@ -104,6 +104,21 @@ export function liveMapFor(slug, chatId = null) {
   return map;
 }
 
+// A human message on its way out, same shape of buffer as liveBySlug: it has
+// to survive a chat switch, because the send it is waiting on keeps running
+// wherever it was fired from.
+const pendingBySlug = new Map();
+
+export function pendingMapFor(slug, chatId = null) {
+  const key = `${slug}:${chatId ?? ''}`;
+  let map = pendingBySlug.get(key);
+  if (!map) {
+    map = new Map();
+    pendingBySlug.set(key, map);
+  }
+  return map;
+}
+
 function liveFor(slug, chatId, agentId) {
   const map = liveMapFor(slug, chatId);
   let entry = map.get(agentId);
@@ -159,6 +174,79 @@ function paintReply(entry) {
   stickToBottom();
 }
 
+// A message landing, from wherever it came from: the SSE broadcast, or —
+// for your own send — the POST response, painted in the moment it comes
+// back rather than waiting on the stream to echo it. Whichever arrives
+// second is a no-op: the push below is guarded by id.
+export function applyMessage(data) {
+  // The finished message replaces whatever was streaming from that agent
+  // — in whichever game it is in — but its reasoning moves across rather
+  // than vanishing: it is never saved, so this session is the only place
+  // it will ever exist.
+  if (data.agent_id !== null) {
+    const map = liveMapFor(data.project_slug, data.chat_id);
+    const entry = map.get(data.agent_id);
+    if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
+    map.delete(data.agent_id);
+  }
+  // Somebody other than you said something. Where it landed decides what
+  // happens to it: in the chat you are looking at it is already read, and
+  // anywhere else — the chat behind an editor included — it leaves a mark
+  // on that game and on that chat's pill until you go and look: the @n
+  // badge when it named you, otherwise the plain unread flag.
+  if (data.user_id !== S.me?.id) {
+    if (here(data) && S.mode === 'chat') {
+      api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
+    } else {
+      const named = data.mentions?.includes(S.me?.id);
+      const row = S.projects.find((p) => p.slug === data.project_slug);
+      if (row) {
+        row.unread = true;
+        if (named) row.mentions = (row.mentions ?? 0) + 1;
+      }
+      if (mine(data)) {
+        const chat = S.chats.find((c) => c.id === data.chat_id);
+        if (chat) {
+          chat.unread = true;
+          if (named) chat.mentions = (chat.mentions ?? 0) + 1;
+        }
+        if (S.project) {
+          S.project.unread = true;
+          if (named) S.project.mentions = (S.project.mentions ?? 0) + 1;
+        }
+      }
+      render();
+    }
+  }
+  if (!here(data)) return;
+  // Helpers the message called in by name. Merged rather than refetched,
+  // for the same reason attaching one from the Crew tab is: a refetch
+  // would throw away the open file, the pins and anything mid-stream.
+  for (const called of data.joined ?? []) {
+    if (S.project.agents.some((a) => a.agent_id === called.id)) continue;
+    const known = S.agents.find((a) => a.id === called.id);
+    S.project.agents.push({
+      agent_id: called.id,
+      name: called.name,
+      model: known?.model,
+      reasoning: known?.reasoning,
+      file_tools: known?.file_tools,
+      // Called for one thing, not signed up to answer everything.
+      chatty: false,
+      responding: false,
+    });
+  }
+  if (data.joined?.length) S.project.agents.sort((a, b) => a.name.localeCompare(b.name));
+  // Guarded by id: your own send may already have painted this from the POST
+  // response, and the broadcast that follows is the same message again.
+  if (!S.project.messages.some((m) => m.id === data.id)) S.project.messages.push(data);
+  render();
+  // A reply costs somebody their allowance, and if that somebody is you,
+  // the line under it should say so. Only worth asking when you have an
+  // allowance at all.
+  if (data.agent_id !== null && S.me?.daily_tokens) loadMe().then(render);
+}
+
 function onEvent(name, data) {
   switch (name) {
     case 'project.new':
@@ -172,73 +260,9 @@ function onEvent(name, data) {
       }
       return;
 
-    case 'message.new': {
-      // The finished message replaces whatever was streaming from that agent
-      // — in whichever game it is in — but its reasoning moves across rather
-      // than vanishing: it is never saved, so this session is the only place
-      // it will ever exist.
-      if (data.agent_id !== null) {
-        const map = liveMapFor(data.project_slug, data.chat_id);
-        const entry = map.get(data.agent_id);
-        if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
-        map.delete(data.agent_id);
-      }
-      // Somebody other than you said something. Where it landed decides what
-      // happens to it: in the chat you are looking at it is already read, and
-      // anywhere else — the chat behind an editor included — it leaves a mark
-      // on that game and on that chat's pill until you go and look: the @n
-      // badge when it named you, otherwise the plain unread flag.
-      if (data.user_id !== S.me?.id) {
-        if (here(data) && S.mode === 'chat') {
-          api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
-        } else {
-          const named = data.mentions?.includes(S.me?.id);
-          const row = S.projects.find((p) => p.slug === data.project_slug);
-          if (row) {
-            row.unread = true;
-            if (named) row.mentions = (row.mentions ?? 0) + 1;
-          }
-          if (mine(data)) {
-            const chat = S.chats.find((c) => c.id === data.chat_id);
-            if (chat) {
-              chat.unread = true;
-              if (named) chat.mentions = (chat.mentions ?? 0) + 1;
-            }
-            if (S.project) {
-              S.project.unread = true;
-              if (named) S.project.mentions = (S.project.mentions ?? 0) + 1;
-            }
-          }
-          render();
-        }
-      }
-      if (!here(data)) return;
-      // Helpers the message called in by name. Merged rather than refetched,
-      // for the same reason attaching one from the Crew tab is: a refetch
-      // would throw away the open file, the pins and anything mid-stream.
-      for (const called of data.joined ?? []) {
-        if (S.project.agents.some((a) => a.agent_id === called.id)) continue;
-        const known = S.agents.find((a) => a.id === called.id);
-        S.project.agents.push({
-          agent_id: called.id,
-          name: called.name,
-          model: known?.model,
-          reasoning: known?.reasoning,
-          file_tools: known?.file_tools,
-          // Called for one thing, not signed up to answer everything.
-          chatty: false,
-          responding: false,
-        });
-      }
-      if (data.joined?.length) S.project.agents.sort((a, b) => a.name.localeCompare(b.name));
-      S.project.messages.push(data);
-      render();
-      // A reply costs somebody their allowance, and if that somebody is you,
-      // the line under it should say so. Only worth asking when you have an
-      // allowance at all.
-      if (data.agent_id !== null && S.me?.daily_tokens) loadMe().then(render);
+    case 'message.new':
+      applyMessage(data);
       return;
-    }
 
     case 'message.reaction': {
       // A change to a message on screen, or to nothing: a conversation that is

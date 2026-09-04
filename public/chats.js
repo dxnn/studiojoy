@@ -8,7 +8,7 @@ import { h } from './dom.js';
 import {
   S, api, say, render, composerBox, canTalk, showMode, prefs,
 } from './main.js';
-import { liveMapFor } from './stream.js';
+import { liveMapFor, pendingMapFor, applyMessage } from './stream.js';
 
 /* Being called by name ----------------------------------------------------- */
 
@@ -167,6 +167,7 @@ export async function openChat(id) {
   // Each chat has its own live buffers, so a helper mid-reply in the one you
   // just left keeps writing into that one.
   S.live = liveMapFor(S.slug, S.chat.id);
+  S.pending = pendingMapFor(S.slug, S.chat.id);
   S.autoscroll = true;
   readChat();
   prefs.set(`chat-${S.slug}`, S.chat.id);
@@ -197,16 +198,45 @@ export function syncAttached() {
 
 /* Messages ---------------------------------------------------------------- */
 
-// True when it went. The caller needs to know, because what it does with the
-// words depends on the answer.
-export async function sendMessage(text) {
-  const res = await api('POST', `/api/projects/${S.slug}/messages`, {
+// A send in flight, shown at once rather than waited for: the words are the
+// one thing here git cannot get back, so they go on screen — pending, then
+// either gone (the real message replaced it) or marked failed, but never
+// removed on their own. One counter for the whole session is enough; the map
+// it keys into is already per chat.
+let pendingCounter = 0;
+
+async function post(slug, chatId, localId, text) {
+  const map = pendingMapFor(slug, chatId);
+  map.set(localId, { body: text, status: 'sending' });
+  render();
+  const res = await api('POST', `/api/projects/${slug}/messages`, {
     body: text,
-    chat_id: S.chat?.id,
+    chat_id: chatId,
     context_paths: [...S.pinned],
   });
-  if (!res.ok) say(res.body?.error ?? 'Could not send that.', true);
-  return res.ok;
+  if (res.ok) {
+    map.delete(localId);
+    // Paint it straight in only if still looking at the chat it went to —
+    // otherwise it is safely on the server and will show when that chat is
+    // next opened. Either way the SSE echo that follows is a no-op.
+    if (S.slug === slug && S.chat?.id === chatId) applyMessage(res.body);
+    else render();
+    return;
+  }
+  map.get(localId).status = 'failed';
+  render();
+  say(res.body?.error ?? 'Could not send that.', true);
+}
+
+export function sendMessage(text) {
+  return post(S.slug, S.chat?.id, `local-${pendingCounter += 1}`, text);
+}
+
+// A failed bubble is clicked to try again, in place: same localId, so it
+// does not jump to the bottom of the pane.
+export function retrySend(slug, chatId, localId) {
+  const entry = pendingMapFor(slug, chatId).get(localId);
+  if (entry) post(slug, chatId, localId, entry.body);
 }
 
 export function stickToBottom() {

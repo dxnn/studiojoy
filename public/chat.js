@@ -13,7 +13,7 @@ import {
 import { toolLabel, thinkingFor } from './stream.js';
 import { loadDiff, loadHistory, historyNeedsLoad } from './history.js';
 import {
-  toggleChatty, detachAgent, openChat, readMark,
+  toggleChatty, detachAgent, openChat, readMark, retrySend,
 } from './chats.js';
 import { modesFor } from './game-types.js';
 
@@ -424,6 +424,27 @@ function renderLive(agentId, entry) {
       : tool);
 }
 
+// A send still in flight, or one that did not make it. Painted from S.pending
+// rather than S.project.messages — the same reason a streaming reply is —
+// so it survives however long the request takes and is never quietly
+// dropped. A failed one stays exactly where it is and is pressed to try
+// again, rather than being handed back into the composer to retype.
+function renderPending(localId, entry) {
+  const failed = entry.status === 'failed';
+  const slug = S.slug;
+  const chatId = S.chat.id;
+  return h('div', {
+    class: `msg from-human pending${failed ? ' failed' : ''}`,
+    onclick: failed ? () => retrySend(slug, chatId, localId) : null,
+  },
+  h('div', { class: 'from', text: 'You' }),
+  h('div', { class: 'bubble', style: tintStyle(false, S.me.id), text: entry.body }),
+  h('div', {
+    class: 'send-status',
+    text: failed ? 'Could not send — tap to retry' : 'Sending…',
+  }));
+}
+
 // A message only gets an answer if some agent attached to this project is
 // eligible. Nothing in the interface used to say that, so an unanswered
 // message looked like a broken app. Two distinct gaps, two distinct fixes.
@@ -612,6 +633,7 @@ export function renderChat() {
 
   const items = p.messages.map(renderMessage);
   for (const [agentId, entry] of S.live) items.push(renderLive(agentId, entry));
+  for (const [localId, entry] of S.pending) items.push(renderPending(localId, entry));
 
   // chat.png, when the game has one, tiles behind the thread — on the
   // scroller rather than the messages, so it stays put while they move.
