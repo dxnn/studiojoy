@@ -560,6 +560,24 @@ export function dialogFor(d) {
             };
             render();
           }),
+        // The *big set*: 1,775 CC0 things, found by typing a word rather than
+        // by scrolling. Same dialog, same landing folder as a face — a thing
+        // is a sprite, and the set's own test keeps every one of them out of
+        // the shape the sprites library would animate.
+        only === 'sound' ? null : choice('+ Find a thing to put in', `Search the studio's pictures — a fish, a rocket, a dinosaur — into ${SPRITE_DIR}/.`,
+          () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: 'sprite',
+              place: async (a, blob) => {
+                const path = shelfDestination(SPRITE_DIR, a.name);
+                const { failure } = await writeFiles([{ path, body: blob }]);
+                if (failure) { say(failure, true); return; }
+                say(artCredit(a, path));
+              },
+            };
+            render();
+          }),
         // Straight to the sliders. There is nothing to ask first: a sound you
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.

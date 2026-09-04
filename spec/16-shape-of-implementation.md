@@ -103,6 +103,9 @@ public/
                   and which seed each scheme starts from
   game-templates/ a starter tree per template, plus the blank start page (§4)
   story-art/      the standard set the example story copies in (§4)
+  big-set/        the big set: 1,775 CC0 pictures written whole by
+                  `npm run pullart` and committed. Searched offline, so a
+                  word gets a picture with no network and no third party
   css/            the stylesheet, one file per surface, linked in order from
                   index.html: base.css first (it sets the custom properties
                   the rest read), narrow.css last (its media queries override
@@ -111,7 +114,10 @@ public/
                   is what test/style.test.js catches
 bin/
   adduser.js  deluser.js  restoreuser.js  backup.js  sweep.js  smoke.js
-  prompt.js
+  prompt.js  pullart.js  unzip.js   ⚠️ pullart is the only build-time thing
+                                    here that reaches the network, and unzip
+                                    is why reading an asset pack needs no
+                                    dependency
 test/
 ```
 

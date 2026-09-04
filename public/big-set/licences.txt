@@ -1,0 +1,53 @@
+The big set: where it came from, and under what.
+
+Written by `npm run pullart`. Everything here is CC0 — public domain, no
+attribution required, commercial use fine. Credit is given anyway, because
+somebody drew it.
+
+1775 pictures, by 40 makers:
+
+  Abby Weber — 3
+  Alexandre Vong — 1
+  Amy Beauvois — 3
+  Andy Wilson — 11
+  Arcadia Science — 1
+  Becky Barnes — 1
+  Ben Murrell — 2
+  Beth Reinke — 1
+  Birgit Lang — 1
+  Cagri CEVRIM — 1
+  Caleb M. Gordon — 2
+  Danny Anduza — 3
+  Edwin Price — 2
+  Ferran Sayol — 4
+  Gopal Murali — 1
+  Guillaume Dera — 3
+  Itai Fein — 2
+  JFstudios — 2
+  Jagged Fang Designs — 4
+  Jan V — 1
+  Jody Taylor — 3
+  Jose Carlos Arenas-Monroy — 1
+  Kai Caspar — 1
+  Kamil S. Jaron — 2
+  Kenney — 1685
+  Lubna Maherally — 1
+  Margot Michaud — 16
+  Martin R Smith — 1
+  Matthew Schmitz — 1
+  Matías Muñoz — 1
+  Mike Taylor — 1
+  Mozillian — 1
+  Pascal Abel — 1
+  Patricia Holroyd — 1
+  Richard Rich — 3
+  Steven Traver — 3
+  Tasman Dixon — 1
+  Tracy Heath — 1
+  Yan Wong — 1
+  Zechariah Meunier — 1
+
+Kenney's packs come from https://kenney.nl/assets and are CC0; he asks for a
+donation rather than for credit, and https://kenney.nl/donate is the place.
+PhyloPic silhouettes come from https://api.phylopic.org — that archive is
+mixed, and only its CC0 images are here.

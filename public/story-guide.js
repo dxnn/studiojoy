@@ -39,18 +39,21 @@ import { storyEdited, selectScene, saveStory } from './story-form.js';
 
 // The standard set's home under public/, and where each kind lands in a game.
 const ART = '/story-art';
+// The big set's, beside it: 1,775 CC0 pictures pulled into the repository by
+// `npm run pullart`, all of one kind (spec.md §4).
+const BIG = '/big-set';
 const LANDS = { backgrounds: 'assets/images', portraits: 'assets/sprites', sounds: 'assets/sounds' };
 const landing = (file) => `${LANDS[file.split('/')[0]]}/${file.split('/').pop()}`;
 
-// The shelf reads two halves as one list. The **standard set** is a static
-// file shipped with the studio and cannot change while it runs; the **studio
-// collection** is what people here have added and changes whenever somebody
-// does. Held for the session, and only a good read is kept, so a studio that
-// was briefly unreachable is asked again rather than remembered as having no
-// art at all.
+// The shelf reads three halves as one list. The **standard set** and the **big
+// set** are static files shipped with the studio and cannot change while it
+// runs; the **studio collection** is what people here have added and changes
+// whenever somebody does. Held for the session, and only a good read is kept,
+// so a studio that was briefly unreachable is asked again rather than
+// remembered as having no art at all.
 //
-// Every entry gains a `src` at merge time, because the two halves are fetched
-// differently — the shipped half by its path under public/, a contributed one
+// Every entry gains a `src` at merge time, because the halves are fetched
+// differently — a shipped one by its path under public/, a contributed one
 // by its own route — and nothing downstream should have to know which it is
 // looking at. A contributed entry carries `made_here` and no `licence`:
 // whoever drew it kept it (ideas/studio-collection.md).
@@ -75,15 +78,19 @@ async function artIndex() {
   const index = await shipped.json().catch(() => null);
   if (!index) return null;
 
-  // The collection is the studio's own and needs a session; a failure here
-  // leaves the shipped half working rather than emptying the shelf.
-  const mine = await send('/api/collection');
+  // The other two are asked for in parallel and each is allowed to fail on
+  // its own: a studio that answered the standard set is a shelf, and an empty
+  // one is not. The collection needs a session; the big set is a static file
+  // that a checkout without a pull simply does not have.
+  const [mine, big] = await Promise.all([send('/api/collection'), send(`${BIG}/index.json`)]);
   const added = mine.ok ? await mine.json().catch(() => null) : null;
+  const bulk = big.ok ? await big.json().catch(() => null) : null;
 
   heldIndex = {
     ...index,
     art: [
       ...(index.art ?? []).map((a) => ({ ...a, src: `${ART}/${a.file}` })),
+      ...(bulk?.art ?? []).map((a) => ({ ...a, src: `${BIG}/${a.file}` })),
       ...(added?.art ?? []).map((a) => ({ ...a, src: a.file })),
     ],
   };
@@ -398,17 +405,29 @@ export function artShelf(kind, place, label = 'Ready to use:') {
   return shelf;
 }
 
-// The shelf as a dialog (spec.md §6): every picture of one kind — the shipped
-// set and the studio's collection together — in a grid behind a filter, for
-// the story editor's Picture field. The guide keeps its strip: a question
-// card with three faces on it is a different thing from a shelf of
-// forty-two. Picking copies the bytes in through `d.place`, which names the
-// file the story expects, and closes the dialog; a picture of your own keeps
-// the way out of the collection it had on the strip.
+// How many pictures the grid draws before it stops and asks for a word.
+// ⚠️ The *big set* is 1,775 sprites: drawing all of them is a second of
+// layout and 1,775 requests, and nobody scrolls that far anyway. A filter
+// that narrows past this shows everything it matched, so the cap is only
+// ever met by somebody who has not typed yet.
+const AT_ONCE = 120;
+
+// What the dialog is called, by the kind it is offering. ⚠️ The interface says
+// **thing** where the code says `sprite` — the same split *editor*/author and
+// the mode pills keep, and for the same reason: nobody here says sprite.
+const TITLES = { portrait: 'Pick a face', background: 'Pick a picture', sprite: 'Pick a thing' };
+
+// The shelf as a dialog (spec.md §6): every picture of one kind — all three
+// halves together — in a grid behind a filter, for the story editor's Picture
+// field. The guide keeps its strip: a question card with three faces on it is
+// a different thing from a shelf of forty-two. Picking copies the bytes in
+// through `d.place`, which names the file the story expects, and closes the
+// dialog; a picture of your own keeps the way out of the collection it had on
+// the strip.
 export function renderShelfDialog(d, { wide, cancel, close }) {
   const grid = h('div', { class: 'shelf-grid' });
   const filter = h('input', {
-    type: 'search', placeholder: 'Find one by name', 'aria-label': 'Find a picture by name',
+    type: 'search', placeholder: 'Find one by word', 'aria-label': 'Find a picture by word',
   });
   const empty = h('p', { class: 'muted', text: 'Reading the shelf…' });
   let all = [];
@@ -421,7 +440,7 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
         close();
         await d.place(a, await res.blob());
       },
-    }, h('img', { src: a.src, alt: a.name }), h('span', { class: 'art-name', text: a.name }));
+    }, h('img', { src: a.src, alt: a.name, loading: 'lazy' }), h('span', { class: 'art-name', text: a.name }));
     if (!a.mine) return pick;
     return h('span', { class: 'art-mine' }, pick, h('button', {
       class: 'art-out', text: '✕', title: `Take ${a.name} out of the collection`,
@@ -430,18 +449,26 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
   };
   const paint = () => {
     const q = filter.value.trim().toLowerCase();
+    // `tags` is the big set's subject, which is the only way a Kenney drawing
+    // called "Fish red" comes back for *sea* and a PhyloPic silhouette called
+    // "Balaenoptera" comes back for *whale*. The other two halves have none.
     const shown = all.filter((a) => !q
-      || a.name.toLowerCase().includes(q) || String(a.by ?? '').toLowerCase().includes(q));
-    grid.replaceChildren(...shown.map(card));
-    empty.textContent = shown.length ? '' : (all.length ? 'Nothing called that.' : 'Nothing on the shelf yet.');
-    empty.hidden = shown.length > 0;
+      || a.name.toLowerCase().includes(q)
+      || String(a.tags ?? '').includes(q)
+      || String(a.by ?? '').toLowerCase().includes(q));
+    grid.replaceChildren(...shown.slice(0, AT_ONCE).map(card));
+    const more = shown.length - AT_ONCE;
+    empty.textContent = shown.length
+      ? (more > 0 ? `${more} more — ${q ? 'try a different word.' : 'type a word to narrow it down.'}` : '')
+      : (all.length ? 'Nothing called that.' : 'Nothing on the shelf yet.');
+    empty.hidden = !empty.textContent;
   };
   filter.addEventListener('input', paint);
   artIndex().then((index) => {
     all = (index?.art ?? []).filter((a) => a.kind === d.art);
     paint();
   });
-  return wide(d.art === 'portrait' ? 'Pick a face' : 'Pick a picture',
+  return wide(TITLES[d.art] ?? 'Pick a picture',
     filter, grid, empty,
     h('div', { class: 'actions' }, cancel));
 }

@@ -892,6 +892,58 @@ whole multiple of its own height — copied into `assets/sprites/`, that shape
 reads as a *strip* of square frames to the sprites library, so a 2:1
 portrait would animate instead of standing still.
 
+#### The big set
+
+`public/big-set/` — 1,775 CC0 pictures, written whole by `npm run pullart`
+and committed. Where the standard set is 42 pictures somebody chose, this is
+the half that is large and machine-gathered, so a kid can type a word and get
+a picture with **no network, no key and no third party deciding what is
+safe**. 5.3 MB; `index.json` is 350 KB, read once a session with the other
+two halves.
+
+One kind, `sprite` — one thing on a transparent background, landing in
+`assets/sprites/`. A background or a portrait belongs in the standard set,
+where somebody looked at it. The interface says **thing** (`Pick a thing`,
+`+ Find a thing to put in` in *Add a picture*); every id, route and paragraph
+says `sprite`, the same split *editor*/author keeps.
+
+Each entry carries `tags` on top of the standard set's fields — the pack's
+own subject, or for a silhouette the words a kid would type. It is what makes
+the set searchable at all: `Fish red` comes back for *underwater* and
+`Triceratops` for *dinosaur*, and neither word is in either name. The shelf
+dialog matches name, tags and maker, and ⚠️ draws at most **120** at a time
+with `loading="lazy"` — 1,775 `<img>` at once is a second of layout for a
+grid nobody scrolls.
+
+Two sources, both hand-listed in `bin/pullart.js` because ⚠️ **safety here is
+the source list, not a filter**: every pack is one author's CC0 game art,
+safe by what it is rather than by a flag somebody set, and there is no
+moderation queue behind it. **Kenney** — 16 packs, 1,685 pictures, shooter
+packs left out on purpose; the pack page is scraped for its zip and read with
+`bin/unzip.js` (no dependency reads a zip). **PhyloPic** — 90 silhouettes,
+the only dinosaurs in the studio. ⚠️ PhyloPic is mostly CC BY, so its licence
+is checked per image and roughly half are left behind, and its `filter_name`
+is lowercase and taxonomic: `owl` and `cow` answer 404, so the list names
+taxa and carries the common word as a tag.
+
+Nothing is resized by the pull — a decoder and an encoder is what that would
+cost in a repository with no dependencies. Anything over 512 a side or 128 KB
+is skipped instead, and `asPng()` in the browser does the fitting when
+somebody picks one, exactly as it does for an upload. Also skipped: a picture
+that reads as a *strip*, and one whose name is a word and a number
+(`characterBlue (13)`, `tile_0044`) — one of a run of near-identical variants
+that would bury every picture somebody could have named.
+
+`npm run pullart` is run on a machine that can reach the sources, like
+`npm run sweep`, and never in `npm test`, which has no network. It writes the
+folder whole, so a re-run is how the set changes and git says what moved —
+⚠️ which is why there is deliberately no way to pull one source, and why a
+source that fails outright stops the run rather than writing what the others
+managed. `test/big-set.test.js` checks what it left behind: every file
+present, every picture drawable and under the caps, no strips, no unsearchable
+names, every licence CC0 and credited in `licences.txt`, and nothing on disk
+the index does not name.
+
 The quiz editor grew the same read, since a quiz's authoring bug is never a
 typo: endings unreachable, or all fed by one answer.
 

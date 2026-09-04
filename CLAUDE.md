@@ -44,6 +44,12 @@ holds plans and sketches. Completed work is git history, not this file.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
+- `npm run pullart` — write the **big set** (`public/big-set/`): 1,775 CC0
+  pictures from Kenney and PhyloPic, committed to this repo so a kid types a
+  word and gets a picture offline. Run it on a machine that can reach the
+  sources; not in `npm test`, which has no network. ⚠️ It writes the folder
+  whole — there is no way to pull one source, and a source that fails stops
+  the run rather than deleting the others' work.
 - `npm run sweep` — bring every game's studio library up to date: missing
   libraries added, held ones raised, the game's own files never touched.
   One studio-authored commit per game; archived games skipped. Run it on
@@ -280,6 +286,13 @@ specified:
   the same shelf, put there by `Copy…` on a picture's row under Code.
   ⚠️ Bytes in the row so `npm run backup` covers them, and ⚠️ no licence
   recorded — whoever drew it keeps it (§3).
+- The **big set** is the shelf's third half: 1,775 CC0 sprites in
+  `public/big-set/`, written whole by `npm run pullart`, searched offline by
+  name *and* `tags` — `Triceratops` comes back for *dinosaur*. ⚠️ Its safety
+  is the hand-written source list in `bin/pullart.js`, not a filter, and there
+  is no moderation queue behind it. Reached from `+ Find a thing to put in`
+  in *Add a picture*; the interface says **thing** where the code says
+  `sprite` (spec/ §6).
 - A scene takes **music** (`assets/music/`, looped, carried into the next
   scene naming the same track) and a **sound step** — a noise among the lines
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is

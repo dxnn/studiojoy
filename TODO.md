@@ -37,6 +37,15 @@ deliberately deferred.
 - moderation of the studio collection is "an admin can take anything out" and
   no queue, which suits a few trusted people and would not suit more. Same
   trigger as the line above
+- ! add svgsilh to `npm run pullart`: ~358k CC0 silhouettes, and the source
+  that started this. ⚠️ It refuses this sandbox's address outright (Cloudflare,
+  403 on every path including `/svg/<id>.svg`) and answers a laptop, so it is
+  written blind or not at all — and its files are SVG, which means the browser
+  rasterises at pick time through `svgToPng()` rather than the pull storing a
+  PNG. That is a second pick path, so its own commit (ideas/summon.md)
+- live **summon**: an Openverse-backed search past the repo, server-proxied,
+  restricted to subject-bounded CC0 sources. Designed and measured, unbuilt —
+  the big set may turn out to be enough, which is why it waits (ideas/summon.md)
 - the standard set is short of **moods**: 30 animal faces, one expression
   each, so a cast member cannot look happy and then worried. More CC0 faces
   with several moods, or the same animals redrawn — `npm test` checks the
