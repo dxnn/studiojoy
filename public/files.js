@@ -429,7 +429,7 @@ export async function deleteFile(path) {
   if (S.open?.path === path) S.open = null;
   S.previewNonce += 1;
   await refreshFiles();
-  say(`Deleted ${path}. You can get it back from Versions.`);
+  say(`Deleted ${path}. You can get it back from Recall.`);
 }
 
 // Open: anybody in the studio may change this game. An author's decision, and

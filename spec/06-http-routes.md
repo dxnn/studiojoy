@@ -441,9 +441,24 @@ go to change one. Empty when the game defines none yet.
 
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
-**Chat**, then the type's editors (**Write** for a visual novel), then
-**Pics**, **Hear**, **Controls**, **Code**, **Versions**, **Share**. A chat
-project has no row. Which is showing is the centre's one piece of state
+the chat, then the type's editors (**Write** for a visual novel), then
+pictures, sounds, controls, the tree, the versions and the public face. A chat
+project has no row.
+
+⚠️ **The pills are named for the senses; nothing else is.** They read
+**Speak**, **See**, **Hear**, **Touch**, **Taste**, **Recall**, **Smell**,
+in that same order — while every id, route, event and paragraph below keeps
+`chat`, `pics`, `hear`, `controls`, `code`, `versions`, `share`, and so does
+the preamble (§8). The same split the studio already keeps between *author*
+and editor, and `agent` and helper, decided 2026-09-04 and **on trial**: it is
+there to be tried on the people who use the studio, and a word on a pill is
+the cheap half to change. Two of the seven are only a tooltip away from
+meaning nothing — Smell is the game's public face and Taste is the tree — so
+`what` on each mode is load-bearing rather than decoration. ⚠️ And one price
+the other two splits do not pay: the preamble names two surfaces by the old
+words, `Controls` and `Share`, so a helper can still tell somebody to "change
+it in Controls" while the pill in front of them says Touch. Two strings in
+`orchestrator.js` end that when the names stay. Which is showing is the centre's one piece of state
 (`S.mode`), in the address as `?mode=`, remembered per game; a game opens on
 what the address says, else what the browser remembers, else its type's
 first editor, else Chat. There is no Play — the preview lives in the rail

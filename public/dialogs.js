@@ -1033,7 +1033,7 @@ export function dialogFor(d) {
   // because there is nothing there yet to lose.
   if (d.kind === 'replace-face') {
     return wrap(`Replace ${d.person}'s ${d.mood} face?`,
-      h('p', { text: 'A face is already drawn for this mood. Picking one from the shelf overwrites it — you can still bring the old one back from Versions.' }),
+      h('p', { text: 'A face is already drawn for this mood. Picking one from the shelf overwrites it — you can still bring the old one back from Recall.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Replace it', onclick: d.proceed,
       })));
@@ -1069,7 +1069,7 @@ export function dialogFor(d) {
   // the thing that makes this safe to offer at all, and worth saying.
   if (d.kind === 'unshare-art') {
     return wrap(`Take ${d.art.name} out of the collection?`,
-      h('p', { text: 'Nobody will be offered it again, and this is the only copy — there is no Versions to bring it back from.' }),
+      h('p', { text: 'Nobody will be offered it again, and this is the only copy — there is no Recall to bring it back from.' }),
       h('p', { class: 'hint muted', text: 'Any game that already used it keeps its own copy. Taking it out here changes nothing in a game.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Take it out',
@@ -1079,7 +1079,7 @@ export function dialogFor(d) {
 
   if (d.kind === 'delete-file') {
     return wrap(`Delete ${d.path}?`,
-      h('p', { text: 'You can always bring it back from Versions.' }),
+      h('p', { text: 'You can always bring it back from Recall.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Delete it',
         onclick: async () => { close(); await deleteFile(d.path); },

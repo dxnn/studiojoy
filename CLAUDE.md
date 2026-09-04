@@ -110,10 +110,14 @@ walk into, each paid for once already.
 - ⚠️ The **sizing** ask rides the last user message *after* everything else on
   it. Ahead of an attachment it was swamped, and anywhere but the last message
   it would break the cache prefix the fire shares with it (spec/ §8, §14).
-- ⚠️ The preamble in `orchestrator.js` names every capability **by the words on
-  the button**, and `orchestrator.test.js` asserts each name — so renaming a
-  button without updating the prompt fails a test. A capability an agent is
-  not told about may as well not exist.
+- ⚠️ The preamble in `orchestrator.js` names every capability and
+  `orchestrator.test.js` asserts each name — a capability an agent is not told
+  about may as well not exist. It names them by the **code's** words, which
+  since 2026-09-04 are no longer the words on the pills: the buttons read
+  Speak, See, Hear, Touch, Taste, Recall, Smell (spec/ §6, on trial). The two
+  the preamble says out loud are `Controls` and `Share`, so a helper can point
+  somebody at a button that is not there. Deliberate, and two strings from
+  being over.
 - ⚠️ The quiz, story and achievements editors are shape-locked: a stray extra
   key on an answer, a scene or a rule costs somebody their editor. The
   preamble says so, and the shape modules are shared rather than restated.
@@ -194,7 +198,11 @@ The studio is used by kids. That shapes the interface, not the engineering:
 every technical affordance is present (file tree, versions, diffs, reasoning
 traces, model choice), but user-facing strings are plain language and
 destructive actions confirm first. The UI says **helper** where the code says
-**agent** — see GLOSSARY.md, and don't let "helper" leak into the code.
+**agent**, **editor** where the code says `author`, and **Speak/See/Hear/
+Touch/Taste/Recall/Smell** where the code says `chat`/`pics`/`hear`/
+`controls`/`code`/`versions`/`share` — see GLOSSARY.md, and don't let either
+side's words leak across. Anything a person reads takes the interface's word;
+every id, comment, route and spec paragraph takes the code's.
 
 Three conventions to keep. **A link looks at something, a button changes
 something** (`Show changes`, `All files`, `Versions` and every path in a diff
@@ -288,19 +296,23 @@ specified:
   the sound editor, the story and the quiz save themselves; Code's text editor
   keeps Save. Everything done to a thing is behind its one `···` (§6,
   ideas/calm-shell.md). A picture opens on one click, wherever it is pressed;
-  the preview's `···` holds the shape to try the game in.
+  the preview's `···` holds the shape to try the game in. ⚠️ The pills are
+  named for the senses — Speak, See, Hear, Touch, Taste, Recall, Smell — and
+  nothing under them is (spec/ §6).
 - Typing an `@` in the composer opens the menu of everybody it could reach,
   people over helpers, filtered by the server's own rule (§6). ⚠️ It reads its
   keys before the composer does, or Enter sends half a sentence.
 
 Open questions:
 
-- **The modes' names.** A suggestion on the table: Speak, See, Hear, Touch,
-  Smell, Taste, Recall in place of Chat, Pics, Hear, Controls, Share, Code,
-  Versions. Four of the seven land (Speak, See, Hear, Touch); Smell and Taste
-  do not name anything. ⚠️ Renaming any of them is a prompt change too — the
-  preamble names every capability by the words on the button and
-  `orchestrator.test.js` asserts each name.
+- **The modes' names are on trial.** The pills read Speak, See, Hear, Touch,
+  Taste, Recall, Smell since 2026-09-04; the code and the prompt did not move
+  (spec/ §6). What settles it is what the people here do with them — whether
+  Smell and Taste are learned or asked about every time. Ending the trial one
+  way is a revert of one commit; ending it the other way is two strings in
+  `orchestrator.js` and, if it is worth it, reordering the row into sense
+  order (it is Speak See Hear Touch Taste Recall Smell today, because the
+  labels moved and the row did not).
 - **What the rail is for.** The preview earns less of the pane than expected,
   but the rail is also where the story editor's scene fields, Hear's sound
   editor and Pics' picture fields live, so "close the rail" is blocked on

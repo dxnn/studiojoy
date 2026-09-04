@@ -474,14 +474,14 @@ export function renderStoryEditor() {
     return note(
       h('p', { text: `${STORY_FILE} has grown past the story editor — ${st.grown}.` }),
       h('p', {}, h('button', {
-        class: 'link', text: 'Open it under Code', onclick: () => chooseFile(STORY_FILE),
+        class: 'link', text: 'Open it under Taste', onclick: () => chooseFile(STORY_FILE),
       })),
     );
   }
   // One editor for the file at a time: while its text is open under Code,
   // this one waits rather than saving over what is typed there.
   if (S.open?.path === STORY_FILE) {
-    return note(h('p', { text: `${STORY_FILE} is open as text under Code. Close it there to come back to the story.` }));
+    return note(h('p', { text: `${STORY_FILE} is open as text under Taste. Close it there to come back to the story.` }));
   }
 
   const { model } = st;
@@ -878,7 +878,7 @@ export function renderStoryEditor() {
   const titleSteps = () => [
     h('p', { class: 'hint muted problem' },
       `The title and the line under it are beside the preview. The End, the buttons and how to play are in ${WORDS_FILE} — `,
-      h('button', { class: 'link tiny', text: 'open it under Code', onclick: () => chooseFile(WORDS_FILE) }),
+      h('button', { class: 'link tiny', text: 'open it under Taste', onclick: () => chooseFile(WORDS_FILE) }),
       '.'),
   ];
 
@@ -898,7 +898,7 @@ export function renderStoryEditor() {
     h('span', { class: 'hint muted', id: 'story-status', text: st.dirty ? 'Saving…' : 'Saved' }),
     h('div', { class: 'spacer' }),
     h('button', {
-      class: 'link', text: 'Show the text', title: `Open ${STORY_FILE} as text under Code`,
+      class: 'link', text: 'Show the text', title: `Open ${STORY_FILE} as text under Taste`,
       onclick: async () => {
         if (st.dirty && !(await saveStory())) return;
         await chooseFile(STORY_FILE);

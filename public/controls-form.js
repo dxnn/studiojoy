@@ -340,7 +340,7 @@ export function renderControlsForm(model) {
       model.extra.length === 0 ? null : h('p', {
         class: 'hint muted',
         text: `This file also sets ${model.extra.join(', ')}, which is not shown here — `
-          + 'open it under Code to change that.',
+          + 'open it under Taste to change that.',
       }),
       // What the file as a whole says, under the bindings because that is
       // what it is about.

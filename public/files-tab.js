@@ -348,7 +348,7 @@ export function renderOpenFile() {
           ? h('div', {
             class: 'pad hint muted',
             text: isAchievementsPath(S.open.path)
-              ? 'This is the text behind the achievements under Share. Close it here to go back to editing there.'
+              ? 'This is the text behind the achievements under Smell. Close it here to go back to editing there.'
               : 'This is the text behind Write. Close it here to go back to editing there.',
           })
           : null,

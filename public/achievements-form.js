@@ -213,7 +213,7 @@ export function renderAchievementsTab() {
   // this one waits rather than saving over what is typed there.
   if (S.open?.path === ACHIEVEMENTS_FILE) {
     return note(h('p', {
-      text: `${ACHIEVEMENTS_FILE} is open as text under Code. Close it there to change the achievements here.`,
+      text: `${ACHIEVEMENTS_FILE} is open as text under Taste. Close it there to change the achievements here.`,
     }));
   }
   return [h('div', { class: 'editor' }, ...renderAchievementsForm(st))];
