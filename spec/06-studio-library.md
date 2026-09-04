@@ -239,9 +239,18 @@ dialog's words and its seed file — doubling as the validation list the way
   the same file — `test/schemes.test.js` holds them together, the only two
   places that could disagree.
 
-A template may fix its own scheme: the quiz and visual novel both say `none`,
-since buttons are pressed, not steered, so the dialog drops the question
-rather than offering one it would overrule. An explicit scheme still wins
-over a template's. `scaffoldLibraries` takes the override as a
+A template may fix its own scheme, and all three that ship do: the quiz and
+the visual novel say `none`, since buttons are pressed rather than steered,
+and the arcade template says `buttons`. So the dialog drops the question
+rather than offering one it would overrule, and **only a blank page is asked
+how it is played** — which is the right place for the question, since a blank
+page is the only one whose shape nobody has decided yet. An explicit scheme
+still wins over a template's.
+
+⚠️ The word **Arcade** is on two things and means the same thing on both: the
+control-scheme family, and the template that fixes one of its manners. They
+never both need answering — picking the template takes the scheme question
+away — and the template is listed as *An arcade game*, in the same voice as
+*A quiz*, so the two strings differ where they do appear together. `scaffoldLibraries` takes the override as a
 destination-to-source map, so `npm run sweep` never learns about schemes at
 all — it can't replace a seed that already exists, the same rule.
