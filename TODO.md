@@ -71,10 +71,9 @@ deliberately deferred.
   were never checkable headless). ⚠️ asteriskoids and vroooooooom already hold
   screens 13 by hand — their code calls `Screens.fit`, so the library had to
   ride the same commit; the sweep will find them level and skip them
-- move the other games onto `Screens.fit`: every canvas game still sizes
-  itself, and the two that sized themselves on width alone both came off the
-  bottom of a phone held sideways. One line each, and a `#wrap` width rule to
-  delete — but each one wants eyes at 393×659 and 852×393 before it goes
+- ! deploy redwolf-radness too: it is the third game on `Screens.fit`, and
+  the only other canvas game that was cut off sideways (spec/ §4 — the other
+  17 size their canvas to the window and need nothing)
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
   in its code, so a rename in a form is a silent code break. It wants either a

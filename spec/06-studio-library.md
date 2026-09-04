@@ -57,6 +57,23 @@ you scroll, and a game never scrolls. The older line survives in a browser
 that cannot parse `dvh`, because the CSSOM drops a value it cannot read
 rather than throwing.
 
+The height the game does *not* get is added up — the page's padding, the
+game's own margins and frame, and every sibling sharing its parent, skipping
+anything positioned out of the flow. ⚠️ Not subtracted from the page's height,
+which looks like the same sum and is not: a page with `min-height: 100vh`
+reports the window's height whatever is on it, so the subtraction moves with
+the game's own size and never settles. And ⚠️ the page around a game is not
+all there at boot — one game's scene-name line is an empty `div` until the
+first scene loads, and the 27px it then takes came out of the game — so a
+`ResizeObserver` on the parent re-runs the sum. It cannot chase its own tail:
+the width depends on the *siblings*, which resizing the game does not change.
+
+**Only a game with a fixed shape needs it.** Of the 20 canvas games the day
+`fit` landed, 17 already set `canvas.width` to the window and redraw on
+resize; they are fluid, were never cut off, and `fit` — which needs a shape
+to preserve — has nothing to say to them. Three had a fixed rectangle, and
+all three were cut off on a phone held sideways.
+
 **The HUD goes in the letterbox band above the game when there is one.** Once
 `fit()` has said where the game is, `chips()` places the row against it —
 above it when the band can hold the row, over the top of the game when it

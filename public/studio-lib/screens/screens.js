@@ -955,6 +955,7 @@ const Screens = (function () {
   let fitAspect = 0;
   let fitMax = 0;
   let fitWatching = false;
+  let fitGapWas = null;
 
   function resolveEl(target) {
     if (target && typeof target === "object" && target.nodeType === 1) return target;
@@ -962,24 +963,64 @@ const Screens = (function () {
     return document.querySelector("canvas");
   }
 
-  // The room the page keeps around the game: its own padding, and the game's
-  // own margins. Measured rather than assumed, because it is the game's
-  // stylesheet that sets it and it may be in any unit.
+  // The height the game does not get: everything else on the page. Measured
+  // as the page's own height less the game's, which counts the page's padding,
+  // the game's margins, and — the reason it is done this way — a title, a
+  // hint line and a caption sharing the window with the canvas. A page whose
+  // padding was all there was to count read the same either way; a game with
+  // words above and below it did not, and sizing that one to the whole window
+  // left the words to push it off the bottom.
+  //
+  // Anything taken out of the flow is rightly not counted: an overlay screen
+  // and the chips row are both over the game rather than beside it.
   function fitGap(node) {
     if (typeof getComputedStyle !== "function") return 0;
     const page = getComputedStyle(document.body);
     const mine = getComputedStyle(node);
     const px = (v) => (parseFloat(v) || 0);
-    return px(page.paddingTop) + px(page.paddingBottom)
-      + px(mine.marginTop) + px(mine.marginBottom);
+    // The game's own border and padding count too: the width worked out below
+    // buys a *content* height, and a canvas in a 4px frame is eight pixels
+    // taller than the sum says.
+    let gap = px(page.paddingTop) + px(page.paddingBottom)
+      + px(mine.marginTop) + px(mine.marginBottom)
+      + px(mine.borderTopWidth) + px(mine.borderBottomWidth)
+      + px(mine.paddingTop) + px(mine.paddingBottom);
+    // ⚠️ Added up rather than subtracted from the page's height. Taking the
+    // game out of document.body.scrollHeight looks like the same sum and is
+    // not: a page with `min-height: 100vh` reports the window's height
+    // whatever is on it, so the subtraction moves with the game's own size and
+    // never settles. What the words beside the game measure does not.
+    const parent = node.parentNode;
+    for (const kid of (parent && parent.children) || []) {
+      if (kid === node) continue;
+      const s = getComputedStyle(kid);
+      // Over the game rather than beside it: an overlay screen takes no room.
+      if (s.display === "none" || s.position === "absolute" || s.position === "fixed") continue;
+      gap += (kid.offsetHeight || 0) + px(s.marginTop) + px(s.marginBottom);
+    }
+    return Math.round(gap);
   }
 
+  // ⚠️ Sized more than once on purpose. Narrowing the game changes the page
+  // around it — the hint line over one game went from one row to two the
+  // moment its canvas stopped being wider than the window — so the first
+  // measurement is of a page that is about to stop existing. Reading the gap
+  // again after writing forces the layout and gives the real number; two
+  // passes settle every case seen, and three is the ceiling rather than the
+  // expectation. Only ever at boot and on a resize.
   function sizeFit() {
     if (!fitEl) return;
-    const gap = Math.round(fitGap(fitEl));
-    const room = "(100" + "%s" + "h - " + gap + "px) * " + fitAspect;
-    fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "v") + ")");
-    fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "dv") + ")");
+    let last = null;
+    for (let pass = 0; pass < 3; pass += 1) {
+      const gap = Math.round(fitGap(fitEl));
+      if (gap === last) break;
+      last = gap;
+      if (gap === fitGapWas) break;
+      fitGapWas = gap;
+      const room = "(100" + "%s" + "h - " + gap + "px) * " + fitAspect;
+      fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "v") + ")");
+      fitEl.style.setProperty("width", "min(" + fitMax + "px, 100%, " + room.replace("%s", "dv") + ")");
+    }
     measureFit();
   }
 
@@ -1020,6 +1061,15 @@ const Screens = (function () {
       // these are for where the game *is*, which only the browser knows.
       if (typeof ResizeObserver === "function") {
         new ResizeObserver(measureFit).observe(node);
+        // ⚠️ And the page around it, because the words beside a game are not
+        // all there at boot: one game's scene name is an empty div until the
+        // first scene loads, and the 27 pixels it then takes came out of the
+        // game's own height. Watching the parent catches that, and cannot
+        // chase its own tail — the size written depends on the *siblings*,
+        // which resizing the game does not change.
+        if (node.parentNode && node.parentNode.nodeType === 1) {
+          new ResizeObserver(sizeFit).observe(node.parentNode);
+        }
       }
       if (typeof window.addEventListener === "function") {
         window.addEventListener("resize", sizeFit);

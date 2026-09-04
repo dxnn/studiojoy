@@ -53,6 +53,7 @@ function fakeDom() {
       attrs: {},
       rect: { top: 0, left: 0, width: 0, height: 0 },
       offsetHeight: 0,
+      get parentNode() { return node.parent; },
       setAttribute(name, value) { node.attrs[name] = String(value); },
       getAttribute(name) { return name in node.attrs ? node.attrs[name] : null; },
       getBoundingClientRect() { return node.rect; },
@@ -190,14 +191,23 @@ function bootDom(opts = {}) {
     navigator: { getGamepads: () => (opts.pads || []) },
     matchMedia: (q) => ({ matches: !!opts.coarse && q === '(pointer: coarse)' }),
     console,
-    // The page's own padding, which fit() measures rather than assumes.
-    getComputedStyle: () => ({
-      paddingTop: opts.pad || '0px',
-      paddingBottom: opts.pad || '0px',
-      marginTop: '0px',
-      marginBottom: '0px',
-    }),
+    // The page's own padding and the game's own frame, both of which fit()
+    // measures rather than assumes — and which are not the same box, so this
+    // answers for the body and for anything else separately.
+    getComputedStyle: (el) => (el === sandbox.document.body
+      ? { paddingTop: opts.pad || '0px', paddingBottom: opts.pad || '0px', marginTop: '0px', marginBottom: '0px' }
+      : {
+        paddingTop: '0px',
+        paddingBottom: '0px',
+        marginTop: el.marginY || '0px',
+        marginBottom: el.marginY || '0px',
+        borderTopWidth: el.tag === 'canvas' ? (opts.border || '0px') : '0px',
+        borderBottomWidth: el.tag === 'canvas' ? (opts.border || '0px') : '0px',
+        display: el.display || 'block',
+        position: el.position || 'static',
+      }),
     innerWidth: opts.innerWidth || 1440,
+    innerHeight: opts.innerHeight || 900,
     document: fakeDom(),
     location: { pathname: opts.pathname || '/asteriskoids/' },
     Event: function Event(type) { this.type = type; },
@@ -529,6 +539,43 @@ test('fit() sizes the game by the window\'s height as well as its width', () => 
   assert.deepEqual(written.map(([k]) => k), ['width', 'width'], 'one line, then its better half');
   assert.match(written[0][1], /min\(960px, 100%, \(100vh - 24px\) \* 1\.6\)/);
   assert.match(written[1][1], /min\(960px, 100%, \(100dvh - 24px\) \* 1\.6\)/);
+});
+
+// What the game does not get is everything else on the page, not just the
+// page's padding: a game with a title over it and a caption under it was
+// sized to the whole window, and the words then pushed it off the bottom.
+test('fit() counts the words sharing the window with the game', () => {
+  const { Screens, document } = bootDom({ pad: '10px', border: '4px' });
+  const heading = document.createElement('h1');
+  heading.offsetHeight = 45;
+  heading.marginY = '8px';
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('width', 960);
+  canvas.setAttribute('height', 480);
+  canvas.offsetHeight = 488; // 480 of picture in a 4px frame
+  const caption = document.createElement('div');
+  caption.offsetHeight = 51;
+  // Over the game rather than beside it, so it takes no room from it.
+  const overlay = document.createElement('div');
+  overlay.offsetHeight = 400;
+  overlay.position = 'absolute';
+  document.body.append(heading, canvas, caption, overlay);
+
+  const written = [];
+  canvas.style.setProperty = (k, v) => { written.push(v); canvas.styleProps[k] = v; };
+  Screens.fit(canvas);
+  // 20 of page padding, 8 of frame, 45 + 16 of heading and 51 of caption.
+  assert.match(written[1], /\(100dvh - 140px\) \* 2\b/, 'the words and the frame, not the overlay');
+});
+
+test('fit() with nothing beside the game is the page\'s padding and no more', () => {
+  const { Screens, document } = bootDom({ pad: '10px' });
+  const bare = document.createElement('canvas');
+  bare.setAttribute('width', 800);
+  bare.setAttribute('height', 400);
+  document.body.append(bare);
+  Screens.fit(bare);
+  assert.match(bare.styleProps.width, /\(100dvh - 20px\) \* 2\b/);
 });
 
 test('fit() publishes where the game landed, for anything drawn over it', () => {
