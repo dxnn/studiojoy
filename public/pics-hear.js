@@ -4,12 +4,11 @@
 
 import { h } from './dom.js';
 import {
-  SPRITE_DIR, IMAGE_DIR, SOUND_DIR, MUSIC_DIR, writeFiles,
+  SPRITE_DIR, IMAGE_DIR, SOUND_DIR, MUSIC_DIR,
 } from './upload.js';
 import { pictureInto, playButton, renderPersonInspector } from './story-form.js';
-import { artCredit } from './story-guide.js';
 import {
-  S, frozen, sizeText, render, hasEditor, say,
+  S, frozen, sizeText, render, hasEditor,
 } from './main.js';
 import {
   chooseFile, closeOpenFile, RESERVED_IMAGES, CHAT_IMAGE, HERO_IMAGE, ICON_IMAGE,
@@ -175,10 +174,9 @@ export function renderHearMode() {
 }
 
 // The inspector for Pics and Hear: the picked picture or person, or the open
-// sound. A picture is where it lives and how big it is, a way to draw on it
-// and a way to swap it from the shelf, with the file's ··· in its head — its
-// card is not on screen once it is open. A sound is the sound editor, or the
-// player for one not made here.
+// sound. A picture is where it lives and how big it is, and a way to draw on
+// it, with the file's ··· in its head — its card is not on screen once it is
+// open. A sound is the sound editor, or the player for one not made here.
 export function renderPickInspector() {
   const head = (kind, name, ...extra) => h('div', { class: 'inspector-head row' },
     h('div', { class: 'grow' },
@@ -219,21 +217,5 @@ export function renderPickInspector() {
     frozen() ? null : h('div', { class: 'row wrap' },
       f.mime === 'image/png' && S.open?.path !== path ? h('button', {
         class: 'quiet tiny', text: 'Draw on it', onclick: () => chooseFile(path),
-      }) : null,
-      dressing ? null : h('button', {
-        class: 'quiet tiny', text: sprite ? 'Pick a face…' : 'Pick a picture…',
-        title: 'Swap it for one from the studio\'s shelf',
-        onclick: () => {
-          S.dialog = {
-            kind: 'pick-picture',
-            art: sprite ? 'portrait' : 'background',
-            place: async (a, blob) => {
-              const { failure } = await writeFiles([{ path, body: blob }]);
-              if (failure) { say(failure, true); return; }
-              say(artCredit(a, path));
-            },
-          };
-          render();
-        },
-      })));
+      }) : null));
 }

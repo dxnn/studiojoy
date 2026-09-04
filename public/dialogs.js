@@ -5,7 +5,7 @@
 import { h } from './dom.js';
 import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
 import {
-  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload,
+  SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload, assetPath, writeFiles,
 } from './upload.js';
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents, frozen,
@@ -23,7 +23,7 @@ import { loadStudio, studioChange } from './people.js';
 import { deleteScore, clearScores } from './scoreboard.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
-import { renderShelfDialog } from './story-guide.js';
+import { renderShelfDialog, artCredit } from './story-guide.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { discardAchievements, saveAchievements } from './achievements-form.js';
 
@@ -67,6 +67,20 @@ function duplicateName(from) {
   const { dir, stem, ext } = splitName(from);
   for (let n = 1; ; n += 1) {
     const to = `${dir}${stem}-copy${n > 1 ? `-${n}` : ''}${ext}`;
+    if (!S.files.some((f) => f.path === to)) return to;
+  }
+}
+
+// Where a piece of shelf art lands as a new file: its own name, slugified
+// the way an upload's filename already is (assetPath), counted up past
+// whatever is already there so adding one from the shelf never overwrites
+// another file that landed on the same name.
+function shelfDestination(folder, name) {
+  const base = assetPath(folder, `${name}.png`);
+  if (!S.files.some((f) => f.path === base)) return base;
+  const { dir, stem, ext } = splitName(base);
+  for (let n = 2; ; n += 1) {
+    const to = `${dir}${stem}-${n}${ext}`;
     if (!S.files.some((f) => f.path === to)) return to;
   }
 }
@@ -512,6 +526,37 @@ export function dialogFor(d) {
           () => picker.click()),
         only === 'sound' ? null : choice('+ Draw a picture', 'A sprite or a backdrop, square by square.',
           () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); }),
+        // The shelf, as a source for a new file rather than a swap for an
+        // existing one — picking copies the bytes in under the art's own
+        // name, never over a file already drawn (spec.md §6).
+        only === 'sound' ? null : choice('+ Pick a face from the shelf', `A face from the studio's shelf, into ${SPRITE_DIR}/.`,
+          () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: 'portrait',
+              place: async (a, blob) => {
+                const path = shelfDestination(SPRITE_DIR, a.name);
+                const { failure } = await writeFiles([{ path, body: blob }]);
+                if (failure) { say(failure, true); return; }
+                say(artCredit(a, path));
+              },
+            };
+            render();
+          }),
+        only === 'sound' ? null : choice('+ Pick a picture from the shelf', `A picture from the studio's shelf, into ${IMAGE_DIR}/.`,
+          () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: 'background',
+              place: async (a, blob) => {
+                const path = shelfDestination(IMAGE_DIR, a.name);
+                const { failure } = await writeFiles([{ path, body: blob }]);
+                if (failure) { say(failure, true); return; }
+                say(artCredit(a, path));
+              },
+            };
+            render();
+          }),
         // Straight to the sliders. There is nothing to ask first: a sound you
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.
@@ -924,6 +969,18 @@ export function dialogFor(d) {
       list,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
+  }
+
+  // A face is already drawn for this mood, so picking one from the shelf
+  // would overwrite it in one click — the one confirmation between that
+  // button and the shelf grid. An empty mood skips straight to the shelf,
+  // because there is nothing there yet to lose.
+  if (d.kind === 'replace-face') {
+    return wrap(`Replace ${d.person}'s ${d.mood} face?`,
+      h('p', { text: 'A face is already drawn for this mood. Picking one from the shelf overwrites it — you can still bring the old one back from Versions.' }),
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'danger', text: 'Replace it', onclick: d.proceed,
+      })));
   }
 
   // The shelf, as a dialog with a filter: the story editor's way to a

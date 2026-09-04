@@ -1327,15 +1327,15 @@ every game, **Sprites** (a strip wears its first frame), **Pictures**, the
 three *reserved images* under **Studio dressing** with what each dresses, and
 **Other pictures** last, so nothing the tree holds is missing here. A card
 pressed once is selected into the inspector — where it lives, how big it is,
-*Draw on it*, and *Pick a picture…* or *Pick a face…* to swap it from the
-*shelf*; pressed again it opens full width in the *pixel editor*, the bar's ✕
-the way back to the cards. Hear is rows, sounds over music, each with a way to
-hear it; the open one's *sound editor* — or a player, for one not made here —
-lands in the rail, a column of sliders where a column fits, and the same row
-closes it. Each has its maker at the top: *Add a picture* is the add-file
-dialog narrowed to drawing and uploading, *Make a sound* and *Upload a sound*
-the same for sounds. The tree is still Code's, and a file asked for from
-anywhere else opens under Code.
+*Draw on it*; pressed again it opens full width in the *pixel editor*, the
+bar's ✕ the way back to the cards. Hear is rows, sounds over music, each with
+a way to hear it; the open one's *sound editor* — or a player, for one not
+made here — lands in the rail, a column of sliders where a column fits, and
+the same row closes it. Each has its maker at the top: *Add a picture* is the
+add-file dialog narrowed to drawing, uploading, and the *shelf* (below) as a
+source for a new file; *Make a sound* and *Upload a sound* the same for
+sounds, minus the shelf, which is pictures only. The tree is still Code's,
+and a file asked for from anywhere else opens under Code.
 
 **Questions** is the quiz's editor as a mode: the mode is `config/questions.js`
 — arriving opens it, and its bar has no ✕ because there is nowhere to close it
@@ -2018,21 +2018,28 @@ and no link back, and a game's repository holds exactly the art it uses.
 and `who`/`mood` on a portrait) and `examples`, whole stories the guide can
 put in, each naming the art it uses.
 
-The **shelf** is how it is picked: the pictures of the kind being asked for.
-Two places, because the guide stops asking the moment a scene has a picture,
-so without the second the set could never be used to *change* one: a row that
-scrolls sideways across the top of the guide's picture card, before the field
-and the buttons; and a **dialog with a filter** behind `Pick a picture…` on
-the scene's Picture field in the inspector — a grid of every picture of that
-kind, the shipped set and the collection together, found by name or by who
-made it, because forty-two pictures before anybody adds one is not a strip
-(ideas/calm-shell.md). ⚠️ Picking copies the bytes to the path the *story* expects,
-not to the set's own landing path, so the set says what a picture looks like
-and the story says what it is called: "Mila, worried" becomes
-`assets/sprites/ben-normal.png` when that is the face being asked for. The
-credit and the licence ride the banner as well as the tooltip. The index is
-read once a session and only a good read is held; the shelf is filled in when
-it lands rather than through `render()`, because the card is one node kept for
+The **shelf** is how it is picked: the pictures of the kind being asked for, a
+**dialog with a filter** — a grid of every picture of that kind, the shipped
+set and the collection together, found by name or by who made it, because
+forty-two pictures before anybody adds one is not a strip (ideas/calm-shell.md).
+Three places it opens from: a row that scrolls sideways across the top of the
+guide's picture card, before the field and the buttons; `Pick a face…` on a
+mood's `···` in the story editor's person inspector — behind a confirmation,
+*Replace \<name\>'s \<mood\> face?*, when a face is already drawn there, since
+the guide stops asking the moment a mood or a scene has a picture and this is
+the way to *change* one anyway; and `+ Pick a face from the shelf` / `+ Pick
+a picture from the shelf` in the *Add a picture* dialog, alongside Upload and
+Draw. ⚠️ From the guide's card or a mood's `···`, picking copies the bytes to
+the path the *story* expects, not to the set's own landing path, so the set
+says what a picture looks like and the story says what it is called: "Mila,
+worried" becomes `assets/sprites/ben-normal.png` when that is the face being
+asked for. From *Add a picture* there is no path being expected, so it lands
+under a name of the art's own, into `assets/sprites/` or `assets/images/`,
+counted up past any collision rather than overwriting one — that dialog only
+ever adds a file, never swaps one already there. The credit and the licence
+ride the banner as well as the tooltip. The index is read once a session and
+only a good read is held; on the guide's card the shelf is filled in when it
+lands rather than through `render()`, because the card is one node kept for
 as long as its question stands. A plain `<img src>` is right for these, unlike
 a game's own files, whose routes send `no-store`.
 

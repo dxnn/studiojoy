@@ -947,7 +947,6 @@ export function renderStoryInspector() {
   if (!st?.model || st.grown || st.missing || S.open?.path === STORY_FILE) return null;
   const { model } = st;
   const { cast, scenes } = model;
-  const ro = frozen();
   const has = new Set(S.files.map((f) => f.path));
   const keys = scenes.map((s) => s.key);
   const head = (kind, name) => h('div', { class: 'inspector-head' },
@@ -991,11 +990,9 @@ export function renderStoryInspector() {
     fieldRow('About', field('story-about', scene.about ?? '', 'A line about this place, for the studio and its helpers', {
       oninput: (e) => { scene.about = e.currentTarget.value; touched(); },
     })),
-    // The picture: the game's own to choose from, and the studio's shelf
-    // behind a button that opens it as a dialog with a filter (spec.md §6) —
-    // forty-two pictures before anybody adds one is not a strip. Without this
-    // the shelf was only reachable through the guide's picture question, which
-    // stops being asked the moment a scene has a picture.
+    // The picture: the game's own to choose from — anything added under
+    // assets/images/ (Pics' Add a picture, which can also pick one from the
+    // studio's shelf) shows up here to select for the scene.
     fieldRow('Picture',
       scene.picture ? thumb(scene.picture) : null,
       h('div', { class: 'row wrap' },
@@ -1003,30 +1000,7 @@ export function renderStoryInspector() {
           [['', 'None'], ...filesUnder(IMAGE_DIR).map((p) => [p, p.slice(IMAGE_DIR.length + 1)])],
           scene.picture,
           (e) => { scene.picture = e.currentTarget.value; touched(); render(); },
-        ),
-        ro ? null : h('button', {
-          class: 'quiet tiny', text: 'Pick a picture…',
-          title: 'Pictures from the studio\'s own shelf',
-          onclick: () => {
-            S.dialog = {
-              kind: 'pick-picture',
-              art: 'background',
-              // Named for the scene, like every other way a picture gets in
-              // — the set says what it looks like, the story says what it is
-              // called.
-              place: async (a, blob) => {
-                const path = `${IMAGE_DIR}/${scene.key}.png`;
-                const { failure } = await writeFiles([{ path, body: blob }]);
-                if (failure) { say(failure, true); return; }
-                scene.picture = path;
-                touched();
-                render();
-                say(artCredit(a, path));
-              },
-            };
-            render();
-          },
-        })),
+        )),
       scene.picture && !has.has(scene.picture)
         ? h('span', { class: 'hint warn', text: 'not in this game' }) : null),
     // Music belongs to the whole scene the way the picture does — it keeps
@@ -1079,16 +1053,24 @@ export function renderPersonInspector(person, { close = null } = {}) {
         {
           text: 'Pick a face…', title: 'A face from the studio\'s shelf, saved as this mood',
           onPick: () => {
-            S.dialog = {
-              kind: 'pick-picture',
-              art: 'portrait',
-              place: async (a, blob) => {
-                const { failure } = await writeFiles([{ path, body: blob }]);
-                if (failure) { say(failure, true); return; }
-                say(artCredit(a, path));
-              },
+            const openShelf = () => {
+              S.dialog = {
+                kind: 'pick-picture',
+                art: 'portrait',
+                place: async (a, blob) => {
+                  const { failure } = await writeFiles([{ path, body: blob }]);
+                  if (failure) { say(failure, true); return; }
+                  say(artCredit(a, path));
+                },
+              };
+              render();
             };
-            render();
+            if (has.has(path)) {
+              S.dialog = { kind: 'replace-face', mood, person: person.name || person.key, proceed: openShelf };
+              render();
+            } else {
+              openShelf();
+            }
           },
         },
         !has.has(path) && {
