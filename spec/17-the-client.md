@@ -149,6 +149,13 @@ holds something git cannot recover.
   leaves the document (above). `version.new` is the other half — a commit
   landed — and it refreshes Versions and the open file's count, never the
   frame.
+- The preview's **shape** (§6) is `placePreview`'s arithmetic rather than a
+  CSS `aspect-ratio`: the placeholder's height and the frame's width are both
+  written from the shape, the rail's width and half the window's height, and
+  the width goes on the wrap as `--frame-w` so the foot matches the frame.
+  ⚠️ Both writes are guarded against writing the value they already hold —
+  this runs on every scroll event in the window, and a style write before a
+  rectangle read is a forced reflow each time.
 - ⚠️ The three reserved images are held as object URLs replaced on
   `files.changed`, never as a `src` pointed at the file routes — those send
   `no-store`, and a background rebuilt by every render would refetch on every

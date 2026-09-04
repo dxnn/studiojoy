@@ -556,7 +556,15 @@ chats in somebody's conversation.
 **The rail is the running game and nothing else**: the preview, `Open` and
 `Hide` on the frame since both act on the game, and under it the problems
 and moments it reported. Folded, it is one row that still plays, remembered
-per browser. `Reload` is gone — a save already reloads it. Files, Versions,
+per browser. The preview is a thing, so what changes it is in its own `···`:
+the **shape** to try the game in — Normal (4:3), Wide (16:9), Phone (9:16),
+Square — a tick on the one it is in, remembered per browser next to the rail
+width. A game decides its own size from the window it is given
+(`Screens.fit`), so giving it a phone's window is the only way to find out
+what it does on one. The frame is the biggest box of that shape the rail's
+width and half the window's height allow, centred, with the foot under it the
+same width — a bar wider than the game it belongs to reads as a bar belonging
+to something else. `Reload` is gone — a save already reloads it. Files, Versions,
 Scoreboard and Achievements are modes of the centre now (above); the file
 editors open by kind: a picture under Pics or Code, a sound in the rail
 under Hear, everything else under Code.

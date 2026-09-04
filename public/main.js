@@ -210,6 +210,10 @@ export const S = {
   // Remembered next to the rail width: on a small screen the file list is
   // worth the whole pane, and that is a preference, not a step.
   previewOpen: prefs.get('preview', 'open') !== 'closed',
+  // Which shape the preview is trying the game in — see PREVIEW_SHAPES.
+  // Remembered for the same reason the rail's width is: it is how you are
+  // working, not a step in the work.
+  previewShape: prefs.get('preview-shape', 'normal'),
 };
 
 // The composer is built once and reused by every render. render() replaces
@@ -968,16 +972,58 @@ function showPreview(url) {
   previewFrame.src = url;
 }
 
+// The shapes the game can be tried in. A game decides its own size from the
+// window it is given (studio/screens.js, Screens.fit), so the only way to find
+// out what it does on a phone held upright is to give it that window — which
+// is what these are. Named by the thing rather than the ratio: the numbers are
+// in the title, where somebody who wants them will look.
+export const PREVIEW_SHAPES = [
+  { id: 'normal', label: 'Normal', title: '4 by 3, the shape it opens in', ratio: 4 / 3 },
+  { id: 'wide', label: 'Wide', title: '16 by 9 — a laptop, or a phone held sideways', ratio: 16 / 9 },
+  { id: 'phone', label: 'Phone', title: '9 by 16 — a phone held upright', ratio: 9 / 16 },
+  { id: 'square', label: 'Square', title: 'As tall as it is wide', ratio: 1 },
+];
+
+const previewShape = () => PREVIEW_SHAPES.find((s) => s.id === S.previewShape) ?? PREVIEW_SHAPES[0];
+
+// How much of the window a preview may take before it starts eating the
+// inspector under it. A phone's shape in a 360-wide rail is 640 tall without
+// this, which is the whole rail and then some.
+const PREVIEW_TALLEST = 0.5;
+
 function placePreview() {
-  const box = previewSlot?.isConnected ? previewSlot.getBoundingClientRect() : null;
+  const slot = previewSlot?.isConnected ? previewSlot : null;
   // A placeholder under display:none — a picture open, a phone showing the
   // chat — measures as nothing, so a hidden placeholder is a hidden frame:
   // hidden, never unloaded, exactly as the frame in the tree used to be.
-  const shown = Boolean(box && box.width > 0 && box.height > 0);
+  if (!slot) { previewFrame.style.display = 'none'; return; }
+  // The chosen shape, as big as the rail's width and the height it can spare
+  // allow. The height goes on the placeholder so the layout keeps room for it;
+  // the width goes on the wrap as a variable, so the foot under the frame is
+  // exactly as wide as the frame — a bar wider than the game it belongs to
+  // reads as a bar belonging to something else.
+  //
+  // ⚠️ Both writes are guarded: this runs on every scroll event in the
+  // window, and writing a style before reading a rectangle is a forced reflow
+  // each time if the value never changes.
+  const { ratio } = previewShape();
+  const room = slot.getBoundingClientRect().width;
+  const tall = `${Math.round(Math.min(room / ratio, window.innerHeight * PREVIEW_TALLEST))}px`;
+  if (slot.style.height !== tall) slot.style.height = tall;
+  const box = slot.getBoundingClientRect();
+  const wide = `${Math.round(Math.min(box.width, box.height * ratio))}px`;
+  const wrap = slot.parentElement;
+  if (wrap && wrap.style.getPropertyValue('--frame-w') !== wide) {
+    wrap.style.setProperty('--frame-w', wide);
+  }
+  const shown = box.width > 0 && box.height > 0;
   previewFrame.style.display = shown ? '' : 'none';
   if (!shown) return;
   Object.assign(previewFrame.style, {
-    top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px`,
+    top: `${box.top}px`,
+    left: `${Math.round(box.left + (box.width - parseFloat(wide)) / 2)}px`,
+    width: wide,
+    height: `${box.height}px`,
   });
 }
 
@@ -1032,6 +1078,17 @@ function renderPreview() {
       ? h('div', { class: 'preview-foot' },
         best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
         h('div', { class: 'spacer' }),
+        // The preview is a thing, so what changes it is in its ···: the shape
+        // to try the game in, with a tick on the one it is in now.
+        more('preview', PREVIEW_SHAPES.map((shape) => ({
+          text: `${shape.id === previewShape().id ? '✓ ' : '\u2007 '}${shape.label}`,
+          title: shape.title,
+          onPick: () => {
+            S.previewShape = shape.id;
+            prefs.set('preview-shape', shape.id);
+            render();
+          },
+        })), { label: 'What shape to try the game in' }),
         openInTab(false),
         h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
       : null,
