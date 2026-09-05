@@ -74,16 +74,17 @@ Two exceptions, both on purpose:
 who can read a game can copy it; the copy belongs to whoever made it, and is
 not open even if the original was.
 
-**Archiving is the originator's alone, and one way.** `projects.created_by` —
-the person who made the game, display-only until now — is the one account
-`POST /archive` accepts, whoever else may edit and however open the game is:
-taking a game out is about the game, not about editing it. A published game
-cannot be archived; it comes out of the games list first, in the same menu.
-And nothing over the wire unarchives: `npm run unarchive -- <slug>` is the
-way back, at a terminal, the way `restoreuser` is for an account — rare,
-deliberate, and never a button somebody is tempted to press. An originator
-who has been *removed* leaves a game nobody can archive from the studio; the
-terminal still can, by hand.
+**Archiving is the originator's alone, and so is the way back.**
+`projects.created_by` — the person who made the game, display-only until now —
+is the one account `POST /archive` and `POST /unarchive` accept, whoever else
+may edit and however open the game is: putting a game away and bringing it
+back is about the game, not about editing it. A published game cannot be
+archived; it is unpublished first, in the same menu. Archive confirms and
+Unarchive does not: archiving stops everybody, unarchiving stops nobody, and
+what it undoes was confirmed on the way in. `npm run unarchive -- <slug>` is
+still there, and is now for the one case the studio cannot reach — an
+originator who has been *removed* leaves a game nobody here can archive or
+unarchive; the terminal still can, by hand.
 
 The client mirrors the rule rather than enforcing it: `frozen()` in `main.js`
 is `archived || !can_edit`, and every control that was disabled for an

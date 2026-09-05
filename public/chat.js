@@ -5,7 +5,7 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, isChat, agentName, urlAs,
+  S, render, prefs, isChat, agentName, urlAs, openProject,
   composerBox, sendComposer, send, api, say, sizeText,
   openMode, showMode, renderModeBody, frozen, canTalk, nearQuota,
   more,
@@ -546,12 +546,27 @@ function helperGap() {
     }), '.');
 }
 
+// The one item in that ··· with no dialog behind it: nothing is lost by
+// pressing it, and what it undoes was confirmed on the way in. Said here
+// rather than learnt from the refetch, the way archiving says it, and then the
+// game is reopened so every control it froze comes back.
+async function unarchiveProject() {
+  const res = await api('POST', `/api/projects/${S.slug}/unarchive`);
+  if (!res.ok) { say(res.body?.error ?? 'Could not unarchive it.', true); return; }
+  S.project.archived = false;
+  // Unarchiving the game you are already in is not somewhere new to go Back
+  // from, even though it changes what the bar offers.
+  await urlAs('replace', () => openProject(S.slug));
+}
+
 // Everything you can do to the whole game, behind one ··· beside its name
 // (spec.md §6). One menu per thing, in one order, and anything you may not
-// press left out rather than greyed: Fork is everybody's; Rename, Editors, the
-// games list and Add chat are an editor's; Archive is the originator's, and
-// only while the game is out of the games list. Nothing to offer, no ···.
-// Every item asks in a dialog, so every item ends in an ellipsis.
+// press left out rather than greyed: Fork is everybody's; Rename, Editors,
+// Publish and Add chat are an editor's; Archive is the originator's, and only
+// while the game is unpublished. Nothing to offer, no ···.
+// Every item asks in a dialog, so every item ends in an ellipsis — except
+// Unarchive, which asks nothing because it undoes rather than does: pressed by
+// mistake, Archive is right there again.
 //
 // Three of these were buttons at the end of the bar, and a drawer under the
 // name before that. The rule that put them here is not the one that made the
@@ -572,14 +587,18 @@ function renderMore(p) {
       title: 'Who can change this game, and whether the whole studio can',
     }),
     rooms && yours && !p.archived && item(
-      p.published ? 'Take it out of the games list…' : 'Put it in the games list…', 'publish',
+      p.published ? 'Unpublish…' : 'Publish…', 'publish',
     ),
     rooms && !frozen() && S.chats.length < MAX_CHATS && item('Add chat…', 'new-chat', {
       title: 'Start another chat in this game',
     }),
     p.originator && !p.archived && !p.published && item('Archive…', 'archive', {
-      danger: true, title: 'Put this game away — only a terminal brings it back',
+      danger: true, title: 'Put this game away — you can unarchive it again',
     }),
+    p.originator && p.archived && {
+      text: 'Unarchive', title: 'Bring this game back — everybody can change it again',
+      danger: false, onPick: unarchiveProject,
+    },
   ], { label: 'More about this game', small: false });
 }
 
@@ -750,11 +769,11 @@ export function renderChat() {
       h('div', { class: 'title', text: p.name }),
       p.archived && h('span', { class: 'tag', text: 'archived' }),
       h('div', { class: 'spacer' }),
-      // State, not a control: whether the game is in the games list. What
-      // changes it is in the ··· and under Share.
+      // State, not a control: whether the game is published. What changes it
+      // is in the ··· and under Share.
       isChat() || p.archived ? null : h('span', {
         class: 'whisper',
-        text: p.published ? 'in the games list' : 'not in the games list',
+        text: p.published ? 'published' : 'not published',
       }),
       renderMore(p),
       !isChat() && h('button', { class: 'quiet only-narrow', text: 'Preview', onclick: () => { S.narrowPane = 'rail'; render(); } })),

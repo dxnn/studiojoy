@@ -487,7 +487,7 @@ test('renaming changes the name and never the slug', async (t) => {
   assert.equal(fs.existsSync(path.join(app.gamesDir, 'tank')), true);
 });
 
-test('archiving blocks writes, reads keep working, and it is one way', async (t) => {
+test('archiving blocks writes, reads keep working, and unarchiving undoes it', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
 
@@ -507,8 +507,8 @@ test('archiving blocks writes, reads keep working, and it is one way', async (t)
   assert.equal(write.status, 409);
   assert.match(write.body.error, /archived/);
 
-  // No unarchiving over the wire, whatever the body says: that is
-  // `npm run unarchive`, at a terminal (spec.md §11).
+  // Archive is not a toggle, whatever the body says: coming back has its own
+  // route (spec/ §11).
   const again = await app.client.json('POST', '/api/projects/tank/archive', {
     body: { archived: false },
   });
@@ -518,9 +518,28 @@ test('archiving blocks writes, reads keep working, and it is one way', async (t)
     (await app.client.json('POST', '/api/projects/nope/archive', { body: {} })).status,
     404,
   );
+
+  // And back: the same person, one bit, and the writes it blocked work again.
+  const back = await app.client.json('POST', '/api/projects/tank/unarchive', { body: {} });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.archived, false);
+  assert.equal((await app.client.json('GET', '/api/projects/tank')).body.archived, false);
+  assert.equal(
+    (await app.client.json('PATCH', '/api/projects/tank', { body: { name: 'Tank II' } })).status,
+    200,
+  );
+
+  // A game that is not away has nothing to come back from.
+  const twice = await app.client.json('POST', '/api/projects/tank/unarchive', { body: {} });
+  assert.equal(twice.status, 409);
+  assert.match(twice.body.error, /not archived/);
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/nope/unarchive', { body: {} })).status,
+    404,
+  );
 });
 
-test("archiving is the originator's alone, and never a published game's", async (t) => {
+test("archiving and unarchiving are the originator's alone, and never a published game's", async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });
   // A new game is open, so a second account may change it — and still may not
@@ -537,11 +556,20 @@ test("archiving is the originator's alone, and never a published game's", async 
   await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
   const listed = await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
   assert.equal(listed.status, 409);
-  assert.match(listed.body.error, /games list/);
+  assert.match(listed.body.error, /unpublish it first/);
 
   await app.client.json('POST', '/api/projects/tank/publish', { body: { published: false } });
   assert.equal(
     (await app.client.json('POST', '/api/projects/tank/archive', { body: {} })).status, 200,
+  );
+
+  // The way back is the same door: an editor who is not the originator is
+  // refused there too, so a game cannot be brought back by whoever finds it.
+  const theirBack = await other.json('POST', '/api/projects/tank/unarchive', { body: {} });
+  assert.equal(theirBack.status, 403);
+  assert.match(theirBack.body.error, /only whoever made it/);
+  assert.equal(
+    (await app.client.json('POST', '/api/projects/tank/unarchive', { body: {} })).status, 200,
   );
 });
 

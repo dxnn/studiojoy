@@ -1,6 +1,7 @@
-// The undo for Archive. In the studio archiving is one way — the ··· on a game
-// puts it away, and nothing on screen brings it back — because coming back is
-// rare and deliberate, the way `restoreuser` is for an account (spec.md §11).
+// The undo for Archive, at a terminal. The studio has its own — Unarchive in
+// the game's ···, the originator's alone — so this is for the game that has
+// nobody left to press it: an originator who was removed leaves a game the
+// studio can neither archive nor bring back (spec/ §11).
 // It is one bit (`projects.archived`), so putting a game back is clearing it:
 // its files, its chats, its scores and its editors were never touched.
 //

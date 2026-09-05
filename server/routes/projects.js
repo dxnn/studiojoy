@@ -506,24 +506,29 @@ export function projectRoutes(r) {
     json(ctx.res, 200, { slug: project.slug, published });
   });
 
-  // One way (spec.md §11). Archiving is the *originator's* — the person who
-  // made the game, `created_by`, not its editors and not an open game's whole
-  // studio: taking a game out is about the game, not about editing it. And
-  // never a published game's: a game people can find in the games list is
-  // not one to quietly stop, so it comes out of the list first, in the same
-  // menu. Coming back is `npm run unarchive`, a terminal's job — rare and
-  // deliberate, like putting an account back. Nothing in the body is read.
-  r.post('/api/projects/:slug/archive', async (ctx) => {
+  // Both doors are the *originator's* — the person who made the game,
+  // `created_by`, not its editors and not an open game's whole studio: putting
+  // a game away and bringing it back is about the game, not about editing it
+  // (spec/ §11).
+  const originatorsProject = (ctx, verb) => {
     const user = requireAuth(ctx);
     const slug = requireSlug(ctx.params.slug);
     const project = ctx.db.prepare('SELECT * FROM projects WHERE slug = ?').get(slug);
     if (!project) throw new HttpError(404, 'no such project');
     if (project.created_by !== user.id) {
-      throw new HttpError(403, `${project.name} is not yours to archive — only whoever made it can`);
+      throw new HttpError(403, `${project.name} is not yours to ${verb} — only whoever made it can`);
     }
+    return project;
+  };
+
+  // Never a published game's: a game people can find is not one to quietly
+  // stop, so it is unpublished first, in the same menu. Nothing in the body
+  // is read.
+  r.post('/api/projects/:slug/archive', async (ctx) => {
+    const project = originatorsProject(ctx, 'archive');
     if (project.archived) throw new HttpError(409, 'project is archived');
     if (project.published) {
-      throw new HttpError(409, `${project.name} is in the games list — take it out first`);
+      throw new HttpError(409, `${project.name} is published — unpublish it first`);
     }
 
     // Whatever the game still owes history lands before the door shuts, so
@@ -534,5 +539,20 @@ export function projectRoutes(r) {
       slug: project.slug, name: project.name, archived: true,
     });
     json(ctx.res, 200, { slug: project.slug, archived: true });
+  });
+
+  // The way back, and the same person's. Archiving destroyed nothing —
+  // `archived` is one bit, and the files, the chats, the scores and the
+  // editors were never touched — so this settles nothing and asks nothing:
+  // an archived tree owes no commit. `npm run unarchive` stays for the game
+  // whose originator has been removed, which nobody here can bring back.
+  r.post('/api/projects/:slug/unarchive', (ctx) => {
+    const project = originatorsProject(ctx, 'unarchive');
+    if (!project.archived) throw new HttpError(409, 'project is not archived');
+    ctx.db.prepare('UPDATE projects SET archived = 0 WHERE id = ?').run(project.id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: false,
+    });
+    json(ctx.res, 200, { slug: project.slug, archived: false });
   });
 }

@@ -37,9 +37,11 @@ holds plans and sketches. Completed work is git history, not this file.
   no route, no button. A soft delete: `users.deleted = 1` and their sessions,
   never a DELETE. `npm run restoreuser -- <email>` is the undo; with no email
   it lists who is out.
-- `npm run unarchive -- <slug>` — ⚠️ the *only* way an archived game comes
-  back: archiving is one way from the studio, the originator's alone, and
-  never a published game's (spec/ §11). With no slug it lists what is
+- `npm run unarchive -- <slug>` — brings an archived game back from a
+  terminal. The studio does it too now: Archive and Unarchive are both in the
+  game's `···`, both the originator's alone, and archiving is never a
+  published game's (spec/ §11). The script is for the game the studio cannot
+  reach — one whose originator has been removed. With no slug it lists what is
   archived.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover

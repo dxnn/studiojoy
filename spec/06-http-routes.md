@@ -44,7 +44,8 @@ address: a list of names needn't be a list of emails to do its job.
 | DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
-| POST | `/api/projects/:slug/archive` | — | archive, one way: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first. Unarchiving is `npm run unarchive` |
+| POST | `/api/projects/:slug/archive` | — | archive: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first |
+| POST | `/api/projects/:slug/unarchive` | — | the way back, the same person's alone (§11); 409 on a game that is not archived. Settles nothing — an archived tree owes no commit. `npm run unarchive` stays for a game whose originator has been removed |
 | POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
 | DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
 | POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
@@ -403,12 +404,15 @@ at all and what leaves a person a mark, and the only way to find out a name
 was mentionable used to be to guess it or go and click it in the sidebar.
 
 **Everything you can do to the whole game is behind one `···` beside its
-name** — Rename, Fork, Editors, the games list, Add chat, Archive — absent
-rather than greyed for anybody who may not press it: Fork is everybody's;
-Rename, Editors, the games list and Add chat are an editor's; Archive is the
-*originator*'s, only while the game is out of the games list (§11). Nothing
-to offer means no `···`. The bar itself holds only state: the padlock, the
-`archived` tag, and a whisper saying whether the game is in the games list.
+name** — Rename, Fork, Editors, Publish, Add chat, Archive, Unarchive —
+absent rather than greyed for anybody who may not press it: Fork is
+everybody's; Rename, Editors, Publish and Add chat are an editor's; Archive is
+the *originator*'s, only while the game is unpublished, and Unarchive is the
+same person's, only while it is archived (§11). Nothing to offer means no
+`···`. Every item asks in a dialog and ends in an ellipsis — except Unarchive,
+which asks nothing, because it undoes rather than does. The bar itself holds
+only state: the padlock, the `archived` tag, and a whisper saying whether the
+game is published.
 
 **Every thing has one `···`, on its row, and nothing else that changes it.**
 A scene, a line, a choice, a mood, a file, a version, a helper, the chat

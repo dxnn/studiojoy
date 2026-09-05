@@ -474,8 +474,8 @@ export async function setPublished(published) {
   }
   S.project.published = published;
   say(published
-    ? 'This game is in the games list now.'
-    : 'Took this game out of the games list.');
+    ? 'This game is published now.'
+    : 'Unpublished this game.');
 }
 
 // A file into another game: the bytes and nothing else. The route reads the

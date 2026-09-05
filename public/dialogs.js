@@ -246,12 +246,10 @@ export function dialogFor(d) {
       })));
   }
 
-  // Only reachable for a game that is already archived: nothing in the
-  // interface archives one any more.
-  // One way, and said so (spec.md §11): the route refuses everybody but the
-  // person who made the game, and refuses a game that is in the games list —
-  // the ··· offers this only when both hold, so the refusals here are for a
-  // game that changed under the menu. Coming back is `npm run unarchive`.
+  // The route refuses everybody but the person who made the game, and refuses
+  // a published game — the ··· offers this only when both hold, so the
+  // refusals here are for a game that changed under the menu. Coming back is
+  // Unarchive in the same ···, which asks nothing (spec/ §11).
   if (d.kind === 'archive') {
     const chat = S.project.kind === 'chat';
     return wrap(chat ? 'Archive this chat?' : 'Archive this game?',
@@ -260,7 +258,7 @@ export function dialogFor(d) {
           ? 'Nobody will be able to talk in it any more; what was said stays readable.'
           : 'Nobody will be able to change it or talk in it any more. People can still play it at its address, and its scores stay.',
       }),
-      h('p', { class: 'hint muted', text: 'This cannot be undone from the studio — only whoever runs it can bring it back, from the terminal.' }),
+      h('p', { class: 'hint muted', text: 'You can unarchive it again whenever you like — it is in the same ··· menu.' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Archive it',
         onclick: async () => {
@@ -902,23 +900,23 @@ export function dialogFor(d) {
   }
 
   // Publishing is one click away in the bar, so the button there is a status
-  // and this is where it is actually done. Both ways round: the games list is
+  // and this is where it is actually done. Both ways round: the games page is
   // the only thing either changes — a link to the game has always worked and
   // still will.
   if (d.kind === 'publish') {
-    const listed = Boolean(S.project.published);
-    return wrap(listed ? 'Take it out of the games list?' : 'Put it in the games list?',
+    const published = Boolean(S.project.published);
+    return wrap(published ? 'Unpublish this game?' : 'Publish this game?',
       h('p', {
-        text: listed
-          ? 'Everybody sees this game on the games page. Take it out and only people with the link will find it — the link still works, and the game still plays.'
-          : 'The games page is what everybody sees at the games address. Put it in and this game is on it.',
+        text: published
+          ? 'Everybody sees this game on the games page. Unpublish it and only people with the link will find it — the link still works, and the game still plays.'
+          : 'The games page is what everybody sees at the games address. Publish this game and it is on it.',
       }),
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: listed ? 'danger' : 'filled',
-        text: listed ? 'Take it out' : 'Put it in',
+        class: published ? 'danger' : 'filled',
+        text: published ? 'Unpublish it' : 'Publish it',
         onclick: async () => {
           close();
-          await setPublished(!listed);
+          await setPublished(!published);
         },
       })));
   }

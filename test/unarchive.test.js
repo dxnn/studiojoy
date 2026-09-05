@@ -1,5 +1,6 @@
-// `npm run unarchive`: the terminal's half of archiving (spec.md §11). The
-// route is one way; this is the way back, and it is deliberately not a route.
+// `npm run unarchive`: the terminal's half of archiving (spec/ §11). The
+// studio unarchives too, but only for the originator — this is the hand that
+// is left when that account has been removed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';

@@ -1243,7 +1243,7 @@ function renderShareMode() {
       }),
       p.mine && !p.archived ? h('button', {
         class: 'quiet tiny',
-        text: p.published ? 'Take it out of the games list' : 'Put it in the games list',
+        text: p.published ? 'Unpublish' : 'Publish',
         onclick: () => { S.dialog = { kind: 'publish' }; render(); },
       }) : null),
     section('Scoreboard'), renderScoreboardTab(),
