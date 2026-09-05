@@ -27,9 +27,18 @@ unbuilt. Two things this plan said that the building corrected:
   rate limit — and ⚠️ **each card declares its own licence**, so CC0 is now
   the claim of whoever hosts the file rather than an aggregator's index of
   it. The site's keywords are better tags than the search word, too.
-  The outage also bought two rules worth keeping: a 30-second timeout on
-  every fetch, and giving up after four failed words in a row. Ninety minutes
-  to notice, now three seconds.
+  The outage also bought two rules worth keeping: a timeout on every fetch,
+  and giving up after four failed words in a row. Ninety minutes to notice,
+  now three seconds.
+- **The set is no longer written whole**, which was the plan's worst idea. It
+  meant one host refusing blocked every pull, including the two sources that
+  worked — and, one level down, a single pack's zip timing out silently
+  deleted that pack's 27 committed pictures. Art now belongs to whatever
+  fetched it, and only a fetch that succeeded replaces it: a source declares
+  what it is authoritative for (Kenney per *pack*), everything else stays byte
+  for byte, and a picture the new index does not name is deleted so an
+  upstream removal still leaves. Naming a source pulls just that one. The
+  invariant survives at a finer grain and costs nothing.
 - **Nothing is resized at pull time.** The plan said every fetch would be.
   Resizing in Node with no dependencies means a PNG decoder *and* encoder;
   asking the sources for art that is already small costs nothing, and

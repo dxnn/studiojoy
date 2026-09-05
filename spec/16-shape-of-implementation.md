@@ -103,9 +103,10 @@ public/
                   and which seed each scheme starts from
   game-templates/ a starter tree per template, plus the blank start page (§4)
   story-art/      the standard set the example story copies in (§4)
-  big-set/        the big set: 1,775 CC0 pictures written whole by
-                  `npm run pullart` and committed. Searched offline, so a
-                  word gets a picture with no network and no third party
+  big-set/        the big set: 1,775 CC0 pictures written by
+                  `npm run pullart`, a source at a time, and committed.
+                  Searched offline, so a word gets a picture with no
+                  network and no third party
   css/            the stylesheet, one file per surface, linked in order from
                   index.html: base.css first (it sets the custom properties
                   the rest read), narrow.css last (its media queries override

@@ -3,14 +3,20 @@
 // deciding what is safe. The *standard set* beside it stays hand-picked and
 // small; this is the half that is large and machine-gathered (spec.md §4).
 //
-//   npm run pullart                 # every source below, writing the set whole
+//   npm run pullart                 # every source below
+//   npm run pullart -- kenney       # one of them, leaving the rest alone
 //   npm run pullart -- --dry        # fetch everything, write nothing
 //   npm run pullart -- --list       # what would be pulled, fetching nothing
 //
 // Run it on a machine that can reach the sources, the way `npm run sweep` is
 // run on the machine holding the games. It is **not** part of `npm test`,
-// which has no network. It writes `public/big-set/` whole — pictures, index
-// and licences — so a re-run is how the set changes, and git says what moved.
+// which has no network.
+//
+// **A source owns its own half of the set.** One that comes back replaces
+// every picture named for it and nothing else; one that fails, or was not
+// asked for, leaves its pictures exactly where they are. So a re-run is how
+// a source changes, git says what moved, and one host being down costs that
+// host's art rather than everybody's.
 //
 // ⚠️ Safety here is the **source list**, not a filter. Every pack named below
 // is one author's CC0 game art, safe by what it is rather than by a flag
@@ -206,14 +212,20 @@ const AGENT = 'unbridled-joy-pullart/1 (+https://kenney.nl; one pull, then cache
 // ⚠️ Node's fetch waits forever by default, and a source that is *slow to
 // refuse* costs more than one that refuses. Openverse's search went down on
 // 2026-09-04 and answered a 504 after sixty seconds; ninety-six words of that
-// is an hour and a half before the run gives up. Generous enough for a pack
-// zip on a poor connection, mean enough that a dead host is dead quickly.
-const PATIENCE = 30_000;
+// is an hour and a half before the run gives up.
+//
+// Two numbers rather than one, because a page and a pack are different
+// waits: an API or a search result that takes twenty seconds is broken, and
+// a multi-megabyte zip that takes ninety is a slow morning. One number for
+// both was 30s, and it cost `letter-tiles` its pictures the first time
+// somebody's connection hesitated.
+const PATIENCE = 20_000;
+const PATIENCE_BYTES = 120_000;
 
 async function grab(url, as = 'buffer') {
   const res = await fetch(url, {
     headers: { 'User-Agent': AGENT },
-    signal: AbortSignal.timeout(PATIENCE),
+    signal: AbortSignal.timeout(as === 'buffer' ? PATIENCE_BYTES : PATIENCE),
   });
   if (!res.ok) throw new Error(`${res.status} from ${url}`);
   if (as === 'json') return res.json();
@@ -393,10 +405,10 @@ async function svgsilhWord(word, seen, report) {
 
 /* The run -------------------------------------------------------------------- */
 
-// ⚠️ In the order they are most likely to refuse, not alphabetically. The set
-// is written whole, so a source that is going to fail should fail before
-// sixteen pack downloads rather than after them — which is exactly what
-// Openverse's outage on 2026-09-04 cost, twice.
+// In the order they are most likely to refuse, not alphabetically: a source
+// that is going to fail says so before sixteen pack downloads rather than
+// after them. Since a refusal now costs only its own half, this is about
+// how soon somebody watching finds out rather than about what is lost.
 const SOURCES = {
   svgsilh: {
     what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes,`
@@ -437,24 +449,31 @@ const SOURCES = {
         throw new Error(`${lost} of ${SVGSILH_WORDS.length} words failed`
           + ' — a set with that big a hole in it is not a set');
       }
-      return art;
+      // A word that found nothing is a word, not a failure: this source is
+      // one shelf, so getting this far means it is authoritative for it.
+      return { art, replaces: ['svgsilh-'] };
     },
   },
   kenney: {
     what: `${KENNEY.length} CC0 game-art packs by Kenney (kenney.nl)`,
     async pull(report) {
       const art = [];
+      const replaces = [];
       for (const source of KENNEY) {
         try {
           const got = await kenneyPack(source, report);
           art.push(...got);
+          // ⚠️ Only a pack that actually came back gives up the pictures it
+          // put here last time. The trailing dash is the boundary: without
+          // it `kenney-medals-` would also claim a pack called medals-2.
+          replaces.push(`kenney-${source.pack}-`);
           console.log(`  ${source.pack}: ${got.length}`);
         } catch (e) {
-          console.error(`  ${source.pack}: ${e.message}`);
+          console.error(`  ${source.pack}: ${e.message} — its pictures are left as they were`);
           report.failed += 1;
         }
       }
-      return art;
+      return { art, replaces };
     },
   },
   phylopic: {
@@ -475,16 +494,34 @@ const SOURCES = {
           report.missing += 1;
         }
       }
-      return art;
+      return { art, replaces: ['phylopic-'] };
     },
   },
 };
 
-// Every source, every time. ⚠️ There is deliberately no way to pull one:
-// the set is written whole, so a one-source run would take every other
-// source's pictures out of the repository as a side effect of succeeding.
-// A source to leave out is commented out of the list above.
-const names = Object.keys(SOURCES);
+// Which source a picture already in the set came from. Every file is named
+// `pictures/<source>-…`, which is what makes a source's half of the set
+// identifiable without recording it in every row.
+const sourceOf = (file) => Object.keys(SOURCES)
+  .find((name) => path.basename(file).startsWith(`${name}-`));
+
+// **A source owns its own half, and only its own half.** Each one that comes
+// back replaces every picture named for it and nothing else; each one that
+// fails, or was not asked for, leaves its pictures exactly where they are.
+//
+// This was "the set is written whole" until 2026-09-04, which meant one host
+// refusing took the other two down with it and there was no way to pull the
+// two that worked. The invariant that mattered — a picture dropped upstream
+// leaves rather than lingering — survives per source, and the thing it was
+// paying for turns out to be free.
+const asked = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const names = asked.length ? asked : Object.keys(SOURCES);
+for (const name of names) {
+  if (!SOURCES[name]) {
+    console.error(`no source called ${name} — try ${Object.keys(SOURCES).join(', ')}`);
+    process.exit(1);
+  }
+}
 if (process.argv.includes('--list')) {
   for (const name of names) console.log(`${name}: ${SOURCES[name].what}`);
   process.exit(0);
@@ -493,58 +530,76 @@ if (process.argv.includes('--list')) {
 const report = {
   big: 0, strips: 0, unread: 0, unnamed: 0, notCc0: 0, missing: 0, failed: 0,
 };
-const art = [];
+const pulled = new Map();
+const refused = [];
 for (const name of names) {
   console.log(`${name} — ${SOURCES[name].what}`);
   try {
-    art.push(...await SOURCES[name].pull(report));
+    const got = await SOURCES[name].pull(report);
+    if (!got.art.length) throw new Error('nothing came back');
+    pulled.set(name, got);
   } catch (e) {
-    // ⚠️ A source that fails outright stops the run rather than writing what
-    // the others managed: the set is written whole, so a half-pull would take
-    // this source's pictures out of the repository as its way of failing.
     console.error(`\n${name} could not be pulled: ${e.message}`);
-    console.error('the set is left exactly as it was — fix it and run again');
-    process.exit(1);
+    refused.push(name);
   }
 }
 
-if (!art.length) {
-  console.error('nothing came back — the set is left as it was');
+if (!pulled.size) {
+  console.error(`\nnothing came back at all — the set is left exactly as it was (${
+    refused.join(', ')})`);
   process.exit(1);
 }
 
-// Everything really fetched, nothing written. What a first run wants: the
-// svgsilh half in particular depends on two hosts that answer a laptop and
-// refuse a datacenter, so finding out costs a few minutes rather than a
-// commit that has to be undone.
+const art = [...pulled.values()].flatMap((got) => got.art);
+
+// Everything really fetched, nothing written. What a first run wants: svgsilh
+// in particular answers a laptop and refuses a datacenter, so finding out
+// costs a few minutes rather than a commit that has to be undone.
 if (process.argv.includes('--dry')) {
-  const kinds = art.reduce((n, a) => n.set(a.by, (n.get(a.by) ?? 0) + 1), new Map());
   console.log(`\n${art.length} pictures would be written, and nothing was:`);
-  for (const [who, n] of [...kinds].sort((a, b) => b[1] - a[1])) console.log(`  ${who}: ${n}`);
+  for (const [name, got] of pulled) console.log(`  ${name}: ${got.art.length}`);
+  for (const name of refused) console.log(`  ${name}: refused — its pictures would be left alone`);
   process.exit(0);
 }
 
-// Written whole rather than merged into what is there: the sources are the
-// truth and a re-run is how the set changes, so a picture dropped upstream
-// leaves rather than lingering. A partial run is refused above for the same
-// reason — half a pull would delete the other half.
-fs.rmSync(PICTURES, { recursive: true, force: true });
+// What the set already holds, minus what this run is authoritative for. A
+// source says that itself — Kenney per *pack*, so one pack timing out costs
+// that pack's refresh rather than its pictures — and anything nobody claimed
+// stays exactly as it is. A first run finds no index and keeps nothing, which
+// is the same code path.
+const before = fs.existsSync(path.join(OUT, 'index.json'))
+  ? JSON.parse(fs.readFileSync(path.join(OUT, 'index.json'), 'utf8')).art ?? []
+  : [];
+const replacing = [...pulled.values()].flatMap((got) => got.replaces);
+const kept = before.filter(
+  (a) => !replacing.some((prefix) => path.basename(a.file).startsWith(prefix)),
+);
+
 fs.mkdirSync(PICTURES, { recursive: true });
 
-const seenFiles = new Set();
-const index = [];
-for (const picture of art.sort((a, b) => a.file.localeCompare(b.file))) {
+const seenFiles = new Set(kept.map((a) => a.file));
+const index = [...kept];
+for (const picture of art) {
   if (seenFiles.has(picture.file)) continue;
   seenFiles.add(picture.file);
   const { bytes, ...entry } = picture;
   fs.writeFileSync(path.join(OUT, entry.file), bytes);
   index.push(entry);
 }
+index.sort((a, b) => a.file.localeCompare(b.file));
+
+// A picture the index no longer names: one this run replaced, one its source
+// dropped upstream, or one belonging to a source that has been taken out of
+// the list above. The index is the truth and the folder follows it.
+for (const name of fs.readdirSync(PICTURES)) {
+  if (!seenFiles.has(`pictures/${name}`)) fs.rmSync(path.join(PICTURES, name));
+}
 
 fs.writeFileSync(path.join(OUT, 'index.json'), `${JSON.stringify({
   _what: 'The big set: CC0 art mirrored into this repository by `npm run pullart`, '
     + 'offered on the same shelf as the hand-picked standard set and the studio '
-    + 'collection. Written whole by the pull — edit bin/pullart.js, not this file. '
+    + 'collection. Written by the pull, a source at a time — edit bin/pullart.js, '
+    + 'not this file. '
     + 'A `sprite` is one thing on a transparent background and lands in assets/sprites/. '
     + 'A .svg entry is a silhouette, rasterised to a PNG by the browser when it is '
     + 'picked (artBytes in public/story-guide.js); everything else is already a PNG.',
@@ -576,6 +631,17 @@ pull; a card that does not say so is left where it is.
 
 const bytes = index.reduce((n, a) => n + fs.statSync(path.join(OUT, a.file)).size, 0);
 console.log(`\n${index.length} pictures, ${(bytes / 1024 / 1024).toFixed(1)} MB in public/big-set/`);
+// Said plainly rather than as a warning: art left alone is the set keeping
+// what it already had, which is the point. `kept` counts what this run did
+// not claim — a refused source, and any pack inside a source that failed.
+for (const [name, got] of pulled) {
+  const held = kept.filter((a) => sourceOf(a.file) === name).length;
+  console.log(`  ${name}: ${got.art.length} refreshed${held ? `, ${held} left as they were` : ''}`);
+}
+for (const name of refused) {
+  const held = kept.filter((a) => sourceOf(a.file) === name).length;
+  console.log(`  ${name}: refused — its ${held} left as they were`);
+}
 const skipped = Object.entries(report).filter(([, n]) => n > 0);
 if (skipped.length) console.log(`skipped: ${skipped.map(([k, n]) => `${n} ${k}`).join(', ')}`);
 console.log('Kenney asks for a donation rather than credit: https://kenney.nl/donate');

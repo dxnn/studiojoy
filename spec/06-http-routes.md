@@ -894,7 +894,7 @@ portrait would animate instead of standing still.
 
 #### The big set
 
-`public/big-set/` — 1,775 CC0 pictures, written whole by `npm run pullart`
+`public/big-set/` — 1,775 CC0 pictures, written by `npm run pullart`
 and committed. Where the standard set is 42 pictures somebody chose, this is
 the half that is large and machine-gathered, so a kid can type a word and get
 a picture with **no network, no key and no third party deciding what is
@@ -946,9 +946,9 @@ instead of two, no key, no published rate limit, and a licence one hop closer
 to the file. The pull is a guest there all the same: it waits 400 ms between
 requests, which is under ten minutes for the source.
 
-It is the source most likely to refuse, so it goes **first** — the set is
-written whole, and a run that is going to fail should fail before sixteen pack
-downloads rather than after them. It gives up after **four words in a row**,
+It is the source most likely to refuse, so it goes **first**: a run that is
+going to fail says so before sixteen pack downloads rather than after them.
+It gives up after **four words in a row**,
 because however it fails it fails on every word, and asking ninety more times
 only makes knowing slower. A search page that answers *without cards on it* —
 a 404 body, an interstitial, a challenge — counts as a failure rather than an
@@ -977,11 +977,22 @@ variants that would bury every picture somebody could have named.
 
 `npm run pullart` is run on a machine that can reach the sources, like
 `npm run sweep`, and never in `npm test`, which has no network. `--dry`
-fetches everything and writes nothing, which is what a first run wants. It
-writes the folder whole, so a re-run is how the set changes and git says what
-moved — ⚠️ which is why there is deliberately no way to pull one source, and
-why a source that fails outright stops the run rather than writing what the
-others managed. `test/big-set.test.js` checks what it left behind: every file
+fetches everything and writes nothing, which is what a first run wants;
+naming a source (`npm run pullart -- kenney`) pulls only that one.
+
+⚠️ **Art belongs to whatever fetched it, and only a fetch that succeeded
+replaces it.** A source declares what it is authoritative for this run —
+Kenney *per pack*, the other two per source — and everything else in the set
+is left byte for byte where it was. A picture the final index no longer names
+is then deleted, so a picture dropped upstream still leaves rather than
+lingering. This was "the set is written whole" until 2026-09-04, and that rule
+was wrong twice in one afternoon: one host refusing took the other two down
+with it and there was no way to pull the two that worked, and one pack's zip
+timing out silently deleted its 27 pictures. The invariant worth having
+survives at a finer grain, and the thing it was paying for turns out to be
+free. A run only fails outright when **nothing** came back.
+
+`test/big-set.test.js` checks what it left behind: every file
 present, every picture drawable and under the caps, every silhouette carrying
 a viewBox, no strips, no unsearchable names, every licence CC0 and credited in
 `licences.txt`, and nothing on disk the index does not name.

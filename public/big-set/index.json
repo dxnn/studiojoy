@@ -1,5 +1,5 @@
 {
- "_what": "The big set: CC0 art mirrored into this repository by `npm run pullart`, offered on the same shelf as the hand-picked standard set and the studio collection. Written whole by the pull — edit bin/pullart.js, not this file. A `sprite` is one thing on a transparent background and lands in assets/sprites/.",
+ "_what": "The big set: CC0 art mirrored into this repository by `npm run pullart`, offered on the same shelf as the hand-picked standard set and the studio collection. Written by the pull, a source at a time — edit bin/pullart.js, not this file. A `sprite` is one thing on a transparent background and lands in assets/sprites/. A .svg entry is a silhouette, rasterised to a PNG by the browser when it is picked (artBytes in public/story-guide.js); everything else is already a PNG.",
  "art": [
   {
    "file": "pictures/kenney-alien-ufo-pack-dome.png",

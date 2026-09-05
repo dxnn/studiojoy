@@ -49,5 +49,11 @@ somebody drew it.
 
 Kenney's packs come from https://kenney.nl/assets and are CC0; he asks for a
 donation rather than for credit, and https://kenney.nl/donate is the place.
+
 PhyloPic silhouettes come from https://api.phylopic.org — that archive is
 mixed, and only its CC0 images are here.
+
+SVG Silh silhouettes come from https://svgsilh.com — searched, read and
+fetched there, with no aggregator in between. Each one's CC0 is svgsilh's own
+declaration on its own card (RDFa, rel="license"), checked per picture by the
+pull; a card that does not say so is left where it is.

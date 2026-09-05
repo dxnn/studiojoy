@@ -47,11 +47,12 @@ holds plans and sketches. Completed work is git history, not this file.
 - `npm run pullart` — write the **big set** (`public/big-set/`): CC0 pictures
   from Kenney, PhyloPic and svgsilh, committed to this repo so a kid types a
   word and gets a picture offline. `--dry` fetches everything and writes
-  nothing; `--list` fetches nothing at all. ⚠️ Run it from a **laptop**:
-  svgsilh sits behind Cloudflare, which refuses a datacenter address on every
-  path. Not in `npm test`, which has no network. ⚠️ It writes the folder
-  whole — there is no way to pull one source, and a source that fails stops
-  the run rather than deleting the others' work.
+  nothing; `--list` fetches nothing at all; naming a source pulls only that
+  one. ⚠️ Run it from a **laptop**: svgsilh sits behind Cloudflare, which
+  refuses a datacenter address on every path. Not in `npm test`, which has no
+  network. ⚠️ Art belongs to whatever fetched it and only a successful fetch
+  replaces it — Kenney per *pack* — so a source or a pack that fails leaves
+  its pictures exactly where they are and the rest of the pull still lands.
 - `npm run sweep` — bring every game's studio library up to date: missing
   libraries added, held ones raised, the game's own files never touched.
   One studio-authored commit per game; archived games skipped. Run it on
@@ -289,7 +290,7 @@ specified:
   ⚠️ Bytes in the row so `npm run backup` covers them, and ⚠️ no licence
   recorded — whoever drew it keeps it (§3).
 - The **big set** is the shelf's third half: 1,775 CC0 sprites in
-  `public/big-set/`, written whole by `npm run pullart`, searched offline by
+  `public/big-set/`, written by `npm run pullart`, searched offline by
   name *and* `tags` — `Triceratops` comes back for *dinosaur*. ⚠️ Its safety
   is the hand-written source list in `bin/pullart.js`, not a filter, and there
   is no moderation queue behind it. Reached from `+ Find a thing to put in`
