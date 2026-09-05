@@ -181,6 +181,11 @@ const OPENVERSE = 'https://api.openverse.org/v1/images/';
 // between words rather than being turned away halfway through a run it cannot
 // resume. About five minutes for the list above.
 const OPENVERSE_PAUSE = 3200;
+// Whichever of the three ways this source fails, it fails on every word:
+// Cloudflare refusing the address, Openverse rate-limiting, Openverse's
+// search being down. So a run stops asking rather than grinding through the
+// list to prove it.
+const GIVE_UP_AFTER = 4;
 // An SVG is text, and a silhouette is one path. Anything much larger is a
 // traced photograph, which is not what this set is for.
 const MAX_SVG_BYTES = 64 * 1024;
@@ -193,8 +198,18 @@ const MAX_SVG_BYTES = 64 * 1024;
 // rather than fetched while somebody waits.
 const AGENT = 'unbridled-joy-pullart/1 (+https://kenney.nl; one pull, then cached in-repo)';
 
+// ⚠️ Node's fetch waits forever by default, and a source that is *slow to
+// refuse* costs more than one that refuses. Openverse's search went down on
+// 2026-09-04 and answered a 504 after sixty seconds; ninety-six words of that
+// is an hour and a half before the run gives up. Generous enough for a pack
+// zip on a poor connection, mean enough that a dead host is dead quickly.
+const PATIENCE = 30_000;
+
 async function grab(url, as = 'buffer') {
-  const res = await fetch(url, { headers: { 'User-Agent': AGENT } });
+  const res = await fetch(url, {
+    headers: { 'User-Agent': AGENT },
+    signal: AbortSignal.timeout(PATIENCE),
+  });
   if (!res.ok) throw new Error(`${res.status} from ${url}`);
   if (as === 'json') return res.json();
   if (as === 'text') return res.text();
@@ -377,7 +392,53 @@ async function svgsilhWord(word, seen, report) {
 
 /* The run -------------------------------------------------------------------- */
 
+// ⚠️ In the order they are most likely to refuse, not alphabetically. The set
+// is written whole, so a source that is going to fail should fail before
+// sixteen pack downloads rather than after them — which is exactly what
+// Openverse's outage on 2026-09-04 cost, twice.
 const SOURCES = {
+  svgsilh: {
+    what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes from svgsilh.com,`
+      + ` found through Openverse by ${SVGSILH_WORDS.length} words`,
+    async pull(report) {
+      const seen = new Set();
+      const art = [];
+      // Counted here rather than on `report`, which phylopic also writes to:
+      // the checks below are about *this* source's words.
+      let lost = 0;
+      let inARow = 0;
+      for (const [i, word] of SVGSILH_WORDS.entries()) {
+        if (i) await wait(OPENVERSE_PAUSE);
+        try {
+          const got = await svgsilhWord(word, seen, report);
+          art.push(...got);
+          inARow = 0;
+          console.log(`  ${word}: ${got.length}`);
+        } catch (e) {
+          // ⚠️ A 429 is the run outpacing Openverse's 20 a minute; a 403 from
+          // svgsilh.com is Cloudflare refusing this address, which a
+          // datacenter sees on every word; a 504 is Openverse's search being
+          // down, which it was on 2026-09-04. One word failing is nothing.
+          console.error(`  ${word}: ${e.message}`);
+          report.missing += 1;
+          lost += 1;
+          inARow += 1;
+          // ⚠️ None of those three get better by asking ninety more times.
+          // Failing here rather than at the end is the difference between
+          // knowing in a minute and knowing in ninety.
+          if (inARow >= GIVE_UP_AFTER) {
+            throw new Error(`${inARow} words in a row failed, the last with "${e.message}"`
+              + ' — nothing here gets better by asking again');
+          }
+        }
+      }
+      if (lost > SVGSILH_WORDS.length / 2) {
+        throw new Error(`${lost} of ${SVGSILH_WORDS.length} words failed`
+          + ' — a set with that big a hole in it is not a set');
+      }
+      return art;
+    },
+  },
   kenney: {
     what: `${KENNEY.length} CC0 game-art packs by Kenney (kenney.nl)`,
     async pull(report) {
@@ -412,39 +473,6 @@ const SOURCES = {
           console.error(`  ${row[0]}: ${e.message.startsWith('404') ? 'nothing under that name' : e.message}`);
           report.missing += 1;
         }
-      }
-      return art;
-    },
-  },
-  svgsilh: {
-    what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes from svgsilh.com,`
-      + ` found through Openverse by ${SVGSILH_WORDS.length} words`,
-    async pull(report) {
-      const seen = new Set();
-      const art = [];
-      // Counted here rather than on `report`, which phylopic also writes to:
-      // the check below is about *this* source's words.
-      let lost = 0;
-      for (const [i, word] of SVGSILH_WORDS.entries()) {
-        if (i) await wait(OPENVERSE_PAUSE);
-        try {
-          const got = await svgsilhWord(word, seen, report);
-          art.push(...got);
-          console.log(`  ${word}: ${got.length}`);
-        } catch (e) {
-          // ⚠️ A 429 here is the run outpacing Openverse's 20 a minute, and a
-          // 403 from svgsilh.com is Cloudflare refusing this address — a
-          // datacenter will see the second on every word. Neither is worth
-          // stopping the whole set for, but a run that lost most of its words
-          // is not a set either, so the count is checked when it finishes.
-          console.error(`  ${word}: ${e.message}`);
-          report.missing += 1;
-          lost += 1;
-        }
-      }
-      if (lost > SVGSILH_WORDS.length / 2) {
-        throw new Error(`${lost} of ${SVGSILH_WORDS.length} words failed`
-          + ' — svgsilh refuses a datacenter address, so run this from a laptop');
       }
       return art;
     },

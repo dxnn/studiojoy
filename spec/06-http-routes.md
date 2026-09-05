@@ -933,8 +933,20 @@ looked at it, and there is no moderation queue behind that and none intended.
   thing claiming these are CC0 — svgsilh's own licence page has not been read
   by anything here, and `licences.txt` says so. ⚠️ Cloudflare refuses a
   datacenter address outright (403 on every path, `/svg/<id>.svg` included),
-  so this source runs from a laptop or not at all; the pull stops if more
-  than half its words fail, which is what that looks like.
+  so this source runs from a laptop or not at all.
+
+It is the one source with two hosts that can refuse, so it goes **first** —
+the set is written whole, and a run that is going to fail should fail before
+sixteen pack downloads rather than after them. It gives up after **four
+words in a row**: whichever of the three ways it fails (Cloudflare refusing
+the address, Openverse rate-limiting at 20 a minute, Openverse's search being
+down), it fails on every word, and asking ninety more times only makes
+knowing slower. ⚠️ Every fetch carries a 30-second timeout, because Node's
+`fetch` waits forever and a host that is *slow to refuse* costs more than one
+that refuses: Openverse's search went down on 2026-09-04 and answered 504
+after sixty seconds, which without both of these rules is ninety minutes
+before the run says so. It also stops if more than half its words fail
+overall.
 
 svgsilh's half is kept as **SVG** — 2 KB against 40, and sharp at whatever
 size is asked for. `artBytes()` rasterises one to PNG when somebody picks it,
