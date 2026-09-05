@@ -353,19 +353,9 @@ export function projectRoutes(r) {
     json(ctx.res, 200, { scores, scores_on: project.scores_on === 1 });
   });
 
-  // Moderating a game's board is changing that game.
-  r.delete('/api/projects/:slug/scores/:id', (ctx) => {
-    requireAuth(ctx);
-    const project = requireProject(ctx, { write: true });
-    const id = Number(ctx.params.id);
-    if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'not a score id');
-    const { changes } = ctx.db
-      .prepare('DELETE FROM scores WHERE id = ? AND project_id = ?')
-      .run(id, project.id);
-    if (Number(changes) === 0) throw new HttpError(404, 'no such score');
-    noContent(ctx.res);
-  });
-
+  // Moderating a game's board is changing that game. The board is moderated
+  // whole or not at all: there is no deleting one row, because picking a name
+  // off somebody's board is not a thing this studio does.
   r.delete('/api/projects/:slug/scores', (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx, { write: true });

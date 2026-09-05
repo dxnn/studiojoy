@@ -272,8 +272,9 @@
 .receipt .rval { text-align: right; font-family: var(--mono); color: #e4d9de; }
 .receipt button.link { font-size: 12px; margin-top: 5px; }
 
-/* The scoreboard tab: rank, name, score, when — and a ✕ that asks first. The
-   score is the only number on the screen in highlight. */
+/* The scoreboard tab: rank, name, score, when. Nothing in a row can be
+   pressed — a score is deleted with the whole board or not at all — so no row
+   lights up. The score is the only number on the screen in highlight. */
 .score-list { display: grid; gap: 2px; padding: 0 14px 12px; }
 .score-row {
   display: flex;
@@ -283,7 +284,6 @@
   padding: 4px 6px;
   border-radius: 7px;
 }
-.score-row:hover { background: oklch(0.3 0.07 300 / 0.4); }
 .score-row .rank { font-family: var(--mono); color: var(--muted); font-size: 10.5px; min-width: 28px; }
 .score-row .sname {
   flex: 1;

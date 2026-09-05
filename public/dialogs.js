@@ -20,7 +20,7 @@ import { restore, rollback } from './history.js';
 import { createPicture, createPictureAt } from './drawing.js';
 import { createSound } from './sound-editor.js';
 import { loadStudio, studioChange } from './people.js';
-import { deleteScore, clearScores } from './scoreboard.js';
+import { clearScores } from './scoreboard.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
 import { renderShelfDialog, artCredit, asPng } from './story-guide.js';
@@ -1105,16 +1105,7 @@ export function dialogFor(d) {
   }
 
   // Unlike a file, a deleted score has no Versions to come back from: scores
-  // live in the database, not the working tree, so both of these say so.
-  if (d.kind === 'delete-score') {
-    return wrap(`Delete ${d.score.name}'s score?`,
-      h('p', { text: `${d.score.name} — ${d.score.score.toLocaleString()}. There is no bringing a score back.` }),
-      h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'danger', text: 'Delete it',
-        onclick: async () => { close(); if (await deleteScore(d.score.id)) render(); },
-      })));
-  }
-
+  // live in the database, not the working tree, so this one says so.
   if (d.kind === 'clear-scores') {
     return wrap('Delete all the scores?',
       h('p', { text: 'The whole board, gone for good. The scoreboard itself stays on.' }),

@@ -307,7 +307,7 @@ test('a switched-off scoreboard is 404 both ways, and keeps its rows', async (t)
   assert.deepEqual(back.body.scores, [{ name: 'Pat', score: 100 }]);
 });
 
-test('the studio lists, deletes, and clears scores', async (t) => {
+test('the studio lists and clears scores, and cannot delete one', async (t) => {
   const { app, games } = await board(t);
   const { sam, kim } = await morePlayers(app, games);
   await post(games, { score: 100 });
@@ -319,19 +319,12 @@ test('the studio lists, deletes, and clears scores', async (t) => {
   assert.deepEqual(list.body.scores.map((s) => s.name), ['Sam', 'Pat', 'Kim'], 'best first');
   assert.ok(list.body.scores.every((s) => s.id && s.created_at), 'ids and times, for the admin');
 
-  // Delete the middle one; rank order closes over it.
+  // One row cannot be picked off the board: there is no route behind it.
   const pat = list.body.scores[1];
-  const gone = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
-  assert.equal(gone.status, 204);
-  await gone.text();
-  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Sam', 'Kim']);
-
-  const again = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
-  assert.equal(again.status, 404);
-  await again.text();
-  const bad = await app.client.request('DELETE', '/api/projects/tank/scores/potato');
-  assert.equal(bad.status, 400);
-  await bad.text();
+  const one = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
+  assert.equal(one.status, 404);
+  await one.text();
+  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Sam', 'Pat', 'Kim']);
 
   const cleared = await app.client.request('DELETE', '/api/projects/tank/scores');
   assert.equal(cleared.status, 204);

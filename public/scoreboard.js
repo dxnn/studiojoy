@@ -1,8 +1,9 @@
 // The Share page's scoreboard section: the kept scores for this game, with
-// the admin's three moves — delete one, delete all, and the per-game switch
-// — plus the best score, read by the strip under the preview. All of it
-// talks to the studio origin: the games listener never reads a cookie, so
-// nothing over there moderates.
+// the admin's two moves — delete all, and the per-game switch — plus the
+// best score, read by the strip under the preview. There is no deleting one
+// score: the board goes whole or it stays. All of it talks to the studio
+// origin: the games listener never reads a cookie, so nothing over there
+// moderates.
 
 import { h } from './dom.js';
 import {
@@ -22,13 +23,6 @@ async function toggleScores(on) {
   if (!res.ok) { say(res.body?.error ?? 'Could not change the scoreboard.', true); return; }
   S.project.scores_on = on;
   render();
-}
-
-export async function deleteScore(id) {
-  const res = await send(`/api/projects/${S.slug}/scores/${id}`, { method: 'DELETE' });
-  if (!res.ok) { say(problem(res, 'Could not delete that score.'), true); return false; }
-  if (S.scores) S.scores = S.scores.filter((s) => s.id !== id);
-  return true;
 }
 
 export async function clearScores() {
@@ -56,11 +50,7 @@ export function renderScoreboardTab() {
     h('span', { class: 'rank', text: `#${i + 1}` }),
     h('span', { class: 'sname', text: s.name }),
     h('span', { class: 'sval mono', text: s.score.toLocaleString() }),
-    h('span', { class: 'swhen', text: agoText(s.created_at) }),
-    h('button', {
-      class: 'icon tiny', text: '✕', title: 'Delete this score',
-      onclick: () => { S.dialog = { kind: 'delete-score', score: s }; render(); },
-    })));
+    h('span', { class: 'swhen', text: agoText(s.created_at) })));
 
   return [
     h('div', { class: 'pad row wrap' },

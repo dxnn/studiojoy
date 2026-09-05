@@ -36,8 +36,7 @@ address: a list of names needn't be a list of emails to do its job.
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
-| DELETE | `/api/projects/:slug/scores/:id` | — | delete one score; there is no undo — scores are not files |
-| DELETE | `/api/projects/:slug/scores` | — | delete them all |
+| DELETE | `/api/projects/:slug/scores` | — | delete them all; there is no undo — scores are not files. ⚠️ The board's only deletion: one row has no route, deliberately |
 | GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
 | GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
 | POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height. Broadcasts `collection.changed` |
@@ -1145,8 +1144,10 @@ with how many players hold it, for the *achievements editor*.
 
 A game whose `scores_on` switch is off answers the same plain 404 on both
 `/_scores` routes: a moderated board is not public in either direction. The
-rows are kept — the switch, the admin's list, and per-row deletion all live
-on the studio origin under `/api`, because moderation is running the studio.
+rows are kept — the switch, the admin's list, and delete-all live on the
+studio origin under `/api`, because moderation is running the studio. A board
+is moderated whole: **one score cannot be deleted**, by anybody, anywhere —
+there is no route and no button, so the moves are switch it off or clear it.
 The studio shows it as the Scoreboard part of Share.
 
 The underscore routes cannot collide with a game: an underscore is not legal

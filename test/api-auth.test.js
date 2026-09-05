@@ -146,7 +146,6 @@ test('every /api route refuses an anonymous caller', async (t) => {
     ['GET', '/api/messages/1/prompt'],
     ['GET', '/api/projects/tank/scores'],
     ['DELETE', '/api/projects/tank/scores'],
-    ['DELETE', '/api/projects/tank/scores/1'],
   ];
   for (const [method, p] of calls) {
     const res = await app.client.request(
