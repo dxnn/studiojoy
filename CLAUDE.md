@@ -294,9 +294,11 @@ specified:
   is the hand-written source list in `bin/pullart.js`, not a filter, and there
   is no moderation queue behind it. Reached from `+ Find a thing to put in`
   in *Add a picture*; the interface says **thing** where the code says
-  `sprite` (spec/ §6). The svgsilh half is written and **never run** — no
-  address here can reach either svgsilh or Openverse, so the first real pull
-  is somebody's laptop and `--dry` is how to try it.
+  `sprite` (spec/ §6). The svgsilh half is written and **never run** — this
+  sandbox cannot reach svgsilh at all (Cloudflare 403) — so the first real
+  pull is somebody's laptop and `--dry` is how to try it. Its parser is
+  tested against the site's real markup, and it refuses in three seconds
+  here, which is the failure looking right rather than the source working.
 - A scene takes **music** (`assets/music/`, looped, carried into the next
   scene naming the same track) and a **sound step** — a noise among the lines
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is

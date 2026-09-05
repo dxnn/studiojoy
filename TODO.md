@@ -38,13 +38,14 @@ deliberately deferred.
   no queue, which suits a few trusted people and would not suit more. Same
   trigger as the line above
 - ! run `npm run pullart -- --dry` on a laptop and see whether the svgsilh
-  half works: it is written and has never been run, because nothing here can
-  reach svgsilh (Cloudflare, 403 on every path) *or* Openverse, which is what
-  tells it which silhouettes exist. The pick path it feeds — SVG rasterised by
-  `artBytes`/`svgBox` — **is** browser-verified against a stand-in silhouette
-  (600×300 in, 255×128 PNG out, the strip shave firing). If the dry run comes
-  back with a thousand, run it for real and commit; if it comes back empty,
-  the shape of the failure says which of the two hosts said no
+  half works: it is written and has never been run, because this sandbox
+  cannot reach svgsilh at all (Cloudflare, 403 on every path). Everything
+  around the fetching *is* checked — the parser against the site's real
+  markup (`test/svgsilh.test.js`), and the pick path in a browser against a
+  stand-in silhouette (600×300 in, 255×128 PNG out, the strip shave firing).
+  A dry run takes about ten minutes and should report ~1,100; then run it for
+  real and commit. It refuses in three seconds from here, which is what the
+  403 looks like
 - live **summon**: an Openverse-backed search past the repo, server-proxied,
   restricted to subject-bounded CC0 sources. Designed and measured, unbuilt —
   the big set may turn out to be enough, which is why it waits (ideas/summon.md)

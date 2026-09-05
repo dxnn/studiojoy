@@ -12,17 +12,24 @@ from Kenney (1,685) and PhyloPic (90), written by `npm run pullart`, searched
 offline by name and tags, picked from `+ Find a thing to put in`. Half two is
 unbuilt. Two things this plan said that the building corrected:
 
-- **svgsilh is written and has never been run.** Nothing here can reach
-  svgsilh (Cloudflare refuses a datacenter address on every path) *or*
-  Openverse, which is what tells it which silhouettes exist — so the fetching
-  is blind and `--dry` exists to make finding out cost minutes rather than a
-  commit. What is **not** blind is the pick path it feeds: a silhouette is
-  kept as SVG and rasterised by `artBytes`/`svgBox` when somebody picks it,
-  browser-verified against a stand-in (600×300 viewBox in, 255×128 PNG out,
-  the strip shave firing), with the fit arithmetic covered offline in
-  `test/svg-box.test.js`. ⚠️ Openverse's word is the only claim that
-  svgsilh's files are CC0; its own licence page has not been read here, and
-  `licences.txt` says so beside the files.
+- **svgsilh is written and has never been run.** Cloudflare refuses a
+  datacenter address on every path, so the fetching is blind and `--dry`
+  exists to make finding out cost minutes rather than a commit. Everything
+  around it is checked: the parser against the site's real markup
+  (`test/svgsilh.test.js`), the fit arithmetic in `test/svg-box.test.js`, and
+  the pick path in a browser against a stand-in silhouette (600×300 viewBox
+  in, 255×128 PNG out, the strip shave firing).
+- **Openverse is out of it.** This source went through Openverse's API until
+  its search went down on 2026-09-04 and answered 504 to every query for an
+  hour — filters or none, while its unsearched endpoints answered in under
+  two seconds. svgsilh has its own search (`search/<word>-1.html`, twenty
+  RDFa cards a page), which is one host instead of two, no key, no published
+  rate limit — and ⚠️ **each card declares its own licence**, so CC0 is now
+  the claim of whoever hosts the file rather than an aggregator's index of
+  it. The site's keywords are better tags than the search word, too.
+  The outage also bought two rules worth keeping: a 30-second timeout on
+  every fetch, and giving up after four failed words in a row. Ninety minutes
+  to notice, now three seconds.
 - **Nothing is resized at pull time.** The plan said every fetch would be.
   Resizing in Node with no dependencies means a PNG decoder *and* encoder;
   asking the sources for art that is already small costs nothing, and

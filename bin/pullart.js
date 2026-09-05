@@ -25,6 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { entries, read } from './unzip.js';
+import { cards, searchUrl, svgUrl } from './svgsilh.js';
 
 const OUT = path.resolve(import.meta.dirname, '..', 'public', 'big-set');
 const PICTURES = path.join(OUT, 'pictures');
@@ -147,15 +148,19 @@ const PHYLOPIC = 'https://api.phylopic.org';
 const CC0 = 'creativecommons.org/publicdomain/zero';
 
 // svgsilh: ~358,000 CC0 silhouettes — flat, transparent, and the shape a
-// game wants most. Two things make it awkward, and both are arguments for
-// mirroring it rather than reaching for it while somebody waits:
+// game wants most.
 //
-// ⚠️ It publishes no index of its own, so **Openverse** is asked which
-// silhouettes exist and svgsilh is asked for the bytes. Openverse is also
-// where the CC0 claim comes from — svgsilh's own licence page has not been
-// read by anything here.
-// ⚠️ Cloudflare refuses a datacenter address outright — 403 on every path,
-// `/svg/<id>.svg` included — so this half runs from a laptop or not at all.
+// It is read through **its own search** (`bin/svgsilh.js`), not through an
+// aggregator. That was not the first design: this went through Openverse
+// until its search went down on 2026-09-04 and answered 504 for an hour, at
+// which point the second host stopped looking free. Reading the site itself
+// is one host instead of two, no key, no published rate limit — and ⚠️ the
+// **licence comes from the people hosting the picture**, per card, in RDFa,
+// rather than from somebody else's index of it.
+//
+// ⚠️ Cloudflare still refuses a datacenter address outright — 403 on every
+// path, `/svg/<id>.svg` included — so this half runs from a laptop or not
+// at all.
 //
 // **The word list is the curation.** A silhouette only enters the set if a
 // word below asked for it, which is why nobody has to audit 358,000 rows:
@@ -176,15 +181,15 @@ const SVGSILH_WORDS = [
   'spider', 'butterfly', 'bee', 'crab', 'octopus', 'whale', 'dinosaur', 'wizard',
 ];
 const SVGSILH_PER_WORD = 12;
-const OPENVERSE = 'https://api.openverse.org/v1/images/';
-// Openverse allows 20 a minute to an unregistered caller, so the pull waits
-// between words rather than being turned away halfway through a run it cannot
-// resume. About five minutes for the list above.
-const OPENVERSE_PAUSE = 3200;
-// Whichever of the three ways this source fails, it fails on every word:
-// Cloudflare refusing the address, Openverse rate-limiting, Openverse's
-// search being down. So a run stops asking rather than grinding through the
-// list to prove it.
+// svgsilh publishes no rate limit, which is a reason to be careful rather
+// than a licence not to be: this run asks a small site for a page and a
+// thousand files in one sitting, so it waits between requests. Under ten
+// minutes for the whole source, and a guest's pace.
+const POLITE_PAUSE = 400;
+// However this source fails — Cloudflare refusing the address, the site
+// down, a search page that comes back without cards in it — it fails the
+// same way on every word. So a run stops asking rather than grinding through
+// the list to prove it.
 const GIVE_UP_AFTER = 4;
 // An SVG is text, and a silhouette is one path. Anything much larger is a
 // traced photograph, which is not what this set is for.
@@ -343,31 +348,22 @@ async function phylopicTaxon([taxon, tags], build, seen, report) {
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-// Openverse hands back svgsilh's PNG rendering — `/png/46748-3f51b5.png` —
-// and the number in front of the dash is the silhouette's id, which is what
-// `/svg/<id>.svg` wants. The SVG is the one worth keeping: 2 KB against 40,
-// and it draws at whatever size the browser asks for rather than at whatever
-// size somebody rendered it.
-const SVGSILH_ID = /svgsilh\.com\/(?:png|svg)\/(\d+)/;
-
 async function svgsilhWord(word, seen, report) {
-  const query = new URLSearchParams({
-    q: word, license: 'cc0', source: 'svgsilh', page_size: String(SVGSILH_PER_WORD),
-  });
-  const found = await grab(`${OPENVERSE}?${query}`, 'json');
+  const page = await grab(searchUrl(word), 'text');
+  const found = cards(page);
+  // A page that answered but holds no cards is not a search result — a 404
+  // body, an interstitial, a Cloudflare challenge. Worth failing on, because
+  // silently pulling nothing for every word would write an empty source.
+  if (!found.length) throw new Error('answered with no cards on it');
 
   const art = [];
-  for (const result of found.results ?? []) {
-    const id = SVGSILH_ID.exec(result.url ?? '')?.[1];
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
+  for (const card of found) {
+    if (art.length >= SVGSILH_PER_WORD) break;
+    if (seen.has(card.id)) continue;
+    seen.add(card.id);
 
-    // ⚠️ Openverse is the only thing saying this is CC0; svgsilh's own
-    // licence page is not read here. Its answer is still checked, so a row
-    // that came back under something else is left where it is.
-    if (result.license !== 'cc0') { report.notCc0 += 1; continue; }
-
-    const text = await grab(`https://svgsilh.com/svg/${id}.svg`, 'text').catch(() => null);
+    await wait(POLITE_PAUSE);
+    const text = await grab(svgUrl(card.id), 'text').catch(() => null);
     if (!text || !text.includes('<svg')) { report.unread += 1; continue; }
     if (Buffer.byteLength(text) > MAX_SVG_BYTES) { report.big += 1; continue; }
 
@@ -375,14 +371,19 @@ async function svgsilhWord(word, seen, report) {
     // pixel size to measure. `svgBox` in the browser does it instead, on the
     // size it is about to draw at (public/story-guide.js).
     art.push({
-      file: `pictures/svgsilh-${slug(word)}-${id}.svg`,
+      file: `pictures/svgsilh-${slug(word)}-${card.id}.svg`,
       kind: 'sprite',
-      // The word that was asked for, because a silhouette's own title is
-      // often one noun with no relation to it — and the word is what somebody
-      // will type again.
-      name: title(result.title || word),
-      tags: `${word} silhouette shadow outline`,
+      // A card carries no title, only keywords — so the name is the word
+      // somebody typed to find it, which is also the word they will type
+      // again. Twelve dragons all called Dragon is what a shelf of dragons
+      // should look like; `shelfDestination` counts up past the collision.
+      name: title(word),
+      // The card's own keywords, which are worth more than anything guessable
+      // from the search word: a tiger found under *animal* says *tiger* here.
+      tags: `${word} ${card.tags} silhouette`.trim(),
       by: 'SVG Silh',
+      // ⚠️ Not assumed — `cards()` drops any card whose own RDFa does not
+      // say CC0, so this is the site's claim about its own file.
       licence: 'CC0',
       bytes: Buffer.from(text, 'utf8'),
     });
@@ -398,8 +399,8 @@ async function svgsilhWord(word, seen, report) {
 // Openverse's outage on 2026-09-04 cost, twice.
 const SOURCES = {
   svgsilh: {
-    what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes from svgsilh.com,`
-      + ` found through Openverse by ${SVGSILH_WORDS.length} words`,
+    what: `up to ${SVGSILH_WORDS.length * SVGSILH_PER_WORD} CC0 silhouettes,`
+      + ` searched on svgsilh.com by ${SVGSILH_WORDS.length} words`,
     async pull(report) {
       const seen = new Set();
       const art = [];
@@ -408,17 +409,17 @@ const SOURCES = {
       let lost = 0;
       let inARow = 0;
       for (const [i, word] of SVGSILH_WORDS.entries()) {
-        if (i) await wait(OPENVERSE_PAUSE);
+        if (i) await wait(POLITE_PAUSE);
         try {
           const got = await svgsilhWord(word, seen, report);
           art.push(...got);
           inARow = 0;
           console.log(`  ${word}: ${got.length}`);
         } catch (e) {
-          // ⚠️ A 429 is the run outpacing Openverse's 20 a minute; a 403 from
-          // svgsilh.com is Cloudflare refusing this address, which a
-          // datacenter sees on every word; a 504 is Openverse's search being
-          // down, which it was on 2026-09-04. One word failing is nothing.
+          // ⚠️ A 403 is Cloudflare refusing this address, which a datacenter
+          // sees on every word; "no cards on it" is something answering that
+          // is not the search page. One word failing is nothing — a word
+          // svgsilh has nothing for is allowed.
           console.error(`  ${word}: ${e.message}`);
           report.missing += 1;
           lost += 1;
@@ -567,11 +568,10 @@ donation rather than for credit, and https://kenney.nl/donate is the place.
 PhyloPic silhouettes come from https://api.phylopic.org — that archive is
 mixed, and only its CC0 images are here.
 
-SVG Silh silhouettes come from https://svgsilh.com, found through Openverse
-(https://api.openverse.org) and fetched from svgsilh.com itself. ⚠️ Openverse
-is what says these are CC0: svgsilh's own licence page has not been read by
-anything in this repository, and if that claim is ever wrong it is wrong for
-every file named svgsilh-* above.
+SVG Silh silhouettes come from https://svgsilh.com — searched, read and
+fetched there, with no aggregator in between. Each one's CC0 is svgsilh's own
+declaration on its own card (RDFa, rel="license"), checked per picture by the
+pull; a card that does not say so is left where it is.
 `);
 
 const bytes = index.reduce((n, a) => n + fs.statSync(path.join(OUT, a.file)).size, 0);

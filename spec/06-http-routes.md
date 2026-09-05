@@ -926,27 +926,37 @@ looked at it, and there is no moderation queue behind that and none intended.
   CC BY, so its licence is checked per image and roughly half are left
   behind; ⚠️ its `filter_name` is lowercase and taxonomic — `owl` and `cow`
   answer 404 — so the list names taxa and carries the common word as a tag.
-- **svgsilh** — up to 1,152 CC0 silhouettes, 12 for each of 96 game words.
-  ⚠️ It publishes no index, so Openverse is asked which silhouettes exist and
-  svgsilh is asked for the bytes; **the word list is the curation**, which is
-  why nobody has to audit its 358,000 rows. ⚠️ Openverse is also the only
-  thing claiming these are CC0 — svgsilh's own licence page has not been read
-  by anything here, and `licences.txt` says so. ⚠️ Cloudflare refuses a
-  datacenter address outright (403 on every path, `/svg/<id>.svg` included),
-  so this source runs from a laptop or not at all.
+- **svgsilh** — up to 1,152 CC0 silhouettes, 12 for each of 96 game words,
+  read through **the site's own search** (`bin/svgsilh.js`, tested against
+  its real markup in `test/svgsilh.test.js`). `search/<word>-1.html` returns
+  twenty RDFa cards, each carrying the file, its keywords and ⚠️ **its
+  licence, from the people hosting it** — so `cards()` drops any card whose
+  own `rel="license"` does not say CC0, rather than taking an aggregator's
+  word about somebody else's file. The keywords are better tags than the
+  search word alone: a tiger found under *animal* says *tiger* itself.
+  **The word list is the curation**, which is why nobody has to audit its
+  358,000 rows. ⚠️ Cloudflare refuses a datacenter address outright (403 on
+  every path, `/svg/<id>.svg` included), so this source runs from a laptop or
+  not at all.
 
-It is the one source with two hosts that can refuse, so it goes **first** —
-the set is written whole, and a run that is going to fail should fail before
-sixteen pack downloads rather than after them. It gives up after **four
-words in a row**: whichever of the three ways it fails (Cloudflare refusing
-the address, Openverse rate-limiting at 20 a minute, Openverse's search being
-down), it fails on every word, and asking ninety more times only makes
-knowing slower. ⚠️ Every fetch carries a 30-second timeout, because Node's
-`fetch` waits forever and a host that is *slow to refuse* costs more than one
-that refuses: Openverse's search went down on 2026-09-04 and answered 504
-after sixty seconds, which without both of these rules is ninety minutes
-before the run says so. It also stops if more than half its words fail
-overall.
+This went through **Openverse** until its search went down on 2026-09-04 and
+answered 504 to every query for an hour — filters or none, while its unsearched
+endpoints answered in under two seconds. Reading svgsilh directly is one host
+instead of two, no key, no published rate limit, and a licence one hop closer
+to the file. The pull is a guest there all the same: it waits 400 ms between
+requests, which is under ten minutes for the source.
+
+It is the source most likely to refuse, so it goes **first** — the set is
+written whole, and a run that is going to fail should fail before sixteen pack
+downloads rather than after them. It gives up after **four words in a row**,
+because however it fails it fails on every word, and asking ninety more times
+only makes knowing slower. A search page that answers *without cards on it* —
+a 404 body, an interstitial, a challenge — counts as a failure rather than an
+empty word, or a redesign would quietly write an empty source. ⚠️ Every fetch
+carries a 30-second timeout, because Node's `fetch` waits forever and a host
+that is *slow to refuse* costs more than one that refuses: without these rules
+the Openverse outage was ninety minutes before the run said so, and with them
+a refusal is seconds. It also stops if more than half its words fail overall.
 
 svgsilh's half is kept as **SVG** — 2 KB against 40, and sharp at whatever
 size is asked for. `artBytes()` rasterises one to PNG when somebody picks it,

@@ -114,10 +114,13 @@ public/
                   is what test/style.test.js catches
 bin/
   adduser.js  deluser.js  restoreuser.js  backup.js  sweep.js  smoke.js
-  prompt.js  pullart.js  unzip.js   ⚠️ pullart is the only build-time thing
-                                    here that reaches the network, and unzip
-                                    is why reading an asset pack needs no
-                                    dependency
+  prompt.js  pullart.js  unzip.js  svgsilh.js
+                                    ⚠️ pullart is the only build-time thing
+                                    here that reaches the network. unzip is
+                                    why reading an asset pack needs no
+                                    dependency; svgsilh reads that site's
+                                    search results, and neither touches the
+                                    network, so both are tested
 test/
 ```
 
