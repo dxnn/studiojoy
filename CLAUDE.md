@@ -153,6 +153,11 @@ walk into, each paid for once already.
   `.scroll` container needs a `data-scroll` name; nothing calls `fetch`
   directly, `send()` does; and an `onclick` that opens something must return
   its promise all the way up, or Back stops working.
+- ⚠️ No field's text is under 16px on a touchscreen — one `!important` rule in
+  `base.css` under `@media (pointer: coarse)`, because under it iOS Safari
+  zooms the page in on focus and leaves it there. A surface may still size its
+  own fields for the desktop; the code editor's `<pre>` twin is the one thing
+  that has to be raised alongside (spec/ §17).
 - The stylesheet is one file per surface under `public/css/`, linked in order
   from `index.html`. Two of those positions are load-bearing: `base.css` first,
   because it sets the custom properties the rest read, and `narrow.css` last,

@@ -191,6 +191,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border-color: transparent;
 }
 
+/* ⚠️ On a touchscreen no field's text is under 16px, whatever its own surface
+   thinks it should be. iOS Safari zooms the whole page in when it focuses a
+   field smaller than that — the studio's fields were 12 to 15px, so tapping
+   the composer left everything about 7% wider than the screen and it stayed
+   that way until somebody pinched back out, then happened again on the next
+   message. This is `!important` and one rule rather than a size on each field
+   because it has to beat every surface's own type scale, including a rule
+   written after this one. The other way round is `maximum-scale=1` in the
+   viewport meta, which stops the zoom by taking pinch zoom away from Android
+   — somebody's eyesight is not ours to take. ⚠️ Anything whose metrics are
+   measured against a field follows it: the code editor's <pre> twin, in
+   code-editor.css. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+}
+
 /* The studio has almost no real links — a button.link looks at something
    in-place. This is for the few that genuinely leave. */
 a { color: var(--accent); }

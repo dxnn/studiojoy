@@ -56,6 +56,14 @@
   overflow-wrap: break-word;
   word-break: normal;
 }
+/* ⚠️ The pair moves together or the colours shear off the characters (above).
+   base.css lifts every field to 16px on a touchscreen so iOS stops zooming the
+   page in, and the textarea is a field — so the <pre> under it goes too. Both
+   named here rather than one, because the rule that matters is that they are
+   the same number. */
+@media (pointer: coarse) {
+  .editor .code textarea, .editor .code-hl { font-size: 16px; }
+}
 .tok-com { color: color-mix(in oklab, var(--muted) 85%, transparent); font-style: normal; }
 .tok-str { color: var(--ok); }
 .tok-num { color: var(--num); }

@@ -177,7 +177,18 @@ holds something git cannot recover.
   missed stroke. See §6 for the three css rules that keep the canvas open.
 - ⚠️ The syntax overlay is a `<pre>` behind a transparent-ink textarea, so a
   token style may change `color` only: a bold or italic glyph is a different
-  width and the overlay shears off the text.
+  width and the overlay shears off the text. It is also the one thing measured
+  against a field, so it carries the touchscreen size below.
+- ⚠️ **No field's text is under 16px on a touchscreen.** iOS Safari zooms the
+  page in when it focuses one that is, and leaves it zoomed until somebody
+  pinches back out — the studio's fields were 12 to 15px, so tapping the
+  composer left the studio ~7% wider than the phone, on every message. One
+  rule in `base.css` under `@media (pointer: coarse)`, `!important` because it
+  has to beat every surface's own type scale including one written later, and
+  the code editor's `<pre>` twin follows it in `code-editor.css` or the
+  colours shear. Not `maximum-scale=1` in the viewport meta, which stops the
+  same zoom by taking pinch zoom away from Android: the page stays zoomable on
+  purpose.
 - ⚠️ In the story editor a button's click bubbles to the row it was in *after*
   the button has already moved the line and rendered, so a row ignores button
   clicks; fields still select the row in place, because a render would close
