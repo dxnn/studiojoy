@@ -454,6 +454,11 @@ const AT_ONCE = 120;
 // the mode pills keep, and for the same reason: nobody here says sprite.
 const TITLES = { portrait: 'Pick a face', background: 'Pick a picture', sprite: 'Pick a thing' };
 
+// No kind asked for means all three at once, which is what Pics' one button
+// wants: a face, a place and a thing are three folders to the game and one
+// shelf to whoever is looking for a dragon.
+const ALL_KINDS = 'Add from the studio';
+
 // The shelf as a dialog (spec.md §6): every picture of one kind — all three
 // halves together — in a grid behind a filter, for the story editor's Picture
 // field. The guide keeps its strip: a question card with three faces on it is
@@ -502,10 +507,10 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
   };
   filter.addEventListener('input', paint);
   artIndex().then((index) => {
-    all = (index?.art ?? []).filter((a) => a.kind === d.art);
+    all = (index?.art ?? []).filter((a) => !d.art || a.kind === d.art);
     paint();
   });
-  return wide(TITLES[d.art] ?? 'Pick a picture',
+  return wide(d.art ? (TITLES[d.art] ?? 'Pick a picture') : ALL_KINDS,
     filter, grid, empty,
     h('div', { class: 'actions' }, cancel));
 }

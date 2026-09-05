@@ -2,6 +2,7 @@
 // the PUTs that send them, and the drop target. The dialog that fronts an
 // upload lives in dialogs.js; the buttons that open it are on the files tab.
 
+import { h } from './dom.js';
 import {
   S, send, say, render, sizeText, encodePath, NO_CONNECTION,
 } from './main.js';
@@ -187,6 +188,30 @@ export const openUpload = async (files) => {
   S.dialog = { kind: 'upload', items: await uploadItems(files) };
   render();
 };
+
+// The device's own picker, opened straight from a button — for a surface that
+// offers uploading as a thing of its own rather than as one choice among
+// several. A dialog whose only job is to open this one is a click nobody asked
+// for. One input for the life of the page, appended to the body rather than
+// built into the tree: a render clears the tree, and an input that has left the
+// document takes its change event with it while the picker is still open.
+let picker = null;
+export function pickToUpload(accept = null) {
+  if (!picker) {
+    picker = h('input', {
+      type: 'file', multiple: true, hidden: true,
+      onchange: (e) => {
+        const files = [...e.currentTarget.files];
+        // Cleared so picking the same file twice in a row still fires.
+        e.currentTarget.value = '';
+        if (files.length) openUpload(files);
+      },
+    });
+    document.body.append(picker);
+  }
+  picker.accept = accept ?? '';
+  picker.click();
+}
 
 // Dropping onto the list is the quickest way in on a laptop; the button beside
 // New file is the one that works on a tablet. Both end in the same dialog.

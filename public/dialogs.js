@@ -92,6 +92,17 @@ function shelfDestination(folder, name) {
   }
 }
 
+// What picking one off the shelf does, when nothing else is asked of it: a
+// face or a thing is a sprite, a picture is one to look at, and the file takes
+// the art's own name. What the story editor does instead is name the file the
+// story already expects, which is why `place` is still a dialog's to override.
+async function shelfPlace(a, blob) {
+  const path = shelfDestination(a.kind === 'background' ? IMAGE_DIR : SPRITE_DIR, a.name);
+  const { failure } = await writeFiles([{ path, body: blob }]);
+  if (failure) { say(failure, true); return; }
+  say(artCredit(a, path));
+}
+
 // What making the duplicate will mean. Landing it in `studio/` gets the same
 // sentence a rename gets, and for the same reason (see renameNote); the rest
 // of that note does not apply, because the original keeps its name.
@@ -499,15 +510,18 @@ export function dialogFor(d) {
   // list. The names are the ones the agent preamble tells a helper to ask for
   // by — renaming one here means renaming it there.
   if (d.kind === 'add-file') {
-    // Pics and Hear ask for their own kind — `only` narrows the ways in and
-    // what the picker offers; Code asks for any file.
+    // Hear asks for its own kind — `only` narrows the ways in and what the
+    // picker offers; Code asks for any file. Pics used to ask for pictures
+    // here and does not any more: uploading, drawing and the shelf are three
+    // buttons of its own, because every one of its ways in is a picture and a
+    // menu that only ever leads to the same three places is a click in the way.
     const only = d.only ?? null;
     // The picker is what makes uploading work on a tablet, where there is
     // nothing to drag from. It lives in the dialog now, with the button that
     // opens it; the dialog node outlives every render, so it stays connected.
     const picker = h('input', {
       type: 'file', multiple: true, hidden: true,
-      accept: only === 'picture' ? 'image/*' : only === 'sound' ? 'audio/*' : null,
+      accept: only === 'sound' ? 'audio/*' : null,
       onchange: (e) => {
         const files = [...e.currentTarget.files];
         // Cleared so picking the same file twice in a row still fires.
@@ -516,70 +530,35 @@ export function dialogFor(d) {
         if (files.length) openUpload(files);
       },
     });
-    return wrap(only === 'picture' ? 'Add a picture' : only === 'sound' ? 'Add a sound' : 'Add a file',
+    return wrap(only === 'sound' ? 'Add a sound' : 'Add a file',
       h('div', { class: 'choices' },
         only ? null : choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
           () => { S.dialog = { kind: 'new-file' }; render(); }),
         choice('+ Upload',
-          only === 'picture' ? 'A picture from this device, into assets/.'
-            : only === 'sound' ? 'A sound or a whole track from this device, into assets/.'
-              : 'Any file from this device. Pictures and sounds go to assets/.',
+          only === 'sound' ? 'A sound or a whole track from this device, into assets/.'
+            : 'Any file from this device. Pictures and sounds go to assets/.',
           () => picker.click()),
         only === 'sound' ? null : choice('+ Draw a picture', 'A sprite or a backdrop, square by square.',
           () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); }),
         // The shelf, as a source for a new file rather than a swap for an
         // existing one — picking copies the bytes in under the art's own
-        // name, never over a file already drawn (spec.md §6).
+        // name, never over a file already drawn (spec.md §6). Where each kind
+        // lands is `shelfPlace`, above, which is also what Pics' one button
+        // uses for all three at once.
         only === 'sound' ? null : choice('+ Pick a face from the shelf', `A face from the studio's shelf, into ${SPRITE_DIR}/.`,
-          () => {
-            S.dialog = {
-              kind: 'pick-picture',
-              art: 'portrait',
-              place: async (a, blob) => {
-                const path = shelfDestination(SPRITE_DIR, a.name);
-                const { failure } = await writeFiles([{ path, body: blob }]);
-                if (failure) { say(failure, true); return; }
-                say(artCredit(a, path));
-              },
-            };
-            render();
-          }),
+          () => { S.dialog = { kind: 'pick-picture', art: 'portrait' }; render(); }),
         only === 'sound' ? null : choice('+ Pick a picture from the shelf', `A picture from the studio's shelf, into ${IMAGE_DIR}/.`,
-          () => {
-            S.dialog = {
-              kind: 'pick-picture',
-              art: 'background',
-              place: async (a, blob) => {
-                const path = shelfDestination(IMAGE_DIR, a.name);
-                const { failure } = await writeFiles([{ path, body: blob }]);
-                if (failure) { say(failure, true); return; }
-                say(artCredit(a, path));
-              },
-            };
-            render();
-          }),
+          () => { S.dialog = { kind: 'pick-picture', art: 'background' }; render(); }),
         // The *big set*: 1,775 CC0 things, found by typing a word rather than
         // by scrolling. Same dialog, same landing folder as a face — a thing
         // is a sprite, and the set's own test keeps every one of them out of
         // the shape the sprites library would animate.
         only === 'sound' ? null : choice('+ Find a thing to put in', `Search the studio's pictures — a fish, a rocket, a dinosaur — into ${SPRITE_DIR}/.`,
-          () => {
-            S.dialog = {
-              kind: 'pick-picture',
-              art: 'sprite',
-              place: async (a, blob) => {
-                const path = shelfDestination(SPRITE_DIR, a.name);
-                const { failure } = await writeFiles([{ path, body: blob }]);
-                if (failure) { say(failure, true); return; }
-                say(artCredit(a, path));
-              },
-            };
-            render();
-          }),
+          () => { S.dialog = { kind: 'pick-picture', art: 'sprite' }; render(); }),
         // Straight to the sliders. There is nothing to ask first: a sound you
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.
-        only === 'picture' ? null : choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
+        choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
           () => { close(); createSound(); })),
       picker,
       h('div', { class: 'actions' }, cancel));
@@ -1057,7 +1036,12 @@ export function dialogFor(d) {
 
   // The shelf, as a dialog with a filter: the story editor's way to a
   // picture from the standard set or the studio's collection (story-guide.js).
-  if (d.kind === 'pick-picture') return renderShelfDialog(d, { wide, cancel, close });
+  // `art` names the kind on the shelf, or nothing for all of them at once;
+  // `place` is what the story editor overrides, and everybody else takes the
+  // one above.
+  if (d.kind === 'pick-picture') {
+    return renderShelfDialog({ ...d, place: d.place ?? shelfPlace }, { wide, cancel, close });
+  }
 
   // A chat's name. The human-only one keeps its own — it is furniture, and
   // the words the studio uses for it — so the ··· that opens this is only on

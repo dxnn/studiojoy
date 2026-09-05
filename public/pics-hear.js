@@ -4,7 +4,7 @@
 
 import { h } from './dom.js';
 import {
-  SPRITE_DIR, IMAGE_DIR, SOUND_DIR, MUSIC_DIR,
+  SPRITE_DIR, IMAGE_DIR, SOUND_DIR, MUSIC_DIR, pickToUpload,
 } from './upload.js';
 import { pictureInto, playButton, renderPersonInspector } from './story-form.js';
 import {
@@ -143,10 +143,18 @@ export function renderPicsMode() {
         title: 'A blank canvas, ready to draw on',
         onclick: () => { S.dialog = { kind: 'draw-new', size: 64, name: 'sprite' }; render(); },
       }),
+      // Straight to the device's own picker: everything Pics can add is a
+      // picture, so a dialog here would only ever be this button and the two
+      // beside it, one click further away.
       frozen() ? null : h('button', {
         class: 'quiet tiny', text: 'Upload a picture',
         title: 'A picture from this device',
-        onclick: () => { S.dialog = { kind: 'add-file', only: 'picture' }; render(); },
+        onclick: () => pickToUpload('image/*'),
+      }),
+      frozen() ? null : h('button', {
+        class: 'quiet tiny', text: 'Add from the studio',
+        title: 'Faces, places and things the studio already has',
+        onclick: () => { S.dialog = { kind: 'pick-picture', art: null }; render(); },
       })),
     h('div', { class: 'pics scroll', 'data-scroll': 'pics' },
       // Said over the dressing section rather than instead of it: a game with

@@ -499,11 +499,16 @@ showed was the same picture at a size nothing could be done with, and Code's
 rows already went straight to the editor, so the two panes contradicted each
 other about what a picture is. Hear is rows, sounds over music;
 the open one's *sound editor* — or a player, for one not made here — lands
-in the rail, closed by the same row. Each has its maker at the top: *Add a
-picture* is the add-file dialog narrowed to drawing, uploading, and the
-*shelf* (below) as a source for a new file; *Make/Upload a sound* the same
-for sounds, minus the shelf, which is pictures only. The tree is still
-Code's — a file opened elsewhere still opens under Code.
+in the rail, closed by the same row. Each has its maker at the top. Pics'
+is three buttons rather than a dialog — **Draw a picture**, **Upload a
+picture** straight into the device's own picker, and **Add from the studio**,
+the *shelf* (below) with every kind on it at once. Every way into Pics adds a
+picture, so a dialog there was a menu whose every road led to one of three
+places anyway; Code's *Add a file*, which really does choose between kinds,
+keeps its dialog and its own copies of all three. *Add a sound* is that
+dialog narrowed to uploading and the sliders — no shelf, which is pictures
+only. The tree is still Code's — a file opened elsewhere still opens under
+Code.
 
 ⚠️ **Studio dressing is the one section that shows with nothing in it**, with
 **Add dressing** on its label row. The three are the only files in the studio
@@ -862,21 +867,25 @@ in when picked, one commit, no history or link back. `index.json` is the
 registry: `art` (file, kind, name, `by`, `licence`, `who`/`mood` on a
 portrait) and `examples`, whole stories the guide can insert.
 
-The **shelf** is how it's picked, from three places — the guide stops asking
-once a scene or a mood has a picture, so the other two exist to *change*
-one: a sideways-scrolling row on the guide's picture card; `Pick a face…` on
-a mood's `···` in the story editor's person inspector, confirming first
-(*Replace \<name\>'s \<mood\> face?*) when one is already drawn there; and
+The **shelf** is how it's picked, from four places — the guide stops asking
+once a scene or a mood has a picture, so the others exist to *change* one: a
+sideways-scrolling row on the guide's picture card; `Pick a face…` on a
+mood's `···` in the story editor's person inspector, confirming first
+(*Replace \<name\>'s \<mood\> face?*) when one is already drawn there;
 `+ Pick a face from the shelf` / `+ Pick a picture from the shelf` in the
-*Add a picture* dialog, beside Upload and Draw — every picture of that kind,
+*Add a file* dialog, beside Upload and Draw — every picture of that kind,
 shipped set and collection together, found by name or maker (forty-two
-pictures is not a strip, ideas/calm-shell.md). ⚠️ From the guide's card or a
+pictures is not a strip, ideas/calm-shell.md); and **Add from the studio**
+under Pics, which asks for no kind at all and shows all three halves at once,
+because a face, a place and a thing are three folders to the game and one
+shelf to whoever is looking for a dragon. ⚠️ From the guide's card or a
 mood's `···`, picking copies the bytes to the path the *story* expects, not
 the set's own path — the set says what a picture looks like, the story says
 what it's called ("Mila, worried" becomes `assets/sprites/ben-normal.png`);
-from *Add a picture* there is no such path to expect, so it lands under a
-name of its own, counted up past any collision — that dialog only ever adds
-a file, never swaps one already there. Credit and licence ride the banner
+from the other two there is no such path to expect, so it lands under a name
+of its own, in the folder its kind belongs to — a face or a thing to
+`assets/sprites/`, a picture to `assets/images/` — counted up past any
+collision, and never over a file already there. Credit and licence ride the banner
 and tooltip; the index is read once a session, the shelf filled in as it
 lands rather than through `render()`, since the guide's card persists for as
 long as its question stands. A plain `<img src>` works here, unlike a game's
@@ -907,8 +916,10 @@ two halves.
 One kind, `sprite` — one thing on a transparent background, landing in
 `assets/sprites/`. A background or a portrait belongs in the standard set,
 where somebody looked at it. The interface says **thing** (`Pick a thing`,
-`+ Find a thing to put in` in *Add a picture*); every id, route and paragraph
-says `sprite`, the same split *editor*/author keeps.
+`+ Find a thing to put in` in *Add a file*); every id, route and paragraph
+says `sprite`, the same split *editor*/author keeps. Pics' **Add from the
+studio** reaches the same pictures without naming a kind, so the word only
+has to be learnt by somebody working from Code.
 
 Each entry carries `tags` on top of the standard set's fields — the pack's
 own subject, or for a silhouette the words a kid would type. It is what makes
