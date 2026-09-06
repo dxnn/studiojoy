@@ -43,6 +43,11 @@
   background: none;
   color: var(--muted);
 }
+/* Something in that room is unread. The mark says so and the words say it
+   too: muted is the studio saying "nothing for you in here", and a room with
+   something waiting is not that. Before .on and :hover on purpose — the open
+   room and the one under the pointer are both being read right now. */
+.chat-tab.marked { color: var(--text); }
 .chat-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); }
 .chat-tab.on {
   color: #fff;
@@ -79,6 +84,9 @@
   background: none;
   color: var(--muted);
 }
+/* The same on Chat while another surface is up: it is the one pill in this
+   row that can be holding something you have not read. */
+.modes .mode.marked { color: var(--text); }
 .modes .mode:hover:not(:disabled) { color: var(--text); background: var(--hover); }
 .modes .mode.on {
   color: #fff;

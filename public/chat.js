@@ -13,7 +13,7 @@ import {
 import { toolLabel, thinkingFor } from './stream.js';
 import { loadDiff, loadHistory, historyNeedsLoad } from './history.js';
 import {
-  toggleChatty, detachAgent, openChat, readMark, retrySend,
+  toggleChatty, detachAgent, openChat, readMark, marked, retrySend,
 } from './chats.js';
 import { modesFor } from './game-types.js';
 
@@ -609,12 +609,15 @@ function renderMore(p) {
 function renderModes(p) {
   const modes = modesFor(p);
   if (modes.length < 2) return null;
+  // Chat carries the game's mark only while another surface is up: in front
+  // of you it is being read, so there is nothing waiting to say.
+  const away = (m) => m.id === 'chat' && S.mode !== 'chat';
   return h('div', { class: 'modes' }, modes.map((m) => h('button', {
-    class: `mode${S.mode === m.id ? ' on' : ''}`,
+    class: `mode${S.mode === m.id ? ' on' : ''}${away(m) && marked(p) ? ' marked' : ''}`,
     title: m.what,
     // ⚠️ Returned, not fired: Share reads before it shows (see syncUrl).
     onclick: () => openMode(m.id),
-  }, m.label, m.id === 'chat' && S.mode !== 'chat' ? readMark(p) : null)));
+  }, m.label, away(m) ? readMark(p) : null)));
 }
 
 // One pill per conversation, and at the right the things that are about this
@@ -660,7 +663,8 @@ export function renderChatTabs(p) {
   if (!rooms && !addHelper && chips.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
     rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
-      class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`,
+      class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`
+        + `${marked(c) ? ' marked' : ''}`,
       title: c.builder ? `${c.name} — the Builder answers here`
         : c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),

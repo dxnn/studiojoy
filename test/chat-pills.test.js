@@ -80,3 +80,25 @@ test('being called by name shows the count instead of the dot', () => {
   assert.equal(called.length, 1);
   assert.equal(called[0].textContent, '@3');
 });
+
+// The words as well as the mark. A 7px dot beside a muted word is easy to
+// walk past, so the pill comes up out of muted while it wears one — .marked
+// in modes.css, which is why it is a class on the pill rather than a child.
+test('a room with something waiting brightens, and the quiet ones do not', () => {
+  const chats = rooms();
+  chats[0].unread = true;
+  chats[1].mentions = 2;
+  const tree = open(chats, { at: 3 });
+  for (const [name, want] of [['Humans only', true], ['Sound effects', true], ['Building', false]]) {
+    assert.equal(hasClass(pillFor(tree, name), 'marked'), want, `${name} is marked: ${want}`);
+  }
+});
+
+// ⚠️ The two cannot be allowed to disagree: a lit pill with no mark on it is
+// a room shouting about nothing.
+test('the pill brightens exactly when it wears a mark', () => {
+  const tree = open(rooms(), { at: 1 });
+  for (const pill of withClass(tree, 'chat-tab')) {
+    assert.equal(hasClass(pill, 'marked'), false, 'nothing waiting anywhere');
+  }
+});

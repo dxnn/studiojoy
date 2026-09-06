@@ -30,6 +30,12 @@ const calledMark = (n) => (n
 export const readMark = (row) => calledMark(row.mentions)
   ?? (row.unread ? h('span', { class: 'unread', title: 'There are unread messages here' }) : null);
 
+// Whether a row wears a mark at all. The pill it is on comes up out of muted
+// while it does — a 7px dot beside a greyed word is easy to walk straight
+// past, and the words are what the eye is already reading. The same two
+// fields readMark reads, in one place so the two cannot disagree.
+export const marked = (row) => Boolean(row.mentions || row.unread);
+
 // The one token that reaches somebody: the first word of their name, stripped
 // to what a mention may hold. A mention is one token, and the server matches
 // on a prefix of the whole name, so "@Robin" reaches Robin Fox. Empty for a
