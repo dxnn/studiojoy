@@ -31,6 +31,11 @@ holds plans and sketches. Completed work is git history, not this file.
   `GAMES_DIR`, and a scripted fake LLM. No network, no API key.
 - `npm start` — needs `DEEPSEEK_API_KEY`; fails fast without it.
 - `npm run smoke` — one live DeepSeek round trip; needs the key, not in `npm test`.
+- `npm run ui` — the browser checks: real geometry, computed colour, a real
+  pointer, at 390px and 1280px. Needs `npx playwright install chromium` once.
+  Not in `npm test`. ⚠️ **A coding agent cannot run this** — Chrome's Mach
+  port bootstrap is denied in the agent sandbox, with Playwright and with a
+  hand-rolled driver alike. An agent writes these; a person runs them.
 - `npm run adduser -- <email> "<Name>"` — makes an account without a studio
   running; the admin panel does the same from a browser.
 - `npm run deluser -- <email>` — ⚠️ the *only* way somebody leaves the studio:
@@ -71,7 +76,9 @@ NODE_OPTIONS=--use-env-proxy DEEPSEEK_API_KEY=$(cat tmp/deepseek.key) \
   DB_PATH=$GS/db GAMES_DIR=$GS/games npm start
 ```
 
-No build step, no linter, no dependencies. Node ≥ 24, ESM.
+No build step, no linter, and **no runtime dependency**: `npm ci --omit=dev`
+is all the studio needs to run. One devDependency, Playwright, and only
+`npm run ui` touches it. Node ≥ 24, ESM.
 
 `deploy/` is the runbook for a real server: pm2 definition, env template,
 push-to-deploy hook. One process serves both hostnames, so it is one repo and

@@ -14,9 +14,13 @@
     "restoreuser": "node --disable-warning=ExperimentalWarning bin/restoreuser.js",
     "smoke": "node --disable-warning=ExperimentalWarning --use-env-proxy bin/smoke.js",
     "sweep": "node --disable-warning=ExperimentalWarning bin/sweep.js",
+    "ui": "node --disable-warning=ExperimentalWarning --test 'test/ui/*.ui.js'",
     "unarchive": "node --disable-warning=ExperimentalWarning bin/unarchive.js"
   },
   "engines": {
     "node": ">=24"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }

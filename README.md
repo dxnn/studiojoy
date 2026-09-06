@@ -14,7 +14,9 @@ API behaviour as measured against the live service.
 
 ## Run
 
-No dependencies and no build step. Node 24 or newer.
+No runtime dependencies and no build step. Node 24 or newer. (One
+devDependency, Playwright, for `npm run ui` alone — the studio itself runs on
+`npm ci --omit=dev`.)
 
 ```sh
 npm run adduser -- you@example.com "Your Name"

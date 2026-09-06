@@ -1,7 +1,13 @@
 ## 16. Shape of the implementation
 
 Zero runtime dependencies: `node:http`, `node:sqlite`, `node:crypto`,
-`node:child_process` for git. No build step, no framework, no `npm install`.
+`node:child_process` for git. No build step, no framework; the deployed
+studio installs nothing (`npm ci --omit=dev`).
+
+One devDependency, since 2026-09-06: Playwright, reached only by
+`npm run ui` (§17). It buys the checks a DOM stand-in cannot make — real
+geometry, computed colour, a real pointer — and it is kept out of `npm test`
+so the suite still runs on a fresh clone with nothing installed.
 
 ```
 server/
@@ -133,5 +139,6 @@ conversation and the pill, `@n` where a mention says who (§3).
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
 scripted fake LLM client and — for the client's own rules — a hand-rolled DOM
 stand-in (`test/dom-stand-in.js`, §17), so the suite needs no network, no API
-key and no browser. The one place a live key is required is a manual smoke
-script, kept out of `npm test`.
+key and no browser. Two things are kept out of `npm test` for that reason: a
+manual smoke script, the one place a live key is required, and `npm run ui`,
+the one place a browser is.
