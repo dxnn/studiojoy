@@ -87,6 +87,11 @@ export async function pageFor(browser, app, client, { width = LAPTOP } = {}) {
   const pair = cookie.split(';')[0].trim();
   const eq = pair.indexOf('=');
   const context = await browser.newContext({ viewport: { width, height: 820 } });
+  // Playwright's 30 s is written for a network and a cold app server. This one
+  // is on the loopback with the page already built, so a thing that is not
+  // there in five seconds is not coming — and a check that takes half a minute
+  // to say "no" is one nobody runs twice.
+  context.setDefaultTimeout(5_000);
   await context.addCookies([
     { name: pair.slice(0, eq), value: pair.slice(eq + 1), url: app.base },
   ]);
