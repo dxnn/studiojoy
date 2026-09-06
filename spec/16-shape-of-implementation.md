@@ -125,9 +125,10 @@ bin/
 test/
 ```
 
-Email, web push, typing previews and unread counts (all present in `new-y`)
-are absent on purpose — the first three permanently, the last deferred
-(§2, §15).
+Email, web push, typing previews and a count of unread messages (all present
+in `new-y`) are absent on purpose — the first three permanently, the last
+deferred (§2, §15). The unread *marker* is built: a dot on the game, the
+conversation and the pill, `@n` where a mention says who (§3).
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
 scripted fake LLM client and — for the client's own rules — a hand-rolled DOM

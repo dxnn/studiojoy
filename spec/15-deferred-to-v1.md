@@ -2,9 +2,11 @@
 
 - Counting tokens rather than bytes. The byte caps bound the request, but a
   request's real cost is only visible after the fact, in `usage`.
-- Viewer counts, web push, unread markers (all exist in `new-y`; message
-  reactions are built now, §3). Typing previews are **not** here — they are
-  permanently out (§2).
+- Viewer counts and web push (both exist in `new-y`; message reactions and
+  unread *markers* are built now — a dot, and `@n` for a mention, §3. What is
+  still deferred is a **count** of unread messages: the dot says something
+  happened in there and not how much). Typing previews are **not** here —
+  they are permanently out (§2).
 - Public read-only chat. (A public game index is no longer deferred: `/` on
   the games origin is the catalog, listing games whose `published` flag is
   set. Publishing changes findability, not access — every game has always

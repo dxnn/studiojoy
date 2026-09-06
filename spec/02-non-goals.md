@@ -14,6 +14,7 @@
 - **Typing previews. Dropped permanently, not deferred** — `new-y` streams
   keystrokes between humans; this app does not, and won't. Agent responses do
   stream (§9).
-- Viewer counts, web push, unread counts. Deferred (§15).
+- Viewer counts, web push, a count of unread messages. Deferred (§15) — the
+  unread *marker* itself is built (§3).
 - Full-text search over messages or files.
 - Public read access to chat, files, or the project list (§7).
