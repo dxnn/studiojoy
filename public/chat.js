@@ -629,7 +629,7 @@ function renderModes(p) {
 // Nothing here is ever greyed out: a button you cannot press is a question,
 // and the answer — somebody else's game, an archived one, a room that takes
 // no helpers — is not one a bar can give. What cannot be done is not offered.
-function renderChatTabs(p) {
+export function renderChatTabs(p) {
   if (!S.chat) return null;
   // A helper's chip is its name, lit when it answers everything, and its ···:
   // whether it answers everything or waits to be called, and taking it out.
@@ -665,8 +665,11 @@ function renderChatTabs(p) {
         : c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
     },
-    c.bots ? null : h('span', { class: 'hush', text: '·' }),
     c.name,
+    // ⚠️ The only dot a pill wears. Humans only used to carry a second one
+    // that never went away — it meant "no helper is listening here" — and a
+    // dot that is always there says nothing, while reading as unread every
+    // time. That room now says so with a dashed edge instead.
     // The mark on the game says somebody called you, or that something is
     // unread; this says in which conversation.
     readMark(c)))) : null,

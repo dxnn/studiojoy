@@ -1,8 +1,8 @@
 /* The mode row, and the chat pills --------------------------------------- */
 
 /* The conversations in one game, over the thread. The human-only one wears a
-   dot rather than the open chat's colour: it is the room where nobody is
-   listening, which is worth seeing before you type in it.
+   dashed edge: it is the room where nobody is listening, which is worth
+   seeing before you type in it.
 
    This row is everything about the room rather than the game: Add chat pinned
    at the left, the pills, and the helpers listening at the right with the +
@@ -49,7 +49,10 @@
   border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
   background: color-mix(in oklab, var(--look-primary) 28%, transparent);
 }
-.chat-tab .hush { color: var(--num); margin-right: 5px; font-size: 16px; line-height: 0; }
+/* The room where no helper is listening. A dashed edge, not a dot: on a pill
+   a dot means one thing — something in there is new — and the dot this room
+   used to wear was always on, so it said nothing and looked like unread. */
+.chat-tab.quiet-room { border-style: dashed; }
 /* Never squeezed and never scrolled away: when it is there at all it is in
    the same place in every game. */
 .chat-tab.add { flex: 0 0 auto; padding: 5px 11px; color: var(--accent); }
