@@ -208,8 +208,17 @@
 .chat-tab .called { margin-left: 6px; }
 
 /* Something here is unread, with no @mention to say what: the same voice as
-   .called, a plain dot with nothing to count. */
+   .called, a plain dot with nothing to count.
+
+   ⚠️ inline-block is load-bearing, not tidiness. This dot is a span with no
+   words in it, and width and height do not apply to a non-replaced *inline*
+   box — so on a pill, whose button is not a flex container, it measured 0×15
+   and no background could paint it. It only ever showed in the sidebar,
+   where .srow is flex and blockified it by accident. .called never had the
+   bug: it has text in it. */
 .unread {
+  display: inline-block;
+  vertical-align: middle;
   flex: 0 0 auto;
   margin-left: auto;
   width: 7px;

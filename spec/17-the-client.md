@@ -189,6 +189,15 @@ holds something git cannot recover.
   colours shear. Not `maximum-scale=1` in the viewport meta, which stops the
   same zoom by taking pinch zoom away from Android: the page stays zoomable on
   purpose.
+- ⚠️ **A box with no words in it declares a `display`.** `width` and `height`
+  do not apply to a non-replaced *inline* box, so a sized-and-coloured empty
+  `<span>` is 0px wide and paints nothing — no background will save it. It
+  works by accident inside a flex parent, which blockifies it: the unread dot
+  showed in the sidebar (`.srow` is flex) and was invisible on a chat pill
+  (a plain `<button>`) for three days in production. `.unread` says
+  `display: inline-block` and `test/style.test.js` holds it there. The failure
+  looks like nothing rather than like a mistake, which is the same reason the
+  undefined-`var()` check exists.
 - ⚠️ In the story editor a button's click bubbles to the row it was in *after*
   the button has already moved the line and rendered, so a row ignores button
   clicks; fields still select the row in place, because a render would close

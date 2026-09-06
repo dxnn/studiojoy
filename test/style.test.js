@@ -66,6 +66,22 @@ test('base.css loads first and narrow.css last', () => {
   assert.equal(linked.at(-1), 'narrow.css');
 });
 
+// ⚠️ The same species as the var() check above, and it shipped: a mark with no
+// words in it is sized in px, and width and height do not apply to a
+// non-replaced *inline* box. In the sidebar the row is flex, which blockifies
+// it and hides the mistake; on a chat pill — a plain button — the dot measured
+// 0×15 and painted nothing, in production, for three days. Every other sized
+// span in the stylesheet sits in a flex parent, which only text and a rendered
+// tree can tell (the `npm run ui` TODO); this one says it itself.
+test('a mark with no words in it says what kind of box it is', () => {
+  // Comments first, or the `*/` above the rule is what precedes the selector.
+  const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
+  // The bare selector, not `.chat-tab .unread`, which only nudges its margin.
+  const rule = /(?:^|[};])\s*\.unread\s*\{([^}]*)\}/.exec(css);
+  assert.ok(rule, '.unread is still a rule somewhere');
+  assert.match(rule[1], /display:\s*inline-block/, 'or no background can paint it');
+});
+
 // `send()` is the one place that names fetch, so a request that never reached
 // the studio can set the not-connected state from one place (spec.md §17).
 test('nothing in the client calls fetch but send()', () => {
