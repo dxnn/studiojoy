@@ -8,14 +8,23 @@
 // camera put in the file is still there afterwards, apart from the pixels
 // somebody meant to change.
 
-// Big enough for a background or a photo somebody dropped in, not just a
-// sprite. The cost is bytes: a picture this size is 4 MB, and a step back is
-// another copy of it, which is why undo is bounded by bytes below.
+// The biggest picture the editor will *open* at all. Big enough for a
+// background or a photo somebody dropped in. The cost is bytes: a picture
+// this size is 4 MB, and a step back is another copy of it, which is why undo
+// is bounded by bytes below.
 export const MAX_SIDE = 1024;
+
+// The biggest one it will *make* — and the biggest one *frame* of a film
+// strip, whose whole width is still held to MAX_SIDE. This is a smaller
+// number on purpose: past 256 the editor stops blocking the pixels up
+// (`chunky` in drawing.js), a one-pixel brush is thinner than the pane can
+// show, and what comes out is a photograph drawn by hand rather than pixel
+// art. Something bigger that arrives by upload still opens to be drawn on.
+export const MAX_DRAWN = 256;
 
 // Square, because a sprite usually is. Anything rectangular arrives by being
 // opened rather than by being made here.
-export const SIZES = [16, 32, 64, 128, 256, 512, 1024];
+export const SIZES = [16, 32, 64, 128, 256];
 
 // How many pixels across the pencil paints. One is right for a 32-square
 // sprite and useless on a 700-wide picture, where a single pixel is smaller
@@ -276,5 +285,6 @@ export function pasteFrame(picture, fw, frame, bytes) {
 
 export const isBlank = (picture) => picture.data.every((byte) => byte === 0);
 
-// A size somebody typed, brought back into what a sprite can be.
-export const clampSide = (n) => Math.min(MAX_SIDE, Math.max(1, Math.round(Number(n) || 0) || 1));
+// A size somebody typed, brought back into what a picture drawn here can be.
+// MAX_DRAWN rather than MAX_SIDE: this is the size of a thing being made.
+export const clampSide = (n) => Math.min(MAX_DRAWN, Math.max(1, Math.round(Number(n) || 0) || 1));

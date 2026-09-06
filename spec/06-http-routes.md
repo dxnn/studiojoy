@@ -252,12 +252,22 @@ stay byte for byte unchanged. Three choices worth naming:
   saying why.
 
 `+ Draw a picture` makes a transparent PNG at the size asked for and opens it
-in the **pixel editor**, which is also simply how a PNG opens: up to 1024 a
-side, saved at exactly the size it arrived. Pixels are RGBA, as a canvas
-keeps them, so an uploaded picture loses nothing on open. The tools live in
+in the **pixel editor**, which is also simply how a PNG opens: saved at
+exactly the size it arrived. Pixels are RGBA, as a canvas keeps them, so an
+uploaded picture loses nothing on open. The tools live in
 `public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
 editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
-Five choices worth naming:
+Six choices worth naming:
+
+- **What it draws is smaller than what it opens.** `MAX_DRAWN` is 256 and
+  `MAX_SIDE` is 1024: a picture made here is at most 256 a side — and at most
+  256 per *frame* of a strip, whose whole width is still held to `MAX_SIDE` —
+  while anything uploaded up to 1024 still opens to be drawn on. The line is
+  where the editor already changes character: past 256 it stops blocking the
+  pixels up (`chunky` in `renderDrawing`) because the picture is being shown
+  at or below its own size, and a one-pixel brush is thinner than the pane can
+  show. Above the line what comes out is a photograph drawn by hand rather
+  than pixel art, so the studio does not offer to make one.
 
 - **There is no look-only view of a picture** — one would look identical to
   the editor, so it would cost a click for nothing. A PNG too big to draw on

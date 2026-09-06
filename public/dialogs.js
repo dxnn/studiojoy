@@ -3,7 +3,9 @@
 // and the actions a dialog fires live in main.js — this file is the questions.
 
 import { h } from './dom.js';
-import { SIZES, MAX_SIDE, clampSide } from './pixel-editor.js';
+import {
+  SIZES, MAX_SIDE, MAX_DRAWN, clampSide,
+} from './pixel-editor.js';
 import {
   SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload, assetPath, writeFiles,
 } from './upload.js';
@@ -684,7 +686,7 @@ export function dialogFor(d) {
       h('label', { text: 'How big, in real pixels?' }), size,
       h('label', { text: 'Frames, if it should move' }), frames,
       h('label', { text: 'Call it' }), name,
-      h('p', { class: 'hint muted', text: 'It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; big ones are for backgrounds and title screens. More than one frame makes a film strip the sprites library can play.' }),
+      h('p', { class: 'hint muted', text: `It starts see-through and lands in assets/ as a .png, exactly this many pixels across. Small numbers are easier to draw square by square; ${MAX_DRAWN} is as big as the studio draws, which is big enough for a background. More than one frame makes a film strip the sprites library can play.` }),
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Start drawing',

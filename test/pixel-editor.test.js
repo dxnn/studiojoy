@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PALETTE, PALETTE_COLUMNS, GREYS, RAINBOW, FUN, isColour,
-  SIZES, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
+  SIZES, BRUSHES, MAX_SIDE, MAX_DRAWN, UNDO_BYTES, CLEAR,
   blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
@@ -154,16 +154,26 @@ test('isColour accepts what the palette holds and nothing else', () => {
   assert.equal(isColour(16), false);
 });
 
-test('a size is brought back to one a picture can be', () => {
+test('a size is brought back to one a picture can be drawn at', () => {
   assert.equal(clampSide(0), 1);
   assert.equal(clampSide(-30), 1);
-  assert.equal(clampSide(MAX_SIDE + 1), MAX_SIDE);
-  assert.equal(clampSide(99999), MAX_SIDE);
+  assert.equal(clampSide(MAX_DRAWN + 1), MAX_DRAWN);
+  assert.equal(clampSide(99999), MAX_DRAWN);
   assert.equal(clampSide('32'), 32);
   assert.equal(clampSide('what'), 1);
   assert.equal(clampSide(16.4), 16);
   for (const size of SIZES) assert.equal(clampSide(size), size);
-  assert.equal(SIZES.every((n) => n <= MAX_SIDE), true, 'every offered size fits');
+  assert.equal(SIZES.every((n) => n <= MAX_DRAWN), true, 'every offered size fits');
+});
+
+// ⚠️ Two numbers, and mixing them up is how a picture gets made that the
+// editor will not open again. MAX_DRAWN is the size of a thing being made;
+// MAX_SIDE is the size of a thing being opened, which includes whatever
+// somebody uploaded.
+test('the studio draws smaller than it opens', () => {
+  assert.equal(MAX_DRAWN, 256);
+  assert.ok(MAX_DRAWN < MAX_SIDE, 'a drawn picture is smaller than the biggest one');
+  assert.equal(SIZES.at(-1), MAX_DRAWN, 'the biggest size offered is the cap itself');
 });
 
 test('a wide brush paints a square, and one pixel paints one pixel', () => {
