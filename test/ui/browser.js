@@ -24,17 +24,38 @@ const PUBLIC_DIR = path.resolve(import.meta.dirname, '..', '..', 'public');
 export const PHONE = 390;
 export const LAPTOP = 1280;
 
-// A missing browser is the one failure that is not a bug in the studio, so it
-// says what to run rather than surfacing Playwright's own message.
+// A browser that will not start is the one failure here that is not a bug in
+// the studio, so it says what to do rather than passing Playwright's message
+// through. The sandbox case is named on sight: it is the one somebody meets
+// by running this from the wrong place, and the message is the whole fix.
+const DENIED = /MachPortRendezvous|bootstrap_check_in|Permission denied \(1100\)/;
+
+// A browser that would not start will not start for the next test either, and
+// Playwright's cause carries a forty-line launch log. Kept, so the run says it
+// once and then repeats the sentence rather than the log.
+let refused = null;
+
 async function launch() {
+  if (refused) throw refused;
   try {
     return await chromium.launch({ headless: true });
   } catch (cause) {
-    throw new Error(
-      'Could not start Chromium. If it is not installed: npx playwright install chromium\n'
-      + 'If this is a coding agent, it cannot run npm run ui at all — see the note above.',
-      { cause },
-    );
+    const first = DENIED.test(String(cause.message))
+      ? new Error(
+        'Chrome cannot start in this sandbox. `npm run ui` has to be run from a\n'
+        + 'real terminal — not through a coding agent, and not with `!` inside one,\n'
+        + 'which is the same sandbox. Everything else in the suite runs anywhere.',
+        { cause },
+      )
+      : new Error(
+        'Could not start Chromium. If it is not installed:\n'
+        + '  npx playwright install chromium',
+        { cause },
+      );
+    // The first failure carries Playwright's log; the repeats carry the
+    // sentence and nothing else.
+    refused = new Error(first.message);
+    throw first;
   }
 }
 
@@ -43,11 +64,17 @@ async function launch() {
 // set of fixtures that can drift from it.
 export async function openStudio(t) {
   const app = await setup({ publicDir: PUBLIC_DIR });
-  const browser = await launch();
+  // ⚠️ Registered before the browser is launched, never after. A launch that
+  // throws used to leave the studio's own listener open, and a listening
+  // server keeps node alive: the run hung instead of finishing, so the
+  // reporter never flushed and the failure that caused it never printed. A
+  // cleanup registered after the thing that can fail is not cleanup.
+  let browser = null;
   t.after(async () => {
-    await browser.close();
+    if (browser) await browser.close();
     await app.close();
   });
+  browser = await launch();
   return { app, browser };
 }
 
