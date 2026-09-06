@@ -35,6 +35,15 @@
   max-height: 160px;
   border-bottom: 1px solid var(--border);
 }
+/* Code's own narrow shape, so it lives here rather than in narrow.css, which
+   is the shell giving way. On a phone an open file takes the whole pane: five
+   rows of list and a header over the keyboard left about four lines of the
+   file, and the list is a way of choosing one file rather than something to
+   keep in view while editing it. ✕ in the editor's bar closes it and the list
+   comes back — the same shape Pics already has. */
+@media (max-width: 860px) {
+  .tree.short, .tree-top.short { display: none; }
+}
 .grow { flex: 1; }
 .file {
   display: flex;

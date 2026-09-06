@@ -205,7 +205,11 @@ export function renderFilesTab() {
   }
 
   // With a file open the list shrinks to about five rows and the editor takes
-  // everything else; with nothing open the list fills the pane.
+  // everything else; with nothing open the list fills the pane. On a phone
+  // `short` is narrower still — the list goes altogether and the editor has
+  // the pane, because five rows and a header over a keyboard left about four
+  // lines of the file (code-tree.css). ✕ in the editor's bar is the way back
+  // to the list, the way it already is under Pics.
   const tree = h('div', { class: `tree scroll${S.open ? ' short' : ''}`, 'data-scroll': 'files' },
     rows.length ? rows : h('div', {
       class: 'pad muted',
@@ -218,7 +222,9 @@ export function renderFilesTab() {
     // wrapped to two lines in a narrow rail and put the rarest of them beside
     // the commonest; which kind of file you are adding is a question, so it is
     // asked in a dialog.
-    h('div', { class: 'pad row wrap' },
+    // It carries `short` for the same reason the list does: it belongs to the
+    // list, so on a phone it goes with it.
+    h('div', { class: `pad row wrap tree-top${S.open ? ' short' : ''}` },
       frozen() ? null : h('button', {
         class: 'quiet tiny', text: 'Add a file',
         title: 'Make a file, upload one, draw a picture or make a sound',
