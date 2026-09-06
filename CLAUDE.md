@@ -153,6 +153,10 @@ walk into, each paid for once already.
   `.scroll` container needs a `data-scroll` name; nothing calls `fetch`
   directly, `send()` does; and an `onclick` that opens something must return
   its promise all the way up, or Back stops working.
+- ⚠️ The pixel editor has **two** sizes: `MAX_DRAWN` (256) is the biggest it
+  will make, per picture and per *frame* of a strip; `MAX_SIDE` (1024) is the
+  biggest it will open, because uploads arrive bigger. Mixing them up makes a
+  picture the editor will not open again (spec/ §6).
 - ⚠️ No field's text is under 16px on a touchscreen — one `!important` rule in
   `base.css` under `@media (pointer: coarse)`, because under it iOS Safari
   zooms the page in on focus and leaves it there. A surface may still size its
@@ -321,7 +325,8 @@ specified:
   adds one from three buttons rather than a dialog — Draw, Upload (straight
   into the device's picker) and Add from the studio;
   Hear lists sounds over music and puts the sound editor in the rail; Code is
-  the tree, opening text and config forms; Share is the link, the versions,
+  the tree, opening text and config forms — and on a phone an open file takes
+  the whole pane, ✕ being the way back to the list; Share is the link, the versions,
   the scoreboard and the achievements editor as one page. The pixel editor,
   the sound editor, the story and the quiz save themselves; Code's text editor
   keeps Save. Everything done to a thing is behind its one `···` (§6,
