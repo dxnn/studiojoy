@@ -177,11 +177,11 @@ function renderReceipt(msg, receipt) {
     `${u.miss.toLocaleString()} new + ${u.hit.toLocaleString()} remembered in, ${u.out.toLocaleString()} out`,
   )));
   const charged = requests
-    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 10) + u.out, 0);
+    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 30) + u.out * 3, 0);
   if (requests.length) {
     cost.push(h('div', {
       class: 'rsum muted',
-      text: `remembered tokens count a tenth, so this reply cost ${charged.toLocaleString()} tokens`,
+      text: `remembered tokens count a thirtieth and tokens out count three times, so this reply cost ${charged.toLocaleString()} tokens`,
     }));
   }
 

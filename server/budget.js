@@ -13,9 +13,10 @@ export const DEFAULT_DAILY_TOKEN_BUDGET = 5_000_000;
 // the column's default, because `daily_tokens` already exists in every live
 // database and SQLite will not change a default afterwards. Null still means
 // no allowance of one's own, and an admin can set that from the panel — this
-// is only where somebody starts. A measured reply averages ~40 K tokens, so
-// this is ~25 of them: an afternoon's work, not a wall anybody meets by
-// accident.
+// is only where somebody starts. A measured reply averaged ~40 K tokens under
+// the old weights (a hit a tenth, output one), so this was ~25 of them: an
+// afternoon's work, not a wall anybody meets by accident. Re-measure under
+// the price list's weights (deepseek.js) before trusting the count.
 export const DEFAULT_DAILY_TOKENS = 1_000_000;
 
 // UTC, like the studio-wide reset, so both walls fall on the same midnight.

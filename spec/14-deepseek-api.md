@@ -235,6 +235,26 @@ like. Screenshots are not merely awkward to produce without a headless browser
 its running game has to arrive as text, which is what the runtime error feed
 is for (§8).
 
+### Prices
+
+Read from the price page on 2026-09-06
+(`api-docs.deepseek.com/quick_start/pricing/`), per million tokens:
+
+| model | miss, peak | hit, peak | output, peak | hit : miss | output : miss |
+| --- | --- | --- | --- | --- | --- |
+| `deepseek-v4-flash` | $0.44 | $0.014 | $1.32 | 1 : 31 | 3 : 1 |
+| `deepseek-v4-pro` | $1.32 | $0.044 | $3.96 | 1 : 30 | 3 : 1 |
+
+Peak is 01:00–04:00 and 06:00–10:00 UTC on weekdays; every other hour is
+off-peak at exactly half, in every column, so the two ratios hold around the
+clock. §8's budget formula weighs a hit at a thirtieth and output at three.
+Two things follow. Output includes the reasoning trace, so thinking is the
+dearest thing a turn does: one `low` trace of 6,886 tokens costs what 21 K
+missed or 650 K remembered tokens cost, which is why a piece runs at `none`
+and the file block is the second-order lever. And Pro is three times Flash on
+every column, with a cache of its own — a KV cache is one model's — so a
+turn handed to it starts cold.
+
 ### Usage and caching
 
 ```json

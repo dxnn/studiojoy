@@ -344,25 +344,26 @@ test('a client without a key is a programming error', () => {
 });
 
 // prompt_tokens is hits plus misses, so charging it alongside the hit count
-// would bill cached tokens twice.
-test('tokensCharged discounts cache hits and never double counts', () => {
+// would bill cached tokens twice. The weights are the price list's (§14): a
+// hit a thirtieth, output three times a miss.
+test('tokensCharged weighs hits and output as the price list does', () => {
   assert.equal(tokensCharged({
     prompt_tokens: 4018,
     prompt_cache_hit_tokens: 3968,
     prompt_cache_miss_tokens: 50,
     completion_tokens: 1,
-  }), 50 + Math.ceil(3968 / 10) + 1);
+  }), 50 + Math.ceil(3968 / 30) + 3);
 
-  // A cold prompt: everything is a miss.
+  // A cold prompt: everything is a miss, and the output counts three times.
   assert.equal(tokensCharged({
     prompt_tokens: 322,
     prompt_cache_hit_tokens: 0,
     prompt_cache_miss_tokens: 322,
     completion_tokens: 67,
-  }), 389);
+  }), 322 + 67 * 3);
 
   // If the split is ever absent, fall back to the total rather than zero.
-  assert.equal(tokensCharged({ prompt_tokens: 100, completion_tokens: 5 }), 105);
+  assert.equal(tokensCharged({ prompt_tokens: 100, completion_tokens: 5 }), 115);
   assert.equal(tokensCharged(null), 0);
   assert.equal(tokensCharged({}), 0);
 });
@@ -459,7 +460,7 @@ test('complete asks for one whole answer and hands back its text and usage', asy
 
   assert.equal(answer.text, '{"lines": []}');
   assert.equal(answer.finish_reason, 'stop');
-  assert.equal(tokensCharged(answer.usage), 240);
+  assert.equal(tokensCharged(answer.usage), 200 + 40 * 3);
 
   const { body } = fetchImpl.calls[0];
   assert.equal(body.stream, false);

@@ -218,7 +218,7 @@ test('a reply leaves a receipt, and the newest reply holds the prompt', async (t
   assert.equal(b.requests.length, 2, 'one usage entry per request');
   // The receipt's arithmetic reaches the number under the bubble.
   const charged = b.requests
-    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 10) + u.out, 0);
+    .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 30) + u.out * 3, 0);
   assert.equal(charged, first.data.tokens);
 
   // The prompt is the last request as sent: the first turn's tool call is in
@@ -1000,8 +1000,8 @@ test('a reply charges the budget with the cache discount applied', async (t) => 
   await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
 
   const state = budgetState(app.db);
-  // 100 prompt tokens, all misses, plus 40 completion.
-  assert.equal(state.used, 140);
+  // 100 prompt tokens, all misses, plus 40 completion at three times a miss.
+  assert.equal(state.used, 100 + 40 * 3);
 });
 
 // The same number the budget was charged, kept on the reply that spent it, so
@@ -1022,9 +1022,9 @@ test('what a reply cost is recorded on the reply', async (t) => {
     (e) => e.event === 'message.new' && e.data.agent_id !== null,
   );
 
-  // Both turns of the one fire: (100 + 25) + (100 + 40).
-  assert.equal(reply.data.tokens, 265);
-  assert.equal(budgetState(app.db).used, 265);
+  // Both turns of the one fire, output at three: (100 + 25×3) + (100 + 40×3).
+  assert.equal(reply.data.tokens, 395);
+  assert.equal(budgetState(app.db).used, 395);
 
   // Nothing a person or the studio wrote costs anything.
   const posted = await app.client.json('GET', `/api/projects/tank/messages?chat=${app.chatId}`);

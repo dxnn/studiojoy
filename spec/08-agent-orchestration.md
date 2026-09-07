@@ -602,8 +602,8 @@ sentence.
 
 A long chain **sheds** its reasoning pile. DeepSeek re-attaches everything
 it has said in the current tool-call chain — reasoning included — to every
-continuation, billed as cached input (§14), so a marathon fire pays a
-tenth of an ever-growing pile each request. When carrying that pile a few
+continuation, billed as cached input (§14), so a marathon fire pays the hit
+price on an ever-growing pile each request. When carrying that pile a few
 more rounds (`SHED_HORIZON_ROUNDS`) would cost more than re-paying the
 visible tail once, the loop appends a one-line `[studio]` note as a user
 turn, closing the chain and dropping the pile from billing. A floor
@@ -618,26 +618,32 @@ captured at the top of each turn, before the request is made, so what's
 stored is exactly what the last request carried. It's rendered as labelled
 plain text, never the JSON body, and carries no reasoning trace, since a
 trace is never in a request to begin with. The UI opens this from the
-token note under the bubble; cached tokens count at a tenth there too, so
-the lines visibly sum to the note.
+token note under the bubble; cached tokens count a thirtieth and output
+three times there too, so the lines visibly sum to the note.
 
 ### Budget
 
-`studio_state.tokens_used_today` accumulates
+`studio_state.tokens_used_today` accumulates, in miss-priced tokens,
 
 ```
 prompt_cache_miss_tokens
-  + ceil(prompt_cache_hit_tokens / 10)
-  + completion_tokens
+  + ceil(prompt_cache_hit_tokens / 30)
+  + 3 × completion_tokens
 ```
 
-Cached prompt tokens are counted at a tenth to mirror DeepSeek's cache
-pricing. Note that `prompt_tokens` already includes the cached ones, so
-summing it with the hit count would double-charge — the miss/hit split is the
-correct input (§14).
+The weights are DeepSeek's own price list, read 2026-09-06 (§14): a cache
+hit is a thirty-first of a miss on both models and output is three times a
+miss, in the peak and the off-peak window alike. Until then a hit counted a
+tenth and output counted one, which overcharged remembered tokens threefold
+and undercharged thinking threefold — and thinking is output. Note that
+`prompt_tokens` already includes the cached ones, so summing it with the hit
+count would double-charge — the miss/hit split is the correct input (§14).
 
 `completion_tokens` includes `completion_tokens_details.reasoning_tokens`; the
-trace is discarded but it was still billed, so it is still counted.
+trace is discarded but it was still billed, so it is still counted, at the
+output weight: a `low` trace of 6,886 tokens shows as the 21 K new tokens it
+costs. The per-person allowance defaults (§10) were sized under the old
+weights and want re-measuring.
 
 If `budget_reset_at` has passed, the counter resets to 0 and the timestamp
 advances to the next UTC midnight. Over budget: a `'system'` banner per failed

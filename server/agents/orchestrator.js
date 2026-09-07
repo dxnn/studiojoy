@@ -5,7 +5,9 @@ import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
 import { hasErrors, listErrors } from '../runtime.js';
-import { tokensCharged, tokensForChars, DEFAULT_MAX_TOKENS } from '../llm/deepseek.js';
+import {
+  tokensCharged, tokensForChars, DEFAULT_MAX_TOKENS, HIT_DIVISOR, OUTPUT_WEIGHT,
+} from '../llm/deepseek.js';
 import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
   studioLimit, userHasBudget, chargeUser,
@@ -96,8 +98,8 @@ const SHED_NOTICE = '[studio] Housekeeping note; nothing is needed from you'
   + ' here — carry on with the task above.';
 // Shed when carrying the pile for a conservative few more rounds costs more
 // than the shed does: a shed re-pays the visible loop content since the last
-// one at full price (the branch point moves), while carrying charges a tenth
-// of the pile on every request. The floor keeps short fires from shedding.
+// one at full price (the branch point moves), while carrying charges the hit
+// price on the pile every request. The floor keeps short fires from shedding.
 const SHED_HORIZON_ROUNDS = 4;
 const SHED_FLOOR_TOKENS = 8000;
 
@@ -1020,7 +1022,7 @@ export function createOrchestrator({
         // prompt behind it was billed too and there is no count to put on
         // it, so this still undercounts, just by less.
         if (err.code === 'thinking_cap' && !thinkingOff) {
-          charged += tokensForChars(err.reasoningChars);
+          charged += tokensForChars(err.reasoningChars) * OUTPUT_WEIGHT;
           if (capMode === 'return' && turn === 0) {
             cappedThinking = true;
             return outcome({ capped: trace, turnsUsed: 0 });
@@ -1093,7 +1095,7 @@ export function createOrchestrator({
       // now dearer than re-paying the visible tail once (spec.md §8, §14).
       const shedCost = (grown - shedBase) / 4;
       if (pile >= SHED_FLOOR_TOKENS
-        && (pile / 10) * SHED_HORIZON_ROUNDS > shedCost) {
+        && (pile / HIT_DIVISOR) * SHED_HORIZON_ROUNDS > shedCost) {
         append({ role: 'user', content: SHED_NOTICE });
         pile = 0;
         shedBase = grown;

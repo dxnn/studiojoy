@@ -70,11 +70,18 @@ export class LlmError extends Error {
   }
 }
 
-// Sum the tokens a turn actually cost. prompt_tokens is the total of hits and
-// misses, so adding it to the hit count would charge cached tokens twice —
-// the split is the correct input. Cache hits are billed at roughly a tenth,
-// which is mirrored here. completion_tokens already includes reasoning
-// tokens: the trace is discarded but it was still billed.
+// The price list's weights, read 2026-09-06 (spec.md §14): a cache hit is a
+// thirty-first of a miss on both models and output is three times a miss, in
+// the peak and the off-peak window alike. Output includes the reasoning
+// trace, which is what makes thinking the dearest thing a turn does.
+export const HIT_DIVISOR = 30;
+export const OUTPUT_WEIGHT = 3;
+
+// Sum the tokens a turn actually cost, in miss-priced tokens. prompt_tokens is
+// the total of hits and misses, so adding it to the hit count would charge
+// cached tokens twice — the split is the correct input. completion_tokens
+// already includes reasoning tokens: the trace is discarded but it was still
+// billed.
 export function tokensCharged(usage) {
   if (!usage) return 0;
   const miss = usage.prompt_cache_miss_tokens
@@ -82,7 +89,7 @@ export function tokensCharged(usage) {
     ?? 0;
   const hit = usage.prompt_cache_hit_tokens ?? 0;
   const out = usage.completion_tokens ?? 0;
-  return miss + Math.ceil(hit / 10) + out;
+  return miss + Math.ceil(hit / HIT_DIVISOR) + out * OUTPUT_WEIGHT;
 }
 
 async function readError(res) {
