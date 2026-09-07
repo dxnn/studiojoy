@@ -456,8 +456,11 @@ const TITLES = { portrait: 'Pick a face', background: 'Pick a picture', sprite: 
 
 // No kind asked for means all three at once, which is what Pics' one button
 // wants: a face, a place and a thing are three folders to the game and one
-// shelf to whoever is looking for a dragon.
+// shelf to whoever is looking for a dragon. ⚠️ All three, not the whole
+// index: the standard set lists the example's page-turn *sound* beside its
+// pictures, and a shelf that took everything put a .wav in a grid of faces.
 const ALL_KINDS = 'Add from the studio';
+const PICTURES = Object.keys(TITLES);
 
 // The shelf as a dialog (spec.md §6): every picture of one kind — all three
 // halves together — in a grid behind a filter, for the story editor's Picture
@@ -489,6 +492,8 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
       onclick: () => { S.dialog = { kind: 'unshare-art', art: a }; render(); },
     }));
   };
+  // A label across the grid, wherever the pictures under it change hands.
+  const label = (text) => h('div', { class: 'section-label', text });
   const paint = () => {
     const q = filter.value.trim().toLowerCase();
     // `tags` is the big set's subject, which is the only way a Kenney drawing
@@ -498,8 +503,19 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
       || a.name.toLowerCase().includes(q)
       || String(a.tags ?? '').includes(q)
       || String(a.by ?? '').toLowerCase().includes(q));
-    grid.replaceChildren(...shown.slice(0, AT_ONCE).map(card));
-    const more = shown.length - AT_ONCE;
+    // What people here made comes first, under its own label, and all of it.
+    // The index lists it last, behind the big set's 1,775 and past the cap, so
+    // a picture somebody drew here never showed until its name was typed.
+    // The labels earn their place only when there are two things to tell
+    // apart: a shelf with nothing made here is one grid, as it was.
+    const mine = shown.filter((a) => a.made_here);
+    const rest = shown.filter((a) => !a.made_here);
+    grid.replaceChildren(
+      ...(mine.length ? [label('Made here'), ...mine.map(card)] : []),
+      ...(mine.length && rest.length ? [label('Everything else')] : []),
+      ...rest.slice(0, AT_ONCE).map(card),
+    );
+    const more = rest.length - AT_ONCE;
     empty.textContent = shown.length
       ? (more > 0 ? `${more} more — ${q ? 'try a different word.' : 'type a word to narrow it down.'}` : '')
       : (all.length ? 'Nothing called that.' : 'Nothing on the shelf yet.');
@@ -507,7 +523,7 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
   };
   filter.addEventListener('input', paint);
   artIndex().then((index) => {
-    all = (index?.art ?? []).filter((a) => !d.art || a.kind === d.art);
+    all = (index?.art ?? []).filter((a) => (d.art ? a.kind === d.art : PICTURES.includes(a.kind)));
     paint();
   });
   return wide(d.art ? (TITLES[d.art] ?? 'Pick a picture') : ALL_KINDS,

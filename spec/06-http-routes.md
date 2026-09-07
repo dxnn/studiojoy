@@ -976,7 +976,14 @@ shipped set and collection together, found by name or maker (forty-two
 pictures is not a strip, ideas/calm-shell.md); and **Add from the studio**
 under Pics, which asks for no kind at all and shows all three halves at once,
 because a face, a place and a thing are three folders to the game and one
-shelf to whoever is looking for a dragon. ⚠️ From the guide's card or a
+shelf to whoever is looking for a dragon — and still pictures only: the
+index lists the example's page-turn sound beside them, and this shelf leaves
+it out. On every shelf dialog what people here made comes first, under
+**Made here**, then **Everything else** — all of the first, 120 of the
+second — because in index order the collection sat behind the big set's
+1,775 and past the cap, so a picture drawn here never showed until its name
+was typed. The two labels appear only when there is something under each;
+with nothing made here it is one grid. ⚠️ From the guide's card or a
 mood's `···`, picking copies the bytes to the path the *story* expects, not
 the set's own path — the set says what a picture looks like, the story says
 what it's called ("Mila, worried" becomes `assets/sprites/ben-normal.png`);
@@ -1023,9 +1030,10 @@ Each entry carries `tags` on top of the standard set's fields — the pack's
 own subject, or for a silhouette the words a kid would type. It is what makes
 the set searchable at all: `Fish red` comes back for *underwater* and
 `Triceratops` for *dinosaur*, and neither word is in either name. The shelf
-dialog matches name, tags and maker, and ⚠️ draws at most **120** at a time
-with `loading="lazy"` — 1,775 `<img>` at once is a second of layout for a
-grid nobody scrolls.
+dialog matches name, tags and maker, and ⚠️ draws at most **120** of the
+shipped halves at a time with `loading="lazy"` — 1,775 `<img>` at once is a
+second of layout for a grid nobody scrolls. The collection is never counted
+against that: it is shown whole, above.
 
 Three sources, all hand-listed in `bin/pullart.js` because ⚠️ **safety here is
 the source list, not a filter**: a pack or a word is added by somebody who

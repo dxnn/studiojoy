@@ -330,7 +330,8 @@ specified:
   `Pick a picture…` on a scene's Picture field in the rail — one file, one
   commit. 33 portraits and 9 backgrounds, all CC0 (Kenney and Stealthix).
   Beside it the **studio collection**: pictures people here have added, on
-  the same shelf, put there by `Copy…` on a picture's row under Code.
+  the same shelf and first on it, put there by `Duplicate…` in a picture's
+  `···` (under Pics or Code) with *The studio's collection* as its destination.
   ⚠️ Bytes in the row so `npm run backup` covers them, and ⚠️ no licence
   recorded — whoever drew it keeps it (§3).
 - The **big set** is the shelf's third half: 1,775 CC0 sprites in
