@@ -389,9 +389,11 @@ Open questions:
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
 - **The builder's second chapter** (ideas/planner.md, decided 2026-09-06,
-  unbuilt): the sizing call does not warm the fire after it — a production
-  receipt shows both missing, and DeepSeek's caching guide says why (§14) —
-  so every fire in `Building` becomes an extension of its sizing; the plan
+  unbuilt): the sizing call does not warm the fire after it, and eight probes
+  found the rule — ⚠️ a last user message over ~160 tokens costs the next
+  request ~6,000 tokens of prefix, and the sizing ask is 250 (§14) — so the
+  sizing rules move into the preamble behind a short trigger and every fire
+  in `Building` becomes the sizing's transcript plus one turn; the plan
   becomes the one reply, with the piece rows behind the card; and a plan of
   two or more pieces waits as an editable draft behind one click. The budget
   formula already carries the price list's weights (§8, §14).

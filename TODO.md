@@ -3,10 +3,11 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- ! probe the builder's cache three ways, then make every fire in `Building`
-  an extension of its sizing call — a production receipt shows the first two
-  requests of a builder reply both missing (ideas/planner.md, second chapter,
-  steps 2–4)
+- ! move the sizing rules into the builder's preamble with a short trigger on
+  the last message, then make every fire in `Building` the sizing's transcript
+  plus one turn, on the sizing's own file block with fresh copies on the piece
+  turn — measured 2026-09-06: the fire hits 96% and each piece 91–93%, against
+  50% today (ideas/planner.md, second chapter, steps 3–4; spec/ §14)
 - ! make the plan the reply: `reply` or `pieces` from the sizing, one piece
   runs at once, the piece rows behind the card, a headline per piece and a
   synopsis, sub-pieces on overrun (ideas/planner.md, second chapter, steps 5–6)

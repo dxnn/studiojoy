@@ -291,23 +291,71 @@ tools-every-time control; the array costs 455 prompt tokens and those are all
 that misses.
 
 ⚠️ **What that did and did not show**, resolved 2026-09-06 by DeepSeek's own
-caching guide (`api-docs.deepseek.com/guides/kv_cache/`) and one production
-receipt. The guide's rule: a request hits only when it **fully matches a
-cache prefix unit**. Units are persisted at request boundaries — the end of
-the user input and of the model output — when a common prefix is detected
-across requests, and at fixed intervals in a long input, size unstated. A
-divergence mid-prompt hits nothing the first time; the common prefix is then
-persisted on its own and later requests matching it hit. That is the
-branch-point rule above, stated by the vendor. The probe's two arms shared
-their last user message, so the with-tools request *fully matched* the
-no-tools request's unit and extended it — which also says the tools array is
-serialised after the messages. In the builder's room the fire's last user
-message is the sizing's *without* the ask, so the fire diverges at the tail of
-that message, at a depth that moves every turn: a production receipt shows
-the sizing and the fire's first request both missing. The sizing does **not**
-warm the fire as §8 assumed; a fire that carries the sizing exchange and adds
-its turn on top would (ideas/planner.md, second chapter). The cache lasts
-"hours to days" once idle.
+caching guide (`api-docs.deepseek.com/guides/kv_cache/`), a production
+receipt and eight probes (`tmp/probe-extension*.mjs`, outputs beside them).
+The guide's rule: a request hits only when it **fully matches a cache prefix
+unit**; units are persisted at request boundaries, when a common prefix is
+detected across requests, and at fixed intervals in a long input; a
+divergence mid-prompt hits nothing the first time and persists the common
+prefix for the requests after it. That is the branch-point rule above, stated
+by the vendor, and the probes bear it out — with one rule the guide does not
+state, which is the one that was costing the builder's room half its prompt
+on every reply. The cache lasts "hours to days" once idle.
+
+**⚠️ The last user message decides how much of a request the next one can
+reuse.** Measured on space-racer's 12.5 K-token prompt: a first request, then
+a second carrying the first's messages, its answer as the assistant turn and
+one more user turn on top.
+
+| last user message of the first request | the second request hits |
+| --- | --- |
+| ≤ ~110 tokens (measured at 86 and 111) | everything to the end of the system prompt: 95–96% |
+| ≥ ~160 tokens (161, 211, 261, 384, 512, 1024) | **the system prompt less ~6,000 tokens**: 48–50% |
+
+The loss is a constant ~6,000 tokens at every prompt size tried, 6.5 K to
+59 K (`probe-extension-3.mjs`), so at 12.5 K it is half and at 59 K a tenth.
+Nothing else moved it: not `response_format` json_object (an identical
+repeat hits 99% in both modes, and a 138-token JSON answer behind a short
+message hits 95%), not the first request's `max_tokens` (64 to 4,800,
+identical), not how much it said or how it stopped (8 tokens cut by `length`
+and 131 ending in `stop` both hit 95%), not the words (JSON shapes in a short
+message hit; the sizing ask with its shapes written out in prose missed), not
+a 20 s wait. Two consecutive user turns count as one: a long turn with a
+short trigger after it missed the same way. Tool-call outputs look exempt —
+inside every tool loop measured, the second request reused the whole first
+prompt behind a 600-token piece turn.
+
+The sizing ask is ~250 tokens on the last user message. So the sizing hit
+nothing, as any fresh prefix does, and the fire after it hit half — exactly
+the production receipt. Dropping the ask from the fire (today) and keeping
+the whole exchange (the extension the second chapter first designed) measured
+the same 50%. **The fix is to make the last message short**: the sizing
+rules move into the system prompt, cached with the rest and byte-identical
+for the fire, and the last message carries `[studio] Size this request.`
+Measured (`probe-extension-8.mjs`): the sizing still answers, small and big
+alike, the fire that extends it hits 96%, and each piece of a plan, carrying
+the plan and its own ~600-token turn on top, hits 91–93%, the miss being its
+own turn. A kid's message long enough to trip the rule still costs the 6 K
+once; whether a short assistant turn between it and the trigger rescues that
+is unmeasured.
+
+**Three shapes for a piece's fire**, same plan, same tree, real tool loops
+writing into their own copies, thinking off (`probe-extension.mjs`; the plan
+was sized under the old long ask, so piece 1 starts from a half or a cold
+prefix in every arm):
+
+| arm | first-request hit per piece | requests | hit | miss | out | miss-equivalents | files |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A — narrowed block, one turn (today) | 0% 0% 5% | 19 | 308 K | 68.5 K | 26.9 K | 159.5 K | 4 |
+| B — the sizing's block frozen, the exchange kept, fresh copies on the piece turn | 49% 87% 98% | 24 | 397 K | 20.2 K | 14.0 K | **75.3 K** | 7 |
+| C — whole block rebuilt per piece, one turn | 0% 0% 32% | 24 | 497 K | 69.3 K | 29.7 K | 174.9 K | 5 |
+
+Miss-equivalents are §8's formula. A narrowed block diverges just after the
+description on every piece, so its first request misses whole every time; a
+rebuilt block diverges wherever the last piece's writes moved a file, a new
+depth every time; the frozen block diverges only at the transcript, where the
+branch point from the piece before already sits. B also wrote the fewest
+output tokens and touched every file the plan named — one run, unscored.
 
 Within one tool-call chain, the model's own output — the **reasoning trace
 included** — is re-attached server-side to the next request's prompt and

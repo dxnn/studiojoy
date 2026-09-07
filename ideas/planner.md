@@ -280,25 +280,32 @@ bigger ask gets a plan, and the kids asked to be able to edit the plan.
 
 **The sizing does not warm the fire.** A production receipt shows the first
 two requests of a builder reply — the sizing and the fire's first — both
-missing. The caching guide says why: a request hits only when it **fully
-matches a cache prefix unit**; units close at request boundaries, at the end
-of the user input and the model output; a divergence mid-prompt hits nothing
-the first time, and the common prefix is persisted for the requests after it.
-The sizing's ask makes its last user message longer than the fire's, so the
-fire diverges at the tail of that message, at a depth that moves every turn.
-The tools-cache probe's two arms shared their last message, so the second was
-an *extension* of the first — which also says the tools array is serialised
-after the messages, and resolves §14's "unresolved" note. The probe was right
-about the probe and wrong about the room.
+missing. The caching guide's rule (§14) explains the first: any fresh prefix
+misses. It does not explain the second, and neither did this chapter's first
+answer — keep the sizing exchange in the fire's transcript and put the next
+message on top — which measured **the same 50%** as today's shape
+(`tmp/probe-extension.mjs`, arm D). Eight probes later (§14) the rule is
+this: **the last user message of a request decides how much of it the next
+request can reuse.** Under ~110 tokens, the next request reuses everything
+to the end of the system prompt; over ~160, it loses a constant ~6,000 tokens
+of it, half of a 12.5 K prompt. Nothing else moves it — not json_object, not
+`max_tokens`, not how the first request answered or stopped, not the words,
+not a wait — and two user turns in a row count as one. The sizing ask is
+~250 tokens on the last user message, so every fire in the room started from
+half.
 
-**The way round it is the guide's own example: the next message goes on top
-of the last one.** A fire in the builder's room is the sizing's transcript —
-the ask still on the last user message, the JSON answer as the assistant turn
-— plus one more user turn: a go-ahead for a small ask, the piece turn for a
-piece. The fire then fully matches the sizing's unit and pays hit price for
-everything up to it. Piece 2 diverges from piece 1 exactly at that unit's
-boundary, so it matches too; every piece's miss is its own turn and nothing
-else. The JSON in the prefix costs a few hundred tokens at hit price.
+**The way round it is a short last message.** The sizing rules move into the
+system prompt — cached with the rest and byte-identical for the fire — and
+the last user message carries `[studio] Size this request.` Then the fire
+*is* the sizing's transcript, the JSON answer as the assistant turn and one
+more user turn on top: a go-ahead for a small ask, the piece turn for a
+piece. Measured (`tmp/probe-extension-8.mjs`): the sizing still answers,
+small and big alike; the fire hits 96%; each piece, carrying the plan and its
+own ~600-token turn, hits 91–93%, the miss being its own turn. A kid's message
+long enough to trip the rule on its own still costs the 6 K once — rare, and
+whether a short assistant turn between it and the trigger rescues it is
+unmeasured. The extension is still needed: without it the fire diverges at
+the tail of the last message and today's 50% is the ceiling.
 
 **The prices.** §14 has the table. Two ratios matter: a hit is a thirty-first
 of a miss, output is three times a miss — and the reasoning trace is output.
@@ -321,6 +328,16 @@ much bigger than the diff. Today's narrowed block diverges just after the
 description on every piece — preamble hits from piece 2, files always miss —
 and the piece sees only its own files.
 
+**Measured** (`tmp/probe-extension.mjs`, table in §14): the same three-piece
+plan on space-racer's 12.5 K-token tree, three ways, real tool loops. The
+narrowed block's first request missed whole on every piece (0%, 0%, 5%) — it
+diverges just after the description each time. The block rebuilt from disk
+per piece did the same (0%, 0%, 32%) — it diverges wherever the last piece's
+writes moved a file. The frozen block with the exchange kept hit 49%, 87%,
+98% — the 49% being the old long ask's half — at 75 K miss-equivalents
+against 160 K and 175 K, wrote the fewest output tokens and touched every
+file the plan named. One run, quality unscored.
+
 **The checker.** With T the tree, F a piece's files, k the requests in its
 loop and R the hit ratio, a frozen piece costs about `k·T/R` miss-equivalents
 and a narrowed one about `F·(1 + (k−1)/R)`. At R = 30 and k = 4, narrowing
@@ -328,8 +345,8 @@ only pays once a piece's files are under about an eighth of the tree; for a
 40 K-token tree and a 6 K piece the two are within a fifth of each other, and
 the frozen one sees everything. So: frozen by default, narrowed when the tree
 is more than about eight times the plan's largest piece, decided once per
-plan from the plan's own file lists. Arithmetic at plan time — after the probe
-has measured the hit rates it assumes.
+plan from the plan's own file lists. Arithmetic at plan time, on the hit
+rates above.
 
 **Per-chat baseline**, deferred: a baseline commit plus everything changed
 since, re-baselined when the delta outgrows a fraction of the block, the shape
@@ -416,13 +433,15 @@ before it).
 ## Build order
 
 1. The budget formula on the price list's weights (done 2026-09-06).
-2. **Probe** (`tmp/probe-extension.mjs`): the tank plan three ways —
-   narrowed as today, frozen and extended, whole tree refreshed — hit rates
-   per piece and per request; and an ordinary small ask as an extension of
-   its sizing against today's shape. Everything below assumes its answer.
-3. **The extension**: every fire in the builder's room is the sizing's
-   transcript plus one turn. A receipt shows the first request hitting.
-4. The frozen block and the fresh copies on the piece turn; the checker.
+2. **Probe** (done 2026-09-06, `tmp/probe-extension*.mjs`, §14): the plan
+   three ways, the small ask two ways, and then six more to find the rule —
+   the last user message's length — and to measure the fix.
+3. **The short trigger and the extension**: the sizing rules into the
+   builder's preamble, `[studio] Size this request.` on the last message,
+   and every fire in the room the sizing's transcript plus one turn. A
+   receipt shows the first request hitting.
+4. The frozen block — the sizing's own system prompt for every piece — and
+   the fresh copies on the piece turn; the checker.
 5. `reply`/`pieces`; one piece is a plan and runs at once; the headline as
    the note; the card as the one reply, rows behind it, history replaying
    the card.
