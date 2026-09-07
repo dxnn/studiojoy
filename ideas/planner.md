@@ -436,12 +436,13 @@ before it).
 2. **Probe** (done 2026-09-06, `tmp/probe-extension*.mjs`, §14): the plan
    three ways, the small ask two ways, and then six more to find the rule —
    the last user message's length — and to measure the fix.
-3. **The short trigger and the extension**: the sizing rules into the
-   builder's preamble, `[studio] Size this request.` on the last message,
-   and every fire in the room the sizing's transcript plus one turn. A
-   receipt shows the first request hitting.
+3. **The short trigger and the extension** (done 2026-09-06): the sizing
+   rules into the builder's preamble, `[studio] Size this request.` on the
+   last message, and every fire in the room the sizing's transcript plus one
+   turn. The first production receipt is the check.
 4. The frozen block — the sizing's own system prompt for every piece — and
-   the fresh copies on the piece turn; the checker.
+   the fresh copies on the piece turn (done 2026-09-06); the checker, once a
+   tree big enough to need it exists.
 5. `reply`/`pieces`; one piece is a plan and runs at once; the headline as
    the note; the card as the one reply, rows behind it, history replaying
    the card.

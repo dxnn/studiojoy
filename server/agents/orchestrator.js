@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { tx } from '../db.js';
 import { listTree, readFileAt } from '../files/tree.js';
 import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
@@ -19,8 +20,8 @@ import {
   pausedPlan, createPlan, planFor, setPiece, setPlanStatus, planPublic,
 } from '../plans.js';
 import {
-  sizingAsk, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner, begunNote,
-  SIZING_MAX_TOKENS,
+  sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner,
+  begunNote, SIZING_MAX_TOKENS,
 } from './sizing.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
@@ -103,6 +104,11 @@ const SHED_NOTICE = '[studio] Housekeeping note; nothing is needed from you'
 const SHED_HORIZON_ROUNDS = 4;
 const SHED_FLOOR_TOKENS = 8000;
 
+// The one user turn a small ask's fire adds on top of the sizing exchange in
+// the builder's room (spec.md §8): short, since the conversation must end on a
+// user turn for the model to answer, and everything it needs is above.
+const GO_AHEAD = '[studio] Go ahead.';
+
 const BRIEF_FILE = 'BRIEF.md';
 const MAX_COMMIT_SUBJECT = 72;
 
@@ -177,7 +183,7 @@ function shapeLines(held) {
 // working tree it does not have, and an agent in a chat is whatever its
 // description says it is, with nothing from the studio layered on top.
 function studioPreamble({
-  project, canEdit, maxAssistantTurns, maxToolCalls, libraryNotes = [],
+  project, canEdit, maxAssistantTurns, maxToolCalls, libraryNotes = [], sizing = false,
 }) {
   const lines = [
     `You are an agent in Unbridled Joy, a game studio, working with people on the browser game "${project.name}".`,
@@ -347,6 +353,9 @@ function studioPreamble({
     '',
     'Keep your reply short — a note on what you did or think. The files carry the detail.',
   );
+  // The builder's room only: the sizing rules stand here, cached with the rest,
+  // so the last user message can carry a short trigger (agents/sizing.js, §14).
+  if (sizing) lines.push('', sizingRules());
   return lines.join('\n');
 }
 
@@ -445,11 +454,14 @@ function libraryLines(files) {
     + 'Use read_file if you need to see inside one.';
 }
 
-// `whole` narrows the block to a piece's fire: only the paths the plan named
-// are sent whole — plus the brief, the spec and config/, which are small and
-// load-bearing — and everything else is listed, reachable with read_file.
-// Null is the ordinary fire, which gets the whole tree under the cap (§8).
-async function buildFileBlock(db, chat, dir, whole = null) {
+const hashOf = (buffer) => createHash('sha1').update(buffer).digest('hex');
+
+// The whole tree under the cap (§8). Every fire gets this shape, a piece's
+// included: a piece runs on the sizing's own block rather than a narrowed one
+// (measured, §14 — a narrowed block diverges inside the system prompt on every
+// piece and misses whole), and learns what changed since from fresh copies
+// on its turn, which is what the hashes are for.
+async function buildFileBlock(db, chat, dir) {
   const { files } = await listTree(dir);
   // Pins are per conversation: what somebody pointed at in one chat is not
   // what the helper in another one should be looking at.
@@ -470,13 +482,10 @@ async function buildFileBlock(db, chat, dir, whole = null) {
     ...texts.filter((f) => pinned.has(f.path)).sort(bySize),
     ...texts.filter((f) => !pinned.has(f.path)).sort(bySize),
   ];
-  const wanted = (f) => whole === null
-    || whole.has(f.path)
-    || f.path === BRIEF_FILE || f.path === 'SPEC.md' || f.path.startsWith('config/');
   const included = new Set();
   let used = 0;
   for (const file of byPriority) {
-    if (!wanted(file) || used + file.size > AMBIENT_BYTES) continue;
+    if (used + file.size > AMBIENT_BYTES) continue;
     included.add(file.path);
     used += file.size;
   }
@@ -494,6 +503,7 @@ async function buildFileBlock(db, chat, dir, whole = null) {
 
   const parts = [];
   const omitted = [];
+  const hashes = new Map();
   for (const file of ordered) {
     if (!included.has(file.path)) {
       omitted.push(file.path);
@@ -501,6 +511,7 @@ async function buildFileBlock(db, chat, dir, whole = null) {
     }
     const buffer = await readFileAt(path.join(dir, file.path));
     if (buffer === null) continue;
+    hashes.set(file.path, hashOf(buffer));
     parts.push(
       `--- FILE: ${file.path} (${file.size} bytes) ---\n`
       + `${buffer.toString('utf8')}\n--- END FILE ---`,
@@ -511,9 +522,7 @@ async function buildFileBlock(db, chat, dir, whole = null) {
   }
   if (omitted.length > 0) {
     omitted.sort();
-    parts.push(whole === null
-      ? `(left out for size — call read_file if you need them: ${omitted.join(', ')})`
-      : `(not sent for this piece — call read_file if you need one: ${omitted.join(', ')})`);
+    parts.push(`(left out for size — call read_file if you need them: ${omitted.join(', ')})`);
   }
   const library = libraryLines(files);
   if (library) parts.push(library);
@@ -541,7 +550,55 @@ async function buildFileBlock(db, chat, dir, whole = null) {
     // For the receipt: how many files were sent whole and how many the cap
     // left out. The block's own byte count is taken where it is used.
     stats: { shown: included.size, omitted: omitted.length },
+    // For a piece's fresh copies: what each file said when the block was
+    // read, and which the cap never showed.
+    hashes,
+    omitted: new Set(omitted),
   };
+}
+
+// A fresh copy on a piece turn is the whole current file; past this it is
+// named instead, and the piece reads it with read_file like anything else.
+const FRESH_COPY_BYTES = 128 * 1024;
+
+// What changed since the file block was read, for a piece that runs on the
+// sizing's own system prompt (spec.md §8, §14): the current whole text of the
+// files this piece names, and the names of the rest. Copies, never diffs —
+// patch_file's old_text must match the file as it is now, and a model applying
+// a diff in its head gets that wrong. A file the block left out for size is
+// not "changed": it was never shown, and the block already says how to read it.
+async function freshCopies(dir, { fileHashes, omitted }, pieceFiles) {
+  const { files } = await listTree(dir);
+  const shown = [];
+  const named = [];
+  const seen = new Set();
+  for (const file of files) {
+    if (!file.text || file.unreachable || file.library || omitted.has(file.path)) continue;
+    seen.add(file.path);
+    const buffer = await readFileAt(path.join(dir, file.path));
+    if (buffer === null || fileHashes.get(file.path) === hashOf(buffer)) continue;
+    if (pieceFiles.includes(file.path) && buffer.length <= FRESH_COPY_BYTES) {
+      shown.push(
+        `--- FILE: ${file.path} (${buffer.length} bytes) ---\n`
+        + `${buffer.toString('utf8')}\n--- END FILE ---`,
+      );
+    } else {
+      named.push(file.path);
+    }
+  }
+  for (const p of fileHashes.keys()) if (!seen.has(p)) named.push(`${p} (deleted)`);
+  if (shown.length === 0 && named.length === 0) return '';
+  const rest = named.length
+    ? `Also changed, not shown — read_file if you need one: ${named.sort().join(', ')}`
+    : null;
+  if (shown.length === 0) {
+    return `[studio] Some files have changed since the copies above were read — read_file if you need one: ${named.sort().join(', ')}`;
+  }
+  return [
+    '[studio] Some files have changed since the copies above were read. These are current and replace them:',
+    ...shown,
+    rest,
+  ].filter(Boolean).join('\n\n');
 }
 
 // What the game said when someone played it. Only the current version's
@@ -666,19 +723,15 @@ function historyTurns(db, chat, agent, lastFiredMaxId = 0, historyFloor = new Ma
   return { turns: collapsed, trimmed: older };
 }
 
-// `piece` is one piece of a plan (spec.md §8): its transcript is the one
-// `[studio]` turn that names the request, the plan and this piece — never the
-// chat's history — and its file block is narrowed to the files the plan named.
-// A prompt small enough to read whole in the receipt, and a fire that thinks
-// in proportion to the piece rather than to the whole (§14).
+// `sizing` is the builder's room: the sizing rules stand in its preamble, so
+// the sizing call and every fire after it share one system prompt (spec.md
+// §8, §14). A piece builds no context of its own — it runs on this one.
 async function buildContext({
   db, project, chat, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
-  historyFloor = new Map(), piece = null,
+  historyFloor = new Map(), sizing = false,
 }) {
-  const { turns, trimmed } = piece
-    ? { turns: [{ id: 0, role: 'user', text: piece.turn }], trimmed: 0 }
-    : historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
+  const { turns, trimmed } = historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
   if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
@@ -692,13 +745,14 @@ async function buildContext({
   // changes, the brief and the description rarely do, the files often. Putting
   // the files here rather than on the last message is what turns a 0% cache
   // hit between fires into a 100% one whenever no file changed (spec.md §8).
-  const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir, piece?.whole ?? null);
+  const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir);
   const preamble = isChat ? null : studioPreamble({
     project,
     canEdit: agent.file_tools,
     maxAssistantTurns,
     maxToolCalls,
     libraryNotes: await buildLibraryNotes(dir),
+    sizing,
   });
   const briefPart = brief ? `Project brief (${BRIEF_FILE}):\n${briefText(brief)}` : null;
   const system = [
@@ -714,8 +768,7 @@ async function buildContext({
   // Errors and pins stay next to the human's message: both change turn to
   // turn, so in the system prompt they would invalidate the files behind them.
   const errorBlock = isChat ? null : await buildErrorBlock(db, project, dir);
-  // A piece has no pins: what it is pointed at is in its one turn already.
-  const pinNote = !piece && fileBlock && fileBlock.pinnedShown.length > 0
+  const pinNote = fileBlock && fileBlock.pinnedShown.length > 0
     ? `(the user pinned these files: ${fileBlock.pinnedShown.join(', ')})`
     : null;
   if (errorBlock || pinNote) {
@@ -739,7 +792,14 @@ async function buildContext({
     last_message: { errors: bytes(errorBlock), pins: bytes(pinNote) },
   };
 
-  return { system, messages, trimmed, breakdown };
+  return {
+    system,
+    messages,
+    trimmed,
+    breakdown,
+    fileHashes: fileBlock?.hashes ?? new Map(),
+    omitted: fileBlock?.omitted ?? new Set(),
+  };
 }
 
 // The prompt as readable text, one labelled part per message, verbatim
@@ -887,7 +947,7 @@ export function createOrchestrator({
   // already carrying a trace, thinking off — the retry a caller runs itself.
   async function runLoop({
     agent, system, messages: initial, toolset, thinking, emit, capMode = 'retry', handoff = null,
-    limits = roomLimits,
+    limits = roomLimits, masked = [],
   }) {
     const messages = initial.map((m) => ({ ...m }));
     // Everything the loop appends is counted, so a fire cannot grow past
@@ -966,9 +1026,11 @@ export function createOrchestrator({
       let trace = '';
       turnsUsed = turn + 1;
       sentPrompt = promptText(system, messages);
-      if (handed !== null) {
+      // A trace is never kept (spec.md §8, §12): the one this fire hands on,
+      // and one the sizing exchange this fire extends carried as notes.
+      for (const text of handed !== null ? [handed, ...masked] : masked) {
         sentPrompt = sentPrompt.replace(
-          handed, `[studio] (a capped trace was handed on here: ${handed.length} characters, not kept)`,
+          text, `[studio] (a capped trace was handed on here: ${text.length} characters, not kept)`,
         );
       }
       try {
@@ -1330,15 +1392,20 @@ export function createOrchestrator({
     const { agent, context, asker } = fire;
     const messages = context.messages.map((m) => ({ ...m }));
     const last = messages[messages.length - 1];
-    // Notes ahead of the ask, never after: a long attachment behind the ask
-    // swamps it (§14). `begun` is what a small ask did before it ran out of
-    // room, handed on the same way.
+    // Notes ahead of the trigger, never after: a long attachment behind the
+    // ask swamps it (§14). `begun` is what a small ask did before it ran out
+    // of room, handed on the same way. The trigger itself is short on
+    // purpose — the rules are in the preamble — because ⚠️ a last user
+    // message over ~160 tokens costs the fire after it ~6,000 tokens of
+    // prefix (§14); a note here still does, once.
+    const noted = notes ? notesForPlanner(notes) : null;
     last.content = [
       last.content,
-      notes ? notesForPlanner(notes) : null,
+      noted,
       begun ? begunNote(begun) : null,
-      sizingAsk({ paused, begun: begun !== null }),
+      sizingTrigger({ paused, begun: begun !== null }),
     ].filter(Boolean).join('\n\n');
+    fire.exchange = null;
     try {
       const answer = await llm.complete({
         model: agent.model,
@@ -1351,12 +1418,45 @@ export function createOrchestrator({
       const charged = tokensCharged(answer.usage);
       consumeBudget(db, charged);
       chargeUser(db, asker?.id, charged);
+      // Kept for the fire that follows: it extends this exchange (below). The
+      // notes are a trace, so the receipt masks them like a handed one.
+      fire.exchange = {
+        messages, answer: answer.text || '{"size":"small"}', masked: noted ? [noted] : [],
+      };
       return parseSizing(answer.text) ?? { size: 'small', resume: true };
     } catch (err) {
       console.error('sizing failed', err);
       return { size: 'small', resume: true };
     }
   }
+
+  // The fire's transcript in this room: the sizing's own messages, its answer
+  // as the assistant turn, and one more user turn on top. Measured (§14): the
+  // fire then reuses everything to the end of the system prompt, where a fire
+  // that drops the trigger from the last message diverges at the tail of it
+  // and reuses half. No exchange — the sizing failed — and the turn goes on
+  // as a user message of its own.
+  const extended = (fire, turn) => (fire.exchange
+    ? [
+      ...fire.exchange.messages,
+      { role: 'assistant', content: fire.exchange.answer },
+      { role: 'user', content: turn },
+    ]
+    : [...fire.context.messages, { role: 'user', content: turn }]);
+
+  // The receipt's transcript half, recounted over what the fire really sent:
+  // the exchange and the turn on top are not in the history's count.
+  const receiptContext = (context, messages) => ({
+    ...context,
+    breakdown: {
+      ...context.breakdown,
+      transcript: {
+        ...context.breakdown.transcript,
+        messages: messages.length,
+        bytes: messages.reduce((n, m) => n + Buffer.byteLength(m.content ?? '', 'utf8'), 0),
+      },
+    },
+  });
 
   const announcePlan = (fire, plan) => broker.broadcast('plan.update', {
     project_slug: fire.row.slug,
@@ -1408,8 +1508,9 @@ export function createOrchestrator({
     }
 
     const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
+    let messages = extended(fire, GO_AHEAD);
     let outcome = await runLoop({
-      agent, system: context.system, messages: context.messages, toolset,
+      agent, system: context.system, messages, toolset, masked: fire.exchange?.masked,
       thinking: agent.thinking, emit, capMode: 'return', limits: smallLimits,
     });
     if (outcome.capped !== null) {
@@ -1422,14 +1523,16 @@ export function createOrchestrator({
         await runPlan(fire, { request, pieces: sized.pieces });
         return;
       }
+      messages = extended(fire, GO_AHEAD);
       outcome = await runLoop({
-        agent, system: context.system, messages: context.messages, toolset,
+        agent, system: context.system, messages, toolset, masked: fire.exchange?.masked,
         thinking: agent.thinking, emit, handoff: outcome.capped, limits: smallLimits,
       });
       outcome.charged += abandoned;
     }
     const kept = await persistReply({
-      ...fire, toolset, outcome, subject: firstLine(outcome.reply) || 'update files',
+      ...fire, context: receiptContext(context, messages), toolset, outcome,
+      subject: firstLine(outcome.reply) || 'update files',
     });
     if (kept.nothing) return;
     reportOutcome({
@@ -1497,16 +1600,19 @@ export function createOrchestrator({
     await runPieces(fire, planFor(db, messageId));
   }
 
-  // The pieces of a plan, one fire each, in order, each a fresh context from
-  // disk narrowed to its own files and thinking off (§14). Stops — paused,
+  // The pieces of a plan, one fire each, in order, thinking off (§14), each on
+  // the sizing's own system prompt and exchange — the files as they were when
+  // the turn began — with its turn and what changed since on top, so every
+  // piece after the first reuses the whole prefix (§8, §14). Stops — paused,
   // the plan kept — when a message arrives (the dirty bit; the finally
   // re-fires, and that message's sizing picks the rest up), when a day's
   // tokens run out, or when a piece's stream dies with nothing to show. A
   // piece that hit a limit still counts as done: what it wrote is on disk and
-  // the next piece builds on it.
+  // the next piece builds on it. The preamble names the small budget; a piece
+  // runs under the room's, and stopping early on the smaller number is fine.
   async function runPieces(fire, plan) {
     const {
-      row, project, chat, agent, dir, asker, emit, state,
+      row, project, chat, agent, dir, asker, emit, state, context,
     } = fire;
     const n = plan.pieces.length;
     let current = setPlanStatus(db, plan.message_id, 'running');
@@ -1528,20 +1634,16 @@ export function createOrchestrator({
       emit('agent.stream.start');
       state.live = true;
       const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
-      const context = await buildContext({
-        db, project, chat, dir, agent, maxAssistantTurns, maxToolCalls,
-        piece: {
-          turn: pieceTurn({ request: current.request, pieces: current.pieces, index: i }),
-          whole: new Set(piece.files),
-        },
-      });
+      const turn = pieceTurn({ request: current.request, pieces: current.pieces, index: i });
+      const fresh = await freshCopies(dir, context, piece.files);
+      const messages = extended(fire, fresh ? `${turn}\n\n${fresh}` : turn);
       const outcome = await runLoop({
-        agent, system: context.system, messages: context.messages, toolset,
-        thinking: 'none', emit,
+        agent, system: context.system, messages, toolset, thinking: 'none', emit,
+        masked: fire.exchange?.masked,
       });
       const note = firstLine(outcome.reply) || `Piece ${i + 1} of ${n}: ${piece.title}`;
       const kept = await persistReply({
-        ...fire, context, toolset, outcome,
+        ...fire, context: receiptContext(context, messages), toolset, outcome,
         subject: `piece ${i + 1} of ${n} — ${piece.title}`,
         body: outcome.reply || note,
       });
@@ -1671,6 +1773,7 @@ export function createOrchestrator({
       const context = await buildContext({
         db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
         maxAssistantTurns: limits.turns, maxToolCalls: limits.tools, historyFloor,
+        sizing: builderRoom,
       });
       if (!context) return;
 

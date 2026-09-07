@@ -227,6 +227,7 @@ test('a reply leaves a receipt, and the newest reply holds the prompt', async (t
   assert.equal(p1.status, 200);
   const prompt = await p1.text();
   assert.match(prompt, /^\[system\]\n/);
+  assert.ok(!prompt.includes('\nSIZING\n'), 'the sizing rules are the builder\'s room\'s alone');
   // The transcript names its speakers, so the human turn carries one.
   assert.match(prompt, /\[user\]\n\[\w+\] make a start/);
   assert.match(prompt, /\[tool call call_0: write_file\]/);

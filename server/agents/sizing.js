@@ -1,12 +1,16 @@
 // The sizing call, and the words around a plan (spec.md §8, §14; the
-// measurements are tmp/probe-sizing.mjs and tmp/probe-trace-handoff.mjs).
+// measurements are tmp/probe-sizing.mjs, tmp/probe-trace-handoff.mjs and
+// tmp/probe-extension*.mjs).
 //
 // One call ahead of a fire in the builder's room: the fire's own system prompt,
 // no tools, thinking off, and a JSON answer — `small`, or `big` with the
-// pieces. The ask rides the last user message, after everything else on it,
-// for two measured reasons: the system prompt stays byte-identical to the
-// fire's and so shares its cache prefix, and a 35 K attachment placed ahead of
-// the ask swamped it where the same ask placed after was answered every time.
+// pieces. The rules stand in the preamble and the last user message carries a
+// short trigger, after everything else on it, for two measured reasons: an
+// attachment placed ahead of the ask swamps it, and ⚠️ a last user message
+// over ~160 tokens leaves the request after it the system prompt less ~6,000
+// tokens — the ~250-token ask that used to ride there cost every fire in the
+// room half its prompt (§14). The fire is then the sizing's transcript plus
+// one turn, and reuses the whole system prompt.
 
 export const MAX_PIECES = 6;
 const MAX_FILES_PER_PIECE = 8;
@@ -18,9 +22,12 @@ export const SIZING_MAX_TOKENS = 1200;
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-export function sizingAsk({ paused = null, begun = false } = {}) {
-  const lines = [
-    '[studio] Before anything is built, size this request. Answer with JSON only — no prose, no code fence:',
+// The standing rules, in the builder's preamble: cached with the rest and
+// byte-identical for the fire that follows.
+export function sizingRules() {
+  return [
+    'SIZING',
+    'When a [studio] message asks you to size the request, answer with JSON only — no prose, no code fence:',
     '{"size":"small"} when it is one change a helper can make in one go — a value, a line, a bug, one',
     'file — or a question or a remark, which wants an answer rather than work.',
     '{"size":"big","pieces":[{"title":"…","files":["…"],"what":"…"}]} when it is more than that. Split it',
@@ -28,25 +35,30 @@ export function sizingAsk({ paused = null, begun = false } = {}) {
     'and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for the',
     'helper who will do that piece, saying what it makes and what it must not touch. Order the pieces so',
     'each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
-  ];
+    'If the message says a plan was paused for it and lists the pieces still to do: a remark or a question',
+    'that changes nothing is {"size":"small","resume":true}, and the plan carries on after your reply; one',
+    'that says to stop is {"size":"small","resume":false}; one that changes the plan or asks for more is',
+    'big, with every piece still to do, changed as the message asks, the message\'s own work first when it',
+    'is separate.',
+    'If it says a helper has already begun — its notes are above — size what is left, not the whole: small',
+    'if one more go finishes it, big with the pieces still to do otherwise.',
+  ].join('\n');
+}
+
+// The last user message's part: short on purpose (§14). A paused plan's
+// pieces still to do ride here because they change; a begun note or a capped
+// trace rides ahead of it, long, and costs the 6 K once.
+export function sizingTrigger({ paused = null, begun = false } = {}) {
+  const lines = ['[studio] Size this request.'];
   if (paused) {
     const left = paused.pieces.filter((p) => p.status !== 'done');
     lines.push(
-      '',
       'A plan was under way and was paused for this message. Its pieces still to do:',
       ...left.map((p, i) => `${i + 1}. ${p.title} — ${p.files.join(', ')}: ${p.what}`),
-      'If the message is a remark or a question that changes nothing, answer {"size":"small","resume":true}',
-      'and the plan carries on after your reply. If it says to stop, answer {"size":"small","resume":false}.',
-      'If it changes the plan or asks for more, answer big with every piece still to do, changed as the',
-      'message asks, the message\'s own work first when it is separate.',
     );
   }
   if (begun) {
-    lines.push(
-      '',
-      'A helper has already begun on this — its notes are above. Size what is left, not the whole:',
-      'small if one more go finishes it, big with the pieces still to do otherwise.',
-    );
+    lines.push('A helper has already begun on this — its notes are above. Size what is left, not the whole.');
   }
   return lines.join('\n');
 }

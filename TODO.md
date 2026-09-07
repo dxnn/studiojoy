@@ -3,11 +3,6 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- ! move the sizing rules into the builder's preamble with a short trigger on
-  the last message, then make every fire in `Building` the sizing's transcript
-  plus one turn, on the sizing's own file block with fresh copies on the piece
-  turn — measured 2026-09-06: the fire hits 96% and each piece 91–93%, against
-  50% today (ideas/planner.md, second chapter, steps 3–4; spec/ §14)
 - ! make the plan the reply: `reply` or `pieces` from the sizing, one piece
   runs at once, the piece rows behind the card, a headline per piece and a
   synopsis, sub-pieces on overrun (ideas/planner.md, second chapter, steps 5–6)

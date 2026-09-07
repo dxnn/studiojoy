@@ -34,7 +34,7 @@ const send = (app, chatId, body) => app.client.json('POST', '/api/projects/tank/
 const sized = (answer) => answers(JSON.stringify(answer));
 const PIECES = [
   { title: 'The page', files: ['index.html', 'css/style.css'], what: 'The page and its styles.' },
-  { title: 'Tanks that drive', files: ['js/tank.js', 'js/game.js'], what: 'Two tanks and the loop.' },
+  { title: 'Tanks that drive', files: ['js/tank.js', 'js/game.js', 'index.html'], what: 'Two tanks and the loop.' },
 ];
 const write = (p, content = 'x') => ({ name: 'write_file', input: { path: p, content } });
 const builderId = (app) => app.db.prepare('SELECT id FROM agents WHERE builtin = 1').get().id;
@@ -175,20 +175,34 @@ test('a small ask is sized first, then answered as one fire', async (t) => {
   const reply = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
   assert.equal(reply.data.body, 'Done — faster now.');
 
-  // One sizing call: the fire's own system prompt, no tools, thinking off,
-  // JSON asked for, and the ask riding the last user message after the words.
+  // One sizing call: the fire's own system prompt with the rules standing in
+  // it, no tools, thinking off, JSON asked for, and a short trigger riding the
+  // last user message after the words — short because a long last message
+  // costs the fire after it half its prompt (spec/ §14).
   assert.equal(llm.asked.length, 1);
   const ask = llm.asked[0];
   assert.equal(ask.thinking, 'none');
   assert.equal(ask.responseFormat, 'json_object');
   assert.equal(ask.tools, undefined);
-  assert.equal(ask.system, llm.calls[0].system, 'the same prefix, so the fire is a cache hit');
+  assert.match(ask.system, /SIZING\nWhen a \[studio\] message asks you to size the request/);
   const last = ask.messages.at(-1).content;
-  assert.ok(last.indexOf('make the tanks a bit faster') < last.indexOf('size this request'));
-  // The fire itself carries no ask, and thinks at the builder's own level.
-  assert.ok(!llm.calls[0].messages.at(-1).content.includes('size this request'));
-  assert.equal(llm.calls[0].thinking, 'low');
-  assert.ok(llm.calls[0].tools.length > 0, 'file tools, like any fire in a game');
+  assert.ok(last.indexOf('make the tanks a bit faster') < last.indexOf('[studio] Size this request.'));
+  assert.ok(!last.includes('JSON only'), 'the rules are in the preamble, not on the message');
+  // The fire is the sizing's transcript plus one turn — the same system
+  // prompt, the sizing's messages, its answer, a go-ahead — so it extends the
+  // sizing's cache prefix instead of diverging from it. The fake keeps the
+  // array the loop went on appending to, so only the head is compared.
+  const fire = llm.calls[0];
+  assert.equal(fire.system, ask.system);
+  const n = ask.messages.length;
+  assert.deepEqual(fire.messages.slice(0, n), ask.messages);
+  assert.deepEqual(fire.messages.slice(n, n + 2), [
+    { role: 'assistant', content: '{"size":"small"}' },
+    { role: 'user', content: '[studio] Go ahead.' },
+  ]);
+  // And thinks at the builder's own level.
+  assert.equal(fire.thinking, 'low');
+  assert.ok(fire.tools.length > 0, 'file tools, like any fire in a game');
 });
 
 // A small ask gets the room for one job, and a real receipt showed why: sized
@@ -234,7 +248,7 @@ test('a small ask that outruns its budget keeps what it did and plans the rest',
   assert.match(ask, /Files it changed: .*index\.html/);
   assert.match(ask, /Files it changed: .*js\/tank\.js/);
   assert.match(ask, /Page first\.\n\nNow the tanks\./);
-  assert.ok(ask.indexOf('what it said while working') < ask.indexOf('size this request'));
+  assert.ok(ask.indexOf('what it said while working') < ask.indexOf('Size this request'));
   assert.match(ask, /Size what is left, not the whole/);
 
   await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
@@ -315,26 +329,37 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   ]);
   assert.equal(fs.readFileSync(path.join(dir, 'js', 'tank.js'), 'utf8'), 'drive()');
 
-  // Each piece's fire: thinking off, one turn naming the request, the plan and
-  // this piece alone — and, for the second, what the first left behind.
+  // Each piece's fire: thinking off, on the sizing's own system prompt and its
+  // exchange — one cache prefix for the whole plan — with one turn on top
+  // naming the request, the plan and this piece alone; for the second, what
+  // the first left behind.
   assert.equal(llm.calls.length, 4);
   for (const call of llm.calls) assert.equal(call.thinking, 'none');
-  // The fake keeps the array the loop went on appending to, so the first
-  // message is the turn and the rest are the tool exchange; none of it is
-  // the chat's history.
-  const turn1 = llm.calls[0].messages;
-  assert.equal(turn1[0].role, 'user');
-  assert.match(turn1[0].content, /piece 1 of 2: The page/);
-  assert.match(turn1[0].content, /Do only this piece/);
-  assert.match(turn1[0].content, /"build me a tank game"/);
-  assert.ok(!JSON.stringify(turn1).includes('[Dann]'), 'no history in a piece');
-  const turn2 = llm.calls[2].messages[0].content;
+  const sizing = llm.asked[0];
+  assert.equal(llm.calls[0].system, sizing.system);
+  assert.equal(llm.calls[2].system, sizing.system, 'the block is the sizing\'s for every piece');
+  // The fake keeps the array the loop went on appending to: the exchange, the
+  // piece turn, then the tool exchange.
+  const n = sizing.messages.length;
+  const first1 = llm.calls[0].messages;
+  assert.deepEqual(first1.slice(0, n), sizing.messages);
+  assert.equal(first1[n].role, 'assistant');
+  const turn1 = first1[n + 1];
+  assert.equal(turn1.role, 'user');
+  assert.match(turn1.content, /piece 1 of 2: The page/);
+  assert.match(turn1.content, /Do only this piece/);
+  assert.match(turn1.content, /"build me a tank game"/);
+  assert.ok(!turn1.content.includes('have changed since'), 'nothing has changed yet');
+  const turn2 = llm.calls[2].messages[n + 1].content;
   assert.match(turn2, /piece 2 of 2: Tanks that drive/);
   assert.match(turn2, /Done so far:\n- The page: Piece 1 of 2/);
-  // Narrowed: the first piece's files are listed for the second, not sent.
-  assert.ok(!llm.calls[2].system.includes('--- FILE: index.html'));
-  assert.match(llm.calls[2].system, /index\.html \(\d+ bytes\)/);
-  assert.match(llm.calls[2].system, /not sent for this piece/);
+  // What piece 1 changed rides piece 2's turn as fresh copies: the file this
+  // piece names whole and current, the other by name — never in the system
+  // prompt, which stays byte-identical.
+  assert.match(turn2, /--- FILE: index\.html \(\d+ bytes\) ---\n<h1>Tank<\/h1>\n--- END FILE ---/);
+  assert.match(turn2, /Also changed, not shown[^\n]*css\/style\.css/);
+  assert.ok(!turn2.includes('body{}'), 'a file the piece does not name is named, not sent');
+  assert.ok(!llm.calls[2].system.includes('<h1>Tank</h1>'));
 
   // The card on a fresh read carries the finished checklist.
   const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
@@ -431,7 +456,7 @@ test('a first-turn cap in Building hands the trace to the sizing call', async (t
   // The second sizing carried the notes, ahead of its ask.
   assert.equal(llm.asked.length, 2);
   const ask = llm.asked[1].messages.at(-1).content;
-  assert.ok(ask.indexOf('design notes') < ask.indexOf('size this request'));
+  assert.ok(ask.indexOf('design notes') < ask.indexOf('Size this request'));
   assert.match(ask, /--- notes ---/);
   await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
 });
@@ -451,11 +476,13 @@ test('still small after the cap, the retry carries the trace and the receipt doe
   assert.equal(reply.data.body, 'Started on movement.');
   // The retry: thinking off, the trace on the user turn as notes.
   assert.equal(llm.calls[1].thinking, 'none');
-  const carried = llm.calls[1].messages
-    .find((m) => m.role === 'user' && /your notes so far/.test(m.content));
+  const retry = llm.calls[1].messages;
+  const carried = retry.find((m) => m.role === 'user' && /your notes so far/.test(m.content));
   assert.ok(carried, 'the handed trace rides a user turn');
   assert.match(carried.content, /design notes: split the screen/);
-  assert.ok(carried.content.indexOf('build me a tank game') < carried.content.indexOf('design notes'));
+  // The request first, in the sizing's messages; the trace on the turn after.
+  const asked = retry.findIndex((m) => m.role === 'user' && /build me a tank game/.test(m.content));
+  assert.ok(asked >= 0 && asked < retry.indexOf(carried));
   // And never persisted: the receipt's prompt keeps a placeholder where the
   // notes were.
   const prompt = await app.client.request('GET', `/api/messages/${reply.data.id}/prompt`);

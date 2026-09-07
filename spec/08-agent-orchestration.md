@@ -74,14 +74,30 @@ gone; one piece of it thinks for a second. Design: ideas/planner.md.
 
 **Sizing.** One `complete()` — the microhelper shape (§6) — with the fire's
 own system prompt, no tools, thinking off, `response_format` json_object as
-a belt, and the ask as the braces on the last user message, after everything
-else on it (two measured reasons: it shares the fire's cache prefix, and an
-ask placed ahead of an attachment gets swamped). It answers
-`{"size":"small"}` — one change, question or remark — or
-`{"size":"big","pieces":[{title, files, what}]}`, two to six pieces each
-finishable in one sitting. An answer that won't parse, or an upstream that
-won't answer, is small — today's fire, its cap intact — charged to the asker
-like the fire it precedes.
+a belt. The **rules** — what small and big mean, the shape of a plan, what
+to do about a paused plan or a begun one — stand in the room's preamble under
+`SIZING`, cached with the rest; the last user message carries only the
+**trigger**, `[studio] Size this request.`, after everything else on it,
+with a paused plan's pieces still to do under it when there are any. ⚠️
+Short on purpose: measured (§14), a last user message over ~160 tokens
+leaves the request after it the system prompt less ~6,000 tokens, and the
+~250-token ask that rode there until 2026-09-06 cost every fire in this room
+half its prompt. A capped trace or a begun note still rides ahead of the
+trigger, long, and costs the 6 K once. It answers `{"size":"small"}` — one
+change, question or remark — or `{"size":"big","pieces":[{title, files,
+what}]}`, two to six pieces each finishable in one sitting. An answer that
+won't parse, or an upstream that won't answer, is small — today's fire, its
+cap intact — charged to the asker like the fire it precedes.
+
+**The fire extends the sizing.** Every fire in this room — a small ask's
+and each piece's — is the sizing's transcript with its answer as the
+assistant turn and one more user turn on top: `[studio] Go ahead.` for a
+small ask, the piece turn for a piece. Measured (§14): the fire then reuses
+everything to the end of the system prompt, 96%, where a fire that drops the
+trigger from the last message diverges at the tail of it and reuses half.
+The answer rides the prefix at hit price, a few hundred tokens at most, and
+the receipt's prompt shows the exchange. A sizing that failed leaves no
+exchange, and the turn goes on as a user message of its own.
 
 **Small** is the ordinary fire, at the builder's own thinking level (`low`),
 under a budget of its own: `SMALL_TURNS` turns and `SMALL_TOOL_CALLS` tool
@@ -99,19 +115,28 @@ gets another chance at a plan; bounded by the same continuation count. There
 is no other continuation in this room: the plan is the continuation. The
 sizing's file block is the fire's, from before it wrote — that is the cache
 prefix — so the note *names* the changed files rather than showing them, and
-the pieces read the tree fresh. Why: a real receipt (2026-09-03) showed an
-ask sized small running to 24 turns and carrying on.
+the pieces see what changed as fresh copies on their turns (below). Why: a
+real receipt (2026-09-03) showed an ask sized small running to 24 turns and
+carrying on.
 
 **Big** is a **plan**: a message of kind `'plan'` by the builder — *That's a
 big one — I'll do it in N pieces*, and the list — over a `plans` row (§3),
 shown as a checklist that ticks. Then one fire per **piece**, in order:
 
-- A fresh, **narrowed** context from disk: the transcript is one `[studio]`
-  turn naming the request, the plan, what earlier pieces made, and this
-  piece (*do only this piece, then stop with a one-line note*) — never the
-  chat's history; the file block sends whole only the files the plan named
-  for this piece plus `BRIEF.md`, `SPEC.md` and `config/`, listing the rest
-  for `read_file`.
+- The sizing's **own system prompt**, byte for byte — the files as they were
+  when the turn began, never narrowed to the piece and never rebuilt from
+  disk — and its exchange, with this piece's turn on top: the request, the
+  plan, what earlier pieces said they made, this piece (*do only this piece,
+  then stop with a one-line note*), and **fresh copies**: the current whole
+  text of any file this piece names that has changed since the block was
+  read, the other changed files by name, a deleted one said so. Copies,
+  never diffs: `patch_file`'s `old_text` must match the file as it is now.
+  A copy over `FRESH_COPY_BYTES` is named instead, and a file the cap left
+  out of the block is never "changed". Measured (§14) against a narrowed
+  block and a block rebuilt per piece, on real tool loops: the only shape
+  where every piece's first request hits — 87–98% after the first — at half
+  the cost, because the other two diverge inside the system prompt at a new
+  depth on every piece.
 - Thinking `none`: 8–9 s and a one-line note every time, against 8–37 s at
   `low` (§14) — a piece is where the plan already did the thinking.
 - Its own message row, commit (`Builder: piece i of N — title`), receipt,

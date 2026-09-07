@@ -388,15 +388,15 @@ Open questions:
   two tall stacked things are usable. Both are TODO lines.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
-- **The builder's second chapter** (ideas/planner.md, decided 2026-09-06,
-  unbuilt): the sizing call does not warm the fire after it, and eight probes
-  found the rule — ⚠️ a last user message over ~160 tokens costs the next
-  request ~6,000 tokens of prefix, and the sizing ask is 250 (§14) — so the
-  sizing rules move into the preamble behind a short trigger and every fire
-  in `Building` becomes the sizing's transcript plus one turn; the plan
-  becomes the one reply, with the piece rows behind the card; and a plan of
-  two or more pieces waits as an editable draft behind one click. The budget
-  formula already carries the price list's weights (§8, §14).
+- **The builder's second chapter** (ideas/planner.md, decided 2026-09-06).
+  Built: the sizing rules stand in the builder's preamble behind a short
+  trigger, every fire in `Building` is the sizing's transcript plus one turn,
+  and a piece runs on the sizing's own block with fresh copies on its turn —
+  because ⚠️ a last user message over ~160 tokens costs the next request
+  ~6,000 tokens of prefix, and the sizing ask was 250 (§14). The first
+  production receipt should read ~96% where it read 50%. Unbuilt: the plan
+  as the one reply with the piece rows behind the card, and a plan of two or
+  more pieces waiting as an editable draft behind one click.
 - Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)
