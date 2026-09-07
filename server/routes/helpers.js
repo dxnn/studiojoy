@@ -160,6 +160,9 @@ export function messagePublic(db, row, slug) {
     kind: row.kind ?? null,
     body: row.body,
     created_at: row.created_at,
+    // Set on a piece's row: the plan card it lives behind. The thread leaves
+    // such a row out and the card shows it in place (spec.md §8).
+    plan_message_id: row.plan_message_id ?? null,
     // Null on anything a person or the studio wrote: only a fire costs
     // tokens. Shown in the UI so a reply that continued itself three times is
     // visibly three times the cost (spec.md §8).
@@ -182,6 +185,6 @@ export function messagePublic(db, row, slug) {
       .get(row.id) !== undefined,
     // The checklist behind a plan card — a message of kind 'plan' — and null
     // on everything else. Updated by `plan.update` as the pieces land (§9).
-    plan: row.kind === 'plan' ? planPublic(planFor(db, row.id)) : null,
+    plan: row.kind === 'plan' ? planPublic(db, planFor(db, row.id)) : null,
   };
 }

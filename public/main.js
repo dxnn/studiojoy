@@ -832,6 +832,7 @@ export async function openProject(slug, { view = null } = {}) {
     S.live = new Map();
     S.pending = new Map();
     S.receipt = null;
+    S.pieceOpen = null;
     render();
     return;
   }
@@ -893,8 +894,10 @@ export async function openProject(slug, { view = null } = {}) {
   // Off with the last game's dressing before the first paint, like the
   // palette: this game's own arrives with its colours below.
   setReservedImages({ chat: null, hero: null });
-  // An open receipt belongs to a message in the game being left.
+  // An open receipt belongs to a message in the game being left, and so
+  // does an open piece on a plan card.
   S.receipt = null;
+  S.pieceOpen = null;
   // And so does an open verb in Controls, and any question it was asking.
   S.controlsVerb = null;
   S.controlsKey = null;

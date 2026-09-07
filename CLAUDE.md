@@ -275,12 +275,17 @@ specified:
   belong to a chat, with a chatty switch, a cooldown and a thinking level (§8).
 - **The builder**: the studio's own helper, in every game's `Building` and
   nowhere else, with nobody else in there. It sizes each message first — one
-  small call, no tools, thinking off — and does a big ask as a **plan** of two
-  to six **pieces**, one fire each at thinking `none`, each a fresh context
-  narrowed to its own files, each its own short row and commit, shown as a
-  checklist that ticks. A message mid-plan pauses it; the next sizing carries
-  on, sets aside or replaces it. Open rooms with people's helpers are
-  unchanged. Measured in §14 on 2026-09-03; designed in ideas/planner.md (§8).
+  small call, no tools, thinking off, its rules in the preamble and a short
+  trigger on the last message — and answers a remark as a **reply** and any
+  change as a **plan** of one to six **pieces**, one fire each on the
+  sizing's own prompt with fresh copies of what changed, each its own commit,
+  its row filed behind the **plan card**, which is the one reply the thread
+  shows: a checklist that ticks, each line a piece's title, the files it
+  changed and its **headline**. A plan of one runs at once at the builder's
+  level; a bigger plan's pieces at `none`. A message mid-plan pauses it; the
+  next sizing carries on, sets aside or replaces it. Open rooms with people's
+  helpers are unchanged. Measured in §14 on 2026-09-03 and 2026-09-06;
+  designed in ideas/planner.md (§8).
 - Accounts split into **studio access** and players behind a waiting list; one
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).
@@ -394,9 +399,10 @@ Open questions:
   and a piece runs on the sizing's own block with fresh copies on its turn —
   because ⚠️ a last user message over ~160 tokens costs the next request
   ~6,000 tokens of prefix, and the sizing ask was 250 (§14). The first
-  production receipt should read ~96% where it read 50%. Unbuilt: the plan
-  as the one reply with the piece rows behind the card, and a plan of two or
-  more pieces waiting as an editable draft behind one click.
+  production receipt should read ~96% where it read 50%. Also built: the plan
+  as the one reply, piece rows behind the card, a plan of one for any change.
+  Unbuilt: the synopsis and sub-pieces on overrun (step 6), and a plan of two
+  or more pieces waiting as an editable draft behind one click (steps 7–8).
 - Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)

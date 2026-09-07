@@ -83,11 +83,13 @@ Short on purpose: measured (§14), a last user message over ~160 tokens
 leaves the request after it the system prompt less ~6,000 tokens, and the
 ~250-token ask that rode there until 2026-09-06 cost every fire in this room
 half its prompt. A capped trace or a begun note still rides ahead of the
-trigger, long, and costs the 6 K once. It answers `{"size":"small"}` — one
-change, question or remark — or `{"size":"big","pieces":[{title, files,
-what}]}`, two to six pieces each finishable in one sitting. An answer that
-won't parse, or an upstream that won't answer, is small — today's fire, its
-cap intact — charged to the asker like the fire it precedes.
+trigger, long, and costs the 6 K once. It answers `{"size":"reply"}` — a
+question or a remark — or `{"size":"pieces","pieces":[{title, files,
+what}]}`: one piece for one change, two to six for more, each finishable in
+one sitting. An answer that won't parse, or an upstream that won't answer, is
+a reply — the plain fire, its cap intact — charged to the asker like the fire
+it precedes. Until 2026-09-06 the words were `small` and `big`, and a plan of
+one collapsed into small; `parseSizing` still reads them.
 
 **The fire extends the sizing.** Every fire in this room — a small ask's
 and each piece's — is the sizing's transcript with its answer as the
@@ -99,19 +101,20 @@ The answer rides the prefix at hit price, a few hundred tokens at most, and
 the receipt's prompt shows the exchange. A sizing that failed leaves no
 exchange, and the turn goes on as a user message of its own.
 
-**Small** is the ordinary fire, at the builder's own thinking level (`low`),
+**A reply** is the ordinary fire, at the builder's own thinking level (`low`),
 under a budget of its own: `SMALL_TURNS` turns and `SMALL_TOOL_CALLS` tool
 calls (6 and 12, against a room's 24 and 40). The whole tree is already in
 the prompt, so one change is a patch, a read-back and a note — three turns —
 and six is twice that path. The room's preamble names the small pair, since
-the sizing shares the prefix. A small ask that uses the budget up was not
-small: what it did is kept and committed as any reply is, a banner says it
+the sizing shares the prefix. A reply that uses the budget up was work after
+all: what it did is kept and committed as any reply is, a banner says it
 turned out bigger than one go, and what is left goes back to the sizing with
-the files it changed and its working as notes, ahead of the ask (`begunNote`),
-told to size the rest rather than the whole. Big, and a plan for the rest runs
-— its card says so. Small again, or no answer, and the builder carries on the
-way any room does, one more go and sized again first, so the next overrun
-gets another chance at a plan; bounded by the same continuation count. There
+the files it changed and its working as notes, ahead of the trigger
+(`begunNote`), told to size the rest rather than the whole. Pieces, and a plan
+for the rest runs — its card says so. A reply again, or no answer, and the
+builder carries on the way any room does, one more go and sized again first,
+so the next overrun gets another chance at a plan; bounded by the same
+continuation count. There
 is no other continuation in this room: the plan is the continuation. The
 sizing's file block is the fire's, from before it wrote — that is the cache
 prefix — so the note *names* the changed files rather than showing them, and
@@ -119,9 +122,20 @@ the pieces see what changed as fresh copies on their turns (below). Why: a
 real receipt (2026-09-03) showed an ask sized small running to 24 turns and
 carrying on.
 
-**Big** is a **plan**: a message of kind `'plan'` by the builder — *That's a
-big one — I'll do it in N pieces*, and the list — over a `plans` row (§3),
-shown as a checklist that ticks. Then one fire per **piece**, in order:
+**Pieces** is a **plan**, of one piece as often as of six: a message of kind
+`'plan'` by the builder — *One piece:* or *That's a big one — I'll do it in N
+pieces*, and the list — over a `plans` row (§3), shown as a checklist that
+ticks. The card is the plan's one reply. Each piece's own row is filed behind
+it (`messages.plan_message_id`, §3): left out of the thread and of history,
+opened from its line on the card by id (§6), keeping its commit, its receipt
+and its working. As a piece lands the card's body is rewritten from the plan
+— its head, then per piece the title, the files it changed and its
+**headline**, the closing paragraph of its reply — because the body is what
+the thread shows for the plan and what history replays; the piece turn asks
+for that paragraph, and `plan.update` (§9) carries the same shape. A plan of
+one runs at once, no draft, at the builder's own level, since no plan thought
+for it; the pieces of a bigger plan run at `none`. Then one fire per
+**piece**, in order:
 
 - The sizing's **own system prompt**, byte for byte — the files as they were
   when the turn began, never narrowed to the piece and never rebuilt from
@@ -137,11 +151,14 @@ shown as a checklist that ticks. Then one fire per **piece**, in order:
   where every piece's first request hits — 87–98% after the first — at half
   the cost, because the other two diverge inside the system prompt at a new
   depth on every piece.
-- Thinking `none`: 8–9 s and a one-line note every time, against 8–37 s at
-  `low` (§14) — a piece is where the plan already did the thinking.
-- Its own message row, commit (`Builder: piece i of N — title`), receipt,
-  and `plan.update` (§9) as it lands. A piece that hit a limit still counts
-  as done: what it wrote is on disk and the next piece builds on it.
+- Thinking `none` in a plan of two or more: 8–9 s and a short note every
+  time, against 8–37 s at `low` (§14) — a piece is where the plan already did
+  the thinking. A plan of one at the builder's own level.
+- Its own message row behind the card, commit (`Builder: piece i of N —
+  title`), receipt, and `plan.update` (§9) as it starts — the piece marked
+  `running`, so the card shows the live reply on its line — and as it lands.
+  A piece that hit a limit still counts as done: what it wrote is on disk and
+  the next piece builds on it.
 
 **Interruptions.** A message arriving mid-plan sets the dirty bit as usual;
 the running piece finishes, the plan **pauses** with a banner saying after

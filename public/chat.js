@@ -326,33 +326,75 @@ function reactionsRow(msg) {
     palette);
 }
 
-// A plan card: what the Builder split a big ask into, as a checklist that
-// ticks as the pieces land (spec.md §8). The words over it are the Builder's
-// own first line — the body is what the transcript keeps — and the list is
-// the plan row, moved along by `plan.update`.
+// A plan card: the Builder's one reply for a plan (spec.md §8) — a checklist
+// that ticks as the pieces land, each line a piece's title, the files it
+// changed and its headline. The words over it are the body's first line, and
+// the list is the plan row, moved along by `plan.update`. A piece's own row
+// lives behind the card and opens in its line.
 function renderPlanCard(msg) {
   const plan = msg.plan;
   const pieces = plan?.pieces ?? [];
   const done = pieces.filter((p) => p.status === 'done').length;
   const state = {
-    done: 'All done — press play and tell me what breaks.',
+    done: pieces.length === 1 ? 'Press play and tell me what breaks.' : 'All done — press play and tell me what breaks.',
     paused: `Paused with ${pieces.length - done} to go. Say “carry on” to keep going.`,
     dropped: 'Set aside.',
-    running: `Working on piece ${Math.min(done + 1, pieces.length)} of ${pieces.length}`,
+    running: pieces.length === 1 ? '' : `Working on piece ${Math.min(done + 1, pieces.length)} of ${pieces.length}`,
   }[plan?.status] ?? '';
+  const live = S.live.get(msg.agent_id);
   return h('div', { class: 'msg from-agent' },
     h('div', { class: 'from', text: agentName(msg.agent_id) }),
     h('div', { class: `pieces ${plan?.status ?? ''}` },
       h('div', { class: 'pieces-head', text: msg.body.split('\n')[0] }),
-      pieces.length ? h('ol', { class: 'pieces-list' }, pieces.map((p) => h('li', { class: `piece ${p.status}` },
-        h('span', { class: 'piece-mark', text: p.status === 'done' ? '✓' : '○' }),
-        h('span', { class: 'piece-title', text: p.title }),
-        p.files?.length ? h('span', { class: 'piece-files muted', text: p.files.join(', ') }) : null))) : null,
+      pieces.length ? h('ol', { class: 'pieces-list' }, pieces.map((p) => renderPiece(msg, p, live))) : null,
       state ? h('div', {
         class: `pieces-state${plan.status === 'running' ? ' dots' : ''}`, text: state,
       }) : null),
     reactionsRow(msg),
     footnote(msg));
+}
+
+// One line of the card. Done: the tick, the title, the files it changed, its
+// headline, and `Details`, which opens the piece's own row in place — one at
+// a time, the same link closing it. Running: the live reply, here rather than
+// at the foot of the thread, so the entry is marked as placed and the thread
+// leaves it out. To do: the title and the files it is to touch.
+function renderPiece(card, p, live) {
+  const open = S.pieceOpen?.id === p.message_id ? S.pieceOpen.msg : null;
+  const running = p.status === 'running' && live ? live : null;
+  if (running) running.placed = true;
+  const files = p.writes?.length ? p.writes : (p.files ?? []);
+  return h('li', { class: `piece ${p.status}` },
+    h('span', { class: `piece-mark${running ? ' dots' : ''}`, text: p.status === 'done' ? '✓' : (running ? '' : '○') }),
+    h('span', { class: 'piece-title' },
+      h('span', { text: p.title }),
+      p.message_id ? h('button', {
+        class: 'link piece-open',
+        text: S.pieceOpen?.id === p.message_id ? 'Hide' : 'Details',
+        onclick: () => openPiece(p.message_id),
+      }) : null),
+    files.length ? h('span', { class: 'piece-files muted', text: files.join(', ') }) : null,
+    p.note ? h('div', { class: 'piece-note', text: p.note }) : null,
+    running ? h('div', { class: 'piece-live' }, renderLive(card.agent_id, running)) : null,
+    open ? h('div', { class: 'piece-detail' }, renderMessage(open)) : null);
+}
+
+async function openPiece(id) {
+  if (S.pieceOpen?.id === id) {
+    S.pieceOpen = null;
+    render();
+    return;
+  }
+  S.pieceOpen = { id, msg: null };
+  render();
+  const res = await send(`/api/messages/${id}`);
+  if (!res.ok) {
+    S.pieceOpen = null;
+    say('Could not open that piece.', true);
+    return;
+  }
+  S.pieceOpen = { id, msg: await res.json() };
+  render();
 }
 
 function renderMessage(msg) {
@@ -709,8 +751,11 @@ export function renderChat() {
         h('p', { text: 'Then ask a helper to build something and watch the files appear.' })));
   }
 
+  // A live reply that is a running piece is drawn on its card's line
+  // (renderPiece marks it placed); the rest go at the foot of the thread.
+  for (const entry of S.live.values()) entry.placed = false;
   const items = p.messages.map(renderMessage);
-  for (const [agentId, entry] of S.live) items.push(renderLive(agentId, entry));
+  for (const [agentId, entry] of S.live) if (!entry.placed) items.push(renderLive(agentId, entry));
   for (const [localId, entry] of S.pending) items.push(renderPending(localId, entry));
 
   // chat.png, when the game has one, tiles behind the thread — on the

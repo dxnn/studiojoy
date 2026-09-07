@@ -9,8 +9,8 @@ broker entirely.
 |---|---|
 | `project.new` | `{slug, name}` |
 | `project.updated` | `{slug, name, archived}` |
-| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, working, created_at, tokens, trimmed, context_paths, writes, reactions, plan}` — `working` is whether the reply has *working* to open (a flag; the text is fetched, §6), `plan` is `{status, pieces}` on a card of kind `'plan'`, null otherwise |
-| `plan.update` | `{project_slug, chat_id, message_id, plan: {status, pieces}}` — a *piece* landed, or the plan paused, finished or was set aside; the client puts it on the card and re-renders (§8) |
+| `message.new` | full message: `{id, project_slug, user_id, user_name, agent_id, kind, body, working, created_at, tokens, trimmed, context_paths, writes, reactions, plan, plan_message_id}` — `working` is whether the reply has *working* to open (a flag; the text is fetched, §6), `plan` is `{status, pieces}` on a card of kind `'plan'`, null otherwise; `plan_message_id` is set on a *piece*'s row, which the client keeps out of the thread — its card carries it — and marks nothing unread for (§8) |
+| `plan.update` | `{project_slug, chat_id, message_id, body, plan: {status, pieces: [{title, files, what, status, message_id, note, writes}]}}` — a *piece* started (`running`) or landed, or the plan paused, finished or was set aside; `body` is the card's rewritten text and `note` a piece's *headline*; the client puts both on the card and re-renders (§8) |
 | `message.reaction` | `{project_slug, chat_id, message_id, user_id, user_name, emoji, action: 'add'\|'remove'}` — a delta, applied by the same idempotent merge as the reacting tab's own optimistic click |
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |

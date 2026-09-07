@@ -153,6 +153,12 @@
 .piece-files { grid-column: 2; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
 .pieces-state { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .pieces.done .pieces-state { color: #e4d9de; }
+/* A piece's line grows as it lands: its headline, then its own row behind
+   `Details`, opened in place; a running one carries the live reply. */
+.piece-title .piece-open { margin-left: 8px; font-size: 12px; }
+.piece-note { grid-column: 2; margin-top: 2px; }
+.piece-live, .piece-detail { grid-column: 2; margin-top: 6px; }
+.piece-detail .msg { max-width: none; }
 
 /* The files a reply touched. Monospace pills, and the one that was deleted is
    crimson with its minus, because that is the one you check twice. */

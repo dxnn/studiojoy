@@ -57,11 +57,24 @@ export function pauseRunningPlans(db, now = new Date().toISOString()) {
     .run(now);
 }
 
-// What the card shows. The note a piece left is in its own message row; here
-// is only what the checklist needs.
-export const planPublic = (plan) => (plan ? {
+// What the card shows, and what its body is written from (spec.md §8): per
+// piece its status — todo, running, done — its headline (`note`, the closing
+// paragraph of its reply), the files it changed, and the id of its row, which
+// lives behind the card and is opened from it.
+const pieceWrites = (db, messageId) => db
+  .prepare('SELECT path FROM message_writes WHERE message_id = ? ORDER BY path')
+  .all(messageId)
+  .map((w) => w.path);
+
+export const planPublic = (db, plan) => (plan ? {
   status: plan.status,
   pieces: plan.pieces.map((p) => ({
-    title: p.title, files: p.files, what: p.what, status: p.status, message_id: p.message_id,
+    title: p.title,
+    files: p.files,
+    what: p.what,
+    status: p.status,
+    message_id: p.message_id,
+    note: p.note ?? null,
+    writes: p.message_id ? pieceWrites(db, p.message_id) : [],
   })),
 } : null);

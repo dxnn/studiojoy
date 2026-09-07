@@ -234,10 +234,12 @@ export function projectRoutes(r) {
     // both belong to it, not to the project: everything below the title bar
     // changes when you switch chats, and the files do not.
     const chat = requireChat(ctx.db, project, ctx.query.get('chat'));
+    // A piece's row is behind its card, not in the thread (spec.md §8).
     const messages = ctx.db
       .prepare(
         `SELECT * FROM (
-           SELECT * FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?
+           SELECT * FROM messages WHERE chat_id = ? AND plan_message_id IS NULL
+           ORDER BY id DESC LIMIT ?
          ) ORDER BY id ASC`,
       )
       .all(chat.id, RECENT_MESSAGES);

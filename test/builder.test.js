@@ -15,7 +15,7 @@ import {
   createFakeLlm, says, calls, answers,
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
-import { openDb } from '../server/db.js';
+import { openDb, dropColumnIfPresent } from '../server/db.js';
 
 async function studio(t, { llm = null, ...opts } = {}) {
   const app = await setup({ llm, ...opts });
@@ -165,8 +165,8 @@ test('a helper somebody called Builder is renamed, not removed, when the builder
   up.close();
 });
 
-test('a small ask is sized first, then answered as one fire', async (t) => {
-  const llm = createFakeLlm([says('Done — faster now.')], [sized({ size: 'small' })]);
+test('a remark is sized as a reply, then answered as one fire', async (t) => {
+  const llm = createFakeLlm([says('Done — faster now.')], [sized({ size: 'reply' })]);
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -197,7 +197,7 @@ test('a small ask is sized first, then answered as one fire', async (t) => {
   const n = ask.messages.length;
   assert.deepEqual(fire.messages.slice(0, n), ask.messages);
   assert.deepEqual(fire.messages.slice(n, n + 2), [
-    { role: 'assistant', content: '{"size":"small"}' },
+    { role: 'assistant', content: '{"size":"reply"}' },
     { role: 'user', content: '[studio] Go ahead.' },
   ]);
   // And thinks at the builder's own level.
@@ -222,7 +222,7 @@ test('a small ask that outruns its budget keeps what it did and plans the rest',
     says(''),
     calls([write('js/game.js', 'loop()')], { text: 'It runs.' }),
     says(''),
-  ], [sized({ size: 'small' }), sized({ size: 'big', pieces: rest })]);
+  ], [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: rest })]);
   const { app, chatId } = await studio(t, { llm, smallTurns: 2, smallToolCalls: 4 });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -263,7 +263,7 @@ test('still small after an overrun, the builder gets one more go — sized again
     calls([write('index.html')], { text: 'Page first.' }),
     calls([write('js/tank.js')], { text: 'Now the tanks.' }),
     says('All done — press play.'),
-  ], [sized({ size: 'small' }), sized({ size: 'small' }), sized({ size: 'small' })]);
+  ], [sized({ size: 'reply' }), sized({ size: 'reply' }), sized({ size: 'reply' })]);
   const { app, chatId } = await studio(t, { llm, smallTurns: 2 });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -290,13 +290,53 @@ test('a sizing answer that will not parse is a small ask', async (t) => {
   assert.equal(reply.data.body, 'Here you go.');
 });
 
+// One change is a plan of one: no draft, no waiting, one fire at the builder's
+// own level, and its row behind the card — the card is the reply the thread
+// shows, with the piece's headline and the file it changed (spec.md §8).
+test('one change is a plan of one piece, run at once behind its card', async (t) => {
+  const llm = createFakeLlm([
+    calls([write('config/play.js', 'const TANK_SPEED = 200;')], { text: 'Turning it up.' }),
+    says('The tanks are faster now.\n\nTry a lap and see if it feels right.'),
+  ], [sized({
+    size: 'pieces',
+    pieces: [{ title: 'Faster tanks', files: ['config/play.js'], what: 'Raise the speed.' }],
+  })]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'make the tanks a bit faster');
+  const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  assert.equal(card.data.body.split('\n')[0], 'One piece:');
+  const row = await stream.waitFor((e) => e.event === 'message.new' && e.data.plan_message_id === card.data.id);
+  assert.equal(row.data.body, 'The tanks are faster now.\n\nTry a lap and see if it feels right.');
+  const done = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
+  // The headline is the closing paragraph; the card's body carries it and the file.
+  assert.equal(done.data.plan.pieces[0].note, 'Try a lap and see if it feels right.');
+  assert.deepEqual(done.data.plan.pieces[0].writes, ['config/play.js']);
+  assert.equal(done.data.body, 'Done:\n1. Faster tanks — config/play.js\n   Try a lap and see if it feels right.');
+  assert.equal(llm.calls.length, 2);
+  assert.equal(llm.calls[0].thinking, 'low', 'no plan thought for it, so the builder\'s own level');
+
+  // The thread holds the card and not the row; the row is there by id.
+  const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
+  assert.deepEqual(detail.body.messages.filter((m) => m.agent_id !== null).map((m) => m.kind), ['plan']);
+  assert.equal(detail.body.messages.find((m) => m.kind === 'plan').body, done.data.body);
+  const opened = await app.client.json('GET', `/api/messages/${row.data.id}`);
+  assert.equal(opened.status, 200);
+  assert.equal(opened.body.plan_message_id, card.data.id);
+  assert.deepEqual(opened.body.writes.map((w) => w.path), ['config/play.js']);
+  assert.equal((await app.client.json('GET', '/api/messages/999999')).status, 404);
+});
+
 test('a big ask becomes a plan card and one fire per piece', async (t) => {
   const llm = createFakeLlm([
     calls([write('index.html', '<h1>Tank</h1>'), write('css/style.css', 'body{}')]),
     says(''),
     calls([write('js/tank.js', 'drive()'), write('js/game.js', 'loop()')], { text: 'Tanks drive.' }),
     says(''),
-  ], [sized({ size: 'big', pieces: PIECES })]);
+    says('Thanks!'),
+  ], [sized({ size: 'pieces', pieces: PIECES }), sized({ size: 'reply' })]);
   const { app, chatId, dir } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -311,16 +351,29 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.deepEqual(card.data.plan.pieces.map((p) => [p.title, p.status]),
     [['The page', 'todo'], ['Tanks that drive', 'todo']]);
 
-  // Then a row per piece, each with its own files and its own commit.
+  // Then a row per piece, each with its own files and its own commit, each
+  // filed behind the card.
   const first = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null
     && e.data.kind === null && (e.data.writes ?? []).some((w) => w.path === 'index.html'));
   assert.equal(first.data.body, 'Piece 1 of 2: The page', 'a piece with nothing to say still gets its row');
+  assert.equal(first.data.plan_message_id, card.data.id);
   const second = await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Tanks drive.');
   assert.deepEqual(second.data.writes.map((w) => w.path), ['js/game.js', 'js/tank.js']);
   const done = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
   assert.equal(done.data.message_id, card.data.id);
-  assert.deepEqual(done.data.plan.pieces.map((p) => [p.status, p.message_id]),
-    [['done', first.data.id], ['done', second.data.id]]);
+  assert.deepEqual(done.data.plan.pieces.map((p) => [p.status, p.message_id, p.note]),
+    [['done', first.data.id, 'Piece 1 of 2: The page'], ['done', second.data.id, 'Tanks drive.']]);
+  assert.deepEqual(done.data.plan.pieces.map((p) => p.writes),
+    [['css/style.css', 'index.html'], ['js/game.js', 'js/tank.js']]);
+  // The card's body is the reply the thread keeps: its head says it is done,
+  // each line a piece's title, the files it changed and its headline.
+  assert.equal(done.data.body, [
+    'Done, in 2 pieces:',
+    '1. The page — css/style.css, index.html',
+    '   Piece 1 of 2: The page',
+    '2. Tanks that drive — js/game.js, js/tank.js',
+    '   Tanks drive.',
+  ].join('\n'));
 
   const commits = await logCommits(dir);
   assert.deepEqual(commits.slice(0, 2).map((c) => c.subject), [
@@ -361,11 +414,62 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.ok(!turn2.includes('body{}'), 'a file the piece does not name is named, not sent');
   assert.ok(!llm.calls[2].system.includes('<h1>Tank</h1>'));
 
-  // The card on a fresh read carries the finished checklist.
+  // The card on a fresh read carries the finished checklist, and the thread
+  // holds the card where the piece rows would be.
   const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
   const kept = detail.body.messages.find((m) => m.kind === 'plan');
   assert.equal(kept.plan.status, 'done');
+  assert.equal(kept.body, done.data.body);
+  assert.deepEqual(detail.body.messages.filter((m) => m.agent_id !== null).map((m) => m.id), [card.data.id]);
   assert.equal(detail.body.messages.filter((m) => m.kind === 'system').length, 0, 'no banners: nothing went wrong');
+  const paged = await app.client.json('GET', `/api/projects/tank/messages?chat=${chatId}&limit=50`);
+  assert.ok(!paged.body.messages.some((m) => m.plan_message_id), 'paging leaves the rows behind the card too');
+
+  // And history replays the card, never a piece's row: the next fire sees one
+  // builder turn, the card's body, with both headlines in it.
+  await send(app, chatId, 'nice');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Thanks!');
+  const replayed = llm.asked[1].messages.filter((m) => m.role === 'assistant');
+  assert.equal(replayed.length, 1);
+  assert.match(replayed[0].content, /^Done, in 2 pieces:/);
+  assert.match(replayed[0].content, /Tanks drive\./);
+  assert.ok(!llm.asked[1].messages.some((m) => m.content === 'Tanks drive.'));
+});
+
+// Piece rows from before the column existed are filed behind their card on
+// open, from the plan, which already named them.
+test('piece rows from before the column are filed behind their card', (t) => {
+  const dir = scratchDir('piece-rows-db');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let db = openDb(path.join(dir, 'db'));
+  db.exec(`
+    INSERT INTO users (id, email, password_hash, display_name, created_at)
+      VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z');
+    INSERT INTO agents (id, name, description, created_by, created_at)
+      VALUES (1, 'Builder', 'b', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO projects (id, slug, name, kind, created_by, created_at)
+      VALUES (1, 'tank', 'Tank', 'game', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chats (id, project_id, name, bots, created_at)
+      VALUES (1, 1, 'Building', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO messages (id, project_id, chat_id, agent_id, kind, body, created_at) VALUES
+      (1, 1, 1, 1, 'plan', 'That''s a big one', '2026-01-01T00:00:00.000Z'),
+      (2, 1, 1, 1, NULL, 'Piece 1 of 1', '2026-01-01T00:00:01.000Z'),
+      (3, 1, 1, 1, NULL, 'A plain reply', '2026-01-01T00:00:02.000Z');
+    INSERT INTO plans (message_id, project_id, chat_id, request, pieces, status, created_at, updated_at)
+      VALUES (1, 1, 1, 'build it',
+        '[{"title":"a","files":[],"what":"","status":"done","message_id":2,"note":null}]',
+        'done', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:01.000Z');
+  `);
+  dropColumnIfPresent(db, 'messages', 'plan_message_id');
+  db.close();
+
+  db = openDb(path.join(dir, 'db'));
+  assert.deepEqual(
+    db.prepare('SELECT id, plan_message_id FROM messages ORDER BY id').all()
+      .map((m) => [m.id, m.plan_message_id]),
+    [[1, null], [2, 1], [3, null]],
+  );
+  db.close();
 });
 
 test('a message mid-plan pauses it, and the next ask decides what happens to the rest', async (t) => {
@@ -379,7 +483,7 @@ test('a message mid-plan pauses it, and the next ask decides what happens to the
     // Piece 2, carried on after it.
     calls([write('js/tank.js')], { text: 'Tanks drive.' }),
     says(''),
-  ], [sized({ size: 'big', pieces: PIECES }), sized({ size: 'small', resume: true })]);
+  ], [sized({ size: 'pieces', pieces: PIECES }), sized({ size: 'reply', resume: true })]);
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -418,8 +522,8 @@ test('a big message mid-plan replaces the plan', async (t) => {
     calls([write('js/walls.js')], { text: 'Walls break.' }),
     says(''),
   ], [
-    sized({ size: 'big', pieces: PIECES }),
-    sized({ size: 'big', pieces: [{ title: 'Walls that break', files: ['js/walls.js'], what: 'Walls.' }, PIECES[1]] }),
+    sized({ size: 'pieces', pieces: PIECES }),
+    sized({ size: 'pieces', pieces: [{ title: 'Walls that break', files: ['js/walls.js'], what: 'Walls.' }, PIECES[1]] }),
   ]);
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -444,7 +548,7 @@ test('a big message mid-plan replaces the plan', async (t) => {
 test('a first-turn cap in Building hands the trace to the sizing call', async (t) => {
   const llm = scriptedLlm(
     [capped, calls([write('index.html')]), says(''), calls([write('js/tank.js')], { text: 'Tanks drive.' }), says('')],
-    [sized({ size: 'small' }), sized({ size: 'big', pieces: PIECES })],
+    [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: PIECES })],
   );
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -464,7 +568,7 @@ test('a first-turn cap in Building hands the trace to the sizing call', async (t
 test('still small after the cap, the retry carries the trace and the receipt does not', async (t) => {
   const llm = scriptedLlm(
     [capped, calls([write('js/tank.js', 'drive()')], { text: 'Started on movement.' }), says('')],
-    [sized({ size: 'small' }), sized({ size: 'small' })],
+    [sized({ size: 'reply' }), sized({ size: 'reply' })],
   );
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);

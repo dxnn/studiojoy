@@ -121,7 +121,8 @@ There is no route that deletes a chat.
 | method | path | body | effect |
 |---|---|---|---|
 | POST | `/api/projects/:slug/messages` | `{body, context_paths?: string[]}` | post a human message; fires eligible agents (§8) |
-| GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history |
+| GET | `/api/projects/:slug/messages` | `?before=<id>&limit=<n>` | page backwards through history; a *piece*'s row is left out, as it is from the project detail — its plan card stands for it (§8) |
+| GET | `/api/messages/:id` | — | one message, as the thread would carry it. For a *piece*'s row, which lives behind its plan card and is opened from it (§8); anything readable is readable by anybody signed in, as the thread is |
 | POST | `/api/projects/:slug/errors` | `{version, errors: [{message, location}]}` | record what the running game reported (§8); `version` is the commit the reporter was built with and the report is dropped unless it is HEAD; games only, allowed on an archived one |
 | GET | `/api/messages/:id/receipt` | — | `{breakdown, prompt_held}`: what that reply was given and what each request cost (§8); 404 for a message with no receipt |
 | GET | `/api/messages/:id/prompt` | — | the last request of that fire as plain text; 404 unless the message is the one reply in its project whose prompt is still held |

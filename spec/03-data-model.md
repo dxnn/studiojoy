@@ -316,6 +316,7 @@ soft-delete dance is needed here.
 | `user_id` | INTEGER NULL → users | set for human messages; the API adds `user_name` beside it, read at the time it is served rather than stored, so the thread says what somebody is called today. The client has no user list to look one up in — an agent's name it can resolve, a person's it cannot |
 | `agent_id` | INTEGER NULL → agents | set for agent messages |
 | `kind` | TEXT NULL | NULL = normal message; `'system'` = server-inserted banner; `'plan'` = the *builder*'s plan card, with a `plans` row behind it (§8) |
+| `plan_message_id` | INTEGER NULL | set on a *piece*'s row: the plan card it lives behind. The thread and history leave such a row out — the card stands for it, its body rewritten as pieces land — and the card fetches it by id when its line is opened (§6, §8). Rows from before the column are filed under their card from the plan on upgrade |
 | `body` | TEXT NOT NULL | utf-8, ≤ 32 KB for a person's; for an agent's reply, the **reply** — the last turn's words (§8) |
 | `working` | TEXT NULL | the reply's **working**: what the agent said on the way to `body`, every turn's words but the last. Kept here, shown behind a panel and fetched on open, never in the body and never replayed into a later fire (§8). NULL on a reply said in one breath and on anything but an agent reply |
 | `tokens` | INTEGER NULL | what the fire that produced this reply cost; NULL for anything a person or the studio wrote |
@@ -515,7 +516,7 @@ the client fetches it on the click that opens it.
 | `project_id` | INTEGER NOT NULL → projects | |
 | `chat_id` | INTEGER NOT NULL → chats | |
 | `request` | TEXT NOT NULL | the human message the plan answers, as typed |
-| `pieces` | TEXT NOT NULL | JSON: `[{title, files, what, status, message_id, note}]` |
+| `pieces` | TEXT NOT NULL | JSON: `[{title, files, what, status, message_id, note}]` — `status` is `todo`, `running` or `done`; `note` is the piece's **headline**, the closing paragraph of its reply (§8) |
 | `status` | TEXT NOT NULL | `running`, `paused`, `done`, `dropped` |
 | `created_at`, `updated_at` | TEXT NOT NULL | |
 
@@ -524,7 +525,9 @@ What the builder's **sizing** split a big request into and how far it has got
 queries inside one; each carries its `status` (`todo`, `done`), the id of the
 message row its fire left, and the one-line `note` that row said, which later
 pieces are told. `messagePublic` puts `plan: {status, pieces}` on the card's
-message, and `plan.update` (§9) carries the same shape as pieces land.
+message — each piece with its `note` and `writes`, the paths its row wrote,
+read from `message_writes` — and `plan.update` (§9) carries the same shape as
+a piece starts and as it lands, with the card's `body` rewritten from it (§8).
 `paused` is what an interruption leaves — and what opening the database does to
 every `running` plan, since the process that was running it is gone.
 

@@ -28,20 +28,20 @@ export function sizingRules() {
   return [
     'SIZING',
     'When a [studio] message asks you to size the request, answer with JSON only — no prose, no code fence:',
-    '{"size":"small"} when it is one change a helper can make in one go — a value, a line, a bug, one',
-    'file — or a question or a remark, which wants an answer rather than work.',
-    '{"size":"big","pieces":[{"title":"…","files":["…"],"what":"…"}]} when it is more than that. Split it',
-    `into 2 to ${MAX_PIECES} pieces, each a job one helper can finish in one sitting — a few files at most —`,
-    'and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for the',
-    'helper who will do that piece, saying what it makes and what it must not touch. Order the pieces so',
-    'each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
+    '{"size":"reply"} when it is a question or a remark, which wants an answer rather than work.',
+    '{"size":"pieces","pieces":[{"title":"…","files":["…"],"what":"…"}]} when it changes the game. One',
+    'piece when it is one change a helper can make in one go — a value, a line, a bug, one file. Two to',
+    `${MAX_PIECES} when it is more than that: each a job one helper can finish in one sitting — a few files at`,
+    'most — and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for',
+    'the helper who will do that piece, saying what it makes and what it must not touch. Order the pieces',
+    'so each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
     'If the message says a plan was paused for it and lists the pieces still to do: a remark or a question',
-    'that changes nothing is {"size":"small","resume":true}, and the plan carries on after your reply; one',
-    'that says to stop is {"size":"small","resume":false}; one that changes the plan or asks for more is',
-    'big, with every piece still to do, changed as the message asks, the message\'s own work first when it',
-    'is separate.',
-    'If it says a helper has already begun — its notes are above — size what is left, not the whole: small',
-    'if one more go finishes it, big with the pieces still to do otherwise.',
+    'that changes nothing is {"size":"reply","resume":true}, and the plan carries on after your reply; one',
+    'that says to stop is {"size":"reply","resume":false}; one that changes the plan or asks for more is',
+    'pieces, with every piece still to do, changed as the message asks, the message\'s own work first when',
+    'it is separate.',
+    'If it says a helper has already begun — its notes are above — size what is left, not the whole: one',
+    'piece if one more go finishes it, more otherwise.',
   ].join('\n');
 }
 
@@ -65,7 +65,9 @@ export function sizingTrigger({ paused = null, begun = false } = {}) {
 
 // Defensive on purpose: response_format is a belt, and a fence, a sentence
 // first, or a shape with the wrong keys all still arrive. Null is "could not
-// size it", which the caller treats as small — today's fire, the cap behind it.
+// size it", which the caller treats as a reply — the plain fire, the cap
+// behind it. `small` and `big` are the words the rules used until 2026-09-06
+// and a model may still reach for them.
 export function parseSizing(text) {
   const raw = String(text ?? '').trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -77,9 +79,10 @@ export function parseSizing(text) {
     return null;
   }
   if (!obj || typeof obj !== 'object') return null;
-  if (obj.size === 'small') return { size: 'small', resume: obj.resume !== false };
+  const size = { small: 'reply', big: 'pieces' }[obj.size] ?? obj.size;
+  if (size === 'reply') return { size: 'reply', resume: obj.resume !== false };
   const list = obj.pieces ?? obj.steps;
-  if (obj.size !== 'big' || !Array.isArray(list)) return null;
+  if (size !== 'pieces' || !Array.isArray(list)) return null;
   const pieces = list
     .filter((p) => p && typeof p === 'object')
     .map((p) => ({
@@ -91,9 +94,9 @@ export function parseSizing(text) {
       what: clip(String(p.what ?? '').trim(), MAX_WHAT),
     }))
     .slice(0, MAX_PIECES);
-  // One piece is a small ask that was written out longhand.
-  if (pieces.length < 2) return { size: 'small', resume: true };
-  return { size: 'big', pieces };
+  // One piece is a plan of one — the common case. None is a remark.
+  if (pieces.length === 0) return { size: 'reply', resume: true };
+  return { size: 'pieces', pieces };
 }
 
 // The one user turn a piece's fire gets: the request, the plan, what the
@@ -113,21 +116,46 @@ export function pieceTurn({ request, pieces, index }) {
   lines.push(
     '',
     `This reply is piece ${index + 1} of ${n}: ${piece.title} (${piece.files.join(', ')}). ${piece.what}`,
-    'Do only this piece, then stop with a one-line note saying what you made. The other pieces are later',
-    'replies.',
+    'Do only this piece, then stop with one short paragraph saying what you made and what to try — that',
+    'paragraph is what the person reads. The other pieces are later replies.',
   );
   return lines.join('\n');
 }
 
-// The plan card's text: what the transcript keeps and a later fire reads as
-// the builder's own words. `begun` is a plan for the rest of something a
-// small fire started on and could not finish in one go.
-export function planBody(pieces, { begun = false } = {}) {
+// A piece's headline: the closing paragraph of its reply, which is what the
+// card shows for it and what history replays (spec.md §8). Clipped so a wall
+// cannot become a card.
+const MAX_HEADLINE = 400;
+export function headline(text) {
+  const whole = String(text ?? '').trim();
+  if (!whole) return '';
+  const cut = whole.lastIndexOf('\n\n');
+  return clip(cut >= 0 ? whole.slice(cut + 2).trim() : whole, MAX_HEADLINE);
+}
+
+// The plan card's text: what the thread shows and a later fire reads as the
+// builder's own words, rewritten as the pieces land — each line its title,
+// the files it changed (until then, the files it was to touch) and its
+// headline. `begun` is a plan for the rest of something a fire started on and
+// could not finish in one go; `head` keeps a running plan's first line as it
+// was written, since `begun` is not stored.
+export function planBody(pieces, { begun = false, status = 'running', head = null } = {}) {
+  const n = pieces.length;
+  const done = pieces.filter((p) => p.status === 'done').length;
+  const first = head ?? {
+    running: begun
+      ? `That's more than one go — here's the rest in ${n} piece${n === 1 ? '' : 's'}:`
+      : (n === 1 ? 'One piece:' : `That's a big one — I'll do it in ${n} pieces:`),
+    done: n === 1 ? 'Done:' : `Done, in ${n} pieces:`,
+    paused: `Paused after ${done} of ${n}:`,
+    dropped: `Set aside after ${done} of ${n}:`,
+  }[status] ?? `${n} pieces:`;
   return [
-    begun
-      ? `That's more than one go — here's the rest in ${pieces.length} pieces:`
-      : `That's a big one — I'll do it in ${pieces.length} pieces:`,
-    ...pieces.map((p, i) => `${i + 1}. ${p.title} — ${p.files.join(', ')}`),
+    first,
+    ...pieces.map((p, i) => {
+      const files = p.writes?.length ? p.writes : p.files;
+      return `${i + 1}. ${p.title} — ${files.join(', ')}${p.note ? `\n   ${p.note}` : ''}`;
+    }),
   ].join('\n');
 }
 

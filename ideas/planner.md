@@ -445,7 +445,7 @@ before it).
    tree big enough to need it exists.
 5. `reply`/`pieces`; one piece is a plan and runs at once; the headline as
    the note; the card as the one reply, rows behind it, history replaying
-   the card.
+   the card (done 2026-09-06).
 6. The synopsis call; refinement on overrun as sub-pieces.
 7. The draft card: status, summary, assumptions, the edit and build routes,
    the card in the client, one click to Build it.

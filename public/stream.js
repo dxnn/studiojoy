@@ -204,6 +204,13 @@ export function applyMessage(data) {
     if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
     map.delete(data.agent_id);
   }
+  // A piece's row lands behind its plan card (spec.md §8): the card's own
+  // update carries what the thread shows of it, so this adds nothing to the
+  // thread and marks nothing unread — the card did that when it arrived.
+  if (data.plan_message_id) {
+    if (here(data)) render();
+    return;
+  }
   // Somebody other than you said something. Where it landed decides what
   // happens to it: in the chat you are looking at it is already read, and
   // anywhere else — the chat behind an editor included — it leaves a mark
@@ -363,6 +370,8 @@ function onEvent(name, data) {
       const msg = S.project?.messages.find((m) => m.id === data.message_id);
       if (!msg) return;
       msg.plan = data.plan;
+      // The card's body is rewritten as pieces land — it is the plan's reply.
+      if (data.body) msg.body = data.body;
       render();
       return;
     }

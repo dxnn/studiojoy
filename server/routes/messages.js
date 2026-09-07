@@ -134,19 +134,21 @@ export function messageRoutes(r) {
     }
 
     // Page backwards, return forwards: the client appends to the top of the
-    // thread without reversing anything itself.
+    // thread without reversing anything itself. A piece's row is not in the
+    // thread — its card is — and is fetched by id from the card (spec.md §8).
     const rows = before === null
       ? ctx.db
         .prepare(
           `SELECT * FROM (
-             SELECT * FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?
+             SELECT * FROM messages WHERE chat_id = ? AND plan_message_id IS NULL
+             ORDER BY id DESC LIMIT ?
            ) ORDER BY id ASC`,
         )
         .all(chat.id, limit)
       : ctx.db
         .prepare(
           `SELECT * FROM (
-             SELECT * FROM messages WHERE chat_id = ? AND id < ?
+             SELECT * FROM messages WHERE chat_id = ? AND id < ? AND plan_message_id IS NULL
              ORDER BY id DESC LIMIT ?
            ) ORDER BY id ASC`,
         )
@@ -229,6 +231,21 @@ export function messageRoutes(r) {
       breakdown: JSON.parse(row.breakdown),
       prompt_held: row.held === 1,
     });
+  });
+
+  // One message by id. A piece's row lives behind its plan card and is not in
+  // the thread, so the card fetches it when somebody opens the piece (spec.md
+  // §8). Anything readable is readable by everybody signed in, as the thread is.
+  r.get('/api/messages/:id', (ctx) => {
+    requireAuth(ctx);
+    const row = ctx.db
+      .prepare(
+        `SELECT m.*, p.slug FROM messages m
+           JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
+      )
+      .get(requireMessageId(ctx));
+    if (!row) throw new HttpError(404, 'no such message');
+    json(ctx.res, 200, messagePublic(ctx.db, row, row.slug));
   });
 
   // What the helper said on the way to that reply — every turn's words but

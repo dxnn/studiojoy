@@ -20,8 +20,8 @@ import {
   pausedPlan, createPlan, planFor, setPiece, setPlanStatus, planPublic,
 } from '../plans.js';
 import {
-  sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, handoffNote, notesForPlanner,
-  begunNote, SIZING_MAX_TOKENS,
+  sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
+  notesForPlanner, begunNote, SIZING_MAX_TOKENS,
 } from './sizing.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
@@ -629,8 +629,12 @@ function historyTurns(db, chat, agent, lastFiredMaxId = 0, historyFloor = new Ma
   const floor = historyFloor.get(chat.id) ?? 0;
   const rows = db
     .prepare(
+      // A piece's row is behind its card, and the card's body carries what
+      // history should see of it: its headline and the files it changed (§8).
       `SELECT * FROM (
-         SELECT * FROM messages WHERE chat_id = ? AND id > ? ORDER BY id DESC LIMIT ?
+         SELECT * FROM messages
+          WHERE chat_id = ? AND id > ? AND plan_message_id IS NULL
+          ORDER BY id DESC LIMIT ?
        ) ORDER BY id ASC`,
     )
     .all(chat.id, floor, MAX_HISTORY_MESSAGES);
@@ -1177,7 +1181,7 @@ export function createOrchestrator({
   // which is the one end that leaves no word behind.
   async function persistReply({
     row, project, chat, agent, dir, asker, context, emit, state, snapshot, toolset, outcome,
-    subject, body = outcome.reply, kind = null,
+    subject, body = outcome.reply, kind = null, planMessageId = null,
   }) {
     consumeBudget(db, outcome.charged);
     chargeUser(db, asker?.id, outcome.charged);
@@ -1217,15 +1221,17 @@ export function createOrchestrator({
       const info = db
         .prepare(
           `INSERT INTO messages
-             (project_id, chat_id, agent_id, kind, body, working, created_at, tokens, trimmed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (project_id, chat_id, agent_id, kind, body, working, created_at, tokens, trimmed,
+              plan_message_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         // Null rather than 0 when nothing was trimmed: the column is a
         // report of something having happened, not a running total. Null
-        // likewise for a reply said in one breath.
+        // likewise for a reply said in one breath. A piece's row names its
+        // card, which is what the thread shows in its place (spec.md §8).
         .run(
           project.id, chat.id, agent.id, kind, body, outcome.working || null, now,
-          outcome.charged, context.trimmed || null,
+          outcome.charged, context.trimmed || null, planMessageId,
         );
       const id = Number(info.lastInsertRowid);
       // A write of identical bytes produces no commit, so there is
@@ -1458,12 +1464,26 @@ export function createOrchestrator({
     },
   });
 
-  const announcePlan = (fire, plan) => broker.broadcast('plan.update', {
-    project_slug: fire.row.slug,
-    chat_id: fire.chat.id,
-    message_id: plan.message_id,
-    plan: planPublic(plan),
-  });
+  // The card moving along: the checklist to every tab, and the card's own
+  // body rewritten from the same shape — it is what the thread shows for the
+  // plan and what history replays, so it carries each piece's headline and
+  // the files it changed (spec.md §8). A running plan keeps the first line
+  // it was born with.
+  function announcePlan(fire, plan) {
+    const shown = planPublic(db, plan);
+    const head = plan.status === 'running'
+      ? db.prepare('SELECT body FROM messages WHERE id = ?').get(plan.message_id)?.body.split('\n')[0]
+      : null;
+    const body = planBody(shown.pieces, { status: plan.status, head });
+    db.prepare('UPDATE messages SET body = ? WHERE id = ?').run(body, plan.message_id);
+    broker.broadcast('plan.update', {
+      project_slug: fire.row.slug,
+      chat_id: fire.chat.id,
+      message_id: plan.message_id,
+      body,
+      plan: shown,
+    });
+  }
 
   function pausePlan(fire, plan, body) {
     announcePlan(fire, setPlanStatus(db, plan.message_id, 'paused'));
@@ -1501,7 +1521,7 @@ export function createOrchestrator({
       .get(chat.id)?.body ?? '';
 
     let sized = await sizeRequest(fire, { paused });
-    if (sized.size === 'big') {
+    if (sized.size === 'pieces') {
       if (paused) dropPlan(fire, paused);
       await runPlan(fire, { request, pieces: sized.pieces });
       return;
@@ -1516,7 +1536,7 @@ export function createOrchestrator({
     if (outcome.capped !== null) {
       const abandoned = outcome.charged;
       sized = await sizeRequest(fire, { paused, notes: outcome.capped });
-      if (sized.size === 'big') {
+      if (sized.size === 'pieces') {
         consumeBudget(db, abandoned);
         chargeUser(db, asker?.id, abandoned);
         if (paused) dropPlan(fire, paused);
@@ -1563,7 +1583,7 @@ export function createOrchestrator({
     state.live = true;
     const said = [outcome.working, outcome.reply].filter(Boolean).join('\n\n');
     const sized = await sizeRequest(fire, { paused, begun: { changed, said } });
-    if (sized.size === 'big') {
+    if (sized.size === 'pieces') {
       if (paused) dropPlan(fire, paused);
       await runPlan(fire, { request, pieces: sized.pieces, begun: true });
       return;
@@ -1615,6 +1635,10 @@ export function createOrchestrator({
       row, project, chat, agent, dir, asker, emit, state, context,
     } = fire;
     const n = plan.pieces.length;
+    // A plan of one is the common case, and no plan thought for it: it runs
+    // at the builder's own level. The pieces of a bigger plan run at `none`,
+    // where the plan already did the thinking (§14).
+    const thinking = n === 1 ? agent.thinking : 'none';
     let current = setPlanStatus(db, plan.message_id, 'running');
     announcePlan(fire, current);
     for (let i = 0; i < n; i += 1) {
@@ -1633,19 +1657,25 @@ export function createOrchestrator({
       const piece = current.pieces[i];
       emit('agent.stream.start');
       state.live = true;
+      // Marked running so the card can show the live reply on this line.
+      current = setPiece(db, plan.message_id, i, { status: 'running' });
+      announcePlan(fire, current);
       const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
       const turn = pieceTurn({ request: current.request, pieces: current.pieces, index: i });
       const fresh = await freshCopies(dir, context, piece.files);
       const messages = extended(fire, fresh ? `${turn}\n\n${fresh}` : turn);
       const outcome = await runLoop({
-        agent, system: context.system, messages, toolset, thinking: 'none', emit,
+        agent, system: context.system, messages, toolset, thinking, emit,
         masked: fire.exchange?.masked,
       });
-      const note = firstLine(outcome.reply) || `Piece ${i + 1} of ${n}: ${piece.title}`;
+      // The headline: the closing paragraph the piece was asked for, or the
+      // piece's name when it said nothing. Its row goes behind the card.
+      const note = headline(outcome.reply) || `Piece ${i + 1} of ${n}: ${piece.title}`;
       const kept = await persistReply({
         ...fire, context: receiptContext(context, messages), toolset, outcome,
         subject: `piece ${i + 1} of ${n} — ${piece.title}`,
         body: outcome.reply || note,
+        planMessageId: plan.message_id,
       });
       if (kept.nothing) {
         pausePlan(fire, current, `${row.agent_name} was cut off during piece ${i + 1} of ${n}, so the plan is paused. Ask them to carry on.`);

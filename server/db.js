@@ -508,6 +508,10 @@ export function openDb(dbPath) {
   // a running counter, not a log, so it stays bounded without pruning. Used
   // only to order the catalog; never shown as a number (server/catalog.js).
   addColumnIfMissing(db, 'projects', 'play_count', 'INTEGER NOT NULL DEFAULT 0');
+  // A piece's row lives behind its plan card rather than in the thread (spec/
+  // §3, §8): the column names the card. Rows from before it are filed under
+  // theirs from the plan, which already knew them.
+  addColumnIfMissing(db, 'messages', 'plan_message_id', 'INTEGER', filePieceRows);
   return db;
 }
 
@@ -591,6 +595,16 @@ function splitLongReplies(db) {
     const cut = text.lastIndexOf('\n\n');
     if (cut <= 0) continue;
     update.run(text.slice(cut + 2).trim(), text.slice(0, cut).trim(), row.id);
+  }
+}
+
+// Every piece row a plan already names is filed under that plan's card.
+function filePieceRows(db) {
+  const file = db.prepare('UPDATE messages SET plan_message_id = ? WHERE id = ?');
+  for (const plan of db.prepare('SELECT message_id, pieces FROM plans').all()) {
+    for (const piece of JSON.parse(plan.pieces)) {
+      if (piece.message_id) file.run(plan.message_id, piece.message_id);
+    }
   }
 }
 
