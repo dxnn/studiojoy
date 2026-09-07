@@ -363,6 +363,7 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.match(card.data.body, /A tank game for two on one keyboard\./);
   assert.match(card.data.body, /Assuming:\n- Arrow keys for one, WASD for the other\./);
   assert.equal(card.data.plan.status, 'draft');
+  assert.equal(card.data.tokens, null, 'nothing has cost anything yet');
   assert.equal(card.data.plan.summary, 'A tank game for two on one keyboard.');
   assert.deepEqual(card.data.plan.pieces.map((p) => [p.title, p.status]),
     [['The page', 'todo'], ['Tanks that drive', 'todo']]);
@@ -390,6 +391,10 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
     [['done', first.data.id, 'Piece 1 of 2: The page'], ['done', second.data.id, 'Tanks drive.']]);
   assert.deepEqual(done.data.plan.pieces.map((p) => p.writes),
     [['css/style.css', 'index.html'], ['js/game.js', 'js/tank.js']]);
+  // The card's token note is the pieces' cost, summed as each lands: one
+  // number for the plan where a reply has one for itself.
+  assert.ok(first.data.tokens > 0 && second.data.tokens > 0, 'each piece costs');
+  assert.equal(done.data.tokens, first.data.tokens + second.data.tokens);
   // The card's body is the reply the thread keeps: its head says it is done,
   // each line a piece's title, the files it changed and its headline.
   assert.equal(done.data.body, [
@@ -459,6 +464,7 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   const kept = detail.body.messages.find((m) => m.kind === 'plan');
   assert.equal(kept.plan.status, 'done');
   assert.equal(kept.body, done.data.body);
+  assert.equal(kept.tokens, done.data.tokens, 'the note survives a reload');
   assert.deepEqual(detail.body.messages.filter((m) => m.agent_id !== null).map((m) => m.id), [card.data.id]);
   assert.equal(detail.body.messages.filter((m) => m.kind === 'system').length, 0, 'no banners: nothing went wrong');
   const paged = await app.client.json('GET', `/api/projects/tank/messages?chat=${chatId}&limit=50`);

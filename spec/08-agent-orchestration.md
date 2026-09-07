@@ -128,7 +128,11 @@ pieces*, and the list — over a `plans` row (§3), shown as a checklist that
 ticks. The card is the plan's one reply. Each piece's own row is filed behind
 it (`messages.plan_message_id`, §3): left out of the thread and of history,
 opened from its line on the card by id (§6), keeping its commit, its receipt
-and its working. As a piece lands the card's body is rewritten from the plan
+and its working. The card's token note is the pieces' summed, written onto
+the card's row as each lands, so the plan costs what a reply shows itself
+costing; each piece's receipt stays on its own row. ⚠️ The sizing and the
+confirmation are billed and shown on no row — the same as a small reply,
+whose note is its fire's alone. As a piece lands the card's body is rewritten from the plan
 — its head, then per piece the title, the files it changed and its
 **headline**, the closing paragraph of its reply — because the body is what
 the thread shows for the plan and what history replays; the piece turn asks

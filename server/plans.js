@@ -166,12 +166,19 @@ export function announcePlan(db, broker, slug, plan) {
   const body = planBody(shown.pieces, {
     status: plan.status, begun: plan.begun === 1, summary: plan.summary, assumptions: plan.assumptions,
   });
-  db.prepare('UPDATE messages SET body = ? WHERE id = ?').run(body, plan.message_id);
+  // The card's token note is the pieces' cost so far, summed from their rows
+  // behind it: one number for the plan where a reply has one for itself. Null
+  // until a piece has landed, as a reply's is until it costs.
+  const tokens = db
+    .prepare('SELECT SUM(tokens) AS n FROM messages WHERE plan_message_id = ?')
+    .get(plan.message_id).n;
+  db.prepare('UPDATE messages SET body = ?, tokens = ? WHERE id = ?').run(body, tokens, plan.message_id);
   broker.broadcast('plan.update', {
     project_slug: slug,
     chat_id: plan.chat_id,
     message_id: plan.message_id,
     body,
+    tokens,
     plan: shown,
   });
   return body;

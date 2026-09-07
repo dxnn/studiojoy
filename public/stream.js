@@ -376,8 +376,10 @@ function onEvent(name, data) {
       const msg = S.project?.messages.find((m) => m.id === data.message_id);
       if (!msg) return;
       msg.plan = data.plan;
-      // The card's body is rewritten as pieces land — it is the plan's reply.
+      // The card's body is rewritten as pieces land — it is the plan's reply —
+      // and its token note is their cost so far.
       if (data.body) msg.body = data.body;
+      msg.tokens = data.tokens;
       render();
       return;
     }
