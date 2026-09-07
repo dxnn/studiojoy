@@ -613,12 +613,15 @@ whose *name* is what makes them work, so nothing on any pane could ever have
 said they exist: a game wearing none simply had no section, and the only way
 to learn that a file called `hero.png` would show was to be told. The button
 asks in two steps — which of the three, each with what it dresses and whether
-one is there already, then drawn here on a blank canvas of the right shape or
-brought from the device. A picture from the device is made a `.png` whatever
-it arrived as (`asPng`, shared with the story guide): the studio looks for
-these three by name, and a JPEG called `hero.png` is a lie the browser happens
-to forgive. On a game nobody here may change the section is absent again —
-an empty section with no button under it is an offer that cannot be taken up.
+one is there already, then drawn here on a blank canvas of the right shape,
+brought from the device, or picked off the *shelf* — **Add from the studio**
+again, every kind on it as under Pics, the one shelf whose pick lands under
+the reserved name rather than its own. A picture from the device or the shelf
+is made a `.png` whatever it arrived as and fitted (`asPng`, shared with the
+story guide): the studio looks for these three by name, and a JPEG called
+`hero.png` is a lie the browser happens to forgive. On a game nobody here may
+change the section is absent again — an empty section with no button under it
+is an offer that cannot be taken up.
 
 **Questions** is the quiz's editor as a mode: `config/questions.js` opens on
 arriving, its bar has no ✕ — nowhere to close it to — and the form saves

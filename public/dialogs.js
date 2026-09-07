@@ -588,13 +588,20 @@ export function dialogFor(d) {
       h('div', { class: 'actions' }, cancel));
   }
 
-  // The second half of that question: drawn here, or from this device. A
-  // picture from the device is made a .png whatever it arrived as — the studio
-  // looks for these three by name, and a JPEG called hero.png would be a lie
-  // the browser happens to forgive.
+  // The second half of that question: drawn here, from this device, or off
+  // the shelf. A picture from either of the last two is made a .png whatever
+  // it arrived as — the studio looks for these three by name, and a JPEG
+  // called hero.png would be a lie the browser happens to forgive — and lands
+  // under the reserved name rather than its own, which is the one thing that
+  // sets this apart from every other way onto the shelf.
   if (d.kind === 'dressing') {
     const info = DRESSING[d.path];
     const [width, height] = info.draw;
+    const wear = async (body, said) => {
+      const { failure } = await writeFiles([{ path: d.path, body }]);
+      if (failure) { say(failure, true); return; }
+      say(said);
+    };
     const picker = h('input', {
       type: 'file', hidden: true, accept: 'image/*',
       onchange: async (e) => {
@@ -604,9 +611,7 @@ export function dialogFor(d) {
         const body = await asPng(file, info.fit);
         if (!body) { say('The studio could not read that picture.', true); return; }
         close();
-        const { failure } = await writeFiles([{ path: d.path, body }]);
-        if (failure) { say(failure, true); return; }
-        say(`Saved ${d.path}. The game wears it now.`);
+        await wear(body, `Saved ${d.path}. The game wears it now.`);
       },
     });
     return wrap(info.name,
@@ -615,7 +620,23 @@ export function dialogFor(d) {
         choice('+ Draw it', `A blank ${width} × ${height} canvas, ready to draw on.`,
           async () => { close(); await createPictureAt(d.path, width, height); }),
         choice('+ Upload one', 'A picture from this device, saved under that name.',
-          () => picker.click())),
+          () => picker.click()),
+        // Every kind at once, as under Pics: a tile, a banner and a little
+        // square are three shelves to nobody. The shelf closes itself before
+        // it places, so there is nothing to close here.
+        choice('+ Add from the studio', `A picture from the studio's shelf, saved under that name.`,
+          () => {
+            S.dialog = {
+              kind: 'pick-picture',
+              art: null,
+              place: async (a, bytes) => {
+                const body = await asPng(bytes, info.fit);
+                if (!body) { say(`Could not read ${a.name}.`, true); return; }
+                await wear(body, artCredit(a, d.path));
+              },
+            };
+            render();
+          })),
       picker,
       h('div', { class: 'actions' }, cancel));
   }

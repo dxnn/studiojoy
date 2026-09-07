@@ -113,14 +113,24 @@ test('a dressing already there says so before it is replaced', () => {
   assert.equal(said.filter((s) => s.includes('replaces it')).length, 1);
 });
 
-test('a dressing is drawn here or brought from the device', () => {
+test('a dressing is drawn here, brought from the device, or picked off the shelf', () => {
   const dialog = dialogFor({ kind: 'dressing', path: HERO_IMAGE });
   const choices = withClass(dialog, 'choice');
-  assert.equal(choices.length, 2);
+  assert.equal(choices.length, 3);
   for (const choice of choices) assert.ok(pressable(choice));
   // The name is the whole reason the dialog exists: nothing else in the studio
   // would ever tell you that a file called hero.png is the one that shows.
   assert.ok(texts(dialog).some((t) => t.includes(HERO_IMAGE)));
+  // The shelf, by the words Pics' own button uses, and every kind on it: a
+  // tile, a banner and a little square are three shelves to nobody. What sets
+  // it apart is where a pick lands — under the reserved name, not its own.
+  const shelf = choices.find((c) => withClass(c, 'cname')[0].textContent === '+ Add from the studio');
+  assert.ok(shelf, 'the shelf is offered');
+  shelf.click();
+  assert.equal(S.dialog.kind, 'pick-picture');
+  assert.equal(S.dialog.art, null, 'no kind named');
+  assert.equal(typeof S.dialog.place, 'function', 'the dressing names where the pick lands');
+  S.dialog = null;
 });
 
 test('the inspector belongs to the picture that is open', () => {
