@@ -30,7 +30,7 @@ const CONTROLS = {
 // A page on the studio's origin with the library loaded over a game's config,
 // the way `index.html` loads them: config first, then the library, both as
 // classic scripts. Nothing of the studio's own is left on the page.
-async function controlsPage(t) {
+async function loadLibrary(t) {
   const { app, browser } = await openStudio(t);
   await signIn(app);
   const page = await pageFor(browser, app, app.client, { touch: true });
@@ -49,11 +49,42 @@ async function controlsPage(t) {
       document.head.append(s);
     });
   }, CONTROLS);
+  return page;
+}
 
-  // Drawn only under a coarse pointer, and only once the library has run.
+// ⚠️ The buttons do not exist until the first `Input.update()`. Loading the
+// library draws nothing: `buildTouchControls` is called from `update()`
+// (input.js:463), on the frame a game first asks a question. That is the
+// contract the API note states — "call Input.update() once at the top of
+// every frame" — and a harness that loads the file and looks for a button is
+// a game that never played a frame. It cost a run to learn, so the line below
+// has a test of its own.
+//
+// One update rather than a real frame loop: every read below runs its own
+// update, so nothing depends on when a loop last ticked. Deterministic beats
+// lifelike in a test.
+async function controlsPage(t) {
+  const page = await loadLibrary(t);
+  await page.evaluate(() => Input.update());
   await page.locator('button[aria-label="left"]').waitFor();
   return page;
 }
+
+// The contract, pinned. Moving the build to load time would make this fail,
+// which is the point: a game that never calls update() must never find
+// buttons on its screen, and a game that calls it must.
+test('nothing is drawn until the first update, and then it is', async (t) => {
+  const page = await loadLibrary(t);
+  assert.equal(
+    await page.locator('#touch-controls').count(), 0,
+    'loading the library draws nothing on its own',
+  );
+  await page.evaluate(() => Input.update());
+  assert.equal(
+    await page.locator('#touch-controls').count(), 1,
+    'the first frame builds the controls',
+  );
+});
 
 // What the game would ask, after the update() the API note insists on.
 const held = (page, verb) => page.evaluate(
