@@ -55,7 +55,18 @@ write beats an id. A game that wants a different answer does not call it.
 is the window with the toolbars *gone*, which the browser only honours once
 you scroll, and a game never scrolls. The older line survives in a browser
 that cannot parse `dvh`, because the CSSOM drops a value it cannot read
-rather than throwing.
+rather than throwing. ⚠️ And the page is left exactly one toolbar scrollable:
+`fit` writes `padding-bottom: calc(100lvh - 100dvh)` and
+`box-sizing: content-box` inline on the root, because iOS hides its bars only
+when the page scrolls, and a page that fits the small window to the pixel
+never does — a sideways phone was playing in two thirds of its screen.
+Padding under the body rather than height on it, so the game stays centred in
+the visible window before the swipe; `dvh` rather than `svh` in the
+subtraction, so the slack is gone the moment the bars are, or the game would
+scroll off the top by the same amount; `content-box` because every game's
+reset says `border-box`, under which the page's `html { height: 100% }` would
+shrink to make room. Zero wherever the toolbars stand still — a desktop, the
+preview, an installed app — and dropped whole by a browser too old for `lvh`.
 
 The height the game does *not* get is added up — the page's padding, the
 game's own margins and frame, and every sibling sharing its parent, skipping

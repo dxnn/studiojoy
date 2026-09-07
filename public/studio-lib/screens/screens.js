@@ -950,6 +950,18 @@ const Screens = (function () {
   // keeps only once you scroll, which a game never does. An invalid value is
   // dropped by the CSSOM rather than throwing, so the older line survives
   // exactly where it is needed.
+  //
+  // ⚠️ And the page is left exactly one toolbar scrollable, as padding under
+  // the body on the root: iOS hides its bars only when the page scrolls, and a
+  // page that fits the small window to the pixel never does — a sideways phone
+  // was playing in two thirds of its screen. Padding under the body rather
+  // than height on it, so the game stays centred in the visible window before
+  // the swipe; lvh − dvh rather than lvh − svh, so the slack is gone the
+  // moment the bars are, or the game would then scroll off the top by the
+  // same amount; content-box because every game's reset says border-box,
+  // under which the page's `html { height: 100% }` would shrink to make room.
+  // Zero wherever the toolbars stand still — a desktop, the preview, an
+  // installed app — and dropped whole by a browser too old for lvh.
   let fitEl = null;
   let fitBox = null;
   let fitAspect = 0;
@@ -1054,6 +1066,11 @@ const Screens = (function () {
     fitEl = node;
     fitAspect = Math.round((w / h) * 10000) / 10000;
     fitMax = Number(o.max) || w;
+    const root = document.documentElement;
+    if (root && root.style) {
+      root.style.setProperty("box-sizing", "content-box");
+      root.style.setProperty("padding-bottom", "calc(100lvh - 100dvh)");
+    }
     sizeFit();
     if (!fitWatching) {
       fitWatching = true;

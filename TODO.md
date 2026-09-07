@@ -104,11 +104,12 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! deploy input v6 / screens v13: npm run sweep on the studio machine, then
+- ! deploy input v6 / screens v14: npm run sweep on the studio machine, then
   re-try the five touch complaints on the real phone (text selection and feel
-  were never checkable headless). ⚠️ asteriskoids and vroooooooom already hold
-  screens 13 by hand — their code calls `Screens.fit`, so the library had to
-  ride the same commit; the sweep will find them level and skip them
+  were never checkable headless). asteriskoids and vroooooooom hold screens 13
+  by hand and the sweep raises them; then hold the phone sideways, swipe up
+  once, and check Safari's toolbars go — that is what 14 is for, and it is
+  untested on a device
 - ! deploy redwolf-radness too: it is the third game on `Screens.fit`, and
   the only other canvas game that was cut off sideways (spec/ §4 — the other
   17 size their canvas to the window and need nothing)

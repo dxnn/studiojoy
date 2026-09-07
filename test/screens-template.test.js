@@ -596,6 +596,26 @@ test('fit() publishes where the game landed, for anything drawn over it', () => 
   assert.equal(bare.Screens.fit(), null);
 });
 
+// iOS hides its toolbars only when the page scrolls, and a page that fits the
+// small window to the pixel never does — so fit leaves the root one toolbar
+// taller than the window, as padding under the body. lvh − dvh, not svh: the
+// slack has to be gone the moment the bars are, or the game scrolls off the
+// top by the same amount. The arithmetic is the browser's; this checks the
+// right two lines land on the right element.
+test('fit() leaves the page one toolbar scrollable, so iOS can be asked to hide its bars', () => {
+  const { Screens, document } = bootDom({});
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('width', 800);
+  canvas.setAttribute('height', 400);
+  document.body.append(canvas);
+  Screens.fit();
+  const root = document.documentElement.styleProps;
+  assert.equal(root['padding-bottom'], 'calc(100lvh - 100dvh)');
+  // Under every game's border-box reset the padding would come out of the
+  // page's own `height: 100%` instead of going under it.
+  assert.equal(root['box-sizing'], 'content-box');
+});
+
 // Where the HUD goes once fit() has said where the game is: in the letterbox
 // band above it when the band can hold the row, over the top of the game when
 // it cannot — which is the desktop case, where the game has the window.
