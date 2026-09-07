@@ -159,6 +159,28 @@
 .piece-note { grid-column: 2; margin-top: 2px; }
 .piece-live, .piece-detail { grid-column: 2; margin-top: 6px; }
 .piece-detail .msg { max-width: none; }
+/* A draft, or a paused plan, is the person's to change: the words over the
+   pieces and each piece still to do become fields, with Build it under them. */
+.pieces-summary { margin: 4px 0 6px; }
+.pieces-assuming { margin: 0 0 8px; font-size: 13px; }
+.plan-words { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
+.plan-words label { font-size: 12px; }
+.plan-field {
+  width: 100%;
+  box-sizing: border-box;
+  background: oklch(0.22 0.05 290 / 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+.piece.editing { align-items: start; }
+.piece-edit { display: flex; flex-direction: column; gap: 4px; }
+.piece-edit-row { display: flex; gap: 6px; align-items: center; }
+.piece-edit-row .plan-field { flex: 1; }
+.pieces-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
 /* The files a reply touched. Monospace pills, and the one that was deleted is
    crimson with its minus, because that is the one you check twice. */

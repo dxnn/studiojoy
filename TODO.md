@@ -6,9 +6,6 @@ deliberately deferred.
 - the plan card's synopsis — one no-tools call over the pieces' headlines —
   and sub-pieces when a piece outruns its budget, one level deep
   (ideas/planner.md, second chapter, step 6)
-- ! the draft card: a plan of two or more pieces waits, editable, one click to
-  Build it; a first request writes `SPEC.md` (ideas/planner.md, second
-  chapter, steps 7–8)
 - probe `deepseek-v4-pro` against tools at `none` before any escalation
   (ideas/planner.md, second chapter, step 9)
 

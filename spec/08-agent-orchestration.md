@@ -133,9 +133,9 @@ and its working. As a piece lands the card's body is rewritten from the plan
 **headline**, the closing paragraph of its reply — because the body is what
 the thread shows for the plan and what history replays; the piece turn asks
 for that paragraph, and `plan.update` (§9) carries the same shape. A plan of
-one runs at once, no draft, at the builder's own level, since no plan thought
-for it; the pieces of a bigger plan run at `none`. Then one fire per
-**piece**, in order:
+one runs at once at the builder's own level, since no plan thought for it; a
+plan of two or more waits as a draft (below) and its pieces run at `none`.
+Then one fire per **piece**, in order:
 
 - The sizing's **own system prompt**, byte for byte — the files as they were
   when the turn began, never narrowed to the piece and never rebuilt from
@@ -159,6 +159,38 @@ for it; the pieces of a bigger plan run at `none`. Then one fire per
   `running`, so the card shows the live reply on its line — and as it lands.
   A piece that hit a limit still counts as done: what it wrote is on disk and
   the next piece builds on it.
+
+**A draft.** A plan of two or more pieces waits (`status = 'draft'`): nothing
+runs and nothing is charged until **Build it**, one click and no
+confirmation, since building is not destructive. The card holds the plan's
+words — a **summary**, one paragraph saying what it is, and the
+**assumptions** the planner made where the request left things open, both
+asked for in the sizing rules — and the pieces, and all of it is the
+person's to change while it waits: fields on the card, a `···` per piece
+with Move up, Move down and Remove, one bordered `Add a piece`, each edit a
+`PATCH /api/plans/:id` (§6) held to the sizing's own shapes. Assumptions
+rather than questions: an interview costs a turn per question and a kid's
+patience, and a decision written down is one click to accept and one edit to
+overrule. A piece's files stay the planner's and are advisory, since a piece
+sees the whole tree. A paused plan opens the same card for its pieces still
+to do, its button reading *Carry on*; a plan of one never waits. A new plan
+takes the place of a draft as it does of a paused plan.
+
+**Build it** hands the plan to the builder as its next fire in the room
+(`buildPlan`), charged to whoever pressed. First, a game with no `SPEC.md`
+gets one written from the plan's words — the summary, the decisions, the
+pieces — as the builder's own commit: a game's first Build is its spec moment,
+and a person's approved words beat a spec the model invents in piece one. A
+template's spec stands and a later plan never touches it. The context is read
+after the write, so the block the pieces run on carries it. Then one request
+the pieces extend (§14): for a plan built as written, `[studio] Build the
+plan above as written. Answer {"ok":true}.` — short, the plan being the card
+in the transcript already, and it makes piece one an extension rather than a
+cold start; for a plan the person changed, a sizing over their words, told to
+keep them and fill in each piece's files, splitting a piece only when it is
+too big for one sitting, whose answer becomes the pieces still to do. Then
+the pieces, on the room's own path. The press is refused while the builder is
+mid-fire in that room, since it would land on a fire already running.
 
 **Interruptions.** A message arriving mid-plan sets the dirty bit as usual;
 the running piece finishes, the plan **pauses** with a banner saying after

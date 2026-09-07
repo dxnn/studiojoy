@@ -512,6 +512,15 @@ export function openDb(dbPath) {
   // §3, §8): the column names the card. Rows from before it are filed under
   // theirs from the plan, which already knew them.
   addColumnIfMissing(db, 'messages', 'plan_message_id', 'INTEGER', filePieceRows);
+  // The plan's words beyond its pieces (spec/ §3, §8): the summary and the
+  // assumptions a person reads and changes on a draft; `begun` for the head
+  // of a plan for the rest of something; `edited` so Build knows to size the
+  // person's words again; `built_by`, whose day the build is charged to.
+  addColumnIfMissing(db, 'plans', 'summary', 'TEXT');
+  addColumnIfMissing(db, 'plans', 'assumptions', 'TEXT');
+  addColumnIfMissing(db, 'plans', 'begun', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing(db, 'plans', 'edited', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing(db, 'plans', 'built_by', 'INTEGER');
   return db;
 }
 

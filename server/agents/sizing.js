@@ -35,6 +35,9 @@ export function sizingRules() {
     'most — and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for',
     'the helper who will do that piece, saying what it makes and what it must not touch. Order the pieces',
     'so each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
+    'With two or more pieces add "summary": one paragraph in the person\'s own words saying what the game',
+    'or the change is, and "assumptions": a short list of one-sentence decisions you made where the request',
+    'left things open. The person reads and changes both before the plan is built, so write them for them.',
     'If the message says a plan was paused for it and lists the pieces still to do: a remark or a question',
     'that changes nothing is {"size":"reply","resume":true}, and the plan carries on after your reply; one',
     'that says to stop is {"size":"reply","resume":false}; one that changes the plan or asks for more is',
@@ -83,7 +86,25 @@ export function parseSizing(text) {
   if (size === 'reply') return { size: 'reply', resume: obj.resume !== false };
   const list = obj.pieces ?? obj.steps;
   if (size !== 'pieces' || !Array.isArray(list)) return null;
-  const pieces = list
+  const pieces = cleanPieces(list);
+  // One piece is a plan of one — the common case. None is a remark.
+  if (pieces.length === 0) return { size: 'reply', resume: true };
+  return {
+    size: 'pieces',
+    pieces,
+    summary: clip(String(obj.summary ?? '').trim(), MAX_SUMMARY),
+    assumptions: cleanAssumptions(obj.assumptions),
+  };
+}
+
+// The shapes a plan's words are held to, whoever wrote them — the planner or
+// a person editing the card. Every string clipped, every list capped, and
+// studio/ never a file to write.
+const MAX_SUMMARY = 600;
+const MAX_ASSUMPTION = 200;
+const MAX_ASSUMPTIONS = 8;
+export function cleanPieces(list) {
+  return (Array.isArray(list) ? list : [])
     .filter((p) => p && typeof p === 'object')
     .map((p) => ({
       title: clip(String(p.title ?? '').trim(), MAX_TITLE) || 'A piece of the game',
@@ -94,23 +115,33 @@ export function parseSizing(text) {
       what: clip(String(p.what ?? '').trim(), MAX_WHAT),
     }))
     .slice(0, MAX_PIECES);
-  // One piece is a plan of one — the common case. None is a remark.
-  if (pieces.length === 0) return { size: 'reply', resume: true };
-  return { size: 'pieces', pieces };
 }
+export function cleanAssumptions(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((a) => clip(String(a ?? '').trim(), MAX_ASSUMPTION))
+    .filter(Boolean)
+    .slice(0, MAX_ASSUMPTIONS);
+}
+export const cleanSummary = (text) => clip(String(text ?? '').trim(), MAX_SUMMARY);
 
 // The one user turn a piece's fire gets: the request, the plan, what the
 // earlier pieces left, and this piece alone. Measured (§14): at this scope a
 // fire thinks in proportion to the piece and writes only its files.
-export function pieceTurn({ request, pieces, index }) {
+export function pieceTurn({
+  request, pieces, index, summary = '', assumptions = [],
+}) {
   const n = pieces.length;
   const piece = pieces[index];
-  const lines = [
-    `[studio] The request: "${request}"`,
+  const lines = [`[studio] The request: "${request}"`];
+  // The plan's words as the person approved them — the summary and the
+  // decisions — are what a piece builds to; its file list is advisory.
+  if (summary) lines.push('', `What it is: ${summary}`);
+  if (assumptions.length) lines.push('', 'Decided:', ...assumptions.map((a) => `- ${a}`));
+  lines.push(
     '',
-    `That was too big for one reply, so it was split into ${n} pieces:`,
+    n === 1 ? 'It is one piece:' : `It was split into ${n} pieces:`,
     ...pieces.map((p, i) => `${i + 1}. ${p.title} — ${p.files.join(', ')}`),
-  ];
+  );
   const done = pieces.filter((p, i) => i < index && p.status === 'done' && p.note);
   if (done.length) lines.push('', 'Done so far:', ...done.map((p) => `- ${p.title}: ${p.note}`));
   lines.push(
@@ -134,28 +165,71 @@ export function headline(text) {
 }
 
 // The plan card's text: what the thread shows and a later fire reads as the
-// builder's own words, rewritten as the pieces land — each line its title,
-// the files it changed (until then, the files it was to touch) and its
+// builder's own words, rewritten as the plan moves — its head by status, the
+// summary and the assumptions as the person approved them, then each piece's
+// title, the files it changed (until then, the files it was to touch) and its
 // headline. `begun` is a plan for the rest of something a fire started on and
-// could not finish in one go; `head` keeps a running plan's first line as it
-// was written, since `begun` is not stored.
-export function planBody(pieces, { begun = false, status = 'running', head = null } = {}) {
+// could not finish in one go.
+export function planBody(pieces, {
+  begun = false, status = 'running', summary = '', assumptions = [],
+} = {}) {
   const n = pieces.length;
   const done = pieces.filter((p) => p.status === 'done').length;
-  const first = head ?? {
+  const rest = `${n} piece${n === 1 ? '' : 's'}`;
+  const head = {
+    draft: begun
+      ? `That's more than one go — here's the rest in ${rest}. Change anything, then press Build it.`
+      : `That's a big one — here's my plan in ${rest}. Change anything, then press Build it.`,
+    queued: 'Building…',
     running: begun
-      ? `That's more than one go — here's the rest in ${n} piece${n === 1 ? '' : 's'}:`
+      ? `That's more than one go — here's the rest in ${rest}:`
       : (n === 1 ? 'One piece:' : `That's a big one — I'll do it in ${n} pieces:`),
     done: n === 1 ? 'Done:' : `Done, in ${n} pieces:`,
     paused: `Paused after ${done} of ${n}:`,
     dropped: `Set aside after ${done} of ${n}:`,
-  }[status] ?? `${n} pieces:`;
+  }[status] ?? `${rest}:`;
   return [
-    first,
+    head,
+    summary || null,
+    assumptions.length ? ['Assuming:', ...assumptions.map((a) => `- ${a}`)].join('\n') : null,
     ...pieces.map((p, i) => {
       const files = p.writes?.length ? p.writes : p.files;
       return `${i + 1}. ${p.title} — ${files.join(', ')}${p.note ? `\n   ${p.note}` : ''}`;
     }),
+  ].filter(Boolean).join('\n');
+}
+
+// The Build press, as the request the pieces then extend (spec.md §8, §14):
+// a plan built as written gets a short confirmation — the plan is the card
+// above, in the transcript already — and one the person changed is sized
+// again over their words, which the answer is told to keep.
+export const CONFIRM_TRIGGER = '[studio] Build the plan above as written. Answer {"ok":true}.';
+export function resizeTrigger({ summary, assumptions, pieces }) {
+  return [
+    '[studio] The person changed the plan. Here it is now:',
+    summary ? `What it is: ${summary}` : null,
+    assumptions.length ? ['Decided:', ...assumptions.map((a) => `- ${a}`)].join('\n') : null,
+    ...pieces.map((p, i) => `${i + 1}. ${p.title}${p.files.length ? ` — ${p.files.join(', ')}` : ''}: ${p.what}`),
+    '',
+    'Answer with JSON only: {"size":"pieces","pieces":[{"title":"…","files":["…"],"what":"…"}]} — these',
+    'pieces in this order with their words kept as written, each with the files it will touch filled in.',
+    'Split a piece only when it is too big for one sitting.',
+  ].filter((l) => l !== null).join('\n');
+}
+
+// SPEC.md as the plan's words, written once on a game's first Build (spec.md
+// §8): the decisions a person approved, in the file every later fire reads.
+export function specText({ name, request, summary, assumptions, pieces }) {
+  return [
+    `# ${name}`,
+    '',
+    summary || request,
+    '',
+    ...(assumptions.length ? ['## Decisions', '', ...assumptions.map((a) => `- ${a}`), ''] : []),
+    '## Plan',
+    '',
+    ...pieces.map((p, i) => `${i + 1}. ${p.title}${p.files.length ? ` — ${p.files.join(', ')}` : ''}: ${p.what}`),
+    '',
   ].join('\n');
 }
 

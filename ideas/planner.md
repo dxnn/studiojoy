@@ -448,8 +448,10 @@ before it).
    the card (done 2026-09-06).
 6. The synopsis call; refinement on overrun as sub-pieces.
 7. The draft card: status, summary, assumptions, the edit and build routes,
-   the card in the client, one click to Build it.
-8. `SPEC.md` on a first Build.
+   the card in the client, one click to Build it (done 2026-09-07; the
+   browser check is `test/ui/plan-card.ui.js`, written and not yet run).
+8. `SPEC.md` on a first Build — "first" being a game with no `SPEC.md`, so
+   a template's stands (done 2026-09-07).
 9. The Pro probe, and escalation only if it earns it.
 10. spec/ §3, §6, §8, §9 and GLOSSARY.md ride the commit that finishes each
     step; `npm test` green at every one.

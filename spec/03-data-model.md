@@ -517,6 +517,11 @@ the client fetches it on the click that opens it.
 | `chat_id` | INTEGER NOT NULL → chats | |
 | `request` | TEXT NOT NULL | the human message the plan answers, as typed |
 | `pieces` | TEXT NOT NULL | JSON: `[{title, files, what, status, message_id, note}]` — `status` is `todo`, `running` or `done`; `note` is the piece's **headline**, the closing paragraph of its reply (§8) |
+| `summary` | TEXT NULL | the plan's words: one paragraph saying what the game or the change is, the planner's at first and the person's once changed (§8) |
+| `assumptions` | TEXT NULL | JSON: the one-sentence decisions the planner made where the request left things open, each the person's to change or remove |
+| `begun` | INTEGER NOT NULL DEFAULT 0 | a plan for the rest of something a fire started on, which is how its head reads |
+| `edited` | INTEGER NOT NULL DEFAULT 0 | a person changed it since the sizing wrote it, so Build sizes their words again rather than running them as written |
+| `built_by` | INTEGER NULL → users | who pressed Build it, whose day the build is charged to |
 | `status` | TEXT NOT NULL | `running`, `paused`, `done`, `dropped` |
 | `created_at`, `updated_at` | TEXT NOT NULL | |
 
@@ -524,10 +529,15 @@ What the builder's **sizing** split a big request into and how far it has got
 (§8). The pieces are JSON because a piece is read and written whole and nothing
 queries inside one; each carries its `status` (`todo`, `done`), the id of the
 message row its fire left, and the one-line `note` that row said, which later
-pieces are told. `messagePublic` puts `plan: {status, pieces}` on the card's
-message — each piece with its `note` and `writes`, the paths its row wrote,
-read from `message_writes` — and `plan.update` (§9) carries the same shape as
-a piece starts and as it lands, with the card's `body` rewritten from it (§8).
+pieces are told. `messagePublic` puts `plan: {status, summary, assumptions,
+edited, pieces}` on the card's message — each piece with its `note` and
+`writes`, the paths its row wrote, read from `message_writes` — and
+`plan.update` (§9) carries the same shape as a piece starts and as it lands,
+with the card's `body` rewritten from it (§8). `status` runs `draft` (a plan
+of two or more, waiting for Build it) → `queued` (pressed, not yet picked up)
+→ `running` → `done`, with `paused` and `dropped` beside; a plan of one is
+born `running`. On open a `running` plan is `paused` and a `queued` one is
+`draft` again.
 `paused` is what an interruption leaves — and what opening the database does to
 every `running` plan, since the process that was running it is gone.
 

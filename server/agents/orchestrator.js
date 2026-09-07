@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { tx } from '../db.js';
-import { listTree, readFileAt } from '../files/tree.js';
+import { listTree, readFileAt, writeFileAt } from '../files/tree.js';
 import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
@@ -17,11 +17,12 @@ import { messagePublic, agentAuthorFor } from '../routes/helpers.js';
 import { parseMentions, agentEligible } from '../mentions.js';
 import { createToolset } from './tools.js';
 import {
-  pausedPlan, createPlan, planFor, setPiece, setPlanStatus, planPublic,
+  pausedPlan, draftPlan, queuedPlan, createPlan, planFor, setPiece, setPlanStatus, settlePieces,
+  queuePlan, announcePlan as announcePlanRow,
 } from '../plans.js';
 import {
   sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
-  notesForPlanner, begunNote, SIZING_MAX_TOKENS,
+  notesForPlanner, begunNote, SIZING_MAX_TOKENS, CONFIRM_TRIGGER, resizeTrigger, specText,
 } from './sizing.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
@@ -730,15 +731,18 @@ function historyTurns(db, chat, agent, lastFiredMaxId = 0, historyFloor = new Ma
 // `sizing` is the builder's room: the sizing rules stand in its preamble, so
 // the sizing call and every fire after it share one system prompt (spec.md
 // §8, §14). A piece builds no context of its own — it runs on this one.
+// `lastMayBeOwn` is Build it: the newest turn is then the builder's own card,
+// and the turn the fire adds on top is what there is to answer.
 async function buildContext({
   db, project, chat, dir, agent, lastFiredMaxId = 0,
   maxAssistantTurns = MAX_ASSISTANT_TURNS, maxToolCalls = MAX_TOOL_CALLS,
-  historyFloor = new Map(), sizing = false,
+  historyFloor = new Map(), sizing = false, lastMayBeOwn = false,
 }) {
   const { turns, trimmed } = historyTurns(db, chat, agent, lastFiredMaxId, historyFloor);
   // The model needs something to answer. If the newest turn is this agent's
   // own reply there is nothing to respond to.
-  if (turns.length === 0 || turns[turns.length - 1].role !== 'user') return null;
+  if (turns.length === 0) return null;
+  if (!lastMayBeOwn && turns[turns.length - 1].role !== 'user') return null;
 
   // In a chat there is no directory, so no brief and no files — and no
   // preamble either. The system prompt is the agent's description and
@@ -1394,9 +1398,14 @@ export function createOrchestrator({
   // the pieces. Fails open to small — today's fire, the cap behind it — on an
   // answer that will not parse or an upstream that will not answer. Charged to
   // the asker like the fire it goes ahead of.
-  async function sizeRequest(fire, { paused = null, notes = null, begun = null } = {}) {
+  async function sizeRequest(fire, {
+    paused = null, notes = null, begun = null, trigger = null,
+  } = {}) {
     const { agent, context, asker } = fire;
     const messages = context.messages.map((m) => ({ ...m }));
+    // Build it adds its own turn: the newest message is the card, the
+    // builder's own, and the trigger goes on as a user turn after it.
+    if (messages[messages.length - 1]?.role !== 'user') messages.push({ role: 'user', content: '' });
     const last = messages[messages.length - 1];
     // Notes ahead of the trigger, never after: a long attachment behind the
     // ask swamps it (§14). `begun` is what a small ask did before it ran out
@@ -1409,7 +1418,7 @@ export function createOrchestrator({
       last.content,
       noted,
       begun ? begunNote(begun) : null,
-      sizingTrigger({ paused, begun: begun !== null }),
+      trigger ?? sizingTrigger({ paused, begun: begun !== null }),
     ].filter(Boolean).join('\n\n');
     fire.exchange = null;
     try {
@@ -1464,26 +1473,9 @@ export function createOrchestrator({
     },
   });
 
-  // The card moving along: the checklist to every tab, and the card's own
-  // body rewritten from the same shape — it is what the thread shows for the
-  // plan and what history replays, so it carries each piece's headline and
-  // the files it changed (spec.md §8). A running plan keeps the first line
-  // it was born with.
-  function announcePlan(fire, plan) {
-    const shown = planPublic(db, plan);
-    const head = plan.status === 'running'
-      ? db.prepare('SELECT body FROM messages WHERE id = ?').get(plan.message_id)?.body.split('\n')[0]
-      : null;
-    const body = planBody(shown.pieces, { status: plan.status, head });
-    db.prepare('UPDATE messages SET body = ? WHERE id = ?').run(body, plan.message_id);
-    broker.broadcast('plan.update', {
-      project_slug: fire.row.slug,
-      chat_id: fire.chat.id,
-      message_id: plan.message_id,
-      body,
-      plan: shown,
-    });
-  }
+  // The card moving along (plans.js): the checklist to every tab and the
+  // card's own body rewritten from the same shape.
+  const announcePlan = (fire, plan) => announcePlanRow(db, broker, fire.row.slug, plan);
 
   function pausePlan(fire, plan, body) {
     announcePlan(fire, setPlanStatus(db, plan.message_id, 'paused'));
@@ -1512,7 +1504,14 @@ export function createOrchestrator({
   // goes back to the sizing as a plan (planRest) rather than carrying on.
   async function builderFire(fire) {
     const { row, chat, agent, dir, asker, context, emit } = fire;
+    // Build it was pressed: the plan is the whole of this fire.
+    const queued = queuedPlan(db, chat.id);
+    if (queued) {
+      await runQueued(fire, queued);
+      return;
+    }
     const paused = pausedPlan(db, chat.id);
+    const draft = draftPlan(db, chat.id);
     const request = db
       .prepare(
         `SELECT body FROM messages
@@ -1520,10 +1519,16 @@ export function createOrchestrator({
       )
       .get(chat.id)?.body ?? '';
 
+    // A new plan takes the place of one paused and of one still waiting to
+    // be built; a reply leaves both where they are.
+    const replacePlans = () => {
+      if (paused) dropPlan(fire, paused);
+      if (draft) dropPlan(fire, draft);
+    };
     let sized = await sizeRequest(fire, { paused });
     if (sized.size === 'pieces') {
-      if (paused) dropPlan(fire, paused);
-      await runPlan(fire, { request, pieces: sized.pieces });
+      replacePlans();
+      await runPlan(fire, { request, ...sized });
       return;
     }
 
@@ -1539,8 +1544,8 @@ export function createOrchestrator({
       if (sized.size === 'pieces') {
         consumeBudget(db, abandoned);
         chargeUser(db, asker?.id, abandoned);
-        if (paused) dropPlan(fire, paused);
-        await runPlan(fire, { request, pieces: sized.pieces });
+        replacePlans();
+        await runPlan(fire, { request, ...sized });
         return;
       }
       messages = extended(fire, GO_AHEAD);
@@ -1585,7 +1590,7 @@ export function createOrchestrator({
     const sized = await sizeRequest(fire, { paused, begun: { changed, said } });
     if (sized.size === 'pieces') {
       if (paused) dropPlan(fire, paused);
-      await runPlan(fire, { request, pieces: sized.pieces, begun: true });
+      await runPlan(fire, { request, ...sized, begun: true });
       return;
     }
     emit('agent.stream.end');
@@ -1596,19 +1601,27 @@ export function createOrchestrator({
   // A plan: the card — a message of kind 'plan', the builder's own words in
   // the transcript and a checklist on screen — then the pieces. `begun` is a
   // plan for the rest of something a small fire started on.
-  async function runPlan(fire, { request, pieces, begun = false }) {
+  async function runPlan(fire, {
+    request, pieces, summary = '', assumptions = [], begun = false,
+  }) {
     const { row, project, chat, agent, emit, state, snapshot } = fire;
     const now = new Date().toISOString();
+    // A plan of two or more waits as a draft for Build it — nothing runs and
+    // nothing is charged until the press; a plan of one runs at once.
+    const status = pieces.length > 1 ? 'draft' : 'running';
     const messageId = tx(db, () => {
       const info = db
         .prepare(
           `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at)
            VALUES (?, ?, ?, 'plan', ?, ?)`,
         )
-        .run(project.id, chat.id, agent.id, planBody(pieces, { begun }), now);
+        .run(project.id, chat.id, agent.id, planBody(pieces, {
+          begun, status, summary, assumptions,
+        }), now);
       const id = Number(info.lastInsertRowid);
       createPlan(db, {
         messageId: id, projectId: project.id, chatId: chat.id, request, pieces, now,
+        summary, assumptions, begun, status,
       });
       return id;
     });
@@ -1617,7 +1630,85 @@ export function createOrchestrator({
     broker.broadcast('message.new', messagePublic(db, stored, row.slug));
     emit('agent.stream.end', { message_id: messageId });
     state.live = false;
+    if (status === 'draft') return;
     await runPieces(fire, planFor(db, messageId));
+  }
+
+  // Build it, pressed (spec.md §8): the plan is this fire, charged to whoever
+  // pressed. A game with no SPEC.md gets one from the plan's words first — a
+  // game's first Build is its spec moment — and the context is read again so
+  // the block the pieces run on carries it. Then one request the pieces
+  // extend (§14): a short confirmation for a plan built as written, the plan
+  // being the card above in the transcript already; or, for a plan the person
+  // changed, a sizing over their words, which may split a piece but is told
+  // to keep the words, and whose answer becomes the pieces still to do.
+  async function runQueued(fire, queued) {
+    const { row, project, chat, agent, dir } = fire;
+    if (queued.built_by) {
+      fire.asker = db
+        .prepare('SELECT id, display_name, daily_tokens FROM users WHERE id = ?')
+        .get(queued.built_by) ?? fire.asker;
+    }
+    if (await writeSpecIfAbsent(fire, queued)) {
+      fire.context = await buildContext({
+        db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
+        maxAssistantTurns: smallLimits.turns, maxToolCalls: smallLimits.tools, historyFloor,
+        sizing: true, lastMayBeOwn: true,
+      });
+    }
+    let plan = queued;
+    if (queued.edited === 1) {
+      const left = queued.pieces.filter((p) => p.status !== 'done');
+      const sized = await sizeRequest(fire, {
+        trigger: resizeTrigger({ summary: queued.summary, assumptions: queued.assumptions, pieces: left }),
+      });
+      plan = settlePieces(db, queued.message_id, sized.size === 'pieces' ? sized.pieces : left);
+    } else {
+      await sizeRequest(fire, { trigger: CONFIRM_TRIGGER });
+    }
+    await runPieces(fire, plan);
+  }
+
+  // SPEC.md from the plan's words, once, when the game has none (spec.md §8).
+  // A template's spec stands; a later plan never touches it. Committed as
+  // the builder's, under the mutex like any write of its own.
+  async function writeSpecIfAbsent({ row, project, agent, dir }, plan) {
+    const file = path.join(dir, 'SPEC.md');
+    if (await readFileAt(file) !== null) return false;
+    const text = specText({
+      name: project.name, request: plan.request, summary: plan.summary,
+      assumptions: plan.assumptions, pieces: plan.pieces,
+    });
+    const sha = await mutex.run(row.slug, async () => {
+      if (pending) await pending.settleLocked(row.slug);
+      await writeFileAt(file, Buffer.from(text, 'utf8'));
+      return commitPaths(dir, ['SPEC.md'], `${row.agent_name}: SPEC.md from the plan`, agentAuthorFor(agent, row.slug));
+    });
+    broker.broadcast('files.changed', { project_slug: row.slug, paths: ['SPEC.md'] });
+    if (sha) versionNew(broker, row.slug, sha, ['SPEC.md']);
+    return true;
+  }
+
+  // Build it (routes/plans.js): the plan becomes the builder's next fire in
+  // its room. Refused while the builder is mid-fire there, since the press
+  // would otherwise land on a fire already running.
+  function buildPlan(plan, user) {
+    const row = db
+      .prepare(
+        `SELECT ca.id, ca.cooldown_until, p.slug
+           FROM chat_agents ca
+           JOIN agents a ON a.id = ca.agent_id
+           JOIN chats c ON c.id = ca.chat_id
+           JOIN projects p ON p.id = c.project_id
+          WHERE ca.chat_id = ? AND a.builtin = 1`,
+      )
+      .get(plan.chat_id);
+    if (!row) return { ok: false, reason: 'the builder is not in that room' };
+    if (firing.has(row.id)) return { ok: false, reason: 'the builder is busy in that room — wait for it to finish' };
+    announcePlanRow(db, broker, row.slug, queuePlan(db, plan.message_id, user.id));
+    db.prepare('UPDATE chat_agents SET response_pending = 1 WHERE id = ?').run(row.id);
+    schedule(row.id, row.cooldown_until ? new Date(row.cooldown_until).getTime() : 0);
+    return { ok: true };
   }
 
   // The pieces of a plan, one fire each, in order, thinking off (§14), each on
@@ -1661,7 +1752,10 @@ export function createOrchestrator({
       current = setPiece(db, plan.message_id, i, { status: 'running' });
       announcePlan(fire, current);
       const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
-      const turn = pieceTurn({ request: current.request, pieces: current.pieces, index: i });
+      const turn = pieceTurn({
+        request: current.request, pieces: current.pieces, index: i,
+        summary: current.summary, assumptions: current.assumptions,
+      });
       const fresh = await freshCopies(dir, context, piece.files);
       const messages = extended(fire, fresh ? `${turn}\n\n${fresh}` : turn);
       const outcome = await runLoop({
@@ -1800,10 +1894,13 @@ export function createOrchestrator({
       // prefix; a piece builds its own.
       const builderRoom = row.builder === 1 && agent.file_tools && dir !== null;
       const limits = builderRoom ? smallLimits : roomLimits;
+      // Build it pressed: the newest turn is the builder's own card, and the
+      // fire adds the turn there is to answer (runQueued).
+      const queued = builderRoom ? queuedPlan(db, chat.id) : null;
       const context = await buildContext({
         db, project, chat, dir, agent, lastFiredMaxId: lastFired.get(row.id) ?? 0,
         maxAssistantTurns: limits.turns, maxToolCalls: limits.tools, historyFloor,
-        sizing: builderRoom,
+        sizing: builderRoom, lastMayBeOwn: queued !== null,
       });
       if (!context) return;
 
@@ -1867,6 +1964,7 @@ export function createOrchestrator({
 
   return {
     onHumanMessage,
+    buildPlan,
     // Test seams.
     _fireAgent: fireAgent,
     _buildContext: buildContext,

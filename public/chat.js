@@ -335,31 +335,98 @@ function renderPlanCard(msg) {
   const plan = msg.plan;
   const pieces = plan?.pieces ?? [];
   const done = pieces.filter((p) => p.status === 'done').length;
+  const one = pieces.length === 1;
+  // A draft, or a paused plan, is the person's to change while it waits — if
+  // they may talk in this room at all (spec.md §8).
+  const editable = Boolean(plan) && (plan.status === 'draft' || plan.status === 'paused') && canTalk();
   const state = {
-    done: pieces.length === 1 ? 'Press play and tell me what breaks.' : 'All done — press play and tell me what breaks.',
-    paused: `Paused with ${pieces.length - done} to go. Say “carry on” to keep going.`,
+    done: one ? 'Press play and tell me what breaks.' : 'All done — press play and tell me what breaks.',
+    paused: editable
+      ? `Paused with ${pieces.length - done} to go. Change anything, then press Carry on.`
+      : `Paused with ${pieces.length - done} to go. Say “carry on” to keep going.`,
     dropped: 'Set aside.',
-    running: pieces.length === 1 ? '' : `Working on piece ${Math.min(done + 1, pieces.length)} of ${pieces.length}`,
+    queued: 'Starting…',
+    running: one ? '' : `Working on piece ${Math.min(done + 1, pieces.length)} of ${pieces.length}`,
   }[plan?.status] ?? '';
   const live = S.live.get(msg.agent_id);
   return h('div', { class: 'msg from-agent' },
     h('div', { class: 'from', text: agentName(msg.agent_id) }),
     h('div', { class: `pieces ${plan?.status ?? ''}` },
       h('div', { class: 'pieces-head', text: msg.body.split('\n')[0] }),
-      pieces.length ? h('ol', { class: 'pieces-list' }, pieces.map((p) => renderPiece(msg, p, live))) : null,
+      planWords(msg, editable),
+      pieces.length ? h('ol', { class: 'pieces-list' }, pieces.map((p) => renderPiece(msg, p, live, editable))) : null,
+      editable ? h('div', { class: 'pieces-actions' },
+        h('button', {
+          text: 'Add a piece',
+          onclick: () => savePlan(msg, { pieces: [...piecesLeft(pieces), { title: 'Another piece', files: [], what: '' }] }),
+        }),
+        h('button', {
+          class: 'filled', text: plan.status === 'draft' ? 'Build it' : 'Carry on', onclick: () => buildPlan(msg),
+        })) : null,
       state ? h('div', {
-        class: `pieces-state${plan.status === 'running' ? ' dots' : ''}`, text: state,
+        class: `pieces-state${plan.status === 'running' || plan.status === 'queued' ? ' dots' : ''}`, text: state,
       }) : null),
     reactionsRow(msg),
     footnote(msg));
+}
+
+// The plan's words over its pieces: what it is, and what the planner assumed
+// where the request left things open. Fields while the plan is the person's
+// to change — each saving as it is left — and plain lines after.
+function planWords(msg, editable) {
+  const { summary = '', assumptions = [] } = msg.plan ?? {};
+  if (!editable) {
+    return [
+      summary ? h('p', { class: 'pieces-summary', text: summary }) : null,
+      assumptions.length
+        ? h('div', { class: 'pieces-assuming' }, h('span', { class: 'muted', text: 'Assuming: ' }), assumptions.join(' · '))
+        : null,
+    ];
+  }
+  const summaryBox = h('textarea', {
+    class: 'plan-field', rows: '2', placeholder: 'What is it?',
+    onchange: () => savePlan(msg, { summary: summaryBox.value.trim() }),
+  });
+  summaryBox.value = summary;
+  const assumingBox = h('textarea', {
+    class: 'plan-field', rows: String(Math.max(2, assumptions.length)), placeholder: 'One per line.',
+    onchange: () => savePlan(msg, {
+      assumptions: assumingBox.value.split('\n').map((s) => s.trim()).filter(Boolean),
+    }),
+  });
+  assumingBox.value = assumptions.join('\n');
+  return h('div', { class: 'plan-words' },
+    h('label', { class: 'muted', text: 'What it is' }), summaryBox,
+    h('label', { class: 'muted', text: 'I’m assuming' }), assumingBox);
+}
+
+// The pieces still to do, as the edit route takes them: the done ones are
+// history and stay as they are.
+const piecesLeft = (pieces) => pieces
+  .filter((p) => p.status !== 'done')
+  .map(({ title, files, what }) => ({ title, files: files ?? [], what: what ?? '' }));
+
+async function savePlan(msg, patch) {
+  const res = await api('PATCH', `/api/plans/${msg.id}`, patch);
+  // The card follows plan.update; nothing to paint here.
+  if (!res.ok) say(res.body?.error ?? 'Could not change the plan.', true);
+}
+
+async function buildPlan(msg) {
+  const res = await api('POST', `/api/plans/${msg.id}/build`);
+  if (!res.ok) say(res.body?.error ?? 'Could not start building.', true);
 }
 
 // One line of the card. Done: the tick, the title, the files it changed, its
 // headline, and `Details`, which opens the piece's own row in place — one at
 // a time, the same link closing it. Running: the live reply, here rather than
 // at the foot of the thread, so the entry is marked as placed and the thread
-// leaves it out. To do: the title and the files it is to touch.
-function renderPiece(card, p, live) {
+// leaves it out. To do on a plan the person may change: fields for the title
+// and the words, and a ··· to move or remove it — Move up, Move down and
+// Remove left out when they may not be pressed. To do otherwise: the title
+// and the files it is to touch.
+function renderPiece(card, p, live, editable) {
+  if (editable && p.status !== 'done') return renderPieceFields(card, p);
   const open = S.pieceOpen?.id === p.message_id ? S.pieceOpen.msg : null;
   const running = p.status === 'running' && live ? live : null;
   if (running) running.placed = true;
@@ -377,6 +444,40 @@ function renderPiece(card, p, live) {
     p.note ? h('div', { class: 'piece-note', text: p.note }) : null,
     running ? h('div', { class: 'piece-live' }, renderLive(card.agent_id, running)) : null,
     open ? h('div', { class: 'piece-detail' }, renderMessage(open)) : null);
+}
+
+function renderPieceFields(card, p) {
+  const rest = piecesLeft(card.plan.pieces);
+  const k = card.plan.pieces.filter((q) => q.status !== 'done').indexOf(p);
+  const withPiece = (patch) => rest.map((q, j) => (j === k ? { ...q, ...patch } : q));
+  const swap = (j) => {
+    const next = rest.slice();
+    [next[k], next[j]] = [next[j], next[k]];
+    return savePlan(card, { pieces: next });
+  };
+  const title = h('input', {
+    class: 'plan-field', value: p.title,
+    onchange: () => savePlan(card, { pieces: withPiece({ title: title.value.trim() || p.title }) }),
+  });
+  const what = h('textarea', {
+    class: 'plan-field', rows: '2', placeholder: 'What this piece makes.',
+    onchange: () => savePlan(card, { pieces: withPiece({ what: what.value.trim() }) }),
+  });
+  what.value = p.what ?? '';
+  return h('li', { class: `piece ${p.status} editing` },
+    h('span', { class: 'piece-mark', text: '○' }),
+    h('div', { class: 'piece-edit' },
+      h('div', { class: 'piece-edit-row' },
+        title,
+        more(`piece:${card.id}:${k}`, [
+          k > 0 && { text: 'Move up', onPick: () => swap(k - 1) },
+          k < rest.length - 1 && { text: 'Move down', onPick: () => swap(k + 1) },
+          rest.length > 1 && {
+            text: 'Remove', danger: true, onPick: () => savePlan(card, { pieces: rest.filter((_, j) => j !== k) }),
+          },
+        ], { label: 'This piece' })),
+      what,
+      p.files?.length ? h('span', { class: 'piece-files muted', text: p.files.join(', ') }) : null));
 }
 
 async function openPiece(id) {

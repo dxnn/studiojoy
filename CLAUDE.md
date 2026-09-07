@@ -282,7 +282,8 @@ specified:
   its row filed behind the **plan card**, which is the one reply the thread
   shows: a checklist that ticks, each line a piece's title, the files it
   changed and its **headline**. A plan of one runs at once at the builder's
-  level; a bigger plan's pieces at `none`. A message mid-plan pauses it; the
+  level; a plan of two or more waits as a **draft** the person can change
+  until **Build it**, and its pieces run at `none`. A message mid-plan pauses it; the
   next sizing carries on, sets aside or replaces it. Open rooms with people's
   helpers are unchanged. Measured in §14 on 2026-09-03 and 2026-09-06;
   designed in ideas/planner.md (§8).
@@ -400,9 +401,13 @@ Open questions:
   because ⚠️ a last user message over ~160 tokens costs the next request
   ~6,000 tokens of prefix, and the sizing ask was 250 (§14). The first
   production receipt should read ~96% where it read 50%. Also built: the plan
-  as the one reply, piece rows behind the card, a plan of one for any change.
-  Unbuilt: the synopsis and sub-pieces on overrun (step 6), and a plan of two
-  or more pieces waiting as an editable draft behind one click (steps 7–8).
+  as the one reply, piece rows behind the card, a plan of one for any change,
+  and a plan of two or more waiting as a **draft** the person can change —
+  summary, **assumptions**, pieces — behind one **Build it**, which writes
+  `SPEC.md` from the plan's words when the game has none. Unbuilt: the
+  synopsis and sub-pieces on overrun (step 6). ⚠️ The card's editing has
+  been parsed and server-tested, and `test/ui/plan-card.ui.js` is written
+  for it, but no browser has shown it yet.
 - Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)

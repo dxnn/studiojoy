@@ -32,6 +32,10 @@ const send = (app, chatId, body) => app.client.json('POST', '/api/projects/tank/
   body: { body, chat_id: chatId },
 });
 const sized = (answer) => answers(JSON.stringify(answer));
+// Build it, pressed: a plan of two or more waits for it (spec.md §8). The
+// press costs the builder one short confirmation call before the pieces.
+const build = (app, id) => app.client.json('POST', `/api/plans/${id}/build`);
+const confirmed = () => answers('{"ok":true}');
 const PIECES = [
   { title: 'The page', files: ['index.html', 'css/style.css'], what: 'The page and its styles.' },
   { title: 'Tanks that drive', files: ['js/tank.js', 'js/game.js', 'index.html'], what: 'Two tanks and the loop.' },
@@ -222,7 +226,7 @@ test('a small ask that outruns its budget keeps what it did and plans the rest',
     says(''),
     calls([write('js/game.js', 'loop()')], { text: 'It runs.' }),
     says(''),
-  ], [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: rest })]);
+  ], [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: rest }), confirmed()]);
   const { app, chatId } = await studio(t, { llm, smallTurns: 2, smallToolCalls: 4 });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -241,7 +245,8 @@ test('a small ask that outruns its budget keeps what it did and plans the rest',
   await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system'
     && /bigger than one go/.test(e.data.body));
   const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
-  assert.match(card.data.body, /here's the rest in 2 pieces/);
+  assert.match(card.data.body, /here's the rest in 2 pieces\. Change anything, then press Build it\./);
+  assert.equal(card.data.plan.status, 'draft', 'a plan for the rest waits like any plan of two');
   // The second sizing was told what was done, ahead of its ask.
   assert.equal(llm.asked.length, 2);
   const ask = llm.asked[1].messages.at(-1).content;
@@ -251,6 +256,7 @@ test('a small ask that outruns its budget keeps what it did and plans the rest',
   assert.ok(ask.indexOf('what it said while working') < ask.indexOf('Size this request'));
   assert.match(ask, /Size what is left, not the whole/);
 
+  assert.equal((await build(app, card.data.id)).status, 202);
   await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
   const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
   assert.ok(!detail.body.messages.some((m) => m.kind === 'system' && /carrying on/.test(m.body)),
@@ -336,20 +342,39 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
     calls([write('js/tank.js', 'drive()'), write('js/game.js', 'loop()')], { text: 'Tanks drive.' }),
     says(''),
     says('Thanks!'),
-  ], [sized({ size: 'pieces', pieces: PIECES }), sized({ size: 'reply' })]);
+  ], [
+    sized({
+      size: 'pieces', pieces: PIECES,
+      summary: 'A tank game for two on one keyboard.', assumptions: ['Arrow keys for one, WASD for the other.'],
+    }),
+    confirmed(),
+    sized({ size: 'reply' }),
+  ]);
   const { app, chatId, dir } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, chatId, 'build me a tank game');
 
-  // The card first: the builder's own words in the thread, the checklist
-  // beside them.
+  // The card first, as a draft: the builder's words, the summary and the
+  // assumptions, the checklist — and nothing running until Build it.
   const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
-  assert.match(card.data.body, /2 pieces/);
-  assert.equal(card.data.plan.status, 'running');
+  assert.equal(card.data.body.split('\n')[0], "That's a big one — here's my plan in 2 pieces. Change anything, then press Build it.");
+  assert.match(card.data.body, /A tank game for two on one keyboard\./);
+  assert.match(card.data.body, /Assuming:\n- Arrow keys for one, WASD for the other\./);
+  assert.equal(card.data.plan.status, 'draft');
+  assert.equal(card.data.plan.summary, 'A tank game for two on one keyboard.');
   assert.deepEqual(card.data.plan.pieces.map((p) => [p.title, p.status]),
     [['The page', 'todo'], ['Tanks that drive', 'todo']]);
+  assert.equal(llm.calls.length, 0, 'nothing runs before the press');
+  assert.ok(!fs.existsSync(path.join(dir, 'SPEC.md')), 'a blank game has no spec yet');
+
+  // The press: SPEC.md from the plan's words, then one short confirmation the
+  // pieces extend — the plan is the card in the transcript already.
+  assert.equal((await build(app, card.data.id)).status, 202);
+  await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'running');
+  const spec = await stream.waitFor((e) => e.event === 'files.changed' && e.data.paths.includes('SPEC.md'));
+  assert.deepEqual(spec.data.paths, ['SPEC.md']);
 
   // Then a row per piece, each with its own files and its own commit, each
   // filed behind the card.
@@ -369,6 +394,9 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   // each line a piece's title, the files it changed and its headline.
   assert.equal(done.data.body, [
     'Done, in 2 pieces:',
+    'A tank game for two on one keyboard.',
+    'Assuming:',
+    '- Arrow keys for one, WASD for the other.',
     '1. The page — css/style.css, index.html',
     '   Piece 1 of 2: The page',
     '2. Tanks that drive — js/game.js, js/tank.js',
@@ -376,32 +404,43 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   ].join('\n'));
 
   const commits = await logCommits(dir);
-  assert.deepEqual(commits.slice(0, 2).map((c) => c.subject), [
+  assert.deepEqual(commits.slice(0, 3).map((c) => c.subject), [
     'Builder: piece 2 of 2 — Tanks that drive',
     'Builder: piece 1 of 2 — The page',
+    'Builder: SPEC.md from the plan',
   ]);
   assert.equal(fs.readFileSync(path.join(dir, 'js', 'tank.js'), 'utf8'), 'drive()');
+  const specText = fs.readFileSync(path.join(dir, 'SPEC.md'), 'utf8');
+  assert.match(specText, /^# Tank\n\nA tank game for two on one keyboard\.\n/);
+  assert.match(specText, /## Decisions\n\n- Arrow keys for one, WASD for the other\./);
+  assert.match(specText, /## Plan\n\n1\. The page — index\.html, css\/style\.css: The page and its styles\./);
 
-  // Each piece's fire: thinking off, on the sizing's own system prompt and its
-  // exchange — one cache prefix for the whole plan — with one turn on top
-  // naming the request, the plan and this piece alone; for the second, what
-  // the first left behind.
+  // Each piece's fire: thinking off, on the confirmation's own system prompt
+  // and its exchange — one cache prefix for the whole plan — with one turn on
+  // top naming the request, the plan's words and this piece alone; for the
+  // second, what the first left behind.
   assert.equal(llm.calls.length, 4);
   for (const call of llm.calls) assert.equal(call.thinking, 'none');
-  const sizing = llm.asked[0];
-  assert.equal(llm.calls[0].system, sizing.system);
-  assert.equal(llm.calls[2].system, sizing.system, 'the block is the sizing\'s for every piece');
+  assert.equal(llm.asked.length, 2, 'the sizing and the confirmation');
+  const confirm = llm.asked[1];
+  assert.equal(confirm.messages.at(-1).content, '[studio] Build the plan above as written. Answer {"ok":true}.');
+  assert.equal(confirm.messages.at(-2).role, 'assistant', 'the card is the turn before it');
+  assert.match(confirm.system, /--- FILE: SPEC\.md/, 'the block the pieces run on carries the spec');
+  assert.equal(llm.calls[0].system, confirm.system);
+  assert.equal(llm.calls[2].system, confirm.system, 'the block is the confirmation\'s for every piece');
   // The fake keeps the array the loop went on appending to: the exchange, the
   // piece turn, then the tool exchange.
-  const n = sizing.messages.length;
+  const n = confirm.messages.length;
   const first1 = llm.calls[0].messages;
-  assert.deepEqual(first1.slice(0, n), sizing.messages);
+  assert.deepEqual(first1.slice(0, n), confirm.messages);
   assert.equal(first1[n].role, 'assistant');
   const turn1 = first1[n + 1];
   assert.equal(turn1.role, 'user');
   assert.match(turn1.content, /piece 1 of 2: The page/);
   assert.match(turn1.content, /Do only this piece/);
   assert.match(turn1.content, /"build me a tank game"/);
+  assert.match(turn1.content, /What it is: A tank game for two on one keyboard\./);
+  assert.match(turn1.content, /Decided:\n- Arrow keys for one, WASD for the other\./);
   assert.ok(!turn1.content.includes('have changed since'), 'nothing has changed yet');
   const turn2 = llm.calls[2].messages[n + 1].content;
   assert.match(turn2, /piece 2 of 2: Tanks that drive/);
@@ -426,14 +465,94 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.ok(!paged.body.messages.some((m) => m.plan_message_id), 'paging leaves the rows behind the card too');
 
   // And history replays the card, never a piece's row: the next fire sees one
-  // builder turn, the card's body, with both headlines in it.
+  // builder turn, the card's body, with the plan's words and both headlines.
   await send(app, chatId, 'nice');
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Thanks!');
-  const replayed = llm.asked[1].messages.filter((m) => m.role === 'assistant');
+  const replayed = llm.asked[2].messages.filter((m) => m.role === 'assistant');
   assert.equal(replayed.length, 1);
-  assert.match(replayed[0].content, /^Done, in 2 pieces:/);
+  assert.match(replayed[0].content, /^Done, in 2 pieces:\nA tank game for two on one keyboard\.\nAssuming:/);
   assert.match(replayed[0].content, /Tanks drive\./);
-  assert.ok(!llm.asked[1].messages.some((m) => m.content === 'Tanks drive.'));
+  assert.ok(!llm.asked[2].messages.some((m) => m.content === 'Tanks drive.'));
+});
+
+// The kids asked to change the plan before it runs (ideas/planner.md): the
+// words, a piece's title and what it makes, the order, one more or one fewer.
+// Build then sizes their words again — the files filled in, a piece too big
+// split — rather than running them as written.
+test('a person changes a draft, and Build sizes their words again', async (t) => {
+  const llm = createFakeLlm([
+    calls([write('js/walls.js', 'walls()')], { text: 'Walls break.' }),
+    says(''),
+    calls([write('index.html', '<h1>Tank</h1>')]),
+    says(''),
+  ], [
+    sized({ size: 'pieces', pieces: PIECES, summary: 'A tank game.', assumptions: ['Two players.'] }),
+    // The re-sizing keeps the words and fills in the files.
+    sized({
+      size: 'pieces',
+      pieces: [
+        { title: 'Walls that break', files: ['js/walls.js'], what: 'Walls a shot chips away.' },
+        { title: 'The page', files: ['index.html'], what: 'The page and its styles.' },
+      ],
+    }),
+  ]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  const id = card.data.id;
+
+  // The words, then a piece renamed and reordered, then one taken out.
+  let res = await app.client.json('PATCH', `/api/plans/${id}`, {
+    body: { summary: 'A tank game with walls.', assumptions: ['Two players.', 'Walls come back each round.'] },
+  });
+  assert.equal(res.status, 200);
+  let update = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.summary === 'A tank game with walls.');
+  assert.deepEqual(update.data.plan.assumptions, ['Two players.', 'Walls come back each round.']);
+  assert.equal(update.data.plan.edited, true);
+  assert.match(update.data.body, /^That's a big one — here's my plan in 2 pieces\. Change anything, then press Build it\.\nA tank game with walls\.\nAssuming:\n- Two players\.\n- Walls come back each round\./);
+  res = await app.client.json('PATCH', `/api/plans/${id}`, {
+    body: {
+      pieces: [
+        { title: 'Walls that break', files: [], what: 'Walls a shot chips away.' },
+        { title: 'The page', files: ['index.html', 'css/style.css'], what: 'The page and its styles.' },
+      ],
+    },
+  });
+  assert.equal(res.status, 200);
+  update = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.pieces[0].title === 'Walls that break');
+  assert.deepEqual(update.data.plan.pieces.map((p) => p.title), ['Walls that break', 'The page']);
+  // Held to the sizing's own shapes: an empty list is refused. And a plan is
+  // the game's editors' to change, like the room it is in: with the game
+  // closed, somebody who is not one is refused.
+  assert.equal((await app.client.json('PATCH', `/api/plans/${id}`, { body: { pieces: [] } })).status, 400);
+  app.db.prepare("UPDATE projects SET open_edit = 0 WHERE slug = 'tank'").run();
+  const stranger = app.newClient();
+  await signIn(app, { email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: stranger });
+  assert.equal((await stranger.json('PATCH', `/api/plans/${id}`, { body: { summary: 'mine now' } })).status, 403);
+  assert.equal((await stranger.json('POST', `/api/plans/${id}/build`)).status, 403);
+
+  // Build: the second sizing carries the person's words and is told to keep
+  // them; its answer is the plan the pieces run.
+  assert.equal((await build(app, id)).status, 202);
+  const done = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
+  assert.equal(llm.asked.length, 2);
+  const again = llm.asked[1].messages.at(-1).content;
+  assert.match(again, /^\[studio\] The person changed the plan\. Here it is now:/);
+  assert.match(again, /What it is: A tank game with walls\./);
+  assert.match(again, /1\. Walls that break: Walls a shot chips away\./);
+  assert.match(again, /words kept as written/);
+  assert.deepEqual(done.data.plan.pieces.map((p) => [p.title, p.files, p.status]), [
+    ['Walls that break', ['js/walls.js'], 'done'],
+    ['The page', ['index.html'], 'done'],
+  ]);
+  assert.equal(done.data.plan.edited, false);
+  // A finished plan is nobody's to change or build again.
+  assert.equal((await app.client.json('PATCH', `/api/plans/${id}`, { body: { summary: 'x' } })).status, 409);
+  assert.equal((await build(app, id)).status, 409);
+  assert.equal((await build(app, 999999)).status, 404);
 });
 
 // Piece rows from before the column existed are filed behind their card on
@@ -483,13 +602,14 @@ test('a message mid-plan pauses it, and the next ask decides what happens to the
     // Piece 2, carried on after it.
     calls([write('js/tank.js')], { text: 'Tanks drive.' }),
     says(''),
-  ], [sized({ size: 'pieces', pieces: PIECES }), sized({ size: 'reply', resume: true })]);
+  ], [sized({ size: 'pieces', pieces: PIECES }), confirmed(), sized({ size: 'reply', resume: true })]);
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, chatId, 'build me a tank game');
-  await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  assert.equal((await build(app, card.data.id)).status, 202);
   await first.started;
   await send(app, chatId, 'looks great so far');
   first.release();
@@ -502,8 +622,8 @@ test('a message mid-plan pauses it, and the next ask decides what happens to the
   // The sizing of the new message knows what was left to do…
   const answer = await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Glad you like it!');
   assert.equal(answer.data.kind, null);
-  assert.equal(llm.asked.length, 2);
-  const ask = llm.asked[1].messages.at(-1).content;
+  assert.equal(llm.asked.length, 3, 'the sizing, the press, the sizing of the message');
+  const ask = llm.asked[2].messages.at(-1).content;
   assert.match(ask, /A plan was under way/);
   assert.match(ask, /Tanks that drive/);
   assert.ok(!ask.includes('1. The page'), 'only the pieces still to do');
@@ -523,7 +643,9 @@ test('a big message mid-plan replaces the plan', async (t) => {
     says(''),
   ], [
     sized({ size: 'pieces', pieces: PIECES }),
+    confirmed(),
     sized({ size: 'pieces', pieces: [{ title: 'Walls that break', files: ['js/walls.js'], what: 'Walls.' }, PIECES[1]] }),
+    confirmed(),
   ]);
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -531,6 +653,7 @@ test('a big message mid-plan replaces the plan', async (t) => {
 
   await send(app, chatId, 'build me a tank game');
   const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  assert.equal((await build(app, card.data.id)).status, 202);
   await first.started;
   await send(app, chatId, 'actually, walls that break first');
   first.release();
@@ -540,6 +663,9 @@ test('a big message mid-plan replaces the plan', async (t) => {
   const second = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan'
     && e.data.id !== card.data.id);
   assert.deepEqual(second.data.plan.pieces.map((p) => p.title), ['Walls that break', 'Tanks that drive']);
+  // The new plan waits for its own press, like any plan of two.
+  assert.equal(second.data.plan.status, 'draft');
+  assert.equal((await build(app, second.data.id)).status, 202);
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Walls break.');
 });
 
@@ -548,7 +674,7 @@ test('a big message mid-plan replaces the plan', async (t) => {
 test('a first-turn cap in Building hands the trace to the sizing call', async (t) => {
   const llm = scriptedLlm(
     [capped, calls([write('index.html')]), says(''), calls([write('js/tank.js')], { text: 'Tanks drive.' }), says('')],
-    [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: PIECES })],
+    [sized({ size: 'reply' }), sized({ size: 'pieces', pieces: PIECES }), confirmed()],
   );
   const { app, chatId } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -562,6 +688,7 @@ test('a first-turn cap in Building hands the trace to the sizing call', async (t
   const ask = llm.asked[1].messages.at(-1).content;
   assert.ok(ask.indexOf('design notes') < ask.indexOf('Size this request'));
   assert.match(ask, /--- notes ---/);
+  assert.equal((await build(app, card.data.id)).status, 202);
   await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
 });
 
