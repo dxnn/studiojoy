@@ -155,15 +155,14 @@ deliberately deferred.
   `ctl-shape${' manner'}` — 6 of 13, then 47 hits of which most were noise).
   A test that cries wolf gets ignored, so it wants the `${…}` handling right
   before it goes in
-- ! grow `npm run ui` past its first two files. `marks.ui.js` checks the bug
-  that made the harness necessary and `touch-fields.ui.js` holds the 16px
-  rule; still to write: nothing scrolling the body sideways at 390px, and a
-  real pointer sliding between drawn touch controls. (Gold went the other way
-  — a list of every rule that paints with `--num` in `test/style.test.js`,
-  which reaches the admin panel a URL cannot and runs in `npm test`.)
-  ⚠️ A coding agent cannot run any of them —
-  Chrome will not start in the agent sandbox, so these are written by one and
-  run by a person
+- ! run `npm run ui` — 15 checks over four files, and eight of them have
+  never been run at all: the sideways-scroll sweep (`narrow.ui.js`, every
+  mode of a blank game and of all three templates at 390px with a coarse
+  pointer) and the drawn touch controls (`touch-controls.ui.js`, a real
+  pointer sliding from one button to its neighbour without lifting). Delete
+  this line when they are green; fix what they find when they are not.
+  ⚠️ A coding agent cannot run any of them — Chrome will not start in the
+  agent sandbox, so these are written by one and run by a person
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
