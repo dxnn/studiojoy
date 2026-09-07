@@ -1,8 +1,9 @@
 // The games list's groups (spec/ §6): four of them, Archived last, each
 // folding away behind its own heading, Archived folded to begin with. The
-// three things worth holding are that an archived game leaves the other
-// groups whatever else is true of it, that folding is remembered, and that a
-// filter can never hide a match behind a shut heading.
+// four things worth holding are that an archived game leaves the other
+// groups whatever else is true of it, that folding is remembered, that a
+// filter can never hide a match behind a shut heading, and that within a
+// group the game something last happened in comes first.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { install, all, withClass, hasClass, pressable } from './dom-stand-in.js';
@@ -32,9 +33,9 @@ const GAMES = [
   game('old-maze', { archived: true }),
 ];
 
-function open({ find = '' } = {}) {
+function open({ find = '', projects = GAMES } = {}) {
   S.me = { id: 1, display_name: 'Dann', admin: false };
-  S.projects = GAMES;
+  S.projects = projects;
   S.icons = new Map();
   S.people = [];
   S.agents = [];
@@ -99,4 +100,22 @@ test('a filter opens every group and takes the folding away', () => {
   assert.deepEqual(names(tree), ['tank', 'old-tank']);
   assert.deepEqual(headings(tree), ['Yours', 'Archived']);
   assert.equal(withClass(tree, 'group-head').length, 0, 'plain labels while filtering');
+});
+
+// The server sends the list newest made first; each group re-sorts it by
+// when something last happened there, and only within itself — a busy game
+// of somebody else's never climbs into Yours.
+test('each group lists the most recently changed first', () => {
+  store.clear();
+  const at = (day) => `2026-09-0${day}T12:00:00.000Z`;
+  const tree = open({
+    projects: [
+      game('tank', { mine: true, last_message_at: at(1) }),
+      game('bomb', { mine: true, last_message_at: at(3) }),
+      game('kart', { open_edit: true, last_message_at: at(2) }),
+      game('maze', { last_message_at: at(2) }),
+      game('pipe', { last_message_at: at(4) }),
+    ],
+  });
+  assert.deepEqual(names(tree), ['bomb', 'tank', 'kart', 'pipe', 'maze']);
 });

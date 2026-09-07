@@ -476,6 +476,13 @@ and the other three are open until you shut them. ⚠️ **A filter opens every
 group and takes the headings' controls away**: a filter that hides a match
 behind a shut heading is a filter that lies, and there is nothing left for
 the control to do. A group with nothing in it is still absent entirely.
+Within a group, the game something last happened in comes first: its last
+message, or its making when nobody has said anything yet
+(`last_message_at`) — the same moment the line under its name shows — and a
+`message.new` from any game moves that game's row as it lands (§9). ⚠️ A
+save with no message moves nothing: the list knows every project's messages
+from one table and its trees from none, and knowing the other would cost a
+`git log` per game per load or a column bumped from every write.
 
 **Typing an `@` in the composer opens the menu of everybody it could reach**
 — the people, then the helpers, in the order the Crew tab lists them, each
