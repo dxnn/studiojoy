@@ -7,13 +7,10 @@
   a **count** of unread messages: the dot says something happened in there and
   not how much). Typing previews are **not** here — they are permanently out
   (§2).
-- **Web push**, meaning a *notification* reaching an app that is closed.
-  Telling somebody while the studio is running is built (§6, §7); the closed
-  case is rung 2 of ideas/notifications.md and wants VAPID and `aes128gcm`
-  hand-rolled, since `new-y` gets both from the `web-push` package and this
-  studio has no runtime dependency. Both are ~100 lines against the RFCs'
-  own test vectors, so the cost is the deploy and the real-device check, not
-  the arithmetic.
+- ~~Web push~~ — **built** (§6, §7, ideas/notifications.md). VAPID and
+  `aes128gcm` are hand-rolled in `server/push.js` against the RFCs' own
+  worked examples, since `new-y` gets both from the `web-push` package and
+  this studio has no runtime dependency.
 - Public read-only chat. (A public game index is no longer deferred: `/` on
   the games origin is the catalog, listing games whose `published` flag is
   set. Publishing changes findability, not access — every game has always

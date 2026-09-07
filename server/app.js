@@ -21,6 +21,8 @@ import { streamRoutes } from './routes/stream.js';
 import { achievementRoutes } from './routes/achievements.js';
 import { storyRoutes } from './routes/story.js';
 import { collectionRoutes } from './routes/collection.js';
+import { pushRoutes } from './routes/push.js';
+import { tell } from './notify.js';
 
 const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
 
@@ -44,8 +46,26 @@ export function createApp({
   // Shared with the orchestrator and the games listener when there are any:
   // one window per project, whoever asks about it.
   pending = createPending({ mutex, db, broker }),
+  // The VAPID keys, or null where nobody has set push up — a studio without
+  // them still tells everybody whose tab is alive (spec/ §6, rung 1). Passed
+  // in rather than read from the environment here so a test can hand over a
+  // pair without one.
+  push = null,
 }) {
   if (!db) throw new Error('createApp requires a db');
+
+  // ⚠️ Hung on the broker rather than added beside each `message.new`: three
+  // places broadcast one, and a push has to reach a browser with no
+  // connection at all, so it cannot ride the fan-out. Never awaited — a slow
+  // push service must not hold up a reply landing in the thread — and its
+  // failures are its own (server/notify.js).
+  if (push) {
+    broker.watchMessages((message) => {
+      tell(db, push, message).catch((err) => {
+        console.error('could not tell anybody about a message:', err?.message ?? err);
+      });
+    });
+  }
 
   const r = createRouter();
 
@@ -64,6 +84,7 @@ export function createApp({
   achievementRoutes(r);
   storyRoutes(r);
   collectionRoutes(r);
+  pushRoutes(r);
 
   // Unknown /api paths are 404 for every method. Without this the static
   // catch-all below would claim them, and a POST to a nonexistent endpoint
@@ -94,7 +115,7 @@ export function createApp({
 
   const base = {
     db, broker, mutex, pending, gamesDir, llm, orchestrator, publicDir,
-    secureCookies, trustProxy, emailLockout, ipLockout,
+    secureCookies, trustProxy, emailLockout, ipLockout, push,
   };
 
   return (req, res) => {

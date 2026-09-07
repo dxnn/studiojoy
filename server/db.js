@@ -333,6 +333,30 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_plans_chat ON plans (chat_id, status)`,
+
+  // One row per browser that has said yes to being told things while the
+  // studio is closed (spec/ §6, server/push.js). `endpoint` is the address
+  // the push service gave that browser; `p256dh` and `auth` are its own keys,
+  // which is what makes a message unreadable to everything between here and
+  // it.
+  //
+  // ⚠️ `endpoint` is UNIQUE and not `(user_id, endpoint)`: a browser has one
+  // subscription, so a second person signing in on the same one takes the row
+  // over. That is right — the first can no longer be reached there, and two
+  // rows would send them somebody else's messages.
+  //
+  // ⚠️ Deliberately not ON DELETE CASCADE-shaped, because nothing here ever
+  // deletes a user (`users.deleted` is the door): a removed account's rows go
+  // when `bin/deluser.js` takes their sessions.
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users,
+    endpoint TEXT UNIQUE NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions (user_id)`,
 ];
 
 export function openDb(dbPath) {

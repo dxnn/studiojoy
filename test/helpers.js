@@ -124,6 +124,10 @@ export async function setup({
   smallTurns = undefined,
   smallToolCalls = undefined,
   publicDir = undefined,
+  // A VAPID pair, for a test about web push. Left out, the studio is one
+  // where nobody set push up: the routes are 404 and no message is told to
+  // anybody — which is every other test in the suite.
+  push = null,
 } = {}) {
   const db = openDb(':memory:');
   const gamesDir = scratchDir('games');
@@ -162,7 +166,7 @@ export async function setup({
     });
   }
   const handler = createApp({
-    db, broker, mutex, pending, gamesDir, llm, orchestrator, gamesUrl, publicDir,
+    db, broker, mutex, pending, gamesDir, llm, orchestrator, gamesUrl, publicDir, push,
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

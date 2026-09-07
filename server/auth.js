@@ -263,6 +263,13 @@ export function removeAccount(db, userId) {
     const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes;
     // Both kinds: out of the studio is out of the games origin too.
     db.prepare('DELETE FROM player_sessions WHERE user_id = ?').run(userId);
+    // ⚠️ And their notifications, which are a door of their own: a push goes
+    // to a browser rather than through a session, so a row left here would
+    // keep telling a removed account what was said in the studio. It is the
+    // one thing removal really does delete, because the row is a capability
+    // and not a record of anything they made — subscribing again is one
+    // press, if they ever come back.
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
     db.prepare('UPDATE users SET deleted = 1 WHERE id = ?').run(userId);
     return sessions;
   });

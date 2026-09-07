@@ -10,6 +10,7 @@ import { createPending } from './files/pending.js';
 import { createDeepSeek, DEFAULT_BASE_URL } from './llm/deepseek.js';
 import { createOrchestrator } from './agents/orchestrator.js';
 import { DEFAULT_DAILY_TOKEN_BUDGET } from './budget.js';
+import { pushConfig } from './push.js';
 
 const apiKey = process.env.DEEPSEEK_API_KEY;
 if (!apiKey) {
@@ -62,6 +63,10 @@ const studio = http.createServer(createApp({
   gamesPort,
   secureCookies: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === '1',
+  // Null without VAPID_* in the environment, which is a studio that tells
+  // people things only while their tab is alive (spec/ §6). `npm run
+  // pushkeys` makes the pair.
+  push: pushConfig(),
 }));
 const games = http.createServer(createGamesApp({
   db,

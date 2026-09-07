@@ -25,7 +25,11 @@ server/
   builder.js      the builder: the studio's own agents row, its room in every
                   game, and the upgrade that gives existing games one
   plans.js        a plan's row: pieces, status, the pause on open
-  broker.js       SSE fan-out to every tab
+  broker.js       SSE fan-out to every tab, and watchMessages — the one hook
+                  every message.new goes through, wherever it was made
+  push.js         VAPID (RFC 8292) and aes128gcm (RFC 8291) by hand, because
+                  there is no runtime dependency to get them from
+  notify.js       who is told about a message, and what it says
   budget.js       studio-wide daily counter
   http/
     router.js     method + :param/*wildcard matching
@@ -77,8 +81,9 @@ public/
                   own composition (§17)
   dom.js          h(), and the icon buttons
   stream.js       the SSE connection and streaming replies
-  notify.js       telling somebody while they are away: the switch, and the
-                  notification itself, shown through sw.js's registration
+  notify.js       telling somebody while they are away: the switch, the
+                  notification itself (through sw.js's registration), and
+                  subscribing this browser for web push
   telemetry.js    what a running game reports: problems and moments
   files.js        the file lifecycle: open, save, rename, duplicate, delete,
                   copy into another game or the studio collection
@@ -123,7 +128,7 @@ public/
                   is what test/style.test.js catches
 bin/
   adduser.js  deluser.js  restoreuser.js  backup.js  sweep.js  smoke.js
-  prompt.js  pullart.js  unzip.js  svgsilh.js
+  prompt.js  pullart.js  unzip.js  svgsilh.js  pushkeys.js
                                     ⚠️ pullart is the only build-time thing
                                     here that reaches the network. unzip is
                                     why reading an asset pack needs no
@@ -136,10 +141,12 @@ test/
 Email and typing previews (both present in `new-y`) are absent permanently,
 and a count of unread messages is deferred (§2, §15). The unread *marker* is
 built: a dot on the game, the conversation and the pill, `@n` where a mention
-says who (§3). So is telling somebody while the studio is running
-(`notify.js`, §6); **web push** — reaching an app that is closed — is rung 2
-of ideas/notifications.md and the one thing here `new-y` solves with a
-dependency this studio will not take.
+says who (§3). So are *notification*s, both halves — the browser's own while
+a tab is alive, and **web push** to a closed app (§6). ⚠️ That last is the
+one thing `new-y` solves with a dependency this studio will not take, so
+`server/push.js` is VAPID and `aes128gcm` by hand, ~180 lines, checked
+against the RFCs' own worked examples rather than against a live push
+service.
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
 scripted fake LLM client and — for the client's own rules — a hand-rolled DOM

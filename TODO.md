@@ -16,17 +16,20 @@ deliberately deferred.
 - probe `deepseek-v4-pro` against tools at `none` before any escalation
   (ideas/planner.md, second chapter, step 9)
 
-- ! press the bell on a real phone and a real laptop: the permission prompt,
-  a *notification* arriving while the studio is in the background, and the
-  press landing back in the right conversation. ⚠️ None of it is checkable
-  here — a coding agent gets no permission prompt and no OS — so what `npm
-  test` holds is the four decisions and nothing about whether one ever
-  appears (ideas/notifications.md, rung 1)
-- ! web push, so a closed app hears about it: VAPID and `aes128gcm`
-  hand-rolled against the RFCs' own vectors (no `web-push` package — no
-  runtime dependency), `push_subscriptions`, subscribe/unsubscribe, fan-out
-  from where rung 1 fires, `bin/pushkeys.js` and `VAPID_*` in studio.env.
-  This is the half that means "for the PWA" (ideas/notifications.md, rung 2)
+- ! `npm run pushkeys` on the studio machine, the three `VAPID_*` into
+  studio.env, restart, then press the bell on a real phone and a real laptop:
+  the permission prompt, a *notification* with the studio in the background,
+  one with it closed altogether, and the press landing back in the right
+  conversation. ⚠️ None of that is checkable from a coding agent — no
+  permission prompt, no OS, no push endpoint reachable — so `npm test` holds
+  the decisions and the encryption against the RFCs' own vectors, and says
+  nothing about whether one ever appears. ⚠️ **Once**: a second pair silently
+  stops every browser already subscribed (ideas/notifications.md)
+- once a real push has landed, check the two things only a real one shows:
+  whether the service worker's visible-window suppression is right on a phone
+  (a PWA in the app switcher may not be `visible`), and whether the shared
+  `tag` really does collapse rung 1's notification and the push into one on
+  a hidden tab rather than showing two
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
   the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
   description is a database row, so it does not ride the deploy the way the

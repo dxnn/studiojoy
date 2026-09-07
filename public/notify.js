@@ -12,7 +12,7 @@
 // The app being closed altogether is rung 2 and wants a server: web push,
 // VAPID and a subscription table. Nothing here is in its way.
 
-import { S, prefs, openProject, render, say } from './main.js';
+import { S, prefs, openProject, render, say, send } from './main.js';
 import { openChat } from './chats.js';
 
 // A notification is one line, not a message. Long enough to know whether to
@@ -52,6 +52,7 @@ export async function toggleNotify() {
   if (state === 'on') {
     prefs.set('notify', 'off');
     render();
+    await unsubscribePush();
     return;
   }
   if (Notification.permission !== 'granted') {
@@ -66,6 +67,65 @@ export async function toggleNotify() {
     body: 'When somebody says something while you are away.',
     tag: 'notify-test',
   });
+  await subscribePush();
+}
+
+/* Web push: the same switch, reaching a studio that is closed --------------- */
+
+// Both halves are quiet about failing. Push not being set up on the server is
+// a 404 and means "rung 1 only"; anything else leaves somebody with exactly
+// what they had a moment ago, which is a browser that tells them things while
+// its tab is alive. Neither is worth a banner about a thing they did not ask
+// for by name (ideas/notifications.md).
+async function subscribePush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const key = await send('/api/push/key');
+    if (!key.ok) return;
+    const { public_key: publicKey } = await key.json();
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.subscribe({
+      // ⚠️ Required, and it is a promise as much as a flag: every push must
+      // produce a notification. The worker keeps it — the one exemption it
+      // takes is a window that is on screen, which has already been told.
+      userVisibleOnly: true,
+      applicationServerKey: keyBytes(publicKey),
+    });
+    await send('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription.toJSON()),
+    });
+  } catch { /* rung 1 still works, which is what the switch promised */ }
+}
+
+async function unsubscribePush() {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    if (!subscription) return;
+    const { endpoint } = subscription;
+    await subscription.unsubscribe();
+    await send('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    });
+  } catch { /* the row is dropped on its first 410 anyway */ }
+}
+
+// The server's key travels as base64url and `pushManager.subscribe` wants the
+// bytes. ⚠️ `atob` is base64 proper, so the two URL-safe characters have to
+// be put back first and the padding restored, or a key *containing* a `-` or
+// a `_` decodes to rubbish and one that is merely unpadded throws — a bug
+// that would depend on which pair a studio happened to generate. Exported for
+// test/notifications.test.js, which is the only place it can be caught here.
+export function keyBytes(base64url) {
+  const padded = base64url.replace(/-/g, '+').replace(/_/g, '/')
+    .padEnd(Math.ceil(base64url.length / 4) * 4, '=');
+  const raw = atob(padded);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
 // A message landed somewhere you are not reading. Everything it needs is on

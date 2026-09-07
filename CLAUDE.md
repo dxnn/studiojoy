@@ -51,6 +51,11 @@ holds plans and sketches. Completed work is git history, not this file.
 - `npm run backup -- [dest]` — one consistent copy of the database
   (`VACUUM INTO`), safe while the studio runs. The game trees recover
   themselves from git; the chats and accounts only live here.
+- `npm run pushkeys -- mailto:you@example.com` — the VAPID pair for **web
+  push**, printed as the three lines `studio.env` wants. ⚠️ Run it **once**
+  for a studio: the public half is what every browser subscribed with, so a
+  new pair silently stops every one of them hearing anything — the push
+  service keeps taking the message and nothing anywhere says so.
 - `npm run pullart` — write the **big set** (`public/big-set/`): CC0 pictures
   from Kenney, PhyloPic and svgsilh, committed to this repo so a kid types a
   word and gets a picture offline. `--dry` fetches everything and writes
@@ -292,8 +297,15 @@ specified:
   message landing in a room you are not reading, while the studio is not the
   thing on screen. The same decision as the unread mark, made once in
   `applyMessage`. The switch is the bell in the sidebar's `who` row,
-  remembered per browser. ⚠️ Reaching a **closed** app is web push and is not
-  built — rung 2, hand-rolled VAPID and `aes128gcm`, in TODO.md.
+  remembered per browser.
+- **Web push** reaches a studio that is closed (`server/push.js`,
+  `server/notify.js`, §6). ⚠️ Hand-rolled VAPID and `aes128gcm` — `new-y`
+  takes `web-push` off npm and this studio has no runtime dependency — so it
+  is checked against the RFCs' own worked examples, never a live push
+  service. `npm run pushkeys` makes the pair **once**: a new one silently
+  stops every browser already subscribed from hearing anything. Three
+  `VAPID_*` in the environment or none; without them the routes are 404 and
+  only a live tab is told. Needs a secure origin.
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by
   `npm run sweep` (§4). Screens owns how big a game is on the screen

@@ -15,8 +15,8 @@
   keystrokes between humans; this app does not, and won't. Agent responses do
   stream (§9).
 - Viewer counts, and a count of unread messages. Deferred (§15) — the unread
-  *marker* itself is built (§3). **Web push is no longer here**: an OS
-  notification while the studio is running is built (§6), and pushing to a
-  closed app is deferred rather than out (§15).
+  *marker* itself is built (§3). **Web push is no longer here at all**:
+  *notification*s are built, both while the studio is running and to a closed
+  app (§6, §7).
 - Full-text search over messages or files.
 - Public read access to chat, files, or the project list (§7).

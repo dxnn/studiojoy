@@ -36,7 +36,7 @@ class FakeNotification {
 globalThis.Notification = FakeNotification;
 
 const { S } = await import('../public/main.js');
-const { notifyState, notifyMessage } = await import('../public/notify.js');
+const { notifyState, notifyMessage, keyBytes } = await import('../public/notify.js');
 
 function studio({ permission = 'granted', want = 'on', hidden = true } = {}) {
   FakeNotification.permission = permission;
@@ -126,4 +126,24 @@ test('it wears the studio icon, never the game’s', () => {
   studio();
   notifyMessage(message());
   assert.equal(shown[0].options.icon, '/icons/icon-192.png');
+});
+
+// ⚠️ The VAPID key arrives as base64url and `pushManager.subscribe` wants
+// bytes, and `atob` is base64 proper. Whether this is wrong depends on which
+// pair a studio happened to generate, which is the worst kind of bug: it
+// works on the machine it was written on. Checked against Node's own decoder
+// over keys that do and do not carry the two URL-safe characters.
+test('a VAPID key of any shape decodes to the same 65 bytes', async () => {
+  const { makeKeys } = await import('../server/push.js');
+  const keys = [
+    'BFt25_zo5fCD7VGBy5F8fWMMM6EUOQ8YxEydSJlGyT1wQwmHXob2fO51uU0MlJcCuaIBoHMJX_U8pS5gJchnKEU',
+    'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',
+    (await makeKeys()).publicKey,
+  ];
+  for (const key of keys) {
+    const bytes = keyBytes(key);
+    assert.equal(bytes.length, 65, key);
+    assert.equal(bytes[0], 0x04, 'an uncompressed point');
+    assert.deepEqual(Buffer.from(bytes), Buffer.from(key, 'base64url'), key);
+  }
 });

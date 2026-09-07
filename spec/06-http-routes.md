@@ -42,6 +42,9 @@ address: a list of names needn't be a list of emails to do its job.
 | POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height. Broadcasts `collection.changed` |
 | GET | `/api/collection/:id` | — | the bytes. The one studio read that may be cached hard (`immutable`): a row's bytes never change |
 | DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
+| GET | `/api/push/key` | — | the VAPID public key, which a browser needs before it can subscribe at all. ⚠️ **404 when no keys are configured**, which the client reads as "push is not set up here" and says nothing about |
+| POST | `/api/push/subscribe` | `{endpoint, keys: {p256dh, auth}}` | remember where to reach this browser (`push_subscriptions`, §3). ⚠️ `endpoint` is UNIQUE, so a second person on the same browser takes the row over — the first can no longer be reached there. 404 like the above when push is not set up |
+| POST | `/api/push/unsubscribe` | `{endpoint}` | forget it. ⚠️ Scoped to the caller, so knowing somebody's endpoint is not a way to switch their notifications off. 204 whether there was a row or not — turning a thing off should never fail |
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
 | POST | `/api/projects/:slug/archive` | — | archive: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first |
@@ -426,9 +429,36 @@ deserves to hear it. ⚠️ The permission is asked from the press and nowhere
 else — asked without a gesture it resolves `denied` without a prompt, which
 spends the one chance the browser gives, permanently.
 
-The app being **closed** is rung 2 and wants a server: web push, VAPID and a
-subscription table, hand-rolled because the studio has no runtime dependency
-(ideas/notifications.md). Nothing above is in its way.
+**And when the studio is closed altogether**, through web push. A browser
+that has said yes subscribes with the push service its vendor runs and hands
+the studio the address and two keys of its own (`push_subscriptions`, §3);
+the studio signs each send with **VAPID** (RFC 8292) and encrypts the body to
+those keys with **`aes128gcm`** (RFC 8291), so the push service carries what
+was said and cannot read it. Three routes: `GET /api/push/key`,
+`POST /api/push/subscribe`, `POST /api/push/unsubscribe`. Everything is
+hand-rolled in `server/push.js` against the RFCs' own worked examples,
+because `new-y` gets it from the `web-push` package and this studio has no
+runtime dependency at all.
+
+⚠️ **No keys in the environment is a 404 on all three**, and the client reads
+that as "nobody set push up here" and says nothing: a studio without them
+still tells everybody whose tab is alive. ⚠️ The audience is **every studio
+account except whoever spoke** — every account can see every project (§3),
+which is the same reason the broker has no membership to filter on — narrowed
+to whoever has a row, which is what having asked means. ⚠️ It hangs off
+`broker.watchMessages` rather than sitting beside each `message.new`: three
+places broadcast one, a push has to reach a browser with no connection at
+all, and the fourth place is the one that would forget. Never awaited — a
+slow push service must not hold up a reply landing in the thread.
+
+⚠️ **The service worker suppresses a push when a window is visible**, which
+is the one exemption `userVisibleOnly` allows: rung 1 stayed silent for
+exactly that case and the marks are already saying it. A hidden tab shows
+both, and the shared `tag` collapses them into one. ⚠️ **404 or 410 from the
+push service drops the row** — the browser threw the subscription away and
+every send after that is a request nobody will ever read. ⚠️ So does
+`npm run deluser`: a push reaches a browser rather than a session, so it is
+the one thing removing an account really deletes.
 
 **Games come in four groups** — Yours, Open to everyone, Everyone else's, and
 **Archived** last. The first three are about what you may *do* to a game, so

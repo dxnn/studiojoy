@@ -13,6 +13,36 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', () => {});
 
+// The studio is closed, or its tab is asleep, and the push service woke this
+// worker up (server/push.js, ideas/notifications.md rung 2). The payload is
+// what notify.js's `messageText` made, decrypted by the browser on the way
+// in — the push service carried it and could not read it.
+self.addEventListener('push', (event) => {
+  const said = (() => {
+    try { return event.data?.json() ?? {}; } catch { return {}; }
+  })();
+  event.waitUntil((async () => {
+    // ⚠️ The one time a push shows nothing: a window of this studio is
+    // actually on screen. `userVisibleOnly` is a promise to show something
+    // for every push, and browsers keep score — but a visible client is the
+    // exemption they all make, and it is the right one here, because rung 1
+    // stayed silent for exactly this case and the unread marks are already
+    // saying it in the pane.
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (open.some((client) => client.visibilityState === 'visible')) return;
+    // Same tag as rung 1's, so a hidden tab that showed its own does not end
+    // up with two: the second replaces the first.
+    await self.registration.showNotification(said.title || 'The studio', {
+      body: said.body || '',
+      tag: `${said.slug ?? ''}:${said.chat ?? ''}`,
+      renotify: true,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { slug: said.slug ?? null, chat: said.chat ?? null },
+    });
+  })());
+});
+
 // One was pressed. Focus a studio tab if one is open and tell it which
 // conversation to go to; otherwise open one at that address. ⚠️ Both are
 // inside waitUntil — a worker is allowed to be stopped the moment the handler

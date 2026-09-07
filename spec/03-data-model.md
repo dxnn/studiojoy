@@ -434,6 +434,38 @@ from somebody else newer than this row says, `server/reads.js`'s `chatHasUnread`
 same way it mirrors a mention — optimistically, on the same `message.new`
 broadcast, never for a message the reader wrote themselves.
 
+### `push_subscriptions`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER NOT NULL → users | |
+| `endpoint` | TEXT UNIQUE NOT NULL | the address the browser's own push service gave it |
+| `p256dh` | TEXT NOT NULL | the browser's public key, base64url — what a message is encrypted to |
+| `auth` | TEXT NOT NULL | sixteen bytes of its secret, base64url |
+| `created_at` | TEXT NOT NULL | |
+
+One row per browser that has pressed the bell and been given permission (§6,
+`server/notify.js`). ⚠️ `endpoint` is UNIQUE and not `(user_id, endpoint)`: a
+browser has one subscription, so a second person signing in on the same one
+takes the row over — which is right, since the first can no longer be reached
+there and two rows would send them somebody else's messages.
+
+⚠️ It is the one thing `npm run deluser` really **deletes**. Everything else
+about a removed account stays (`users.deleted` is the door, §11) because it
+is a record of what they made; this is a capability rather than a record, and
+a push reaches a browser rather than a session, so a row left behind would
+keep telling somebody who has been taken out what is being said here.
+Subscribing again is one press if they come back. A row also goes the moment
+the push service answers 404 or 410, which means the browser dropped it on
+its side.
+
+⚠️ Nothing here records whether somebody *wants* notifications. That is a
+browser preference (`gs.notify`) and not a column, because permission is per
+browser: a row saying yes on a laptop that has denied it is a row that lies.
+Having a row here means a browser asked; the switch being off means it never
+subscribed, or unsubscribed.
+
 ### `message_writes`
 
 | column | type | notes |

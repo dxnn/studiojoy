@@ -62,9 +62,21 @@ real answer ("this browser is blocking them — turn them back on in its
 settings"), and a person who has just pressed a bell twice with nothing
 happening deserves to hear it.
 
-### Rung 2 — the app is closed
+### Rung 2 — the app is closed — built 2026-09-06
 
-This is the one that means "for the PWA": a phone in a pocket.
+This is the one that means "for the PWA": a phone in a pocket. It is in, and
+the spec paragraphs are §6 (the routes and the rules), §3
+(`push_subscriptions`) and §13 (the three environment variables). What is
+below is the plan it was built from, kept because it says *why* each piece is
+the shape it is.
+
+Two things came out differently from this plan. The fan-out hangs off
+`broker.watchMessages` rather than being called at each `message.new` — three
+places broadcast one and the fourth is the one that would forget. And nothing
+server-side asks whether somebody is looking: `new-y` skips whoever is
+focused on that conversation, and this studio's broker has no notion of focus,
+so the *service worker* suppresses instead. That is better anyway — a
+connected stream is a tab that exists, not a tab anybody is reading.
 
 Two pieces of crypto, both `node:crypto` webcrypto, both testable offline
 against the RFCs' own vectors, which matters because the alternative is

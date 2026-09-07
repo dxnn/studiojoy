@@ -5,6 +5,13 @@
 export function createBroker() {
   const clients = new Map();
   let nextId = 1;
+  // The one thing that must happen for every message wherever it was made.
+  // A `message.new` is broadcast from three places — a person's post and two
+  // in the orchestrator — and web push has to reach a browser that is not
+  // connected at all, so it cannot ride the fan-out below. Hung here rather
+  // than added to each site, because the fourth site is the one that would
+  // forget (server/notify.js, spec/ §6).
+  let onMessage = null;
 
   function frame(event, data) {
     // JSON.stringify never emits a raw newline, so the payload is always the
@@ -20,6 +27,12 @@ export function createBroker() {
       return () => clients.delete(id);
     },
 
+    // Nothing is told about a message until one is asked for. Absent — no
+    // VAPID keys, or a test's app — every broadcast is what it always was.
+    watchMessages(fn) {
+      onMessage = fn;
+    },
+
     broadcast(event, data) {
       const payload = frame(event, data);
       for (const [id, client] of clients) {
@@ -31,6 +44,9 @@ export function createBroker() {
           clients.delete(id);
         }
       }
+      // ⚠️ After the connected tabs, and never awaited: a push service being
+      // slow must not hold up a reply landing in the thread.
+      if (event === 'message.new' && onMessage) onMessage(data);
     },
 
     // Everyone sees everything, so this is only used for diagnostics and to
