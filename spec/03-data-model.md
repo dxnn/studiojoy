@@ -644,7 +644,7 @@ produced — and accepts it for the same reason it accepts a score.
 | column | type | note |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `kind` | TEXT NOT NULL | `portrait` or `background` |
+| `kind` | TEXT NOT NULL | `portrait`, `background` or `sprite` — a character, a place or a thing in the interface |
 | `name` | TEXT NOT NULL | what the *shelf* calls it, ≤ 60 |
 | `who`, `mood` | TEXT NOT NULL DEFAULT `''` | a portrait's suggested file name; empty otherwise |
 | `bytes` | BLOB NOT NULL | the picture itself |

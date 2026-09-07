@@ -14,7 +14,7 @@ import { install, all, withClass } from './dom-stand-in.js';
 install();
 
 const { h } = await import('../public/dom.js');
-const { renderShelfDialog, dropArtIndex } = await import('../public/story-guide.js');
+const { renderShelfDialog, artShelf, dropArtIndex } = await import('../public/story-guide.js');
 
 const STANDARD = {
   art: [
@@ -40,10 +40,12 @@ globalThis.fetch = async (url) => ({ ok: true, json: async () => answers[url] })
 
 const settle = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 
-async function shelf({ art = null, ours = OURS } = {}) {
+async function shelf({ art = null, ours = OURS, title } = {}) {
   answers['/api/collection'] = ours;
   dropArtIndex();
-  const node = renderShelfDialog({ kind: 'pick-picture', art, place: async () => {} }, {
+  const node = renderShelfDialog({
+    kind: 'pick-picture', art, title, place: async () => {},
+  }, {
     wide: (title, ...body) => h('div', { class: 'dialog wide' }, h('h2', { text: title }), ...body),
     cancel: h('button', { text: 'Cancel' }),
     close: () => {},
@@ -87,6 +89,32 @@ test('with nothing made here the shelf is one grid', async () => {
 test('a kind asked for narrows both halves alike', async () => {
   const { grid } = await shelf({ art: 'portrait' });
   assert.deepEqual(rows(grid), ['[Made here]', 'Dad as a dragon', '[Everything else]', 'Mila, happy']);
+});
+
+test('a thing made here is on the things shelf, first', async () => {
+  const ours = {
+    art: [{
+      id: 8, file: '/api/collection/8', kind: 'sprite', name: 'Our rocket', by: 'Ada', made_here: true, mine: false,
+    }],
+  };
+  const { grid } = await shelf({ art: 'sprite', ours });
+  assert.deepEqual(rows(grid).slice(0, 4), ['[Made here]', 'Our rocket', '[Everything else]', 'Thing 0']);
+});
+
+test('the dialog is titled for its kind unless the opener says otherwise', async () => {
+  const title = (node) => all(node).find((n) => n.tag === 'h2').textContent;
+  assert.equal(title((await shelf({ art: 'portrait' })).node), 'Pick a character');
+  assert.equal(title((await shelf({ art: 'portrait', title: 'Pick a face' })).node), 'Pick a face');
+  assert.equal(title((await shelf()).node), 'Add from the studio');
+});
+
+// The guide's strip has no labels and no cap, so order is all it has.
+test('the guide\'s strip puts what people here made first', async () => {
+  answers['/api/collection'] = OURS;
+  dropArtIndex();
+  const strip = artShelf('portrait', async () => {});
+  await settle();
+  assert.deepEqual(withClass(strip, 'art').map((b) => b.children[0].attrs.alt), ['Dad as a dragon', 'Mila, happy']);
 });
 
 test('the filter reaches both halves, and a label with nothing under it goes', async () => {

@@ -14,7 +14,10 @@
 
 import { HttpError } from './http/respond.js';
 
-export const KINDS = ['portrait', 'background'];
+// A character, a place or a thing in the interface. Only the last may be any
+// shape at all: a strip is how a thing animates, and a whole-multiple
+// portrait is the one shape refused below.
+export const KINDS = ['portrait', 'background', 'sprite'];
 
 export const NAME_CHARS = 60;
 export const WHO_CHARS = 40;

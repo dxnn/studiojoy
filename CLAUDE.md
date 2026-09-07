@@ -341,7 +341,7 @@ specified:
   is no moderation queue behind it. Reached from `+ Find a thing to put in`
   under Code, and from **Add from the studio** under Pics, which names no
   kind and shows all three halves at once; the interface says **thing** where
-  the code says `sprite` (spec/ §6). The svgsilh half is written and **never run** — this
+  the code says `sprite` and **character** where it says `portrait` (spec/ §6). The svgsilh half is written and **never run** — this
   sandbox cannot reach svgsilh at all (Cloudflare 403) — so the first real
   pull is somebody's laptop and `--dry` is how to try it. Its parser is
   tested against the site's real markup, and it refuses in three seconds

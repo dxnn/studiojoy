@@ -39,7 +39,7 @@ address: a list of names needn't be a list of emails to do its job.
 | DELETE | `/api/projects/:slug/scores` | — | delete them all; there is no undo — scores are not files. ⚠️ The board's only deletion: one row has no route, deliberately |
 | GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
 | GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
-| POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height. Broadcasts `collection.changed` |
+| POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height; a sprite may be any shape, a strip included. Broadcasts `collection.changed` |
 | GET | `/api/collection/:id` | — | the bytes. The one studio read that may be cached hard (`immutable`): a row's bytes never change |
 | DELETE | `/api/collection/:id` | — | take it out — whoever added it, or an admin. ⚠️ The only copy; games that picked it keep theirs |
 | GET | `/api/push/key` | — | the VAPID public key, which a browser needs before it can subscribe at all. ⚠️ **404 when no keys are configured**, which the client reads as "push is not set up here" and says nothing about |
@@ -970,7 +970,7 @@ once a scene or a mood has a picture, so the others exist to *change* one: a
 sideways-scrolling row on the guide's picture card; `Pick a face…` on a
 mood's `···` in the story editor's person inspector, confirming first
 (*Replace \<name\>'s \<mood\> face?*) when one is already drawn there;
-`+ Pick a face from the shelf` / `+ Pick a picture from the shelf` in the
+`+ Pick a character from the shelf` / `+ Pick a picture from the shelf` in the
 *Add a file* dialog, beside Upload and Draw — every picture of that kind,
 shipped set and collection together, found by name or maker (forty-two
 pictures is not a strip, ideas/calm-shell.md); and **Add from the studio**
@@ -978,8 +978,12 @@ under Pics, which asks for no kind at all and shows all three halves at once,
 because a face, a place and a thing are three folders to the game and one
 shelf to whoever is looking for a dragon — and still pictures only: the
 index lists the example's page-turn sound beside them, and this shelf leaves
-it out. On every shelf dialog what people here made comes first, under
-**Made here**, then **Everything else** — all of the first, 120 of the
+it out. The interface says **character** where the code says `portrait`, the
+way it says **thing** for `sprite`; a **face** is one mood's picture of a
+character, which is why a mood's `···` still says `Pick a face…` and the
+dialog it opens is titled so. What people here made comes first on every
+shelf — the guide's strip by order alone; the dialog under **Made here**,
+with the rest under **Everything else**, all of the first and 120 of the
 second — because in index order the collection sat behind the big set's
 1,775 and past the cap, so a picture drawn here never showed until its name
 was typed. The two labels appear only when there is something under each;

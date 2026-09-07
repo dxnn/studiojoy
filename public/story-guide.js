@@ -411,7 +411,9 @@ function nameCard(q) {
 export function artShelf(kind, place, label = 'Ready to use:') {
   const shelf = h('div', { class: 'guide-shelf' });
   artIndex().then((index) => {
-    const art = (index?.art ?? []).filter((a) => a.kind === kind);
+    // What people here made first, as on the dialog: the index lists it last.
+    const ofKind = (index?.art ?? []).filter((a) => a.kind === kind);
+    const art = [...ofKind.filter((a) => a.made_here), ...ofKind.filter((a) => !a.made_here)];
     if (!art.length) return;
     shelf.append(
       h('span', { class: 'hint muted', text: label }),
@@ -450,9 +452,11 @@ export function artShelf(kind, place, label = 'Ready to use:') {
 const AT_ONCE = 120;
 
 // What the dialog is called, by the kind it is offering. ⚠️ The interface says
-// **thing** where the code says `sprite` — the same split *editor*/author and
-// the mode pills keep, and for the same reason: nobody here says sprite.
-const TITLES = { portrait: 'Pick a face', background: 'Pick a picture', sprite: 'Pick a thing' };
+// **character** where the code says `portrait` and **thing** where it says
+// `sprite` — the same split *editor*/author and the mode pills keep, and for
+// the same reason: nobody here says sprite. A *face* is one mood's picture of
+// a character, which is why a mood's ··· still says `Pick a face…`.
+const TITLES = { portrait: 'Pick a character', background: 'Pick a picture', sprite: 'Pick a thing' };
 
 // No kind asked for means all three at once, which is what Pics' one button
 // wants: a face, a place and a thing are three folders to the game and one
@@ -526,7 +530,9 @@ export function renderShelfDialog(d, { wide, cancel, close }) {
     all = (index?.art ?? []).filter((a) => (d.art ? a.kind === d.art : PICTURES.includes(a.kind)));
     paint();
   });
-  return wide(d.art ? (TITLES[d.art] ?? 'Pick a picture') : ALL_KINDS,
+  // The opener may name it: a mood's ··· says *Pick a face…*, and the dialog
+  // it opens should not answer *Pick a character*.
+  return wide(d.title ?? (d.art ? (TITLES[d.art] ?? 'Pick a picture') : ALL_KINDS),
     filter, grid, empty,
     h('div', { class: 'actions' }, cancel));
 }

@@ -1057,6 +1057,8 @@ export function renderPersonInspector(person, { close = null } = {}) {
               S.dialog = {
                 kind: 'pick-picture',
                 art: 'portrait',
+                // A mood's picture is a face; the shelf's kind is a character.
+                title: 'Pick a face',
                 place: async (a, blob) => {
                   const { failure } = await writeFiles([{ path, body: blob }]);
                   if (failure) { say(failure, true); return; }

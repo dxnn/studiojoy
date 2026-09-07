@@ -114,6 +114,18 @@ test('a portrait games would animate is refused, and told why', async (t) => {
   assert.equal((await add(app, { kind: 'portrait', name: 'Tall' }, png(128, 260))).status, 201);
 });
 
+// A thing lands in assets/sprites/ too, and there a strip is what it animates
+// with — so the one shape a portrait is refused is exactly what a thing may be.
+test('a thing goes in whatever its shape, a strip included, and is nobody', async (t) => {
+  const { app } = await studio(t);
+  const res = await add(app, { kind: 'sprite', name: 'Rocket', who: 'rocket' }, png(256, 128));
+  assert.equal(res.status, 201);
+  assert.equal(res.body.kind, 'sprite');
+  // A thing is not somebody, so it suggests no file name.
+  assert.equal('who' in res.body, false);
+  assert.equal((await add(app, { kind: 'sprite', name: 'Tall' }, png(64, 200))).status, 201);
+});
+
 test('a background has to be wider than it is tall', async (t) => {
   const { app } = await studio(t);
   const res = await add(app, { kind: 'background', name: 'Portrait-shaped' }, png(100, 200));

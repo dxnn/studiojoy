@@ -153,7 +153,7 @@ export function renderPicsMode() {
       }),
       frozen() ? null : h('button', {
         class: 'quiet tiny', text: 'Add from the studio',
-        title: 'Faces, places and things the studio already has',
+        title: 'Characters, places and things the studio already has',
         onclick: () => { S.dialog = { kind: 'pick-picture', art: null }; render(); },
       })),
     h('div', { class: 'pics scroll', 'data-scroll': 'pics' },

@@ -60,6 +60,9 @@ deliberately deferred.
 - moderation of the studio collection is "an admin can take anything out" and
   no queue, which suits a few trusted people and would not suit more. Same
   trigger as the line above
+- merge several pictures into one sprite sheet on the way into the studio
+  collection — a thing's moods, angles or frames as one strip rather than a
+  row each; today `Duplicate…` puts in one picture at a time (spec/ §3)
 - ! run `npm run pullart -- --dry` on a laptop and see whether the svgsilh
   half works: it is written and has never been run, because this sandbox
   cannot reach svgsilh at all (Cloudflare, 403 on every path). Everything

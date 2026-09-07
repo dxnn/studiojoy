@@ -451,14 +451,15 @@ export function dialogFor(d) {
       dirty ? h('p', { class: 'hint muted', text: 'Your unsaved changes stay here — the duplicate is of the last save.' }) : null);
 
     // Into the collection: what it is called there, what kind, and for a
-    // face whose — which only suggests the file name it lands under when
-    // picked, the way the shipped set's faces do. Left empty it is still
-    // offered.
+    // character whose — which only suggests the file name it lands under when
+    // picked, the way the shipped set's do. Left empty it is still offered.
+    // A thing may be any shape: a strip is what one of those animates with.
     const label = h('input');
     label.value = d.path.split('/').pop().replace(/\.png$/i, '').replace(/[-_]+/g, ' ');
     const kind = h('select', {},
-      h('option', { value: 'portrait', text: 'A face — somebody in a story' }),
-      h('option', { value: 'background', text: 'A place — somewhere a story happens' }));
+      h('option', { value: 'portrait', text: 'A character — somebody in a story' }),
+      h('option', { value: 'background', text: 'A place — somewhere a story happens' }),
+      h('option', { value: 'sprite', text: 'A thing — something in a game' }));
     const who = h('input');
     who.placeholder = 'optional';
     const whoRow = h('div', {},
@@ -547,7 +548,7 @@ export function dialogFor(d) {
         // name, never over a file already drawn (spec.md §6). Where each kind
         // lands is `shelfPlace`, above, which is also what Pics' one button
         // uses for all three at once.
-        only === 'sound' ? null : choice('+ Pick a face from the shelf', `A face from the studio's shelf, into ${SPRITE_DIR}/.`,
+        only === 'sound' ? null : choice('+ Pick a character from the shelf', `A character from the studio's shelf, into ${SPRITE_DIR}/.`,
           () => { S.dialog = { kind: 'pick-picture', art: 'portrait' }; render(); }),
         only === 'sound' ? null : choice('+ Pick a picture from the shelf', `A picture from the studio's shelf, into ${IMAGE_DIR}/.`,
           () => { S.dialog = { kind: 'pick-picture', art: 'background' }; render(); }),
