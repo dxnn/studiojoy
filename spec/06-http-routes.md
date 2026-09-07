@@ -724,7 +724,8 @@ unless the editor holds unsaved colours.
 **Three picture names at a game's root are reserved images** — the studio's
 dressing, not the game's: `chat.png` tiles behind the conversation,
 `hero.png` backs the bar over it and the game's card in the catalog (§7),
-`icon.png` sits before the game's name in the sidebar. Root rather than
+`icon.png` sits before the game's name in the sidebar and on its card in the
+catalog (§7). Root rather than
 `assets/` on purpose, so a sprite happening to be named `icon.png` doesn't
 become the studio's dressing; the upload dialog routes the three names to
 the root the same way it routes a strip to `assets/sprites/`. All optional
@@ -1249,8 +1250,9 @@ for a dialog's controls the same way as for the composer.
 
 | method | path | effect |
 |---|---|---|
-| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `hero.png` when its tree holds one (§6) under a dark wash and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. Under each card, *Scores & trophies* links to the game's players page. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
+| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `icon.png` before its name and its `hero.png` behind, when its tree holds them (§6), the hero under a dark wash, and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. Under each card, *Scores & trophies* links to the game's players page. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
 | GET, HEAD | `/:slug/_players` | the game's **players page** (`catalog.js`): one *personal best* per person, the game's achievements with who holds each — *nobody yet* when nobody does — and under those the board's top 100, the viewer's own rows marked in cyan. Nothing about scores while the game's `scores_on` is off (a moderated board is not public in either direction, as for both `_scores` routes); the trophies stay, because earned is forever. Removed accounts are joined out; a run posted before the sign-in shows under the name it was posted with. A plain 404 for anything that is not a game's. Same headers as the catalog: no form here, but one posture for the two studio-authored pages |
+| GET, HEAD | `/:slug/_assets` | what the game has in `assets/`, live from disk: `{files: [{path, size, mime}]}` sorted by path, nothing outside `assets/` and never a path the validator refuses. `no-store`, like the game's own files, because live is the point. A plain 404 for anything that is not a game's. The preamble names it (§8), so a game can find its own pictures and sounds without a hand-kept list |
 | GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error |
 | POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
 | POST | `/_logout` | delete the player session, clear the cookie |

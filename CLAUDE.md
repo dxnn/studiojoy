@@ -103,8 +103,9 @@ walk into, each paid for once already.
   whatever repo encloses `GAMES_DIR` — in development that's this checkout.
   Unquoted, a path with an accent comes back escaped and matches nothing.
 - The games listener never reads the `session` cookie and serves nothing but
-  static files, the catalog, the wrapper, and the scoreboard and achievement
-  routes. It exists to be a separate origin (spec/ §7).
+  static files, the catalog, the wrapper, a live listing of each game's
+  `assets/`, and the scoreboard and achievement routes. It exists to be a
+  separate origin (spec/ §7).
 - ⚠️ Two headers on the catalog are load-bearing — `frame-ancestors 'none'`
   and `COOP: same-origin` — because a password form now shares an origin with
   LLM-written game code.
@@ -291,8 +292,9 @@ specified:
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).
 - The games origin serves the catalog, each game through the wrapper, the
-  scoreboard and achievements, and a **players page** per game (§6, §7). The
-  catalog says how *you* are doing on each card. The preview reloads itself
+  scoreboard and achievements, a **players page** per game, and each game's
+  `assets/` as a live listing at `_assets` (§6, §7). The catalog says how
+  *you* are doing on each card, and wears each game's icon and hero. The preview reloads itself
   on every write — and on nothing else: the frame lives outside the rendered
   tree (§17) — and reports its own errors and moments back.
 - Both the studio and the front page install as PWAs — a manifest and a

@@ -274,6 +274,13 @@ function studioPreamble({
     }
     // After the notes, because the shape is what to do with them.
     lines.push(...shapeLines(held));
+    lines.push(
+      '',
+      'A game can see its own assets/ folder live: GET _assets, relative to the game\'s page, answers',
+      '{"files": [{"path": "assets/sprites/hero.png", "size": 1234, "mime": "image/png"}, …]} — every file',
+      'under assets/, read from disk on each request — so a game can find all its pictures or sounds without',
+      'a hand-kept list. Sprites and Sound still draw and play by name; this is for finding the names.',
+    );
     // Only while the switch is on: a helper told about routes that answer 404
     // would happily build a broken board (spec.md §6).
     if (project.scores_on !== 0) lines.push(

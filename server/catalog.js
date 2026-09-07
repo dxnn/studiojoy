@@ -140,21 +140,22 @@ const HEAD = (title) => `<!doctype html>
 const num = (n) => n.toLocaleString('en-US');
 const has = (n) => n !== null && n !== undefined;
 
-// A card: the game's name, its hero.png when it has one (the `hero` class
-// and `--hero` variable are load-bearing — tests assert them), and its
-// numbers stacked at the right: the board's best score in gold when the game
+// A card: the game's name with its icon.png before it when it has one, its
+// hero.png behind when it has that (the `hero` class and `--hero` variable
+// are load-bearing — tests assert them), and its numbers stacked at the right: the board's best score in gold when the game
 // keeps one, and — signed in — your own best and your trophies against what
 // the game defines (ideas/front-page-players.md, rung 1). Under the card, the
 // link to everybody's: its own control, because the whole card opens the game.
 const card = (g) => {
   const slug = escapeHtml(g.slug);
   const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
+  const icon = g.icon ? `<img class="badge" src="/${slug}/icon.png" alt="">` : '';
   const nums = [
     has(g.top) ? `<span class="top"><small>top score</small> ${num(g.top)}</span>` : '',
     has(g.best) ? `<span class="best"><small>your best</small> ${num(g.best)}</span>` : '',
     g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
   ].join('');
-  return `<li><a href="/${slug}/"${hero}><span class="name">${escapeHtml(g.name)}</span>`
+  return `<li><a href="/${slug}/"${hero}><span class="name">${icon}${escapeHtml(g.name)}</span>`
     + `${nums ? `<span class="nums">${nums}</span>` : ''}</a>`
     + `<a class="players" href="/${slug}/_players">Scores &amp; trophies</a></li>`;
 };
@@ -240,6 +241,9 @@ export function catalogPage({ games, player = null }) {
     background-size: cover; background-position: center;
   }
   .name { overflow: hidden; text-overflow: ellipsis; }
+  /* The game's icon before its name, the size the sidebar wears it plus a
+     little, since a card is bigger than a row. */
+  .badge { width: 28px; height: 28px; border-radius: 7px; vertical-align: -8px; margin-right: 10px; }
   /* The numbers, stacked at the card's foot: scores in gold, the trophy count
      in the page's own ink, because a count is a number but not a score. */
   .nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }

@@ -8,7 +8,8 @@ Tests enforce each of these.
   is the only one, it resolves only `player_sessions`, and neither origin's
   token means anything to the other. It serves nothing but a project's own
   files, the catalog, the wrapper — that project's own `index.html` with a
-  script in front of it — and the scoreboard and achievements; its writes are
+  script in front of it — a live listing of its `assets/`, and the scoreboard
+  and achievements; its writes are
   scoreboard, personal-best, achievement and waiting-list rows: bounded
   tables, never a working tree. ⚠️
 - An `achievements` row is never deleted by any route, and the definitions

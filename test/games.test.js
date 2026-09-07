@@ -183,20 +183,52 @@ test('the catalog lists published games and nothing else', async (t) => {
   await play.text();
 });
 
-test('a published game wears hero.png on its catalog card', async (t) => {
+test('a published game wears icon.png and hero.png on its catalog card', async (t) => {
   const { app, games } = await bothOrigins(t);
   await put(app, 'index.html', '<h1>tank</h1>');
   await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
 
-  // No hero.png, no dressing — the card is the plain one.
-  const plain = await games.client.request('GET', '/');
-  assert.doesNotMatch(await plain.text(), /hero\.png/);
+  // Neither picture, no dressing — the card is the plain one. (The page's own
+  // apple-touch-icon.png is in the head, so the game's path is what is asked.)
+  const plain = await (await games.client.request('GET', '/')).text();
+  assert.doesNotMatch(plain, /hero\.png/);
+  assert.doesNotMatch(plain, /\/tank\/icon\.png/);
 
   await put(app, 'hero.png', 'not really a png');
+  await put(app, 'icon.png', 'not really a png either');
   const dressed = await games.client.request('GET', '/');
   const html = await dressed.text();
   assert.match(html, /class="hero"/);
   assert.match(html, /--hero:url\('\/tank\/hero\.png'\)/);
+  assert.match(html, /<span class="name"><img class="badge" src="\/tank\/icon\.png" alt="">Tank<\/span>/);
+});
+
+// A game can see its own assets/ live: what is on disk now, paths under
+// assets/ only, and no game-or-not question the public may learn the answer
+// to (spec.md §6).
+test('a game lists its own assets live', async (t) => {
+  const { app, games } = await bothOrigins(t);
+  await put(app, 'index.html', '<h1>tank</h1>');
+  await put(app, 'assets/sprites/hero.png', 'not really a png');
+  await put(app, 'assets/sounds/pew.wav', 'not really a wav');
+
+  const res = await games.client.request('GET', '/tank/_assets');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const { files } = await res.json();
+  assert.deepEqual(files.map((f) => f.path), ['assets/sounds/pew.wav', 'assets/sprites/hero.png']);
+  assert.deepEqual(files[1], { path: 'assets/sprites/hero.png', size: 16, mime: 'image/png' });
+
+  // Live: the next file is on the next read.
+  await put(app, 'assets/sprites/wall.png', 'x');
+  const again = await (await games.client.request('GET', '/tank/_assets')).json();
+  assert.deepEqual(again.files.map((f) => f.path),
+    ['assets/sounds/pew.wav', 'assets/sprites/hero.png', 'assets/sprites/wall.png']);
+
+  await app.client.json('POST', '/api/projects', { body: { name: 'Chat', slug: 'chat', kind: 'chat' } });
+  const chat = await games.client.request('GET', '/chat/_assets');
+  assert.equal(chat.status, 404);
+  await chat.text();
 });
 
 test('a game name cannot inject markup into the catalog', async (t) => {

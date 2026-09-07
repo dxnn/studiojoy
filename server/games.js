@@ -4,7 +4,7 @@ import { createRouter } from './http/router.js';
 import { serveFile } from './http/static.js';
 import { HttpError } from './http/respond.js';
 import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
-import { readFileAt } from './files/tree.js';
+import { readFileAt, listTree } from './files/tree.js';
 import { currentSha, logCommits } from './files/git.js';
 import { WRAPPER_PATH, wrapHtml } from './reporter.js';
 import { readJson } from './http/body.js';
@@ -161,6 +161,7 @@ export function createGamesApp({
           name: g.name,
           top: g.top ?? null,
           hero: fs.existsSync(path.join(dir, 'hero.png')),
+          icon: fs.existsSync(path.join(dir, 'icon.png')),
           best: bests.get(g.id) ?? null,
           achievements: defined.length
             ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
@@ -415,6 +416,22 @@ export function createGamesApp({
     );
     ctx.res.setHeader('Cache-Control', 'no-store');
     json(ctx.res, 201, result);
+  });
+
+  // What a game has in assets/, live from disk, so a game can find its own
+  // pictures and sounds without a hand-kept list (spec.md §6). Paths under
+  // assets/ only: the rest of the tree is code, and code knows itself. A
+  // chat's slug is a 404 like everything else here, and no-store like the
+  // game's own files, because "live" is the point.
+  r.get('/:slug/_assets', async (ctx) => {
+    const game = gameForSlug(ctx.params.slug);
+    const { files } = await listTree(path.join(root, game.slug));
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    json(ctx.res, 200, {
+      files: files
+        .filter((f) => f.path.startsWith('assets/') && !f.unreachable)
+        .map((f) => ({ path: f.path, size: f.size, mime: f.mime })),
+    });
   });
 
   // `/tank`, `/tank/`, and `/tank/index.html` all serve the entry point;

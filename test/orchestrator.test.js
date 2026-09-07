@@ -592,6 +592,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /GET \/_me/, 'and the way a game learns who is signed in');
   assert.match(system, /sign in to get on the board/, 'and what to offer when nobody is');
   assert.match(system, /textContent, never innerHTML/, 'and so is the safe way to show it');
+  assert.match(system, /GET _assets/, 'and how a game finds its own pictures and sounds');
 
   // The files sit in the system prompt, ahead of the transcript, so the prefix
   // a second fire matches on includes them (spec.md §8).
