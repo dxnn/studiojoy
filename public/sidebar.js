@@ -121,18 +121,53 @@ export function renderSidebar() {
 // everything has to say it was the filter.
 const nothing = (empty) => h('div', { class: 'pad muted', text: S.sideFind ? 'Nothing with that in its name.' : empty });
 
-// Three groups, in the order you care about them: the games you are an author
-// of, the ones anybody may work on, and everyone else's — which you can read,
-// play and talk about, and not change. A group with nothing in it says
-// nothing: two headings over an empty studio is furniture.
+// Four groups, in the order you care about them: the games you are an author
+// of, the ones anybody may work on, everyone else's — which you can read,
+// play and talk about, and not change — and, at the end, the ones somebody
+// has put away. A group with nothing in it says nothing: two headings over an
+// empty studio is furniture.
+//
+// Archived is its own group rather than italic rows scattered through the
+// other three, because that is what archiving a game means: it is not
+// something you are looking for any more. It is `shut` — closed until you
+// open it — for the same reason. The other three open unless you shut them.
 const GAME_GROUPS = [
   { id: 'mine', label: 'Yours', of: (p) => p.mine },
   { id: 'open', label: 'Open to everyone', of: (p) => !p.mine && p.open_edit },
   { id: 'others', label: 'Everyone else’s', of: (p) => !p.mine && !p.open_edit },
+  { id: 'archived', label: 'Archived', of: () => true, archived: true, shut: true },
 ];
 
+// Whether a group is showing its rows. Remembered per browser, like the tab
+// above it and the rail's width.
+const groupOpen = (group) => prefs.get(`group-${group.id}`, group.shut ? 'closed' : 'open') === 'open';
+
+// The heading over a group. With a filter typed it is a plain label and every
+// group is open: a filter that hides a match is a filter that lies, and a
+// control that cannot do anything should not be offered. Otherwise the
+// heading *is* the control — the same one, its caret flipped, rather than a
+// second one appearing beside it — and it carries the count, because a
+// collapsed group with no number on it is a question.
+function groupHead(group, count) {
+  if (S.sideFind) return h('div', { class: 'section-label', text: group.label });
+  const open = groupOpen(group);
+  return h('button', {
+    class: `section-label group-head${open ? ' open' : ''}`,
+    title: `${open ? 'Hide' : 'Show'} ${group.label.toLowerCase()}`,
+    'aria-expanded': open ? 'true' : 'false',
+    onclick: () => { prefs.set(`group-${group.id}`, open ? 'closed' : 'open'); render(); },
+  },
+  h('span', { class: 'caret', text: open ? '▾' : '▸' }),
+  h('span', { class: 'glabel', text: group.label }),
+  h('span', { class: 'gcount', text: String(count) }));
+}
+
 function gameRows(matches) {
-  const games = S.projects.filter((p) => p.kind !== 'chat' && matches(p.name));
+  const all = S.projects.filter((p) => p.kind !== 'chat' && matches(p.name));
+  // An archived game belongs to one group and it is the last one, whoever
+  // made it: the three above are about what you may do to a game, and there
+  // is nothing you may do to this one.
+  const games = { live: all.filter((p) => !p.archived), archived: all.filter((p) => p.archived) };
   const row = (p) => h('button', {
     class: `item${p.slug === S.slug ? ' active' : ''}${p.archived ? ' archived' : ''}`,
     title: p.mine
@@ -158,9 +193,12 @@ function gameRows(matches) {
 
   const out = [];
   for (const group of GAME_GROUPS) {
-    const rows = games.filter(group.of);
-    if (rows.length === 0) continue;
-    out.push(h('div', { class: 'section-label', text: group.label }), rows.map(row));
+    const found = (group.archived ? games.archived : games.live).filter(group.of);
+    if (found.length === 0) continue;
+    out.push(groupHead(group, found.length));
+    // Shut, the heading stands alone. Under a filter every group is open, so
+    // nothing a search found can be hidden behind one.
+    if (S.sideFind || groupOpen(group)) out.push(found.map(row));
   }
   return out.length ? out : nothing('No games yet. Make one!');
 }

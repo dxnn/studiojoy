@@ -401,6 +401,20 @@ remembered per browser next to the rail width; the filter isn't, since a
 stale filter is a list with things missing. The button above the tabs makes
 whatever it holds, so `+ New chat` is never a click away.
 
+**Games come in four groups** — Yours, Open to everyone, Everyone else's, and
+**Archived** last. The first three are about what you may *do* to a game, so
+an archived one is only ever in the fourth whoever made it; it was italic
+rows scattered through the other three until 2026-09-06, which put a game
+nobody is working on any more in the list of games you are looking for. Each
+group folds away behind its own heading — the heading *is* the control, its
+caret flipped rather than a second control appearing, and it carries a count,
+because a shut group with no number on it is a question. Open or shut is
+remembered per browser (`gs.group-<id>`); Archived is shut until you open it
+and the other three are open until you shut them. ⚠️ **A filter opens every
+group and takes the headings' controls away**: a filter that hides a match
+behind a shut heading is a filter that lies, and there is nothing left for
+the control to do. A group with nothing in it is still absent entirely.
+
 **Typing an `@` in the composer opens the menu of everybody it could reach**
 — the people, then the helpers, in the order the Crew tab lists them, each
 with a line saying what naming them does. Arrows walk it, Enter or Tab picks,

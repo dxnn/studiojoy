@@ -82,6 +82,33 @@
   flex-shrink: 0;
 }
 
+/* A group's heading, which is also the control that folds the group away —
+   one control in two states with its caret flipped, never a second one
+   appearing beside it. It lights up, because it can be clicked. The padding
+   is .section-label's own, so opening and closing moves nothing but the rows.
+   The count is what a shut group has instead of its contents. */
+.group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.group-head:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.group-head .caret { font-size: 9px; width: 8px; flex-shrink: 0; }
+.group-head .glabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A plain count, never gold: gold is a score or a version, and how many games
+   are in a group is neither. */
+.group-head .gcount {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
 /* A game is a card, not a table row: rounded, inset from the pane, and lit
    from the left edge when it is the open one. The inset is padding on the list
    rather than margins on the row — .item is a <button>, and a form control
