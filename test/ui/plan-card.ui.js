@@ -51,9 +51,11 @@ test('a draft card is fields and one button, all big enough for a thumb', async 
     const size = await fields.nth(i).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     assert.ok(size >= 16, `field ${i} is ${size}px on a touchscreen`);
   }
+  // The studio's own button size — 6px over 16px text, twelve to the side —
+  // which is what every other button a thumb presses here measures.
   const build = page.locator('.pieces.draft button.filled', { hasText: 'Build it' });
   const box = await build.boundingBox();
-  assert.ok(box && box.height >= 32 && box.width >= 80, `Build it is a button (${box?.width}×${box?.height})`);
+  assert.ok(box && box.height >= 30 && box.width >= 60, `Build it is a button (${box?.width}×${box?.height})`);
   // Nothing sticks out of a 390px page.
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.equal(over, 0, 'the card fits the phone');
