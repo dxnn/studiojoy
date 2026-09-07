@@ -66,6 +66,12 @@
   flex: 0 0 auto;
 }
 .who .name { flex: 1; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Whether the studio may tell you things while you are away. Dimmed while it
+   may not, so the row reads at a glance without being a second colour in a
+   pane that is already the studio's cyan and nothing else. */
+.who .bell { flex: 0 0 auto; padding: 2px 4px; font-size: 14px; opacity: 0.45; }
+.who .bell.on { opacity: 1; }
+.who .bell:hover:not(:disabled) { opacity: 1; background: var(--hover); }
 /* One initial in a pink-to-crimson tile: the same shape the game tiles use, so
    "you" reads as one more thing in the list rather than a control. */
 .who .avatar {

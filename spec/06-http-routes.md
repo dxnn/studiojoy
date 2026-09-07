@@ -401,6 +401,35 @@ remembered per browser next to the rail width; the filter isn't, since a
 stale filter is a list with things missing. The button above the tabs makes
 whatever it holds, so `+ New chat` is never a click away.
 
+**The studio can tell you things while you are away** (ideas/notifications.md).
+A message landing in a room you are not reading already leaves a *mark*; if
+the studio is not the thing on screen (`document.hidden`) it also shows an OS
+**notification** — the game's name, then who said what, cut to one line. The
+decision is `applyMessage`'s, the same one that sets the mark, so the two can
+never disagree. One per conversation (`tag`, with `renotify`), so a helper
+saying four things in a row is one line that keeps changing. Pressing it
+focuses a studio tab and opens that conversation, or opens a window at
+`/p/<slug>?chat=<id>` when there is no tab. ⚠️ It is shown through the
+service worker's registration (§7) and wears the studio's icon, never the
+game's: this is the studio talking, the same reason the sidebar stays cyan.
+
+The switch is the bell in the `who` row — about you rather than about any
+game, and that row is the only thing in the studio that is. Whether you want
+them is remembered per browser (`gs.notify`) rather than stored, because
+permission is per browser and a row saying yes on a laptop that has denied it
+is a row that lies; the browser's answer outranks the switch. Absent entirely
+where `Notification` does not exist. ⚠️ Offered while the browser is
+*blocking* them, which is the one place the studio explains a control instead
+of hiding it: unlike a greyed button in a bar, this one has a real answer to
+give, and somebody who has pressed a bell twice with nothing happening
+deserves to hear it. ⚠️ The permission is asked from the press and nowhere
+else — asked without a gesture it resolves `denied` without a prompt, which
+spends the one chance the browser gives, permanently.
+
+The app being **closed** is rung 2 and wants a server: web push, VAPID and a
+subscription table, hand-rolled because the studio has no runtime dependency
+(ideas/notifications.md). Nothing above is in its way.
+
 **Games come in four groups** — Yours, Open to everyone, Everyone else's, and
 **Archived** last. The first three are about what you may *do* to a game, so
 an archived one is only ever in the fourth whoever made it; it was italic

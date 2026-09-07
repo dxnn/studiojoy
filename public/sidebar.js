@@ -6,6 +6,7 @@ import {
   S, render, prefs, api, openProject, SIDE_SEARCH, frozen,
 } from './main.js';
 import { attachAgent, mentionPerson, readMark } from './chats.js';
+import { notifyState, toggleNotify } from './notify.js';
 
 /* Render: sidebar --------------------------------------------------------- */
 
@@ -110,11 +111,37 @@ export function renderSidebar() {
     h('div', { class: 'who' },
       h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
       h('div', { class: 'name', text: S.me.display_name }),
+      bell(),
       h('button', {
         class: 'quiet tiny', text: 'Sign out',
         onclick: async () => { await api('POST', '/api/logout'); location.href = '/'; },
       })),
   );
+}
+
+// Whether the studio may tell you things while you are away — about you
+// rather than about any game, which is why it is in the row that is also
+// about you and nowhere else (ideas/notifications.md). Absent in a browser
+// that cannot do it at all: a control that can never be pressed is left out.
+// Blocked is still offered, because there the press has something to say.
+const BELL = {
+  on: { text: '🔔', title: 'The studio tells you when somebody says something. Press to stop.' },
+  off: { text: '🔕', title: 'Tell me when somebody says something while I am away' },
+  blocked: { text: '🔕', title: 'This browser is blocking notifications' },
+};
+
+function bell() {
+  const state = notifyState();
+  if (state === 'unsupported') return null;
+  const { text, title } = BELL[state];
+  return h('button', {
+    class: `icon tiny bell${state === 'on' ? ' on' : ''}`,
+    text,
+    title,
+    'aria-label': title,
+    'aria-pressed': state === 'on' ? 'true' : 'false',
+    onclick: toggleNotify,
+  });
 }
 
 // Nothing found is not the same as nothing there: a filter that hides

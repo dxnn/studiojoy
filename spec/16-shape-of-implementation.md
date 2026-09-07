@@ -77,6 +77,8 @@ public/
                   own composition (§17)
   dom.js          h(), and the icon buttons
   stream.js       the SSE connection and streaming replies
+  notify.js       telling somebody while they are away: the switch, and the
+                  notification itself, shown through sw.js's registration
   telemetry.js    what a running game reports: problems and moments
   files.js        the file lifecycle: open, save, rename, duplicate, delete,
                   copy into another game or the studio collection
@@ -131,10 +133,13 @@ bin/
 test/
 ```
 
-Email, web push, typing previews and a count of unread messages (all present
-in `new-y`) are absent on purpose — the first three permanently, the last
-deferred (§2, §15). The unread *marker* is built: a dot on the game, the
-conversation and the pill, `@n` where a mention says who (§3).
+Email and typing previews (both present in `new-y`) are absent permanently,
+and a count of unread messages is deferred (§2, §15). The unread *marker* is
+built: a dot on the game, the conversation and the pill, `@n` where a mention
+says who (§3). So is telling somebody while the studio is running
+(`notify.js`, §6); **web push** — reaching an app that is closed — is rung 2
+of ideas/notifications.md and the one thing here `new-y` solves with a
+dependency this studio will not take.
 
 Tests use `node:test` against `:memory:` SQLite, a temp `GAMES_DIR`, a
 scripted fake LLM client and — for the client's own rules — a hand-rolled DOM

@@ -49,6 +49,7 @@ import {
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
+import { listenForNotifications } from './notify.js';
 
 const root = document.getElementById('root');
 
@@ -738,6 +739,9 @@ export async function start() {
     S.me = me.body;
     await Promise.all([loadProjects(), loadAgents(), loadPeople()]);
     connectStream();
+    // A notification pressed while the studio was already open arrives as a
+    // message from the worker, and it has to be listened for before one can.
+    listenForNotifications();
     await followUrl();
   }
   // In replace mode: nothing was written while S.loading held syncUrl off, so

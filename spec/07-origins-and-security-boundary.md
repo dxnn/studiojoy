@@ -86,10 +86,13 @@ catalog gets two distinct home-screen apps, named "Unbridled Joy Studio" and
 "Unbridled Joy". The studio's live at `/manifest.json` and `/sw.js`; the
 games origin's at the underscore-prefixed `/_manifest.json` and `/_sw.js`
 (plus `/_icons/*`), following the same can't-collide-with-a-slug convention
-as `/_players` and the rest. Both service workers are installability only —
-`fetch` is a no-op, nothing is cached — since there is no build step or
-filename hashing to make a cache-first strategy safe, and the catalog is
-personalized per request (sign-in state, live scores) so it must never be
-served stale. `playersPage()` stays scriptless as before: it carries the
+as `/_players` and the rest. Neither service worker caches anything —
+`fetch` is a no-op in both — since there is no build step or filename hashing
+to make a cache-first strategy safe, and the catalog is personalized per
+request (sign-in state, live scores) so it must never be served stale. The
+games origin's does nothing else at all. The studio's has one more job:
+showing a *notification* and handling a press on one (§6), because a plain
+`new Notification` never fires on an installed iOS PWA — so even a page in
+the foreground has to go through its registration. `playersPage()` stays scriptless as before: it carries the
 manifest `<link>` but does not register the service worker, which
 `catalogPage()` already does for the whole origin.

@@ -284,8 +284,16 @@ specified:
   catalog says how *you* are doing on each card. The preview reloads itself
   on every write — and on nothing else: the frame lives outside the rendered
   tree (§17) — and reports its own errors and moments back.
-- Both the studio and the front page install as PWAs — a manifest and an
-  installability-only service worker each, no offline caching (§7).
+- Both the studio and the front page install as PWAs — a manifest and a
+  service worker each, neither caching anything (§7). The studio's worker has
+  one other job: showing a **notification** and handling a press on one, since
+  a plain `new Notification` never fires on an installed iOS PWA.
+- **Notifications** (`public/notify.js`, §6, ideas/notifications.md): a
+  message landing in a room you are not reading, while the studio is not the
+  thing on screen. The same decision as the unread mark, made once in
+  `applyMessage`. The switch is the bell in the sidebar's `who` row,
+  remembered per browser. ⚠️ Reaching a **closed** app is web push and is not
+  built — rung 2, hand-rolled VAPID and `aes128gcm`, in TODO.md.
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — copied into every game at creation and raised by
   `npm run sweep` (§4). Screens owns how big a game is on the screen

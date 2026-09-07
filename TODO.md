@@ -16,6 +16,17 @@ deliberately deferred.
 - probe `deepseek-v4-pro` against tools at `none` before any escalation
   (ideas/planner.md, second chapter, step 9)
 
+- ! press the bell on a real phone and a real laptop: the permission prompt,
+  a *notification* arriving while the studio is in the background, and the
+  press landing back in the right conversation. ⚠️ None of it is checkable
+  here — a coding agent gets no permission prompt and no OS — so what `npm
+  test` holds is the four decisions and nothing about whether one ever
+  appears (ideas/notifications.md, rung 1)
+- ! web push, so a closed app hears about it: VAPID and `aes128gcm`
+  hand-rolled against the RFCs' own vectors (no `web-push` package — no
+  runtime dependency), `push_subscriptions`, subscribe/unsubscribe, fan-out
+  from where rung 1 fires, `bin/pushkeys.js` and `VAPID_*` in studio.env.
+  This is the half that means "for the PWA" (ideas/notifications.md, rung 2)
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
   the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
   description is a database row, so it does not ride the deploy the way the

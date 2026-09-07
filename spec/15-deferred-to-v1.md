@@ -2,11 +2,18 @@
 
 - Counting tokens rather than bytes. The byte caps bound the request, but a
   request's real cost is only visible after the fact, in `usage`.
-- Viewer counts and web push (both exist in `new-y`; message reactions and
-  unread *markers* are built now — a dot, and `@n` for a mention, §3. What is
-  still deferred is a **count** of unread messages: the dot says something
-  happened in there and not how much). Typing previews are **not** here —
-  they are permanently out (§2).
+- Viewer counts (exists in `new-y`; message reactions and unread *markers*
+  are built now — a dot, and `@n` for a mention, §3. What is still deferred is
+  a **count** of unread messages: the dot says something happened in there and
+  not how much). Typing previews are **not** here — they are permanently out
+  (§2).
+- **Web push**, meaning a *notification* reaching an app that is closed.
+  Telling somebody while the studio is running is built (§6, §7); the closed
+  case is rung 2 of ideas/notifications.md and wants VAPID and `aes128gcm`
+  hand-rolled, since `new-y` gets both from the `web-push` package and this
+  studio has no runtime dependency. Both are ~100 lines against the RFCs'
+  own test vectors, so the cost is the deploy and the real-device check, not
+  the arithmetic.
 - Public read-only chat. (A public game index is no longer deferred: `/` on
   the games origin is the catalog, listing games whose `published` flag is
   set. Publishing changes findability, not access — every game has always

@@ -18,6 +18,7 @@ import {
 import { LOOK_FILE, loadPalette } from './drawing.js';
 import { loadHistory } from './history.js';
 import { problemPanelLive, paintProblems } from './telemetry.js';
+import { notifyMessage } from './notify.js';
 
 /* Live events ------------------------------------------------------------- */
 
@@ -207,11 +208,15 @@ export function applyMessage(data) {
   // happens to it: in the chat you are looking at it is already read, and
   // anywhere else — the chat behind an editor included — it leaves a mark
   // on that game and on that chat's pill until you go and look: the @n
-  // badge when it named you, otherwise the plain unread flag.
+  // badge when it named you, otherwise the plain unread flag. And, if the
+  // studio is not the thing on screen, a notification — the same decision,
+  // so it is made here rather than a second time somewhere else
+  // (notify.js, ideas/notifications.md).
   if (data.user_id !== S.me?.id) {
     if (here(data) && S.mode === 'chat') {
       api('POST', `/api/projects/${data.project_slug}/chats/${data.chat_id}/seen`);
     } else {
+      notifyMessage(data);
       const named = data.mentions?.includes(S.me?.id);
       const row = S.projects.find((p) => p.slug === data.project_slug);
       if (row) {
