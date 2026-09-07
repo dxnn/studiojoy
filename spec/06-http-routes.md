@@ -263,7 +263,7 @@ exactly the size it arrived. Pixels are RGBA, as a canvas keeps them, so an
 uploaded picture loses nothing on open. The tools live in
 `public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
 editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
-Six choices worth naming:
+Seven choices worth naming:
 
 - **What it draws is smaller than what it opens.** `MAX_DRAWN` is 256 and
   `MAX_SIDE` is 1024: a picture made here is at most 256 a side — and at most
@@ -274,6 +274,24 @@ Six choices worth naming:
   at or below its own size, and a one-pixel brush is thinner than the pane can
   show. Above the line what comes out is a photograph drawn by hand rather
   than pixel art, so the studio does not offer to make one.
+
+- **`Make pixel art…` is how a picture too big for that comes down**
+  (`pixel-art` in `dialogs.js`; ideas/pixel-editor.md, item 4): in any
+  picture's `···`, and offered by Upload before the bytes land for a picture
+  over `MAX_SIDE`, the one kind the editor cannot open. A box dragged around
+  the part wanted, the longest side brought to one of the editor's sizes, and
+  — on by default — every pixel snapped to the game's palette with every edge
+  made hard, the result shown blocked up before anything is written. Four
+  operations in `pixel-editor.js`, each tested without a screen: a crop, a
+  box-average shrink weighted by alpha, the nearest palette colour, and
+  posterize. The dialog works on a working copy fitted into `MAX_SIDE`, so a
+  4,000-wide photo's box moves at the speed of a finger. ⚠️ Not an undo step —
+  a step is indexes into a picture of one width — so it writes: the same path
+  for a PNG, the old bytes a version; a `.jpg` stays and the pixel art lands
+  beside it as `.png`, since only a PNG keeps see-through parts. Under
+  `assets/sprites/` a result a whole multiple wider than tall comes out one
+  pixel narrower, as the guide's `asPng` does, so the sprites library does
+  not play it.
 
 - **There is no look-only view of a picture** — one would look identical to
   the editor, so it would cost a click for nothing. A PNG too big to draw on
@@ -1160,8 +1178,9 @@ no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
 *Renamed from* when the reader is standing on the destination, rather than as an
 empty drawer.
 
-`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`
-and `Delete…`, and takes the whole path, so it also moves: `sprite.png` to
+`Rename…` is in the file's `···` on its row under Code, with `Duplicate…`,
+`Make pixel art…` for a picture, and `Delete…`, and takes the whole path, so
+it also moves: `sprite.png` to
 `art/hero.png` is the same one commit. The dialog says what the new name
 will mean before it happens, and ⚠️ crossing into or out of `studio/` gets
 its own sentence, because that is the one move that changes who may edit the

@@ -125,10 +125,6 @@ deliberately deferred.
 - ! the pixel editor's three bands, then zoom and pan: the canvas gets about
   190px of an 820px window and the controls under it get 200, and there is no
   zoom at all, so a 256 picture is drawn at 1:1 (ideas/pixel-editor.md, 1–2)
-- ! crop and resize a picture, so one bigger than 256 can be brought down —
-  the second half of the 256 cap. ⚠️ Neither can be an undo step: a step is
-  indexes into a picture of a fixed width. Both clear undo and save, which
-  makes the old size a version (ideas/pixel-editor.md, 3)
 - pixel-perfect strokes, then line, rectangle and ellipse
   (ideas/pixel-editor.md, 4)
 - selection and move, then mirror, flip and rotate (ideas/pixel-editor.md, 5–6)

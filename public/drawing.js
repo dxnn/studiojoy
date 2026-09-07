@@ -47,7 +47,7 @@ function pictureCanvas(picture) {
   return canvas;
 }
 
-const pictureBlob = (picture) => new Promise((resolve) => {
+export const pictureBlob = (picture) => new Promise((resolve) => {
   pictureCanvas(picture).toBlob(resolve, 'image/png');
 });
 

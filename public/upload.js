@@ -3,6 +3,7 @@
 // upload lives in dialogs.js; the buttons that open it are on the files tab.
 
 import { h } from './dom.js';
+import { MAX_SIDE } from './pixel-editor.js';
 import {
   S, send, say, render, sizeText, encodePath, NO_CONNECTION,
 } from './main.js';
@@ -65,8 +66,11 @@ async function uploadItems(files) {
     const bitmap = await createImageBitmap(file).catch(() => null);
     const strip = !!bitmap && bitmap.width > bitmap.height
       && bitmap.width % bitmap.height === 0;
+    // Too big for the pixel editor to open: the one kind of picture Upload
+    // offers to make pixel art of first (dialogs.js, spec.md §6).
+    const huge = !!bitmap && (bitmap.width > MAX_SIDE || bitmap.height > MAX_SIDE);
     bitmap?.close();
-    return { file, folder: strip ? SPRITE_DIR : IMAGE_DIR };
+    return { file, folder: strip ? SPRITE_DIR : IMAGE_DIR, huge };
   }));
 }
 
@@ -123,6 +127,7 @@ export function uploadPlan(folder, items) {
       file,
       path,
       problem,
+      huge: item.huge === true,
       note: S.files.some((f) => f.path === path)
         ? 'replaces the one there now'
         : file.type

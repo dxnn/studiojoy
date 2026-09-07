@@ -245,9 +245,11 @@ export function renderFilesTab() {
 // nothing from it — the rights that matter are the destination's, which the
 // dialog minds.
 export function fileMore(path) {
+  const picture = S.files.find((f) => f.path === path)?.mime?.startsWith('image/');
   return more(`file:${path}`, [
     !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path }; render(); } },
     { text: 'Duplicate…', title: 'In this game, into another one, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
+    !frozen() && picture && { text: 'Make pixel art…', title: 'Cut it down, shrink it to a sprite’s size and use the game’s colours', onPick: () => { S.dialog = { kind: 'pixel-art', path }; render(); } },
     !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path }; render(); } },
   ], { label: `More about ${path}` });
 }

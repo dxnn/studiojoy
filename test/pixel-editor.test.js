@@ -10,6 +10,7 @@ import {
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
+  cropPicture, fitSide, shrinkPicture, nearestColour, posterize,
 } from '../public/pixel-editor.js';
 
 const RED = [255, 0, 0, 255];
@@ -354,4 +355,74 @@ test('a copied frame pastes as one undoable gesture', () => {
   // One undo takes the paste back whole.
   applyStep(strip, step, true);
   assert.deepEqual(pixelAt(strip, 16, 0), [0, 0, 0, 0]);
+});
+
+/* Making pixel art out of a picture (spec.md §6) --------------------------- */
+
+test('a crop is the rectangle asked for, clamped to the picture, never empty', () => {
+  const picture = blankPicture(4, 3);
+  setPixel(picture, 1, 1, RED);
+  setPixel(picture, 3, 2, BLUE);
+
+  const cut = cropPicture(picture, 1, 1, 2, 2);
+  assert.equal(cut.width, 2);
+  assert.equal(cut.height, 2);
+  assert.deepEqual(pixelAt(cut, 0, 0), RED, 'the mark moved with the corner');
+  assert.deepEqual(marks(cut), ['0,0']);
+  assert.deepEqual(pixelAt(picture, 1, 1), RED, 'the original is untouched');
+
+  // Past the edge is the edge; nothing is never the answer.
+  const edge = cropPicture(picture, 3, 2, 10, 10);
+  assert.deepEqual([edge.width, edge.height], [1, 1]);
+  assert.deepEqual(pixelAt(edge, 0, 0), BLUE);
+  const none = cropPicture(picture, 9, 9, 0, 0);
+  assert.deepEqual([none.width, none.height], [1, 1]);
+});
+
+test('fitSide brings the longest side down, keeps the shape and never grows', () => {
+  assert.deepEqual(fitSide(400, 200, 64), [64, 32]);
+  assert.deepEqual(fitSide(200, 400, 64), [32, 64]);
+  assert.deepEqual(fitSide(30, 20, 64), [30, 20], 'a small picture stays');
+  assert.deepEqual(fitSide(1000, 1, 16), [16, 1], 'never a side of nothing');
+});
+
+test('shrinking averages the pixels each new one covers, weighted by alpha', () => {
+  const picture = blankPicture(4, 4);
+  // Top-left box solid red; top-right half red, half blue; bottom-left one
+  // red pixel in four; bottom-right empty.
+  for (let y = 0; y < 2; y += 1) for (let x = 0; x < 2; x += 1) setPixel(picture, x, y, RED);
+  setPixel(picture, 2, 0, RED); setPixel(picture, 3, 0, RED);
+  setPixel(picture, 2, 1, BLUE); setPixel(picture, 3, 1, BLUE);
+  setPixel(picture, 0, 2, RED);
+
+  const small = shrinkPicture(picture, 2, 2);
+  assert.deepEqual([small.width, small.height], [2, 2]);
+  assert.deepEqual(pixelAt(small, 0, 0), RED);
+  assert.deepEqual(pixelAt(small, 1, 0), [128, 0, 128, 255], 'red and blue make purple');
+  // The colour is the one pixel's, at a quarter of its alpha — a see-through
+  // neighbour lends no darkness.
+  assert.deepEqual(pixelAt(small, 0, 1), [255, 0, 0, 64]);
+  assert.deepEqual(pixelAt(small, 1, 1), [0, 0, 0, 0]);
+  assert.deepEqual(pixelAt(picture, 2, 1), BLUE, 'the original is untouched');
+
+  // Never up, and never empty.
+  const same = shrinkPicture(picture, 40, 40);
+  assert.deepEqual([same.width, same.height], [4, 4]);
+  assert.deepEqual(marks(same), marks(picture));
+});
+
+test('posterize snaps every pixel to the palette and every edge hard', () => {
+  const palette = ['#ff0000', '#0000ff', '#ffffff'];
+  assert.deepEqual(nearestColour([200, 30, 30], palette.map(rgbaOf)), rgbaOf('#ff0000'));
+  assert.deepEqual(nearestColour([230, 230, 250], palette.map(rgbaOf)), rgbaOf('#ffffff'));
+
+  const picture = blankPicture(3, 1);
+  setPixel(picture, 0, 0, [200, 30, 30, 255]);
+  setPixel(picture, 1, 0, [10, 10, 220, 200]);
+  setPixel(picture, 2, 0, [255, 255, 255, 100]);
+  const snapped = posterize(picture, palette);
+  assert.deepEqual(pixelAt(snapped, 0, 0), [255, 0, 0, 255]);
+  assert.deepEqual(pixelAt(snapped, 1, 0), [0, 0, 255, 255], 'a mostly-solid pixel goes solid');
+  assert.deepEqual(pixelAt(snapped, 2, 0), [0, 0, 0, 0], 'a mostly-clear one goes clear');
+  assert.deepEqual(pixelAt(picture, 1, 0), [10, 10, 220, 200], 'the original is untouched');
 });

@@ -122,3 +122,29 @@
   color: var(--muted);
 }
 .dialog .shelf-grid .art-out:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Make pixel art (dialogs.js): the picture under a crop box, then the result
+   blocked up. The stage keeps the picture's shape, and a drag on it is a box
+   rather than a scroll. */
+.dialog .crop-stage {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: var(--panel-3);
+  touch-action: none;
+  cursor: crosshair;
+}
+.dialog .pixel-preview {
+  display: block;
+  width: 100%;
+  max-width: 256px;
+  height: auto;
+  image-rendering: pixelated;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--panel-3);
+}
+.pixel-art-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.pixel-art-row label { margin: 0; }
+.pixel-art-row label.check { display: flex; align-items: center; gap: 6px; color: var(--text); }

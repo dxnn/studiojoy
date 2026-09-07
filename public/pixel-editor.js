@@ -288,3 +288,107 @@ export const isBlank = (picture) => picture.data.every((byte) => byte === 0);
 // A size somebody typed, brought back into what a picture drawn here can be.
 // MAX_DRAWN rather than MAX_SIDE: this is the size of a thing being made.
 export const clampSide = (n) => Math.min(MAX_DRAWN, Math.max(1, Math.round(Number(n) || 0) || 1));
+
+/* Making pixel art out of a picture ----------------------------------------
+   Four operations behind the Make pixel art dialog (spec.md §6). Each hands
+   back a new picture and leaves the old one alone. ⚠️ None is an undo step: a
+   step is indexes into a picture of one width, so a picture that changes size
+   invalidates the whole stack — the caller writes the result and the old size
+   is a version. */
+
+const within = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
+
+// The rectangle cut out, clamped to the picture and never empty.
+export function cropPicture(picture, x, y, width, height) {
+  const x0 = within(x, 0, picture.width - 1);
+  const y0 = within(y, 0, picture.height - 1);
+  const w = within(width, 1, picture.width - x0);
+  const hgt = within(height, 1, picture.height - y0);
+  const out = blankPicture(w, hgt);
+  for (let row = 0; row < hgt; row += 1) {
+    const from = ((y0 + row) * picture.width + x0) * 4;
+    out.data.set(picture.data.subarray(from, from + w * 4), row * w * 4);
+  }
+  return out;
+}
+
+// The size a picture takes with its longest side brought to `side`: shape
+// kept, never grown, at least a pixel each way.
+export function fitSide(width, height, side) {
+  const scale = Math.min(1, side / Math.max(width, height));
+  return [Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))];
+}
+
+// The picture brought down to `width` by `height`, each new pixel the average
+// of the source pixels it covers — what turns a photograph into pixel art
+// without speckling it, which picking one pixel of each box would. Colour is
+// averaged over the covered pixels weighted by their alpha, so a see-through
+// neighbour lends no darkness; alpha is averaged over all of them. Never up.
+export function shrinkPicture(picture, width, height) {
+  const w = within(width, 1, picture.width);
+  const hgt = within(height, 1, picture.height);
+  const out = blankPicture(w, hgt);
+  const { data } = picture;
+  for (let y = 0; y < hgt; y += 1) {
+    const sy0 = Math.floor((y * picture.height) / hgt);
+    const sy1 = Math.max(sy0 + 1, Math.floor(((y + 1) * picture.height) / hgt));
+    for (let x = 0; x < w; x += 1) {
+      const sx0 = Math.floor((x * picture.width) / w);
+      const sx1 = Math.max(sx0 + 1, Math.floor(((x + 1) * picture.width) / w));
+      let r = 0; let g = 0; let b = 0; let a = 0; let n = 0;
+      for (let sy = sy0; sy < sy1; sy += 1) {
+        for (let sx = sx0; sx < sx1; sx += 1) {
+          const i = (sy * picture.width + sx) * 4;
+          const alpha = data[i + 3];
+          r += data[i] * alpha;
+          g += data[i + 1] * alpha;
+          b += data[i + 2] * alpha;
+          a += alpha;
+          n += 1;
+        }
+      }
+      if (a === 0) continue;
+      const o = (y * w + x) * 4;
+      out.data[o] = Math.round(r / a);
+      out.data[o + 1] = Math.round(g / a);
+      out.data[o + 2] = Math.round(b / a);
+      out.data[o + 3] = Math.round(a / n);
+    }
+  }
+  return out;
+}
+
+// The palette colour nearest a pixel, by distance in RGB. Simple on purpose:
+// thirty-two colours sit far enough apart that a perceptual space would move
+// few pixels, and the answer is the game's palette either way.
+export function nearestColour(rgb, colours) {
+  let best = colours[0];
+  let least = Infinity;
+  for (const c of colours) {
+    const d = (c[0] - rgb[0]) ** 2 + (c[1] - rgb[1]) ** 2 + (c[2] - rgb[2]) ** 2;
+    if (d < least) { least = d; best = c; }
+  }
+  return best;
+}
+
+// Every pixel snapped to the nearest of the palette's colours, and every edge
+// made hard — alpha under half goes see-through, the rest solid — because
+// pixel art has no soft edges, and the game's palette is what makes a photo
+// look like it belongs to the game. `palette` is hex strings, as
+// config/look.js keeps them.
+export function posterize(picture, palette) {
+  const colours = palette.map(rgbaOf);
+  const out = copyPicture(picture);
+  for (let i = 0; i < out.data.length; i += 4) {
+    if (out.data[i + 3] < 128) {
+      out.data.set(CLEAR, i);
+      continue;
+    }
+    const c = nearestColour(out.data.subarray(i, i + 3), colours);
+    out.data[i] = c[0];
+    out.data[i + 1] = c[1];
+    out.data[i + 2] = c[2];
+    out.data[i + 3] = 255;
+  }
+  return out;
+}

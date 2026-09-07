@@ -4,13 +4,14 @@
 
 import { h } from './dom.js';
 import {
-  SIZES, MAX_SIDE, MAX_DRAWN, clampSide,
+  SIZES, MAX_SIDE, MAX_DRAWN, clampSide, PALETTE, pictureFrom,
+  cropPicture, fitSide, shrinkPicture, posterize,
 } from './pixel-editor.js';
 import {
   SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload, assetPath, writeFiles,
 } from './upload.js';
 import {
-  S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents, frozen,
+  S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents, frozen, encodePath,
 } from './main.js';
 import { syncAttached, attachAgent, createChat } from './chats.js';
 import {
@@ -19,7 +20,9 @@ import {
   shareArt, unshareArt, RESERVED_IMAGES, DRESSING,
 } from './files.js';
 import { restore, rollback } from './history.js';
-import { createPicture, createPictureAt } from './drawing.js';
+import {
+  createPicture, createPictureAt, pictureBlob, loadPalette,
+} from './drawing.js';
 import { createSound } from './sound-editor.js';
 import { loadStudio, studioChange } from './people.js';
 import { clearScores } from './scoreboard.js';
@@ -679,6 +682,14 @@ export function dialogFor(d) {
     ok.addEventListener('click', async () => {
       const plan = uploadPlan(folder.value.trim(), d.items).filter((it) => !it.problem);
       close();
+      // One picture too big to draw on goes through Make pixel art first,
+      // before its bytes are in the game for good. A drop of several lands as
+      // it is, and the ··· is there afterwards (spec.md §6).
+      if (plan.length === 1 && plan[0].huge) {
+        S.dialog = { kind: 'pixel-art', file: plan[0].file, path: plan[0].path, fallback: plan };
+        render();
+        return;
+      }
       await uploadFiles(plan);
     });
 
@@ -686,6 +697,211 @@ export function dialogFor(d) {
       h('label', { text: `Which folder? Sounds go to ${SOUND_DIR}/, pictures to ${IMAGE_DIR}/, film strips to ${SPRITE_DIR}/ — put something here to send them all somewhere else instead.` }), folder,
       list,
       h('div', { class: 'actions' }, cancel, ok));
+  }
+
+  // A picture made into pixel art (spec.md §6, ideas/pixel-editor.md): a box
+  // dragged around the part wanted, the longest side brought to a sprite's
+  // size, every pixel snapped to the game's colours, and the result shown
+  // before anything is written. It works on a *working copy* fitted into
+  // MAX_SIDE — a photo can be 4000 across and the box has to move at the
+  // speed of a finger, and from 1024 down to 64 the second shrink loses
+  // nothing a sprite could show. Two ways in: a picture's ··· (`d.path`), and
+  // an upload too big to draw on (`d.file`, with `d.fallback` the plain
+  // upload it may still be). ⚠️ The write is not an undo step: it replaces
+  // the picture, and the old size is a version (Recall). A source that is not
+  // a .png stays where it is and the pixel art lands beside it as one, since
+  // only a PNG keeps see-through parts. The copy and the box live on `d`, so
+  // the node main.js keeps across renders is the one that loaded them.
+  if (d.kind === 'pixel-art') {
+    const outPath = `${d.path.replace(/\.[^./]+$/, '')}.png`;
+    const stage = h('canvas', {
+      class: 'crop-stage',
+      'aria-label': 'The picture. Drag a box around the part you want; drag inside the box to move it.',
+    });
+    const preview = h('canvas', { class: 'pixel-preview', 'aria-label': 'What it becomes' });
+    const size = h('select', { 'aria-label': 'How big, on its longest side' },
+      SIZES.map((n) => h('option', { value: n, text: `${n} pixels` })));
+    size.value = '64';
+    const snap = h('input', { type: 'checkbox' });
+    snap.checked = true;
+    const note = h('p', { class: 'hint muted', text: 'Reading the picture…' });
+    const make = h('button', { class: 'filled', text: 'Make it', disabled: true });
+    let result = null;
+
+    // Where it lands, said before it happens. An upload has nothing there yet.
+    const landing = d.file
+      ? `Lands as ${outPath}.`
+      : outPath === d.path
+        ? `Replaces ${d.path}; the picture as it is now stays in Recall.`
+        : `Lands beside it as ${outPath}; ${d.path} stays.`;
+
+    const paintStage = () => {
+      const { source, box } = d;
+      stage.width = source.width;
+      stage.height = source.height;
+      const ctx = stage.getContext('2d');
+      ctx.putImageData(new ImageData(source.data, source.width, source.height), 0, 0);
+      // Everything outside the box dimmed, and the box drawn twice so it
+      // reads over a light picture and a dark one alike.
+      ctx.fillStyle = 'rgba(8, 6, 16, 0.6)';
+      ctx.fillRect(0, 0, source.width, box.y);
+      ctx.fillRect(0, box.y + box.h, source.width, source.height - box.y - box.h);
+      ctx.fillRect(0, box.y, box.x, box.h);
+      ctx.fillRect(box.x + box.w, box.y, source.width - box.x - box.w, box.h);
+      const line = Math.max(1, source.width / 300);
+      ctx.lineWidth = line * 3;
+      ctx.strokeStyle = 'rgba(8, 6, 16, 0.8)';
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.lineWidth = line;
+      ctx.strokeStyle = '#ffffff';
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+    };
+
+    const paintPreview = () => {
+      const { source, box } = d;
+      let [w, hgt] = fitSide(box.w, box.h, Number(size.value));
+      // Under assets/sprites/ a width that is a whole multiple of the height
+      // is a film strip and would play — the story guide's asPng has the same
+      // rule — so it comes out one pixel narrower there.
+      const nudged = outPath.startsWith(`${SPRITE_DIR}/`) && w > hgt && w % hgt === 0;
+      if (nudged) w -= 1;
+      const colours = S.palette?.colours ?? PALETTE;
+      let picture = shrinkPicture(cropPicture(source, box.x, box.y, box.w, box.h), w, hgt);
+      if (snap.checked) picture = posterize(picture, colours);
+      result = picture;
+      preview.width = picture.width;
+      preview.height = picture.height;
+      preview.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+      note.textContent = `${picture.width} × ${picture.height} pixels`
+        + (snap.checked ? `, in the game’s ${colours.length} colours` : '')
+        + (nudged ? ', one narrower so the sprites library does not play it as a film strip' : '')
+        + `. ${landing}`;
+      make.disabled = false;
+    };
+
+    // The stage follows the pointer at once; the result, which is a shrink
+    // over the whole box, waits for the next frame.
+    let queued = false;
+    const repaint = () => {
+      paintStage();
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; if (d.source) paintPreview(); });
+    };
+
+    const at = (e) => {
+      const r = stage.getBoundingClientRect();
+      const { source } = d;
+      return [
+        Math.max(0, Math.min(source.width, ((e.clientX - r.left) * source.width) / r.width)),
+        Math.max(0, Math.min(source.height, ((e.clientY - r.top) * source.height) / r.height)),
+      ];
+    };
+    let drag = null;
+    stage.addEventListener('pointerdown', (e) => {
+      if (!d.source) return;
+      const [x, y] = at(e);
+      const { box, source } = d;
+      // Inside the box is a move — unless the box is the whole picture, where
+      // every press is inside it and a drag has to be able to draw the first.
+      const inBox = x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
+        && !(box.w === source.width && box.h === source.height);
+      drag = { x, y, was: box, move: inBox };
+      stage.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const [x, y] = at(e);
+      const { source } = d;
+      const { was } = drag;
+      d.box = drag.move
+        ? {
+          ...was,
+          x: Math.max(0, Math.min(source.width - was.w, was.x + x - drag.x)),
+          y: Math.max(0, Math.min(source.height - was.h, was.y + y - drag.y)),
+        }
+        : {
+          x: Math.min(drag.x, x), y: Math.min(drag.y, y), w: Math.abs(x - drag.x), h: Math.abs(y - drag.y),
+        };
+      repaint();
+    });
+    const release = () => {
+      if (!drag) return;
+      // A tap, or a box too small to have been meant: the one before stands.
+      if (!drag.move && (d.box.w < 4 || d.box.h < 4)) { d.box = drag.was; repaint(); }
+      drag = null;
+    };
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+
+    const whole = h('button', {
+      class: 'quiet tiny', text: 'Whole picture',
+      onclick: () => {
+        if (!d.source) return;
+        d.box = { x: 0, y: 0, w: d.source.width, h: d.source.height };
+        repaint();
+      },
+    });
+    size.addEventListener('change', () => { if (d.source) paintPreview(); });
+    snap.addEventListener('change', () => { if (d.source) paintPreview(); });
+
+    const load = async () => {
+      let blob = d.file ?? null;
+      if (!blob) {
+        const res = await send(`/api/projects/${S.slug}/files/${encodePath(d.path)}`);
+        if (!res.ok) { note.textContent = 'The studio could not read this picture.'; return; }
+        blob = await res.blob();
+      }
+      const bitmap = await createImageBitmap(blob).catch(() => null);
+      if (S.dialog !== d) return;
+      if (!bitmap) { note.textContent = 'This one will not open as a picture.'; return; }
+      const [w, hgt] = fitSide(bitmap.width, bitmap.height, MAX_SIDE);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = hgt;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bitmap, 0, 0, w, hgt);
+      bitmap.close();
+      d.source = pictureFrom(w, hgt, ctx.getImageData(0, 0, w, hgt).data);
+      d.box = { x: 0, y: 0, w, h: hgt };
+      // The game's colours as they are now, not as they were when the editor
+      // last opened.
+      await loadPalette();
+      if (S.dialog !== d) return;
+      paintStage();
+      paintPreview();
+    };
+    if (d.source) { paintStage(); paintPreview(); } else load();
+
+    make.addEventListener('click', async () => {
+      make.disabled = true;
+      const body = await pictureBlob(result);
+      close();
+      const { failure } = await writeFiles([{ path: outPath, body }]);
+      if (failure) { say(failure, true); return; }
+      say(`Made ${outPath}: ${result.width} × ${result.height} pixels.`);
+      await openFile(outPath);
+    });
+    const keep = d.fallback
+      ? h('button', {
+        class: 'quiet', text: 'Keep it as it is',
+        onclick: async () => { close(); await uploadFiles(d.fallback); },
+      })
+      : null;
+
+    return wide('Make pixel art',
+      h('label', { text: 'Drag a box around the part you want. Drag inside the box to move it.' }),
+      stage,
+      h('div', { class: 'pixel-art-row' },
+        whole,
+        h('label', { text: 'How big, on its longest side?' }), size,
+        h('label', { class: 'check' }, snap, ' Use the game’s colours')),
+      h('label', { text: 'What it becomes' }),
+      preview,
+      note,
+      h('div', { class: 'actions' }, keep, cancel, make));
   }
 
   // Same shape as the upload dialog: everything it would write is on screen
