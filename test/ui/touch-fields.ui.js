@@ -71,23 +71,54 @@ test('no field in a game is under 16px on a touchscreen', async (t) => {
   assert.deepEqual(under(fields), [], `every field is at least ${FLOOR}px`);
 });
 
-// ⚠️ The trap spec/ §17 names by hand: the code editor is a transparent-ink
-// textarea over a <pre> twin holding the colours, so the two must wear the
-// same type. Raise the field for the touchscreen and leave the <pre> and the
-// colours shear off the text.
-test('the code editor and its <pre> twin are raised together', async (t) => {
-  const { app, browser } = await game(t);
+const sizeOf = (l) => l.evaluate((n) => parseFloat(getComputedStyle(n).fontSize));
+
+// The URL is the view (spec/ §17), so a file opens without driving the mode
+// row — a row of labels this test has no business knowing, and one that is on
+// trial anyway.
+const openFile = async (app, browser, path) => {
   const page = await pageFor(browser, app, app.client, { touch: true });
-  // The URL is the view (spec/ §17), so the file opens without driving the
-  // mode row — which is a row of labels this test has no business knowing.
-  await page.goto(`${app.base}/p/tank?mode=code&file=BRIEF.md`);
+  await page.goto(`${app.base}/p/tank?mode=code&file=${path}`);
+  return page;
+};
+
+// ⚠️ The trap spec/ §17 names by hand: a highlighted file is a
+// transparent-ink textarea over a <pre> twin holding the colours, so the two
+// must wear the same type. Raise the field for the touchscreen and leave the
+// <pre> behind and the colours shear off the text.
+//
+// ⚠️ `index.html` and not any file: the twin exists only where there is
+// highlighting to hold, and `langFor` (public/highlight.js) knows js, css and
+// html and nothing else. A `.md` file gets a bare textarea, no twin, and this
+// test times out looking for one — which is how it was first written.
+test('a highlighted file and its <pre> twin are raised together', async (t) => {
+  const { app, browser } = await game(t);
+  const page = await openFile(app, browser, 'index.html');
   const area = page.locator('.editor .code textarea');
   await area.waitFor();
   await assertCoarse(page);
 
-  const sizeOf = (l) => l.evaluate((n) => parseFloat(getComputedStyle(n).fontSize));
   const field = await sizeOf(area);
   const twin = await sizeOf(page.locator('.editor .code-hl'));
   assert.ok(field >= FLOOR, `the field is at least ${FLOOR}px (got ${field})`);
   assert.equal(twin, field, 'the <pre> twin wears the same type as the field');
+});
+
+// The other half, and the reason it is here: a file with no highlighting is a
+// plain textarea outside `.code`, so code-editor.css's rule does not reach it
+// and base.css's is the only thing holding it up. Nothing was checking that
+// the general rule covers the field the specific one misses.
+test('a plain file is raised by the general rule, not the editor\'s', async (t) => {
+  const { app, browser } = await game(t);
+  const page = await openFile(app, browser, 'BRIEF.md');
+  const area = page.locator('.editor textarea');
+  await area.waitFor();
+  await assertCoarse(page);
+
+  assert.equal(
+    await page.locator('.editor .code-hl').count(), 0,
+    'a file with no language has no twin to keep level',
+  );
+  const field = await sizeOf(area);
+  assert.ok(field >= FLOOR, `the field is at least ${FLOOR}px (got ${field})`);
 });
