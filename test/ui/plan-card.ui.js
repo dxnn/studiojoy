@@ -16,19 +16,20 @@ async function draftWaiting(t) {
   await signIn(app);
   const made = await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
   const chatId = made.body.chat.id;
+  const projectId = app.db.prepare("SELECT id FROM projects WHERE slug = 'tank'").get().id;
   const builder = app.db.prepare('SELECT id FROM agents WHERE builtin = 1').get().id;
   const now = new Date().toISOString();
   const info = app.db.prepare(
     `INSERT INTO messages (project_id, chat_id, agent_id, kind, body, created_at)
      VALUES (?, ?, ?, 'plan', ?, ?)`,
-  ).run(made.body.id, chatId, builder, "That's a big one — here's my plan in 2 pieces. Change anything, then press Build it.", now);
+  ).run(projectId, chatId, builder, "That's a big one — here's my plan in 2 pieces. Change anything, then press Build it.", now);
   const cardId = Number(info.lastInsertRowid);
   app.db.prepare(
     `INSERT INTO plans (message_id, project_id, chat_id, request, pieces, status, created_at, updated_at,
                         summary, assumptions, begun)
      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, 0)`,
   ).run(
-    cardId, made.body.id, chatId, 'build me a tank game',
+    cardId, projectId, chatId, 'build me a tank game',
     JSON.stringify([
       { title: 'The page', files: ['index.html'], what: 'The page and its styles.', status: 'todo', message_id: null, note: null },
       { title: 'Tanks that drive', files: ['js/tank.js'], what: 'Two tanks and the loop.', status: 'todo', message_id: null, note: null },
