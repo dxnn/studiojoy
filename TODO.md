@@ -24,11 +24,12 @@ deliberately deferred.
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
-  over the stage and both are tall. This is the *height* complaint — sideways
-  is checked now and clean (`test/ui/narrow.ui.js`), so what is left is what a
-  browser cannot judge: whether two tall things stacked is usable. The last of ideas/vn-builder.md's step 1
-  — the type, the guide, the fill and both stand-ins are built and green,
-  and step 4 (the standard set) is the line below
+  over the stage and both are tall. The *height* complaint only — sideways is
+  checked now and clean (`test/ui/narrow.ui.js`), so what is left is what a
+  browser cannot judge: whether two tall things stacked is usable. The last of
+  ideas/vn-builder.md's step 1 — the type, the guide, the fill and both
+  stand-ins are built and green, and step 4 (the standard set) is the line
+  below
 - ⚠️ revisit what a shared picture's licence is. Decided 2026-09-02: the
   *studio collection* records none at all and whoever drew it keeps their
   copyright, which is right for a studio of a few trusted people. It is worth
@@ -157,15 +158,6 @@ deliberately deferred.
   `ctl-shape${' manner'}` — 6 of 13, then 47 hits of which most were noise).
   A test that cries wolf gets ignored, so it wants the `${…}` handling right
   before it goes in
-- ! run `npm run ui` — 16 checks over four files, of which the four in
-  `touch-controls.ui.js` have never been green: the drawn buttons, a press,
-  and a real pointer sliding from one button to its neighbour without
-  lifting. The sideways-scroll sweep passed first time over all 29 surfaces
-  (every mode of a blank game and of all three templates at 390px with a
-  coarse pointer), so `narrow.ui.js` is done. Delete this line when the
-  touch four are green. ⚠️ A coding agent cannot run any of them — Chrome
-  will not start in the agent sandbox, so these are written by one and run
-  by a person
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list

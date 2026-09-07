@@ -360,8 +360,12 @@ Open questions:
   editor and Pics' picture fields live, so "close the rail" is blocked on
   deciding where those go. The preview already folds to one row, which is most
   of what closing would buy.
-- Touch schemes and the story editor are browser-checked at phone width but
-  have never been felt on a real phone. Both are TODO lines.
+- Touch schemes and the story editor have never been felt on a real phone.
+  `npm run ui` now holds what a machine can judge at 390px — no surface
+  scrolls the page sideways, no field is under 16px, and a thumb really does
+  slide between neighbouring drawn buttons — so what is left is the part it
+  cannot: whether a finger can hit a pixel, and whether the story editor's
+  two tall stacked things are usable. Both are TODO lines.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
 - Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
