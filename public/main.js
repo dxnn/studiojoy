@@ -40,7 +40,9 @@ import { renderPicsMode, renderHearMode, renderPickInspector } from './pics-hear
 import {
   loadHistory, loadDiff, historyNeedsLoad, keepDiffInView,
 } from './history.js';
-import { loadScores, bestScore, showScore, renderScoreboardTab } from './scoreboard.js';
+import {
+  loadScores, bestScore, showScore, scoresOn, renderScoreList, renderScoreboardTab,
+} from './scoreboard.js';
 import {
   readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
 } from './chats.js';
@@ -1180,30 +1182,65 @@ function renderRail() {
 
 // The selected thing's fields, for the mode that has one: the story editor's
 // scene, person or title screen; Pics' picture or person; Hear's open sound.
-// Nothing more specific selected, and the rail falls back to the game's own
-// achievements — read-only, the real editor one click away under Share.
+// Nothing more specific selected, and the rail falls back to how the game is
+// doing: every achievement, then every score — the same two lists Share
+// carries, in the same order, read-only. Each heading is the way to the real
+// editor.
 function renderInspector() {
   if (editorShowing()?.id === 'story') return renderStoryInspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
-  return renderAchievementsSummary();
+  return renderGameSummary();
 }
 
+// Both lists in one scroller, like the inspector proper: a game with twenty
+// achievements and a long board must not push the preview off the top.
+// Exported for test/rail-summary.test.js, which holds the order and the two
+// silences to it.
+export function renderGameSummary() {
+  const achievements = renderAchievementsSummary();
+  const scores = renderScoresSummary();
+  if (!achievements && !scores) return null;
+  return h('div', {
+    class: 'scroll rail-summary', 'data-scroll': 'rail-summary',
+  }, achievements, scores);
+}
+
+// A heading that goes to the editor for what is under it. A link, because it
+// looks at something rather than changing it.
+const summaryHead = (label) => h('button', {
+  class: 'link tiny', text: label, onclick: () => openMode('share'),
+});
+
+// Every achievement the game has, with how many people hold each. It was an
+// icon strip with the words on a `title` before, which is nothing at all on a
+// touchscreen — the studio is used on phones, where there is no hover.
 function renderAchievementsSummary() {
   if (!S.achievements || S.achievements.grown) return null;
   const { entries } = S.achievements.model;
   if (entries.length === 0) return null;
   const counts = countsFor(S.slug);
-  const open = () => openMode('share');
-  return h('div', { class: 'pad rail-achievements' },
-    h('button', { class: 'link tiny', text: 'Achievements', onclick: open }),
-    h('div', { class: 'rail-ach-row' }, entries.map((a) => {
+  return h('div', { class: 'rail-section' },
+    summaryHead('Achievements'),
+    h('div', { class: 'rail-ach-list' }, entries.map((a) => {
       const held = counts?.get(a.id) ?? 0;
-      return h('span', {
-        class: `rail-ach${held ? ' got' : ''}`,
-        title: `${a.name || '(no name yet)'} — ${held ? `${held} player${held === 1 ? '' : 's'}` : 'nobody yet'}`,
-        onclick: open,
-      }, a.icon || '🏆');
+      return h('div', { class: `rail-ach${held ? ' got' : ''}` },
+        h('span', { class: 'ach-icon', text: a.icon || '🏆' }),
+        h('span', { class: 'ach-name', text: a.name || '(no name yet)' }),
+        h('span', {
+          class: 'ach-held',
+          text: held ? `${held} player${held === 1 ? '' : 's'}` : 'nobody yet',
+        }));
     })));
+}
+
+// The whole board, not just its top. Nothing at all when the board is off or
+// empty: an empty heading in the rail is furniture, and the same rule the
+// sidebar's groups keep.
+function renderScoresSummary() {
+  if (!scoresOn() || !S.scores?.length) return null;
+  return h('div', { class: 'rail-section' },
+    summaryHead('Scores'),
+    renderScoreList());
 }
 
 // The centre's body for every mode but the chat, whose thread and composer
@@ -1222,9 +1259,11 @@ export function renderModeBody() {
 }
 
 // Share: the game's public face — the address and whether it is in the games
-// list, then the scoreboard and the achievements (spec.md §6). Each was a tab
+// list, then the achievements and the scoreboard (spec.md §6). Each was a tab
 // of the rail; here they are sections of one page in one scroller, each
-// keeping the rendering it had.
+// keeping the rendering it had. Achievements first, and the same order in the
+// rail: they are the game's own words about itself, and the board is whatever
+// the public did with them.
 function renderShareMode() {
   const p = S.project;
   const section = (label) => h('div', { class: 'section-label', text: label });
@@ -1246,8 +1285,8 @@ function renderShareMode() {
         text: p.published ? 'Unpublish' : 'Publish',
         onclick: () => { S.dialog = { kind: 'publish' }; render(); },
       }) : null),
-    section('Scoreboard'), renderScoreboardTab(),
-    section('Achievements'), renderAchievementsTab());
+    section('Achievements'), renderAchievementsTab(),
+    section('Scoreboard'), renderScoreboardTab());
 }
 
 /* Render ------------------------------------------------------------------ */

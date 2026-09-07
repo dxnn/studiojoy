@@ -446,11 +446,22 @@ happens rather than what things are called. Its fields keep the ids the
 focus snapshot knows (§17), so the caret survives a render there too. A file
 has none: its bar in the centre already says what it is.
 
-With nothing more specific selected, the inspector falls back to the game's
-own achievements — an icon per one defined in `config/achievements.js`,
-dimmed until a player holds it, read-only. Clicking one, or the label above
-them, opens Share, where the real editor lives — a summary is not where you
-go to change one. Empty when the game defines none yet.
+With nothing more specific selected, the inspector falls back to **how the
+game is doing**: every achievement in `config/achievements.js` — icon, name
+and how many people hold it, dimmed until somebody does — and then every
+score on the board, the same two lists Share carries and in the same order,
+read-only in both. The heading of each opens Share, where the real editor
+lives; a summary is not where you go to change one. Each is absent rather
+than empty — no achievements defined, or a board that is off or has nothing
+on it, and that half simply is not there, the sidebar's rule about a group
+with nothing in it.
+
+⚠️ It was an icon strip with the name and the headcount on a `title` until
+2026-09-06, which is nothing at all on a touchscreen: the studio is used on
+phones, where there is no hover. Anything a row has to say goes in the row.
+The best score stays in the preview's own foot as well — it is the number the
+game is being played for, and it belongs on the frame rather than in a list
+below it.
 
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
@@ -488,8 +499,8 @@ registry), taking the whole pane like the chat does. Code is the file list
 with the open file's editor under it, as the rail's Files tab was; Versions
 is every past version of the game — `git log`, one row a commit, each
 opening its diff — its own mode now, no longer folded into Share; Share is
-one page — the game's address and games-list status, then the scoreboard and
-achievements, each keeping the rendering it had as a rail tab. `S.chat` is
+one page — the game's address and games-list status, then the achievements
+and the scoreboard, each keeping the rendering it had as a rail tab. `S.chat` is
 untouched by the mode, so the chat behind another mode keeps filling and a
 mention marks the Chat pill rather than being read. The *story editor* is
 the first editor (below); a type may bring several. Old addresses still
@@ -598,9 +609,10 @@ the column and SQLite can't change a default after the fact. Chat projects
 stay closed — no working tree, and `open_edit` there is about who may start
 chats in somebody's conversation.
 
-**The rail is the running game and nothing else**: the preview, `Open` and
+**The rail is the running game, and no tabs**: the preview, `Open` and
 `Hide` on the frame since both act on the game, and under it the problems
-and moments it reported. Folded, it is one row that still plays, remembered
+and moments it reported, then the inspector (above). Folded, it is one row
+that still plays, remembered
 per browser. The preview is a thing, so what changes it is in its own `···`:
 the **shape** to try the game in — Normal (4:3), Wide (16:9), Phone (9:16),
 Square — a tick on the one it is in, remembered per browser next to the rail

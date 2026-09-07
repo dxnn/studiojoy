@@ -1,9 +1,10 @@
 // The Share page's scoreboard section: the kept scores for this game, with
-// the admin's two moves — delete all, and the per-game switch — plus the
-// best score, read by the strip under the preview. There is no deleting one
-// score: the board goes whole or it stays. All of it talks to the studio
-// origin: the games listener never reads a cookie, so nothing over there
-// moderates.
+// the admin's two moves — delete all, and the per-game switch. The board's
+// rows are also the rail's, and the best of them is the number in the strip
+// under the preview, so the rendering and the on/off test are exported rather
+// than written twice. There is no deleting one score: the board goes whole or
+// it stays. All of it talks to the studio origin: the games listener never
+// reads a cookie, so nothing over there moderates.
 
 import { h } from './dom.js';
 import {
@@ -44,14 +45,30 @@ function agoText(iso) {
   return days === 1 ? 'yesterday' : `${days} days ago`;
 }
 
-export function renderScoreboardTab() {
-  const on = S.project.scores_on !== false;
+// Whether the board is on, in one place. ⚠️ Two shapes reach here: the wire
+// sends a boolean (`scores_on: row.scores_on === 1`) and the switch above
+// writes one, but the column is 0/1 and a hand-written 0 would read as on
+// under a `!== false` test. Both are asked about, because a board that is off
+// showing a BEST is the studio contradicting itself.
+export const scoresOn = () => S.project.scores_on !== false && S.project.scores_on !== 0;
+
+// The board itself, rows or the reason there are none. Share's section and
+// the rail's summary paint from this: two lists of the same scores that could
+// disagree is two lists to keep right.
+export function renderScoreList() {
   const rows = (S.scores ?? []).map((s, i) => h('div', { class: 'score-row' },
     h('span', { class: 'rank', text: `#${i + 1}` }),
     h('span', { class: 'sname', text: s.name }),
     h('span', { class: 'sval mono', text: s.score.toLocaleString() }),
     h('span', { class: 'swhen', text: agoText(s.created_at) })));
+  return rows.length ? h('div', { class: 'score-list' }, ...rows) : h('div', {
+    class: 'pad muted',
+    text: S.scores === null ? 'Loading…' : 'No scores yet.',
+  });
+}
 
+export function renderScoreboardTab() {
+  const on = scoresOn();
   return [
     h('div', { class: 'pad row wrap' },
       // A button, not a link: it changes what the public origin serves.
@@ -70,17 +87,13 @@ export function renderScoreboardTab() {
       text: 'The scoreboard is off: the game cannot show or take scores, and '
         + 'helpers are not told it exists. The scores below are kept.',
     }),
-    h('div', { class: 'scroll', 'data-scroll': 'scores' },
-      rows.length ? h('div', { class: 'score-list' }, ...rows) : h('div', {
-        class: 'pad muted',
-        text: S.scores === null ? 'Loading…' : 'No scores yet.',
-      })),
+    h('div', { class: 'scroll', 'data-scroll': 'scores' }, renderScoreList()),
   ];
 }
 
 // The best anybody has scored, for the strip under the preview. Only when the
 // board is on and the scores happen to be loaded — a number that is sometimes
 // absent is better than a request fired to fill a label.
-export const bestScore = () => (S.project.scores_on !== 0 && S.scores?.length ? S.scores[0].score : null);
+export const bestScore = () => (scoresOn() && S.scores?.length ? S.scores[0].score : null);
 
 export const showScore = (n) => n.toLocaleString();

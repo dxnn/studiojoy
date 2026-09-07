@@ -100,22 +100,40 @@
 }
 .preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
 
-/* The rail's default when nothing more specific is selected: the game's own
-   achievements, read-only — icons only, dimmed until somebody holds them, a
-   title for the rest. The real editor is one click away, under Share. */
-.rail-achievements > button.link { display: block; margin-bottom: 6px; }
-.rail-ach-row { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The rail's default when nothing more specific is selected: how the game is
+   doing, read-only — every achievement, then every score, the same two lists
+   Share carries and in the same order. The heading of each is the way to the
+   editor. The padding is here rather than a .pad on the node, so the score
+   list's own padding and the achievements' line up. */
+.rail-summary { padding-bottom: 12px; }
+.rail-section > button.link { display: block; padding: 12px 16px 6px; }
+.rail-ach-list { display: grid; gap: 2px; padding: 0 16px 12px; }
+/* Dimmed until somebody holds it — a row of achievements nobody has yet is
+   the shape of the game, not its news. Icon, name, headcount: it was icons
+   with the words on a `title` before, which says nothing under a finger. */
 .rail-ach {
   display: flex;
   align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.5;
+}
+.rail-ach .ach-icon {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 13px;
   background: var(--panel-3);
   border: 1px solid var(--border-soft);
-  opacity: 0.45;
-  cursor: pointer;
 }
-.rail-ach.got { opacity: 1; border-color: color-mix(in oklab, var(--look-primary) 55%, transparent); }
+.rail-ach .ach-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A headcount is a number worth looking at, so it is gold — the same rule the
+   score beside it keeps. "nobody yet" is not a number and stays muted. */
+.rail-ach .ach-held { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.rail-ach.got { opacity: 1; }
+.rail-ach.got .ach-icon { border-color: color-mix(in oklab, var(--look-primary) 55%, transparent); }
+.rail-ach.got .ach-held { color: var(--num); }
