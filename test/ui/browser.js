@@ -81,12 +81,21 @@ export async function openStudio(t) {
 // One person's page. Their session cookie comes out of the test client's own
 // jar, so two clients are two browser contexts the same way they are two
 // people — and nothing here reimplements signing in.
-export async function pageFor(browser, app, client, { width = LAPTOP } = {}) {
+// `touch` is a different browser rather than a narrower one: base.css's 16px
+// rule is behind `@media (pointer: coarse)`, which a merely narrow viewport
+// does not match. hasTouch and isMobile are what make Chromium report a
+// coarse pointer; the width is pinned to PHONE because narrow.css's queries
+// are written against it, rather than left at a device profile's own.
+const contextFor = (width, touch) => (touch
+  ? { viewport: { width: PHONE, height: 820 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 }
+  : { viewport: { width, height: 820 } });
+
+export async function pageFor(browser, app, client, { width = LAPTOP, touch = false } = {}) {
   const cookie = client.peek();
   if (!cookie) throw new Error('that client is not signed in');
   const pair = cookie.split(';')[0].trim();
   const eq = pair.indexOf('=');
-  const context = await browser.newContext({ viewport: { width, height: 820 } });
+  const context = await browser.newContext(contextFor(width, touch));
   // Playwright's 30 s is written for a network and a cold app server. This one
   // is on the loopback with the page already built, so a thing that is not
   // there in five seconds is not coming — and a check that takes half a minute
@@ -101,3 +110,19 @@ export async function pageFor(browser, app, client, { width = LAPTOP } = {}) {
 // Computed colour, which is the whole reason to be in a browser: the studio's
 // colour rules are about what a person sees, and a class name is not that.
 export const colourOf = (locator) => locator.evaluate((n) => getComputedStyle(n).color);
+
+// ⚠️ Asserted before any rule behind a media query, never assumed. A check
+// for `@media (pointer: coarse)` that runs without a coarse pointer passes
+// while testing nothing, which is worse than failing: it reports the rule as
+// held. If this ever fails, the emulation stopped producing the query and the
+// fix is a launch arg, not a change to what the rule says.
+export async function assertCoarse(page) {
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+  if (!coarse) {
+    throw new Error(
+      'This page does not report a coarse pointer, so the touchscreen rules '
+      + 'are not in force and nothing below is being checked. Fix the '
+      + 'emulation in contextFor() before reading the result.',
+    );
+  }
+}

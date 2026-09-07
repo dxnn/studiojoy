@@ -188,7 +188,10 @@ holds something git cannot recover.
   the code editor's `<pre>` twin follows it in `code-editor.css` or the
   colours shear. Not `maximum-scale=1` in the viewport meta, which stops the
   same zoom by taking pinch zoom away from Android: the page stays zoomable on
-  purpose.
+  purpose. `test/ui/touch-fields.ui.js` holds it — the sign-in form, a game,
+  and the editor and its twin — and asserts the coarse pointer before reading
+  anything, because a check for a rule behind a media query that runs without
+  the query passes while testing nothing.
 - ⚠️ **A box with no words in it declares a `display`.** `width` and `height`
   do not apply to a non-replaced *inline* box, so a sized-and-coloured empty
   `<span>` is 0px wide and paints nothing — no background will save it. It

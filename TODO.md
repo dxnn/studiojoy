@@ -155,14 +155,13 @@ deliberately deferred.
   `ctl-shape${' manner'}` — 6 of 13, then 47 hits of which most were noise).
   A test that cries wolf gets ignored, so it wants the `${…}` handling right
   before it goes in
-- ! grow `npm run ui` past its first file. The harness is in
-  (`test/ui/browser.js`) and `marks.ui.js` checks the one bug that made it
-  necessary; still to write: no field under 16px at `pointer: coarse` (the
-  iOS zoom rule, which nothing can currently enforce), gold as a *computed*
-  colour rather than a class name, nothing scrolling the body sideways at
-  390px, and a real pointer sliding between drawn touch controls. ⚠️ A coding
-  agent cannot run any of them — Chrome will not start in the agent sandbox,
-  so these are written by one and run by a person
+- ! grow `npm run ui` past its first two files. `marks.ui.js` checks the bug
+  that made the harness necessary and `touch-fields.ui.js` holds the 16px
+  rule; still to write: gold as a *computed* colour rather than a class name,
+  nothing scrolling the body sideways at 390px, and a real pointer sliding
+  between drawn touch controls. ⚠️ A coding agent cannot run any of them —
+  Chrome will not start in the agent sandbox, so these are written by one and
+  run by a person
 - drop `agents.reasoning` once the thinking level has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
