@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
-import { openDb, tx, addColumnIfMissing } from '../server/db.js';
+import {
+  openDb, tx, addColumnIfMissing, dropColumnIfPresent,
+} from '../server/db.js';
 import { nextUtcMidnight } from '../server/util/time.js';
 import { scratchDir } from './helpers.js';
 
@@ -315,6 +318,35 @@ test('addColumnIfMissing adds once and runs its callback once', () => {
   const cols = db.prepare('PRAGMA table_info(projects)').all().map((c) => c.name);
   assert.ok(cols.includes('tagline'));
   db.close();
+});
+
+// A game from before `updated_at` is dated from its newest message, else its
+// making (spec/ §3): the migration cannot ask git, and the next change
+// corrects it.
+test('updated_at is backfilled from the newest message, else the making', () => {
+  const dir = scratchDir('updated-at-db');
+  let db = openDb(path.join(dir, 'db'));
+  db.exec(`
+    INSERT INTO users (id, email, password_hash, display_name, created_at)
+      VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z');
+    INSERT INTO projects (id, slug, name, created_by, created_at) VALUES
+      (1, 'tank', 'Tank', 1, '2026-01-01T00:00:00.000Z'),
+      (2, 'maze', 'Maze', 1, '2026-01-02T00:00:00.000Z');
+    INSERT INTO messages (project_id, user_id, body, created_at) VALUES
+      (1, 1, 'first', '2026-01-03T00:00:00.000Z'),
+      (1, 1, 'second', '2026-01-04T00:00:00.000Z');
+  `);
+  dropColumnIfPresent(db, 'projects', 'updated_at');
+  db.close();
+
+  db = openDb(path.join(dir, 'db'));
+  assert.deepEqual(
+    db.prepare('SELECT slug, updated_at FROM projects ORDER BY id').all()
+      .map((r) => [r.slug, r.updated_at]),
+    [['tank', '2026-01-04T00:00:00.000Z'], ['maze', '2026-01-02T00:00:00.000Z']],
+  );
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('run() reports plain numbers, not BigInt', () => {

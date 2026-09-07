@@ -12,6 +12,10 @@ export function createBroker() {
   // than added to each site, because the fourth site is the one that would
   // forget (server/notify.js, spec/ §6).
   let onMessage = null;
+  // The same for a game changing — its tree or its row: seventeen routes say
+  // so, and the eighteenth is the one that would forget to stamp it (app.js,
+  // `projects.updated_at`, spec/ §3).
+  let onChange = null;
 
   function frame(event, data) {
     // JSON.stringify never emits a raw newline, so the payload is always the
@@ -33,6 +37,11 @@ export function createBroker() {
       onMessage = fn;
     },
 
+    // Told the slug of every game whose tree or row just changed.
+    watchChanges(fn) {
+      onChange = fn;
+    },
+
     broadcast(event, data) {
       const payload = frame(event, data);
       for (const [id, client] of clients) {
@@ -47,6 +56,11 @@ export function createBroker() {
       // ⚠️ After the connected tabs, and never awaited: a push service being
       // slow must not hold up a reply landing in the thread.
       if (event === 'message.new' && onMessage) onMessage(data);
+      // The two events that mean the game itself changed. A `version.new` is
+      // the write's commit landing, already counted; a message is talk.
+      if ((event === 'files.changed' || event === 'project.updated') && onChange) {
+        onChange(data.project_slug ?? data.slug);
+      }
     },
 
     // Everyone sees everything, so this is only used for diagnostics and to

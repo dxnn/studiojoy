@@ -169,12 +169,11 @@ const GAME_GROUPS = [
 // above it and the rail's width.
 const groupOpen = (group) => prefs.get(`group-${group.id}`, group.shut ? 'closed' : 'open') === 'open';
 
-// Within a group, the game something last happened in comes first: its last
-// message, or its making when nobody has said anything yet — the same moment
-// the line under its name shows, and applyMessage moves it as messages land.
-// Ties keep the server's order, newest made first. ⚠️ A save with no message
-// moves nothing: the list knows its messages and not its trees (spec/ §6).
-const byChanged = (a, b) => Date.parse(b.last_message_at) - Date.parse(a.last_message_at);
+// Within a group, the game that changed last comes first: a write to its tree
+// or a change to its row, never a message (`updated_at`, spec/ §3) — the
+// stream moves it as writes land. Ties keep the server's order, newest made
+// first.
+const byUpdated = (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at);
 
 // The heading over a group. With a filter typed it is a plain label and every
 // group is open: a filter that hides a match is a filter that lies, and a
@@ -227,7 +226,7 @@ function gameRows(matches) {
 
   const out = [];
   for (const group of GAME_GROUPS) {
-    const found = (group.archived ? games.archived : games.live).filter(group.of).sort(byChanged);
+    const found = (group.archived ? games.archived : games.live).filter(group.of).sort(byUpdated);
     if (found.length === 0) continue;
     out.push(groupHead(group, found.length));
     // Shut, the heading stands alone. Under a filter every group is open, so

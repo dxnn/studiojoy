@@ -693,3 +693,30 @@ test('any account can read any project', async (t) => {
   assert.equal(res.body.name, 'Tank');
   assert.equal(res.body.can_edit, false);
 });
+
+// When a game last changed (spec/ §3): stamped by every write to its tree and
+// every change to its row — from one hook on the broker, so no route has to
+// remember — and by nothing said in it.
+test('updated_at follows the game’s changes and ignores its chat', async (t) => {
+  const app = await studio(t);
+  const made = (await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } })).body;
+  assert.equal(made.updated_at, made.created_at);
+
+  await app.client.json('POST', '/api/projects/tank/messages', { body: { body: 'hello' } });
+  const talked = (await app.client.json('GET', '/api/projects/tank')).body;
+  assert.equal(talked.updated_at, made.updated_at, 'talk is not a change');
+
+  await app.client.put('/api/projects/tank/files/index.html', {
+    headers: { 'content-type': 'text/plain' }, rawBody: '<h1>Tank</h1>',
+  });
+  const saved = (await app.client.json('GET', '/api/projects/tank')).body;
+  assert.ok(saved.updated_at > made.updated_at, 'a save is');
+
+  const before = new Date().toISOString();
+  await app.client.json('PATCH', '/api/projects/tank', { body: { name: 'Tank II' } });
+  const renamed = (await app.client.json('GET', '/api/projects/tank')).body;
+  assert.ok(renamed.updated_at >= before && renamed.updated_at >= saved.updated_at, 'so is a rename');
+
+  const listed = (await app.client.json('GET', '/api/projects')).body;
+  assert.equal(listed[0].updated_at, renamed.updated_at, 'and the list carries it');
+});

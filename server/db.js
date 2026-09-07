@@ -508,6 +508,18 @@ export function openDb(dbPath) {
   // a running counter, not a log, so it stays bounded without pruning. Used
   // only to order the catalog; never shown as a number (server/catalog.js).
   addColumnIfMissing(db, 'projects', 'play_count', 'INTEGER NOT NULL DEFAULT 0');
+  // When the game last changed — a write to its tree or to its row, never a
+  // message (spec/ §3): what the sidebar sorts on. Stamped from a hook on the
+  // broker (app.js), so every route that tells the tabs a game changed counts
+  // it. A game from before the column is dated from its newest message, else
+  // its making: a migration cannot ask git, and the next change corrects it.
+  addColumnIfMissing(db, 'projects', 'updated_at', 'TEXT', (d) => {
+    d.prepare(
+      `UPDATE projects SET updated_at = COALESCE(
+         (SELECT MAX(m.created_at) FROM messages m WHERE m.project_id = projects.id),
+         created_at)`,
+    ).run();
+  });
   // A piece's row lives behind its plan card rather than in the thread (spec/
   // §3, §8): the column names the card. Rows from before it are filed under
   // theirs from the plan, which already knew them.

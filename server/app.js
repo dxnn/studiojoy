@@ -67,6 +67,13 @@ export function createApp({
       });
     });
   }
+  // When a game last changed (spec/ §3): every write to its tree and every
+  // change to its row is broadcast, so the stamp hangs here rather than on
+  // each of the routes that would otherwise have to remember it.
+  broker.watchChanges((slug) => {
+    db.prepare('UPDATE projects SET updated_at = ? WHERE slug = ?')
+      .run(new Date().toISOString(), slug);
+  });
 
   const r = createRouter();
 

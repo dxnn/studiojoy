@@ -80,6 +80,9 @@ function projectPublic(ctx, row, user = null) {
     can_edit: user ? canEdit(db, row, user) : false,
     created_by: row.created_by,
     created_at: row.created_at,
+    // When the game last changed — its tree or its row, never its chat — and
+    // what the sidebar sorts each group on (§3, §6).
+    updated_at: row.updated_at,
     last_message_at: last?.created_at ?? row.created_at,
     preview: last ? last.body.slice(0, 80) : '',
     // How many messages in this project have called *you* by name and not
@@ -199,10 +202,10 @@ export function projectRoutes(r) {
     // started from a blank page (spec.md §3).
     const info = ctx.db
       .prepare(
-        `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(slug, name, kind, template, user.id, now, openEdit);
+      .run(slug, name, kind, template, user.id, now, openEdit, now);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
     // A game gets two conversations from the start: the human-only one, and
     // Building with the builder already in it — a game with nowhere to ask for
@@ -405,10 +408,10 @@ export function projectRoutes(r) {
       // touch it. Its type it does inherit: the files are the same game.
       const info = ctx.db
         .prepare(
-          `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit)
-           VALUES (?, ?, 'game', ?, ?, ?, 1)`,
+          `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit, updated_at)
+           VALUES (?, ?, 'game', ?, ?, ?, 1, ?)`,
         )
-        .run(slug, name, typeOf(ctx, source), user.id, now);
+        .run(slug, name, typeOf(ctx, source), user.id, now, now);
       const id = Number(info.lastInsertRowid);
       // The copy starts with the same two chats every game gets, and a fresh
       // thread in each: a fork is the files and the helpers, not the

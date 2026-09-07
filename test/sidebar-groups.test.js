@@ -3,7 +3,7 @@
 // four things worth holding are that an archived game leaves the other
 // groups whatever else is true of it, that folding is remembered, that a
 // filter can never hide a match behind a shut heading, and that within a
-// group the game something last happened in comes first.
+// group the game that changed last comes first.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { install, all, withClass, hasClass, pressable } from './dom-stand-in.js';
@@ -103,18 +103,18 @@ test('a filter opens every group and takes the folding away', () => {
 });
 
 // The server sends the list newest made first; each group re-sorts it by
-// when something last happened there, and only within itself — a busy game
-// of somebody else's never climbs into Yours.
+// when the game last changed, and only within itself — a busy game of
+// somebody else's never climbs into Yours.
 test('each group lists the most recently changed first', () => {
   store.clear();
   const at = (day) => `2026-09-0${day}T12:00:00.000Z`;
   const tree = open({
     projects: [
-      game('tank', { mine: true, last_message_at: at(1) }),
-      game('bomb', { mine: true, last_message_at: at(3) }),
-      game('kart', { open_edit: true, last_message_at: at(2) }),
-      game('maze', { last_message_at: at(2) }),
-      game('pipe', { last_message_at: at(4) }),
+      game('tank', { mine: true, updated_at: at(1) }),
+      game('bomb', { mine: true, updated_at: at(3) }),
+      game('kart', { open_edit: true, updated_at: at(2) }),
+      game('maze', { updated_at: at(2) }),
+      game('pipe', { updated_at: at(4) }),
     ],
   });
   assert.deepEqual(names(tree), ['bomb', 'tank', 'kart', 'pipe', 'maze']);

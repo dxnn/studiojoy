@@ -204,13 +204,10 @@ export function applyMessage(data) {
     if (entry?.trace) keepTrace(data.id, entry.trace, entry.open === true);
     map.delete(data.agent_id);
   }
-  // Whoever said it and wherever it landed, the game's row in the sidebar now
-  // says this, and its group lists it first for it (sidebar.js).
+  // Whoever said it and wherever it landed, the line under the game's name in
+  // the sidebar now says this. It moves nothing: talk is not a change.
   const row = S.projects.find((p) => p.slug === data.project_slug);
-  if (row) {
-    row.last_message_at = data.created_at;
-    row.preview = data.body.slice(0, 80);
-  }
+  if (row) row.preview = data.body.slice(0, 80);
   // A piece's row lands behind its plan card (spec.md §8): the card's own
   // update carries what the thread shows of it, so this adds nothing to the
   // thread and marks nothing unread — the card did that when it arrived.
@@ -408,7 +405,11 @@ function onEvent(name, data) {
       // Any game's icon: the sidebar wears them all, so this one is looked at
       // before the guard that keeps the rest to the open game.
       if (data.paths.includes(ICON_IMAGE)) refreshIcon(data.project_slug);
-      if (!mine(data)) return;
+      // Any game's row moves up its group: the tree changed, which is what the
+      // list sorts on (sidebar.js). This tab's clock, and now is newest.
+      const row = S.projects.find((p) => p.slug === data.project_slug);
+      if (row) row.updated_at = new Date().toISOString();
+      if (!mine(data)) { render(); return; }
       // A new wallpaper or hero redresses the studio, and the loader reads
       // S.files for what exists — so the tree has to land first. The story
       // editor reads it the same way, and its stage drops the pictures that

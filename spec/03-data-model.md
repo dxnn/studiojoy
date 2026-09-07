@@ -165,6 +165,15 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |
 | `created_by` | INTEGER NOT NULL → users | the **originator**: the one account that may archive the game (§11). Display otherwise |
 | `created_at` | TEXT NOT NULL | |
+| `updated_at` | TEXT | when the game last changed: its tree or its row, never its chat. What the sidebar sorts each group on (§6) |
+
+`updated_at` is stamped from one hook on the broker (`watchChanges`, the
+same place web push hangs) on every `files.changed` and `project.updated`:
+seventeen routes broadcast one of those, and the eighteenth is the one that
+would forget to stamp it. A `version.new` is a write's commit landing, already
+counted; a message is talk, and does not count. Set to `created_at` on
+insert. ⚠️ A game from before the column is dated from its newest message,
+else its making — a migration cannot ask git — and the next change corrects it.
 
 The slug is immutable in v0 — renaming it would move the directory and break
 public game URLs. `name` is freely editable.

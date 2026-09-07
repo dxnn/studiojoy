@@ -31,7 +31,9 @@ how `collection.changed` shipped inert the first time.
 `files.changed` is what makes the studio feel live: an agent writes a file and
 the game in your preview pane reloads. It stopped meaning "a version landed"
 when saves stopped committing at once; `version.new` says that now, and the
-two arrive together for every commit but a save's.
+two arrive together for every commit but a save's. `files.changed` and
+`project.updated` are also what stamp `projects.updated_at`, from a hook on
+the broker beside the one web push hangs on (§3).
 
 A streaming reply exists nowhere but the tabs watching the stream until the
 fire ends, so the client buffers it **per game** and never clears a buffer on
