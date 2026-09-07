@@ -7,11 +7,14 @@
 // or from the game being **open**, which its authors set when they want the
 // whole studio in it.
 //
-// Two things are deliberately outside the rule:
+// Three things are deliberately outside the rule:
 //
 // - **The human-only chat of any game is everyone's.** Talking to the people
 //   in the studio is not editing their game, and a game you cannot say
 //   anything about is a strange thing to be able to see.
+// - **A chat project is everyone's.** It has no files to protect, and a
+//   conversation somebody started that nobody else may join is not a chat.
+//   Whatever its `open_edit` says — nothing reads it for a chat.
 // - **The author list itself is authors-only, even when the game is open.**
 //   Open means anybody may work on it, not that anybody may decide who does.
 
@@ -21,7 +24,8 @@ export const isAuthor = (db, projectId, userId) => Boolean(db
   .prepare('SELECT 1 FROM project_authors WHERE project_id = ? AND user_id = ?')
   .get(projectId, userId));
 
-export const canEdit = (db, project, user) => project.open_edit === 1
+export const canEdit = (db, project, user) => project.kind === 'chat'
+  || project.open_edit === 1
   || isAuthor(db, project.id, user.id);
 
 // Somebody removed from the studio keeps their `project_authors` row — that

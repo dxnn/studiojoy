@@ -58,12 +58,17 @@ in `routes/helpers.js` is the one place it is applied: a route says it writes,
 and saying so is what makes it refuse. A route that means to be an exception
 says `anyone: true` and takes the check itself.
 
-Two exceptions, both on purpose:
+Three exceptions, all on purpose:
 
 - ⚠️ **The human-only chat of every game is everyone's.** Anyone in the studio
   may post in it, whoever's game it is. Talking to the people here is not
   editing their game, and a game you can see but cannot say a word about is a
   strange thing to be able to see. Every other chat takes the game's own rule.
+- ⚠️ **A chat project is everyone's.** Anyone in the studio may talk in it,
+  rename it and put a helper in it, whoever made it: it has no files to
+  protect, and a conversation nobody else may join is not a chat. `canEdit`
+  says so before it looks at `open_edit`, which nothing reads for a chat — so
+  it wears no padlock and offers no `Editors`. Archived still stops everyone.
 - ⚠️ **The author list is authors-only, even when the game is open.** Open
   means anybody may work on it, not that anybody may decide who does — so
   `POST /authors`, `DELETE /authors/:id` and `POST /open` all require

@@ -691,9 +691,9 @@ This is a studio of people who trust each other: a game nobody else may
 touch should be a decision somebody made, not the default. A fork starts
 open too, whatever the original was. ⚠️ Stated at the INSERT rather than the
 column's default (which stays 0), since a database from before already has
-the column and SQLite can't change a default after the fact. Chat projects
-stay closed — no working tree, and `open_edit` there is about who may start
-chats in somebody's conversation.
+the column and SQLite can't change a default after the fact. A chat project
+is everyone's by rule rather than by column (§11): nothing reads its
+`open_edit`, so it wears no padlock and has no `Editors`.
 
 **The rail is the running game, and no tabs**: the preview, `Open` and
 `Hide` on the frame since both act on the game, and under it the problems

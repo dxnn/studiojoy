@@ -188,11 +188,11 @@ export function projectRoutes(r) {
     const now = new Date().toISOString();
     // A new game is open: this is a studio of people who trust each other, and
     // a game nobody else may touch should be a decision somebody made rather
-    // than what happens to everything by default. A chat project is not — it
-    // has no working tree, and open_edit there decides who may start chats in
-    // somebody else's conversation. Set here rather than as the column's
-    // default: an existing database already has the column, and SQLite cannot
-    // change a default after the fact.
+    // than what happens to everything by default. A chat project is everyone's
+    // by rule (authors.js), so nothing reads this of one and it keeps the
+    // column's default. Set here rather than as the column's default: an
+    // existing database already has the column, and SQLite cannot change a
+    // default after the fact.
     const openEdit = kind === 'game' ? 1 : 0;
     // The template's key is the game's type from here on: what decides the
     // editors the centre offers and how helpers are briefed. Null for a game

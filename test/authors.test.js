@@ -1,10 +1,10 @@
 // Who may change a game.
 //
 // Being in the studio lets you read everything and talk to everybody. Changing
-// a game takes being one of its authors, or the game being open. The two
+// a game takes being one of its authors, or the game being open. The three
 // deliberate holes in that rule are tested here too: the human-only chat of
-// every game is everyone's, and the author list is authors-only even when the
-// game is open to all.
+// every game is everyone's, so is a chat project, and the author list is
+// authors-only even when the game is open to all.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -106,6 +106,41 @@ test('anyone can talk in the human-only chat of any game', async (t) => {
   });
   assert.equal(nope.status, 403);
   assert.match(nope.body.error, /Humans only/);
+});
+
+// ⚠️ The other hole: a chat project is everyone's, whoever made it — to talk
+// in, to put a helper in and to rename. It has no files to protect, and a
+// conversation nobody else may join is not a chat.
+test('a chat project is everyone’s, whoever made it', async (t) => {
+  const { app, theirs } = await two(t);
+  const made = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Random Thoughts', slug: 'random', kind: 'chat' },
+  });
+  assert.equal(made.status, 201);
+  assert.equal(made.body.open_edit, false, 'the column says nothing about a chat');
+  const room = made.body.chat.id;
+
+  const detail = await theirs.json('GET', '/api/projects/random');
+  assert.equal(detail.body.can_edit, true);
+  assert.equal(detail.body.mine, false, 'joining it does not make it yours');
+
+  const said = await theirs.json('POST', '/api/projects/random/messages', {
+    body: { body: 'hello everyone', chat_id: room },
+  });
+  assert.equal(said.status, 201);
+
+  const helper = await theirs.json('POST', '/api/agents', {
+    body: { name: 'Steve', description: 'Helps.' },
+  });
+  const put = await theirs.json('POST', `/api/projects/random/chats/${room}/agents`, {
+    body: { agent_id: helper.body.id },
+  });
+  assert.equal(put.status, 201);
+
+  const renamed = await theirs.json('PATCH', '/api/projects/random', {
+    body: { name: 'Everyone’s thoughts' },
+  });
+  assert.equal(renamed.status, 200);
 });
 
 test('an author adds somebody, and then they can change it', async (t) => {
