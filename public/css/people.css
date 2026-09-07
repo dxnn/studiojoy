@@ -17,7 +17,13 @@
    own that pushes the whole row onto a second line. */
 .person select { flex: 1 1 10rem; min-width: 8rem; }
 .person .hint { flex: 0 0 auto; }
-.person button.on { color: var(--num); border-color: color-mix(in oklab, var(--num) 50%, transparent); }
+/* A toggle that is on: Admin, In the studio, and the password row's own
+   switch. Cyan, because this is a state and cyan is the studio's own voice —
+   New game, the open tab, the active row. It was gold, which is a score or a
+   version and nothing else: gold that also means "active" means nothing, and
+   these three are the only place in the studio it had drifted (CLAUDE.md,
+   test/style.test.js). */
+.person button.on { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
 /* What a row's button revealed, on its own line under the row: the new
    password field and the button that sets it. */
 .person .person-more { flex: 1 0 100%; display: flex; align-items: center; gap: 6px; padding: 2px 0 4px; }

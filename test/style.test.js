@@ -82,6 +82,46 @@ test('a mark with no words in it says what kind of box it is', () => {
   assert.match(rule[1], /display:\s*inline-block/, 'or no background can paint it');
 });
 
+// ⚠️ Gold is the one colour to police (CLAUDE.md): it means a number worth
+// looking at — a score, a version — and nothing else, because the moment it
+// means "active" as well it means nothing. `--num` is that gold, and this is
+// the rule as a list: every rule that paints text with it, and what number
+// that text is. A new one has to be named here, which is the point — naming
+// it is where somebody notices it is not a number.
+//
+// Only `color`. A gold border is a weaker claim and there is one on purpose:
+// the version tag's edge. Text is what the rule is about.
+const GOLD_TEXT = new Map([
+  ['.tok-num', 'a numeric literal, coloured by the highlighter'],
+  ['.knob-value', "a sound parameter's value"],
+  ['.score-row .sval', 'a score'],
+  ['.tag.version', 'a version'],
+  ['.preview-foot .best', 'a personal best'],
+  ['.tokens .low', 'a token count, nearly out'],
+  ['.tokens button.link:hover:not(:disabled)', 'the token count itself, under the pointer'],
+  ['.commit .meta .sha', 'a version, mixed toward muted'],
+]);
+
+test('gold paints a number and nothing else', () => {
+  const css = allCss.replace(/\/\*[\s\S]*?\*\//g, '');
+  const painted = [];
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    // `color:` alone — `border-color:` and `background-color:` are not it.
+    if (!/(?:^|[;{\s])color:\s*[^;]*--num/.test(body)) continue;
+    painted.push(selector.trim().split('\n').pop().trim());
+  }
+  const unnamed = painted.filter((s) => !GOLD_TEXT.has(s));
+  assert.deepEqual(
+    unnamed, [],
+    'gold on something not named a number — either it is one, and belongs in '
+    + 'GOLD_TEXT with what it counts, or it is not, and wants --accent',
+  );
+  // The other direction: an entry whose rule is gone is a rule nobody is
+  // keeping any more, and a list that drifts is not a rule.
+  const stale = [...GOLD_TEXT.keys()].filter((s) => !painted.includes(s));
+  assert.deepEqual(stale, [], 'named as gold but no longer painted gold');
+});
+
 // `send()` is the one place that names fetch, so a request that never reached
 // the studio can set the not-connected state from one place (spec.md §17).
 test('nothing in the client calls fetch but send()', () => {

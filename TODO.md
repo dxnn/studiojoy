@@ -157,9 +157,11 @@ deliberately deferred.
   before it goes in
 - ! grow `npm run ui` past its first two files. `marks.ui.js` checks the bug
   that made the harness necessary and `touch-fields.ui.js` holds the 16px
-  rule; still to write: gold as a *computed* colour rather than a class name,
-  nothing scrolling the body sideways at 390px, and a real pointer sliding
-  between drawn touch controls. ⚠️ A coding agent cannot run any of them —
+  rule; still to write: nothing scrolling the body sideways at 390px, and a
+  real pointer sliding between drawn touch controls. (Gold went the other way
+  — a list of every rule that paints with `--num` in `test/style.test.js`,
+  which reaches the admin panel a URL cannot and runs in `npm test`.)
+  ⚠️ A coding agent cannot run any of them —
   Chrome will not start in the agent sandbox, so these are written by one and
   run by a person
 - drop `agents.reasoning` once the thinking level has stuck in production; it
