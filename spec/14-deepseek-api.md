@@ -288,12 +288,26 @@ prompt, ~12.3 K tokens, a transcript growing one exchange a round. A request
 with no tools and the with-tools request straight after it, same round, hit
 95% on the first round and 99–100% every round after, against 99% for the
 tools-every-time control; the array costs 455 prompt tokens and those are all
-that misses. So a no-tools call — the sizing call — warms the fire that
-follows it. (The branch-point rule above would have predicted 0% for that
-first with-tools request, which diverges from the no-tools one at a depth
-nothing had diverged at before; it did not. Whether the rule is really about
-divergence *inside* a block, or the cache has changed since 2026-08-23, is
-unresolved — one arm, one run.)
+that misses.
+
+⚠️ **What that did and did not show**, resolved 2026-09-06 by DeepSeek's own
+caching guide (`api-docs.deepseek.com/guides/kv_cache/`) and one production
+receipt. The guide's rule: a request hits only when it **fully matches a
+cache prefix unit**. Units are persisted at request boundaries — the end of
+the user input and of the model output — when a common prefix is detected
+across requests, and at fixed intervals in a long input, size unstated. A
+divergence mid-prompt hits nothing the first time; the common prefix is then
+persisted on its own and later requests matching it hit. That is the
+branch-point rule above, stated by the vendor. The probe's two arms shared
+their last user message, so the with-tools request *fully matched* the
+no-tools request's unit and extended it — which also says the tools array is
+serialised after the messages. In the builder's room the fire's last user
+message is the sizing's *without* the ask, so the fire diverges at the tail of
+that message, at a depth that moves every turn: a production receipt shows
+the sizing and the fire's first request both missing. The sizing does **not**
+warm the fire as §8 assumed; a fire that carries the sizing exchange and adds
+its turn on top would (ideas/planner.md, second chapter). The cache lasts
+"hours to days" once idle.
 
 Within one tool-call chain, the model's own output — the **reasoning trace
 included** — is re-attached server-side to the next request's prompt and
@@ -302,7 +316,7 @@ prompt grows by the previous request's `completion_tokens`, not by the bytes
 the client appended (measured in `tmp/probe-reasoning-replay.mjs`,
 2026-08-28, and visible in any multi-request receipt). It **accumulates** —
 every earlier round's trace stays in the prompt until the chain closes — and
-rides the prefix cache at a tenth, so a long fire pays a tenth of an
+rides the prefix cache at the hit price, so a long fire pays a thirtieth of an
 ever-growing pile on every request: roughly quadratic in the round count. A
 `role: 'user'` message **closes the chain and sheds the whole pile** from
 billing (measured: the prompt shrank by the accumulated trace), at the price

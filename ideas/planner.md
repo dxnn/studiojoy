@@ -264,3 +264,172 @@ already named its files:
 6. The cap hands its trace to the planner.
 7. spec/ §8 and the GLOSSARY entries losing their "Planned"; `npm test`
    green at every step. §14 already carries the measurements.
+
+---
+
+# Second chapter: the plan is the reply
+
+Decided 2026-09-06, with the prices read off DeepSeek's price page and the
+caching guide read (both now in §14) and one look at a production receipt.
+Unbuilt except step 1 of the build order below; TODO.md points here. Three
+things drive it, in the order they were said: cost, a kid who does not want a
+wall of text, and a builder that is useful — a focused fix stays focused, a
+bigger ask gets a plan, and the kids asked to be able to edit the plan.
+
+## What the first chapter got wrong
+
+**The sizing does not warm the fire.** A production receipt shows the first
+two requests of a builder reply — the sizing and the fire's first — both
+missing. The caching guide says why: a request hits only when it **fully
+matches a cache prefix unit**; units close at request boundaries, at the end
+of the user input and the model output; a divergence mid-prompt hits nothing
+the first time, and the common prefix is persisted for the requests after it.
+The sizing's ask makes its last user message longer than the fire's, so the
+fire diverges at the tail of that message, at a depth that moves every turn.
+The tools-cache probe's two arms shared their last message, so the second was
+an *extension* of the first — which also says the tools array is serialised
+after the messages, and resolves §14's "unresolved" note. The probe was right
+about the probe and wrong about the room.
+
+**The way round it is the guide's own example: the next message goes on top
+of the last one.** A fire in the builder's room is the sizing's transcript —
+the ask still on the last user message, the JSON answer as the assistant turn
+— plus one more user turn: a go-ahead for a small ask, the piece turn for a
+piece. The fire then fully matches the sizing's unit and pays hit price for
+everything up to it. Piece 2 diverges from piece 1 exactly at that unit's
+boundary, so it matches too; every piece's miss is its own turn and nothing
+else. The JSON in the prefix costs a few hundred tokens at hit price.
+
+**The prices.** §14 has the table. Two ratios matter: a hit is a thirty-first
+of a miss, output is three times a miss — and the reasoning trace is output.
+One `low` trace of 6,886 tokens costs what 21 K missed or 650 K remembered
+tokens cost. So the thinking level is the first-order lever, pieces at `none`
+stands, and everything below about the file block is second-order. The budget
+formula now uses the price list's weights (done 2026-09-06, §8).
+
+## The frozen block and fresh copies
+
+Under the extension, the sizing's whole file block sits in every piece's
+prefix at hit price — so a piece's block is the sizing's, **frozen**: the
+files as they were when the turn began, the size listing frozen with them.
+What changed since rides the piece turn as **fresh copies** — the current
+whole text of the files this piece will write, and a line naming the rest that
+changed. Whole copies rather than diffs: `patch_file`'s `old_text` has to
+match the file as it is *now*, exactly once, and a model applying a diff in
+its head gets that wrong, where a whole copy of a few-hundred-line file is not
+much bigger than the diff. Today's narrowed block diverges just after the
+description on every piece — preamble hits from piece 2, files always miss —
+and the piece sees only its own files.
+
+**The checker.** With T the tree, F a piece's files, k the requests in its
+loop and R the hit ratio, a frozen piece costs about `k·T/R` miss-equivalents
+and a narrowed one about `F·(1 + (k−1)/R)`. At R = 30 and k = 4, narrowing
+only pays once a piece's files are under about an eighth of the tree; for a
+40 K-token tree and a 6 K piece the two are within a fifth of each other, and
+the frozen one sees everything. So: frozen by default, narrowed when the tree
+is more than about eight times the plan's largest piece, decided once per
+plan from the plan's own file lists. Arithmetic at plan time — after the probe
+has measured the hit rates it assumes.
+
+**Per-chat baseline**, deferred: a baseline commit plus everything changed
+since, re-baselined when the delta outgrows a fraction of the block, the shape
+the history trim already has. It subsumes the frozen block and would end the
+first-edit full miss on ordinary fires too, but it puts two copies of every
+changed file in every prompt and touches every room. Its win is the share of
+fires that land at a new depth today, which the receipts can count first.
+
+## A plan for everything
+
+- **Two answers from the sizing**: `reply`, for a question or a remark, which
+  is a plain bubble; or `pieces`, one to six. One piece no longer collapses
+  into "small" — it is the common case and it **runs at once**, no draft, so
+  a focused fix stays focused. A one-piece plan runs at `low`, since no plan
+  thought for it; the pieces of a bigger plan at `none`, as measured.
+- **The card is the one reply.** A piece keeps its commit (Versions shows
+  every step), its receipt, its working and its thinking; its message row
+  moves *behind* the card — a column on `messages` naming the card, the row
+  left out of the thread and of history, opened in the piece's own line on
+  the card. `plan.update` already carries each piece's message id.
+- **Headline.** A piece ends with one closing paragraph, asked for in the
+  piece turn and kept as the piece's note (today: the reply's first line).
+- **Synopsis.** On a plan of two or more pieces, one no-tools call with the
+  headlines alone — a few hundred tokens, where the synopsis §8 declined rode
+  the fire's whole context at ~10 K. For one piece the headline is the
+  synopsis.
+- **What history replays** is the card's body: the synopsis, then per piece
+  its title, its headline and the files it changed. Never a piece's row.
+- **Refinement on overrun.** A piece that uses its budget is not done — today
+  it counts as done and the next piece builds on half a job. Instead what it
+  did goes back to the sizing the way a small ask's does (`begunNote`), and the
+  rest nests under that piece as **sub-pieces**, one level and no deeper.
+  Pause, resume and drop read the nested list flattened; the card shows
+  sub-pieces appearing under their piece.
+- **Pro.** `deepseek-v4-pro` exists, its behaviour against tools is unmeasured
+  (the cliff was measured on Flash), a model switch is a cold cache and its
+  miss is three times Flash's. Escalate one piece on its second failure, if a
+  probe says it earns it; nothing before the probe.
+
+## The draft card
+
+- **A plan of two or more pieces waits.** Status `draft`: nothing runs and
+  nothing is charged until **Build it** — one click, no confirmation, since
+  building is not destructive. The cache lasts hours to days, so the wait
+  costs nothing.
+- **What the card holds**, and nothing else: one paragraph of what the game
+  is (the plan's *summary*), the pieces one line each, and the
+  **assumptions** the planner made, as lines. Editable: a field per piece; a
+  `···` per piece with remove, move up, move down; one bordered `Add a
+  piece`; `Build it`. The files a piece names are shown dimmed — a technical
+  affordance, present and not primary.
+- **Assumptions, not questions.** Steve asked before building, and it cost a
+  turn per question and a kid's patience. The planner writes what it decided
+  as editable lines instead; a kid who agrees presses Build, one who does not
+  edits the line. No round trip, and the behaviour is the harness's rather
+  than a description's — the rule ideas/agent-descriptions.md settled.
+- **Files stay the planner's and become advisory.** Under the frozen block a
+  piece sees everything, so `files` shapes only the fresh copies and the
+  scope line. That is what makes a kid's rewrite safe: a wrong file list no
+  longer blinds the piece.
+- **An edit gets one check.** On Build after an edit, one sizing call with
+  the kid's words kept, files filled in, anything too big split. Unedited,
+  the plan runs as written.
+- **The first request in a game is the spec moment.** Its summary and
+  assumptions are the game's settled decisions, chosen by a person. Build
+  writes them once to `SPEC.md`, a studio-authored commit, which the preamble
+  already asks helpers to keep and which rides every later fire. Later plans
+  never touch it. Progress stays in the `plans` row, as decided above on
+  2026-09-03.
+- **A paused plan opens the same card.** A message mid-plan still re-sizes
+  with the pieces to do, as today; editing the card is the second way.
+- **Data and routes.** `plans` gains `status = 'draft'`, `summary` and
+  `assumptions` (JSON, one string each). Two routes: edit a plan while it is
+  draft or paused, and build it. `plan.update` carries the change.
+
+## Names
+
+Candidates, not yet in GLOSSARY.md; they enter it in the commit that builds
+each: *draft* (a plan's waiting status), *Build it* (the button), *assumption*,
+*headline* (a piece's closing paragraph), *synopsis*, *sub-piece*, *frozen
+block*, *fresh copies*, *extension* (a request that fully matches the one
+before it).
+
+## Build order
+
+1. The budget formula on the price list's weights (done 2026-09-06).
+2. **Probe** (`tmp/probe-extension.mjs`): the tank plan three ways —
+   narrowed as today, frozen and extended, whole tree refreshed — hit rates
+   per piece and per request; and an ordinary small ask as an extension of
+   its sizing against today's shape. Everything below assumes its answer.
+3. **The extension**: every fire in the builder's room is the sizing's
+   transcript plus one turn. A receipt shows the first request hitting.
+4. The frozen block and the fresh copies on the piece turn; the checker.
+5. `reply`/`pieces`; one piece is a plan and runs at once; the headline as
+   the note; the card as the one reply, rows behind it, history replaying
+   the card.
+6. The synopsis call; refinement on overrun as sub-pieces.
+7. The draft card: status, summary, assumptions, the edit and build routes,
+   the card in the client, one click to Build it.
+8. `SPEC.md` on a first Build.
+9. The Pro probe, and escalation only if it earns it.
+10. spec/ §3, §6, §8, §9 and GLOSSARY.md ride the commit that finishes each
+    step; `npm test` green at every one.

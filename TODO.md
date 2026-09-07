@@ -3,6 +3,19 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
+- ! probe the builder's cache three ways, then make every fire in `Building`
+  an extension of its sizing call — a production receipt shows the first two
+  requests of a builder reply both missing (ideas/planner.md, second chapter,
+  steps 2–4)
+- ! make the plan the reply: `reply` or `pieces` from the sizing, one piece
+  runs at once, the piece rows behind the card, a headline per piece and a
+  synopsis, sub-pieces on overrun (ideas/planner.md, second chapter, steps 5–6)
+- ! the draft card: a plan of two or more pieces waits, editable, one click to
+  Build it; a first request writes `SPEC.md` (ideas/planner.md, second
+  chapter, steps 7–8)
+- probe `deepseek-v4-pro` against tools at `none` before any escalation
+  (ideas/planner.md, second chapter, step 9)
+
 - ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
   the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
   description is a database row, so it does not ride the deploy the way the

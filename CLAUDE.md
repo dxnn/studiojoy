@@ -368,6 +368,13 @@ Open questions:
   two tall stacked things are usable. Both are TODO lines.
 - Networked multiplayer is unbuilt and no longer blocked — the scoreboard
   settled whether the games origin can hold state. See `ideas/next-five.md`.
+- **The builder's second chapter** (ideas/planner.md, decided 2026-09-06,
+  unbuilt): the sizing call does not warm the fire after it — a production
+  receipt shows both missing, and DeepSeek's caching guide says why (§14) —
+  so every fire in `Building` becomes an extension of its sizing; the plan
+  becomes the one reply, with the piece rows behind the card; and a plan of
+  two or more pieces waits as an editable draft behind one click. The budget
+  formula already carries the price list's weights (§8, §14).
 - Deferred by choice: spec/ §15. Typing previews are permanently out (§2).
 
 ## Git policy (overrides global)
