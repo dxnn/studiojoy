@@ -719,8 +719,16 @@ export function dialogFor(d) {
       'aria-label': 'The picture. Drag a box around the part you want; drag inside the box to move it.',
     });
     const preview = h('canvas', { class: 'pixel-preview', 'aria-label': 'What it becomes' });
-    const size = h('select', { 'aria-label': 'How big, on its longest side' },
-      SIZES.map((n) => h('option', { value: n, text: `${n} pixels` })));
+    // The editor's own sizes for pixel art, then two more for a plain crop and
+    // shrink: a backdrop or a hero is bigger than pixel art and still wants
+    // cutting down, up to what the editor opens.
+    const shrinkTo = [
+      ...SIZES.map((n) => [n, `${n} pixels`]),
+      [512, '512 pixels — a backdrop'],
+      [MAX_SIDE, `${MAX_SIDE} pixels — as big as the editor opens`],
+    ];
+    const size = h('select', { 'aria-label': 'Shrink: how big, on its longest side' },
+      shrinkTo.map(([n, text]) => h('option', { value: n, text })));
     size.value = '64';
     const snap = h('input', { type: 'checkbox' });
     snap.checked = true;
@@ -772,7 +780,15 @@ export function dialogFor(d) {
       preview.width = picture.width;
       preview.height = picture.height;
       preview.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
-      note.textContent = `${picture.width} × ${picture.height} pixels`
+      // The box in the picture's own pixels, not the working copy's, so the
+      // numbers are the ones the person knows.
+      const [fullW, fullH] = d.full;
+      const k = fullW / source.width;
+      const whole = box.w === source.width && box.h === source.height;
+      const from = whole
+        ? `The whole ${fullW} × ${fullH}`
+        : `The ${Math.round(box.w * k)} × ${Math.round(box.h * k)} you boxed`;
+      note.textContent = `${from} becomes ${picture.width} × ${picture.height} pixels`
         + (snap.checked ? `, in the game’s ${colours.length} colours` : '')
         + (nudged ? ', one narrower so the sprites library does not play it as a film strip' : '')
         + `. ${landing}`;
@@ -863,6 +879,7 @@ export function dialogFor(d) {
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(bitmap, 0, 0, w, hgt);
+      d.full = [bitmap.width, bitmap.height];
       bitmap.close();
       d.source = pictureFrom(w, hgt, ctx.getImageData(0, 0, w, hgt).data);
       d.box = { x: 0, y: 0, w, h: hgt };
@@ -892,11 +909,13 @@ export function dialogFor(d) {
       : null;
 
     return wide('Make pixel art',
-      h('label', { text: 'Drag a box around the part you want. Drag inside the box to move it.' }),
+      // Named for the two things somebody comes here looking for. The box
+      // starts as the whole picture, so until a drag there is no edge to see.
+      h('label', { text: 'Crop: drag a box around the part you want. Until you do, it is the whole picture. Drag inside a box to move it.' }),
       stage,
       h('div', { class: 'pixel-art-row' },
         whole,
-        h('label', { text: 'How big, on its longest side?' }), size,
+        h('label', { text: 'Shrink: how big, on its longest side?' }), size,
         h('label', { class: 'check' }, snap, ' Use the game’s colours')),
       h('label', { text: 'What it becomes' }),
       preview,

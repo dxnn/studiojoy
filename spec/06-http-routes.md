@@ -279,9 +279,13 @@ Seven choices worth naming:
   (`pixel-art` in `dialogs.js`; ideas/pixel-editor.md, item 4): in any
   picture's `···`, and offered by Upload before the bytes land for a picture
   over `MAX_SIDE`, the one kind the editor cannot open. A box dragged around
-  the part wanted, the longest side brought to one of the editor's sizes, and
-  — on by default — every pixel snapped to the game's palette with every edge
-  made hard, the result shown blocked up before anything is written. Four
+  the part wanted (the crop), the longest side brought to one of the editor's
+  sizes — or to 512 or `MAX_SIDE`, for a backdrop or a hero that is not pixel
+  art and still wants cutting down (the shrink) — and, on by default, every
+  pixel snapped to the game's palette with every edge made hard, the result
+  shown blocked up before anything is written, with the note saying what size
+  was boxed and what it becomes. The labels say *Crop* and *Shrink*, since
+  those are the two things somebody comes looking for. Four
   operations in `pixel-editor.js`, each tested without a screen: a crop, a
   box-average shrink weighted by alpha, the nearest palette colour, and
   posterize. The dialog works on a working copy fitted into `MAX_SIDE`, so a
