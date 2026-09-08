@@ -21,7 +21,7 @@ test('the arc shows in Building, folds on its head, and a press earns a stamp', 
   assert.equal(await page.locator('.arc-next').textContent(), 'What is it?');
 
   // The button is a thumb's size.
-  const earn = page.getByRole('button', { name: /This one’s earned/ });
+  const earn = page.getByRole('button', { name: /This one’s done/ });
   const box = await earn.boundingBox();
   assert.ok(box.height >= 32, `the earn button is ${box.height}px tall`);
   await earn.click();

@@ -1328,21 +1328,20 @@ export function dialogFor(d) {
     };
     paint();
     return wrap('Editors',
-      h('p', { class: 'hint muted', text: 'Anyone in the studio can read this game, play it and talk in \u201cHumans only\u201d. These are the people who can change it.' }),
+      h('p', { class: 'hint muted', text: 'Add folks who worked on this game!' }),
       list,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
   }
 
-  // A new chat always takes helpers: the one that does not is the one the
-  // game was born with.
+  // Add a new chat
   if (d.kind === 'new-chat') {
-    const name = h('input', { placeholder: 'Art, or Music, or Bug hunt' });
-    return wrap('Start another chat',
-      h('label', { text: 'What is it about?' }), name,
-      h('p', { class: 'hint muted', text: 'A new chat can have helpers in it. The one called “Humans only” never can.' }),
+    const name = h('input', { placeholder: 'Art, Music, Bug Hunt -- that kind of thing' });
+    return wrap('Start a chat',
+      h('label', { text: "What's it called?" }), name,
+      h('p', { class: 'hint muted', text: 'Every new chatroom is a new opportunity to be your best self' }),
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Start it',
+        class: 'filled', text: 'Do it',
         onclick: async () => {
           const called = name.value.trim();
           if (!called) return;
@@ -1365,8 +1364,8 @@ export function dialogFor(d) {
         list.replaceChildren(h('p', {
           class: 'hint muted',
           text: S.agents.length
-            ? 'Every helper in the studio is already in this chat.'
-            : 'There are no helpers yet. Make one with + New helper on the Crew tab.',
+            ? 'Everyone is here already.'
+            : 'There are no helpers yet. Make one in the Crew tab of the left sidebar.',
         }));
         return;
       }
@@ -1384,7 +1383,7 @@ export function dialogFor(d) {
     };
     paint();
     return wrap('Put a helper in this chat',
-      h('p', { class: 'hint muted', text: 'They will answer every message here. You can also call one in while you type — an @ and their name, the same way you call a person.' }),
+      h('p', { class: 'hint muted', text: 'You can also call one in while you type — an @ and their name, the same way you call a person.' }),
       list,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
@@ -1473,8 +1472,8 @@ export function dialogFor(d) {
     return wrap(d.name ? `Take out ${d.name}?` : 'Take out this achievement?',
       h('p', {
         text: d.players
-          ? `${who} earned it. They keep it, and see it again if an achievement with the same id comes back.`
-          : 'Nobody has earned it yet.',
+          ? `${who} have already earned this achievement. If you bring it back, they'll have it again.`
+          : 'Nobody has earned this achievement yet.',
       }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'danger', text: 'Take it out',

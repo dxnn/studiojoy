@@ -665,7 +665,7 @@ function helperGap() {
     const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
     return h('div', { class: 'notice' },
       `Your helpers only answer when you call them. Try starting your message with ${names}, `,
-      'or click a helper’s name at the top to make them always answer.');
+      'or click the helper’s "..." and pick "Answer everything".');
   }
   // The chat, not the game: a helper is in one conversation, so this one
   // having nobody in it says nothing about the others.

@@ -88,7 +88,7 @@ export function renderArcCard(p) {
         // (test/ui/arc-card.ui.js). The asks beside it stay small — a row of
         // them at full size would push the earn button off the line.
         h('button', {
-          class: 'filled', text: 'This one’s earned ✓', title: `Give the game its “${next.name}” stamp`,
+          class: 'filled', text: 'This one’s done ✓', title: `Give the game its “${next.name}” stamp`,
           onclick: () => setStage(stage + 1),
         })) : null);
   }

@@ -61,32 +61,31 @@ const OUT = stamp(
 
 // What a blank game asks first: the sentence a template would have answered.
 const WHAT = stamp(
-  'what', 'What is it?',
-  'One sentence: you are X and you do Y. Or start again from a template.',
-  'If you cannot say it in a sentence, you cannot build it in a week.',
-  [{ text: 'a SPEC.md saying what the game is', test: (f) => has(f.files, is('SPEC.md')) }],
+  'what', 'Step 1: What is this game?',
+  'Try to describe it in one sentence: you are an X, and you do Y!',
+  'Change the SPEC.md file after it is made, so it matches what you want.',
+  [{ text: 'Goal: a SPEC.md file that describes the game', test: (f) => has(f.files, is('SPEC.md')) }],
   [ask('Write the spec', 'Write SPEC.md from this one sentence about the game: ')],
 );
 
 export const ARCS = {
   arcade: [
     stamp(
-      'moves', 'It moves',
-      'Make the toy before the game: one thing you do, and it feels good to do with no score at all.',
-      '“Find the fun first.” If moving around is not fun for a minute, no score will save it.',
+      'moves', 'Step 2: It moves!',
+      'Make a toy before you make the full game: get one thing working and feeling good.',
+      "“Find the fun first.” -- if the basic game loop isn't fun, more features won't save it.",
       [
         { text: 'a script in js/', test: (f) => has(f.files, under('js')) },
         { text: 'the controls in config/controls.js', test: (f) => has(f.files, is('config/controls.js')) },
       ],
       [
-        ask('Make it move', 'Make the thing I steer move, and make it feel quick.'),
-        ask('Just the toy', 'Take everything off the screen except the thing I steer, so I can try how it feels.'),
+        ask('Make it move', 'Make just the basic game loop, none of the extra features. Just a little toy to test out the movements.'),
       ],
     ),
     stamp(
-      'loops', 'It loops',
-      'Do, get, want more: a score, something to lose, and a reason to go again.',
-      'A game is a series of interesting decisions, and a loop is what makes the second go different from the first.',
+      'loops', 'Step 3: It loops!',
+      'Something to gain, something to lose, and a reason to go again.',
+      '"A game is a series of interesting decisions" -- and the loop makes the second play different from the first.',
       [{ text: 'the numbers in config/play.js', test: (f) => has(f.files, is('config/play.js')) }],
       [
         ask('Score and lives', 'Add a score and lives, and end the run when the lives are gone.'),
