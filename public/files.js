@@ -420,16 +420,19 @@ export async function duplicateFile(from, to) {
   say(`Made ${to}.`);
 }
 
+// Whether it went: Modify image deletes the old name on its way to the new one
+// and has a second thing to say only if this one was said already.
 export async function deleteFile(path) {
   const res = await api('DELETE', `/api/projects/${S.slug}/files/${encodePath(path)}`);
   if (!res.ok) {
     say(res.body?.error ?? 'Could not delete that file.', true);
-    return;
+    return false;
   }
   if (S.open?.path === path) S.open = null;
   S.previewNonce += 1;
   await refreshFiles();
   say(`Deleted ${path}. You can get it back from Recall.`);
+  return true;
 }
 
 // Open: anybody in the studio may change this game. An author's decision, and

@@ -251,7 +251,7 @@ export function fileMore(path, key = `file:${path}`) {
   return more(key, [
     !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path }; render(); } },
     { text: 'Duplicate…', title: 'In this game, into another one, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
-    !frozen() && picture && { text: 'Make pixel art…', title: 'Cut it down, shrink it to a sprite’s size and use the game’s colours', onPick: () => { S.dialog = { kind: 'pixel-art', path }; render(); } },
+    !frozen() && picture && { text: 'Modify image…', title: 'Crop it, resize it or use the game’s colours — in place', onPick: () => { S.dialog = { kind: 'modify-image', path }; render(); } },
     !frozen() && { text: 'Delete…', danger: true, onPick: () => { S.dialog = { kind: 'delete-file', path }; render(); } },
   ], { label: `More about ${path}` });
 }

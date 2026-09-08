@@ -67,7 +67,7 @@ async function uploadItems(files) {
     const strip = !!bitmap && bitmap.width > bitmap.height
       && bitmap.width % bitmap.height === 0;
     // Too big for the pixel editor to open: the one kind of picture Upload
-    // offers to make pixel art of first (dialogs.js, spec.md §6).
+    // offers Modify image for first (dialogs.js, spec.md §6).
     const huge = !!bitmap && (bitmap.width > MAX_SIDE || bitmap.height > MAX_SIDE);
     bitmap?.close();
     return { file, folder: strip ? SPRITE_DIR : IMAGE_DIR, huge };

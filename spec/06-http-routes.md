@@ -282,27 +282,36 @@ Seven choices worth naming:
   show. Above the line what comes out is a photograph drawn by hand rather
   than pixel art, so the studio does not offer to make one.
 
-- **`Make pixel art…` is how a picture too big for that comes down**
-  (`pixel-art` in `dialogs.js`; ideas/pixel-editor.md, item 4): in any
-  picture's `···`, and offered by Upload before the bytes land for a picture
-  over `MAX_SIDE`, the one kind the editor cannot open. A box dragged around
-  the part wanted (the crop), the longest side brought to one of the editor's
-  sizes — or to 512 or `MAX_SIDE`, for a backdrop or a hero that is not pixel
-  art and still wants cutting down (the shrink) — and, on by default, every
-  pixel snapped to the game's palette with every edge made hard, the result
+- **`Modify image…` is how a picture changes whole** (`modify-image` in
+  `dialogs.js`; ideas/pixel-editor.md, item 4; formerly *Make pixel art*):
+  in any picture's `···`, and offered by Upload before the bytes land for a
+  picture over `MAX_SIDE`, the one kind the editor cannot open. Three
+  sections, each headed by its own switch and each optional — **Crop**, a box
+  dragged around the part wanted; **Resize**, the longest side brought to one
+  of the editor's sizes or to 512 or `MAX_SIDE`, for a backdrop or a hero
+  that is not pixel art and still wants cutting down; **Recolor**, every
+  pixel snapped to the game's palette with every edge made hard — the result
   shown blocked up before anything is written, with the note saying what size
-  was boxed and what it becomes. The labels say *Crop* and *Shrink*, since
-  those are the two things somebody comes looking for. Four
-  operations in `pixel-editor.js`, each tested without a screen: a crop, a
+  was boxed and what it becomes. Touching what is under a switch turns it on
+  (dragging a box, picking a size) and the switch turns it off without losing
+  the box or the size, which is how a crop is undone. Everything starts off —
+  the dialog opens on the picture as it is and the button waits until one
+  switch is on — except for a picture over `MAX_SIDE`, which comes in with
+  Resize on at `MAX_SIDE`, the one change that has to happen. Four
+  operations in `pixel-editor.js`, each tested without a screen — a crop, a
   box-average shrink weighted by alpha, the nearest palette colour, and
-  posterize. The dialog works on a working copy fitted into `MAX_SIDE`, so a
-  4,000-wide photo's box moves at the speed of a finger. ⚠️ Not an undo step —
-  a step is indexes into a picture of one width — so it writes: the same path
-  for a PNG, the old bytes a version; a `.jpg` stays and the pixel art lands
-  beside it as `.png`, since only a PNG keeps see-through parts. Under
-  `assets/sprites/` a result a whole multiple wider than tall comes out one
-  pixel narrower, as the guide's `asPng` does, so the sprites library does
-  not play it.
+  posterize — and `modifyPicture`, the three sections as one call. The dialog
+  works on a working copy fitted into `MAX_SIDE`, so a 4,000-wide photo's box
+  moves at the speed of a finger, and a picture over `MAX_SIDE` comes down to
+  it whether or not Resize is on, which the note says. ⚠️ Not an undo step —
+  a step is indexes into a picture of one width — so it **replaces** the
+  file: the same path for a PNG, the old bytes a version; a `.jpg` becomes
+  the `.png` of the same name and the `.jpg` is deleted, as under Rename,
+  since only a PNG keeps see-through parts — the write and then the delete,
+  two commits, and the dialog says the game will have to ask for the new
+  name. Duplicate first is how to keep both. Under `assets/sprites/` a result
+  a whole multiple wider than tall comes out one pixel narrower, as the
+  guide's `asPng` does, so the sprites library does not play it.
 
 - **There is no look-only view of a picture** — one would look identical to
   the editor, so it would cost a click for nothing. A PNG too big to draw on
@@ -1213,7 +1222,7 @@ no hunk and no picture to show, is rendered as *Renamed to &lt;path&gt;*, or
 empty drawer.
 
 `Rename…` is in the file's `···` on its row under Code, with `Duplicate…`,
-`Make pixel art…` for a picture, and `Delete…`, and takes the whole path, so
+`Modify image…` for a picture, and `Delete…`, and takes the whole path, so
 it also moves: `sprite.png` to
 `art/hero.png` is the same one commit. The dialog says what the new name
 will mean before it happens, and ⚠️ crossing into or out of `studio/` gets

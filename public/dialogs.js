@@ -5,7 +5,7 @@
 import { h } from './dom.js';
 import {
   SIZES, MAX_SIDE, MAX_DRAWN, clampSide, PALETTE, pictureFrom,
-  cropPicture, fitSide, shrinkPicture, posterize,
+  cropPicture, fitSide, modifyPicture,
 } from './pixel-editor.js';
 import {
   SOUND_DIR, IMAGE_DIR, SPRITE_DIR, uploadPlan, uploadFiles, openUpload, assetPath, writeFiles,
@@ -750,11 +750,11 @@ export function dialogFor(d) {
     ok.addEventListener('click', async () => {
       const plan = planned().filter((it) => !it.problem);
       close();
-      // One picture too big to draw on goes through Make pixel art first,
+      // One picture too big to draw on goes through Modify image first,
       // before its bytes are in the game for good. A drop of several lands as
       // it is, and the ··· is there afterwards (spec.md §6).
       if (plan.length === 1 && plan[0].huge) {
-        S.dialog = { kind: 'pixel-art', file: plan[0].file, path: plan[0].path, fallback: plan };
+        S.dialog = { kind: 'modify-image', file: plan[0].file, path: plan[0].path, fallback: plan };
         render();
         return;
       }
@@ -768,20 +768,23 @@ export function dialogFor(d) {
       h('div', { class: 'actions' }, cancel, ok));
   }
 
-  // A picture made into pixel art (spec.md §6, ideas/pixel-editor.md): a box
-  // dragged around the part wanted, the longest side brought to a sprite's
-  // size, every pixel snapped to the game's colours, and the result shown
-  // before anything is written. It works on a *working copy* fitted into
-  // MAX_SIDE — a photo can be 4000 across and the box has to move at the
-  // speed of a finger, and from 1024 down to 64 the second shrink loses
-  // nothing a sprite could show. Two ways in: a picture's ··· (`d.path`), and
-  // an upload too big to draw on (`d.file`, with `d.fallback` the plain
-  // upload it may still be). ⚠️ The write is not an undo step: it replaces
-  // the picture, and the old size is a version (Recall). A source that is not
-  // a .png stays where it is and the pixel art lands beside it as one, since
-  // only a PNG keeps see-through parts. The copy and the box live on `d`, so
-  // the node main.js keeps across renders is the one that loaded them.
-  if (d.kind === 'pixel-art') {
+  // A picture changed in place (spec.md §6, ideas/pixel-editor.md): three
+  // steps, each a section headed by its own switch, each optional — Crop, a
+  // box dragged around the part wanted; Resize, the longest side brought to a
+  // size; Recolor, every pixel snapped to the game's colours with every edge
+  // made hard — and the result shown before anything is written. It works on
+  // a *working copy* fitted into MAX_SIDE — a photo can be 4000 across and the
+  // box has to move at the speed of a finger, and from 1024 down to 64 the
+  // second shrink loses nothing a sprite could show. Two ways in: a picture's
+  // ··· (`d.path`), and an upload too big to draw on (`d.file`, with
+  // `d.fallback` the plain upload it may still be). ⚠️ The write is not an
+  // undo step: it replaces the picture, and the old one is a version (Recall).
+  // The result is a PNG, since only a PNG keeps see-through parts, so a .jpg
+  // is replaced by the .png of the same name — the old name goes, as it does
+  // under Rename — rather than kept beside it; Duplicate first is how to keep
+  // both. The copy and the box live on `d`, so the node main.js keeps across
+  // renders is the one that loaded them.
+  if (d.kind === 'modify-image') {
     const outPath = `${d.path.replace(/\.[^./]+$/, '')}.png`;
     const stage = h('canvas', {
       class: 'crop-stage',
@@ -796,13 +799,18 @@ export function dialogFor(d) {
       [512, '512 pixels — a backdrop'],
       [MAX_SIDE, `${MAX_SIDE} pixels — as big as the editor opens`],
     ];
-    const size = h('select', { 'aria-label': 'Shrink: how big, on its longest side' },
+    const size = h('select', { 'aria-label': 'Resize: how big, on its longest side' },
       shrinkTo.map(([n, text]) => h('option', { value: n, text })));
     size.value = '64';
-    const snap = h('input', { type: 'checkbox' });
-    snap.checked = true;
+    // A section's switch. Touching what is under it turns it on — dragging a
+    // box, picking a size — and the switch is how it goes off again without
+    // losing the box or the size, so a crop can be undone and redone.
+    const crop = h('input', { type: 'checkbox' });
+    const resize = h('input', { type: 'checkbox' });
+    const recolor = h('input', { type: 'checkbox' });
+    const section = (toggle, name) => h('label', { class: 'modify-section' }, toggle, name);
     const note = h('p', { class: 'hint muted', text: 'Reading the picture…' });
-    const make = h('button', { class: 'filled', text: 'Make it', disabled: true });
+    const make = h('button', { class: 'filled', text: 'Change it', disabled: true });
     let result = null;
 
     // Where it lands, said before it happens. An upload has nothing there yet.
@@ -810,7 +818,8 @@ export function dialogFor(d) {
       ? `Lands as ${outPath}.`
       : outPath === d.path
         ? `Replaces ${d.path}; the picture as it is now stays in Recall.`
-        : `Lands beside it as ${outPath}; ${d.path} stays.`;
+        : `Replaces ${d.path} with ${outPath} — the game will have to ask for the new name, `
+          + 'and your helpers can do that for you. The picture as it is now stays in Recall.';
 
     const paintStage = () => {
       const { source, box } = d;
@@ -818,6 +827,7 @@ export function dialogFor(d) {
       stage.height = source.height;
       const ctx = stage.getContext('2d');
       ctx.putImageData(new ImageData(source.data, source.width, source.height), 0, 0);
+      if (!crop.checked) return;
       // Everything outside the box dimmed, and the box drawn twice so it
       // reads over a light picture and a dark one alike.
       ctx.fillStyle = 'rgba(8, 6, 16, 0.6)';
@@ -836,32 +846,45 @@ export function dialogFor(d) {
 
     const paintPreview = () => {
       const { source, box } = d;
-      let [w, hgt] = fitSide(box.w, box.h, Number(size.value));
+      const colours = S.palette?.colours ?? PALETTE;
+      let picture = modifyPicture(source, {
+        box: crop.checked ? box : null,
+        side: resize.checked ? Number(size.value) : null,
+        palette: recolor.checked ? colours : null,
+      });
       // Under assets/sprites/ a width that is a whole multiple of the height
       // is a film strip and would play — the story guide's asPng has the same
       // rule — so it comes out one pixel narrower there.
-      const nudged = outPath.startsWith(`${SPRITE_DIR}/`) && w > hgt && w % hgt === 0;
-      if (nudged) w -= 1;
-      const colours = S.palette?.colours ?? PALETTE;
-      let picture = shrinkPicture(cropPicture(source, box.x, box.y, box.w, box.h), w, hgt);
-      if (snap.checked) picture = posterize(picture, colours);
+      const nudged = outPath.startsWith(`${SPRITE_DIR}/`)
+        && picture.width > picture.height && picture.width % picture.height === 0;
+      if (nudged) picture = cropPicture(picture, 0, 0, picture.width - 1, picture.height);
       result = picture;
       preview.width = picture.width;
       preview.height = picture.height;
       preview.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+      const on = crop.checked || resize.checked || recolor.checked;
+      make.disabled = !on;
+      if (!on) {
+        note.textContent = `Nothing to change yet: drag a box around a part, or switch on Resize or Recolor. ${landing}`;
+        return;
+      }
       // The box in the picture's own pixels, not the working copy's, so the
       // numbers are the ones the person knows.
       const [fullW, fullH] = d.full;
       const k = fullW / source.width;
-      const whole = box.w === source.width && box.h === source.height;
-      const from = whole
-        ? `The whole ${fullW} × ${fullH}`
-        : `The ${Math.round(box.w * k)} × ${Math.round(box.h * k)} you boxed`;
-      note.textContent = `${from} becomes ${picture.width} × ${picture.height} pixels`
-        + (snap.checked ? `, in the game’s ${colours.length} colours` : '')
+      const from = crop.checked
+        ? `The ${Math.round(box.w * k)} × ${Math.round(box.h * k)} you boxed`
+        : `The whole ${fullW} × ${fullH}`;
+      const kept = !resize.checked && !nudged && k === 1;
+      // A picture over MAX_SIDE comes down to the working copy whether or not
+      // Resize is on — said, since the number would otherwise be a surprise.
+      const cap = !resize.checked && k > 1
+        ? ` — it comes down to fit ${MAX_SIDE} first, as big as the editor opens`
+        : '';
+      note.textContent = `${from} ${kept ? 'keeps its' : 'becomes'} ${picture.width} × ${picture.height} pixels${cap}`
+        + (recolor.checked ? `, in the game’s ${colours.length} colours` : '')
         + (nudged ? ', one narrower so the sprites library does not play it as a film strip' : '')
         + `. ${landing}`;
-      make.disabled = false;
     };
 
     // The stage follows the pointer at once; the result, which is a shrink
@@ -887,11 +910,14 @@ export function dialogFor(d) {
       if (!d.source) return;
       const [x, y] = at(e);
       const { box, source } = d;
-      // Inside the box is a move — unless the box is the whole picture, where
-      // every press is inside it and a drag has to be able to draw the first.
-      const inBox = x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
+      // Inside the box is a move — unless the box is the whole picture, or
+      // the crop is off, where a drag has to be able to draw a new one.
+      const inBox = crop.checked
+        && x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h
         && !(box.w === source.width && box.h === source.height);
-      drag = { x, y, was: box, move: inBox };
+      drag = { x, y, was: box, wasOn: crop.checked, move: inBox };
+      // Drawing a box is asking for the crop.
+      if (!inBox) crop.checked = true;
       stage.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
@@ -913,23 +939,25 @@ export function dialogFor(d) {
     });
     const release = () => {
       if (!drag) return;
-      // A tap, or a box too small to have been meant: the one before stands.
-      if (!drag.move && (d.box.w < 4 || d.box.h < 4)) { d.box = drag.was; repaint(); }
+      // A tap, or a box too small to have been meant: the one before stands,
+      // and so does whether the crop was on.
+      if (!drag.move && (d.box.w < 4 || d.box.h < 4)) {
+        d.box = drag.was;
+        crop.checked = drag.wasOn;
+        repaint();
+      }
       drag = null;
     };
     stage.addEventListener('pointerup', release);
     stage.addEventListener('pointercancel', release);
 
-    const whole = h('button', {
-      class: 'quiet tiny', text: 'Whole picture',
-      onclick: () => {
-        if (!d.source) return;
-        d.box = { x: 0, y: 0, w: d.source.width, h: d.source.height };
-        repaint();
-      },
+    crop.addEventListener('change', () => { if (d.source) repaint(); });
+    resize.addEventListener('change', () => { if (d.source) paintPreview(); });
+    recolor.addEventListener('change', () => { if (d.source) paintPreview(); });
+    size.addEventListener('change', () => {
+      resize.checked = true;
+      if (d.source) paintPreview();
     });
-    size.addEventListener('change', () => { if (d.source) paintPreview(); });
-    snap.addEventListener('change', () => { if (d.source) paintPreview(); });
 
     const load = async () => {
       let blob = d.file ?? null;
@@ -952,6 +980,13 @@ export function dialogFor(d) {
       bitmap.close();
       d.source = pictureFrom(w, hgt, ctx.getImageData(0, 0, w, hgt).data);
       d.box = { x: 0, y: 0, w, h: hgt };
+      // Everything starts off — this is the picture as it is — except for one
+      // the editor cannot open at all, which comes in with Resize on at the
+      // biggest size it does open: the one change that has to happen.
+      if (Math.max(...d.full) > MAX_SIDE) {
+        resize.checked = true;
+        size.value = String(MAX_SIDE);
+      }
       // The game's colours as they are now, not as they were when the editor
       // last opened.
       await loadPalette();
@@ -967,7 +1002,12 @@ export function dialogFor(d) {
       close();
       const { failure } = await writeFiles([{ path: outPath, body }]);
       if (failure) { say(failure, true); return; }
-      say(`Made ${outPath}: ${result.width} × ${result.height} pixels.`);
+      // A .jpg's result is its .png: the old name goes, as it does under
+      // Rename. Not for an upload, whose old name was never in the game.
+      const renamed = !d.file && outPath !== d.path;
+      if (renamed && !(await deleteFile(d.path))) return;
+      say(`${renamed ? `Made ${outPath} in place of ${d.path}` : `Changed ${outPath}`}: `
+        + `${result.width} × ${result.height} pixels.`);
       await openFile(outPath);
     });
     const keep = d.fallback
@@ -977,15 +1017,15 @@ export function dialogFor(d) {
       })
       : null;
 
-    return wide('Make pixel art',
-      // Named for the two things somebody comes here looking for. The box
-      // starts as the whole picture, so until a drag there is no edge to see.
-      h('label', { text: 'Crop: drag a box around the part you want. Until you do, it is the whole picture. Drag inside a box to move it.' }),
+    return wide('Modify image',
+      section(crop, 'Crop'),
+      h('p', { class: 'hint muted', text: 'Drag a box around the part you want; drag inside the box to move it. Switched off, the whole picture is used and the box is kept for switching back on.' }),
       stage,
-      h('div', { class: 'pixel-art-row' },
-        whole,
-        h('label', { text: 'Shrink: how big, on its longest side?' }), size,
-        h('label', { class: 'check' }, snap, ' Use the game’s colours')),
+      section(resize, 'Resize'),
+      h('div', { class: 'modify-row' },
+        h('label', { text: 'How big, on its longest side?' }), size),
+      section(recolor, 'Recolor'),
+      h('p', { class: 'hint muted', text: 'Every pixel snapped to the game’s colours and every edge made hard — what turns a photo into pixel art.' }),
       h('label', { text: 'What it becomes' }),
       preview,
       note,

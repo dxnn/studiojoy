@@ -289,8 +289,8 @@ export const isBlank = (picture) => picture.data.every((byte) => byte === 0);
 // MAX_DRAWN rather than MAX_SIDE: this is the size of a thing being made.
 export const clampSide = (n) => Math.min(MAX_DRAWN, Math.max(1, Math.round(Number(n) || 0) || 1));
 
-/* Making pixel art out of a picture ----------------------------------------
-   Four operations behind the Make pixel art dialog (spec.md §6). Each hands
+/* Changing a picture whole ---------------------------------------------------
+   The operations behind the Modify image dialog (spec.md §6). Each hands
    back a new picture and leaves the old one alone. ⚠️ None is an undo step: a
    step is indexes into a picture of one width, so a picture that changes size
    invalidates the whole stack — the caller writes the result and the old size
@@ -390,5 +390,16 @@ export function posterize(picture, palette) {
     out.data[i + 2] = c[2];
     out.data[i + 3] = 255;
   }
+  return out;
+}
+
+// The dialog's three steps as one call, each left out by leaving its argument
+// out: `box` (x, y, w, h) cuts that rectangle, `side` brings the longest side
+// down to it, `palette` snaps the colours and hardens the edges. Nothing asked
+// for is a copy of the picture as it is.
+export function modifyPicture(picture, { box = null, side = null, palette = null } = {}) {
+  let out = box ? cropPicture(picture, box.x, box.y, box.w, box.h) : copyPicture(picture);
+  if (side) out = shrinkPicture(out, ...fitSide(out.width, out.height, side));
+  if (palette) out = posterize(out, palette);
   return out;
 }

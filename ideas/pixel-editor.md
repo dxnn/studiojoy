@@ -96,15 +96,17 @@ Seven things are missing outright:
 3. **Pixel-perfect freehand.** Where three pixels in a row make an L, drop the
    middle one. About fifteen lines, applied as the stroke closes, and testable
    without a screen like everything else in `pixel-editor.js`.
-4. **Crop and resize.** Built 2026-09-07 as **Make pixel art** (spec/ §6): a
-   crop, a box-average shrink and a posterize to the game's palette behind one
-   dialog with a live result, in a picture's `···` and offered by Upload for a
-   picture over 1024. Box average rather than nearest neighbour, because the
-   ask grew into "make pixel art out of a photo" and nearest neighbour
-   speckles one. ⚠️ Neither was an undo step: a step is a list of *indexes*
-   into a picture of a fixed width, so it writes instead, and the previous
-   size is a version — the studio's own undo, and the reason Versions exists.
-   Still open: a resize *up*, and dithering on the posterize step.
+4. **Crop and resize.** Built 2026-09-07 as **Make pixel art**, and the same
+   day made **Modify image** (spec/ §6): a crop, a box-average shrink and a
+   posterize to the game's palette as three sections behind one dialog with a
+   live result, each with its own switch and each optional, in a picture's
+   `···` and offered by Upload for a picture over 1024. Box average rather
+   than nearest neighbour, because the ask grew into "make pixel art out of a
+   photo" and nearest neighbour speckles one. ⚠️ None is an undo step: a step
+   is a list of *indexes* into a picture of a fixed width, so it writes
+   instead — replacing the file, a `.jpg` by its `.png` — and the previous
+   picture is a version: the studio's own undo, and the reason Versions
+   exists. Still open: a resize *up*, and dithering on the posterize step.
 
 ### Tier 2 — makes it feel like a real editor
 

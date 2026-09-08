@@ -10,7 +10,7 @@ import {
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
-  cropPicture, fitSide, shrinkPicture, nearestColour, posterize,
+  cropPicture, fitSide, shrinkPicture, nearestColour, posterize, modifyPicture,
 } from '../public/pixel-editor.js';
 
 const RED = [255, 0, 0, 255];
@@ -357,7 +357,7 @@ test('a copied frame pastes as one undoable gesture', () => {
   assert.deepEqual(pixelAt(strip, 16, 0), [0, 0, 0, 0]);
 });
 
-/* Making pixel art out of a picture (spec.md §6) --------------------------- */
+/* Changing a picture whole (spec.md §6) ------------------------------------ */
 
 test('a crop is the rectangle asked for, clamped to the picture, never empty', () => {
   const picture = blankPicture(4, 3);
@@ -425,4 +425,35 @@ test('posterize snaps every pixel to the palette and every edge hard', () => {
   assert.deepEqual(pixelAt(snapped, 1, 0), [0, 0, 255, 255], 'a mostly-solid pixel goes solid');
   assert.deepEqual(pixelAt(snapped, 2, 0), [0, 0, 0, 0], 'a mostly-clear one goes clear');
   assert.deepEqual(pixelAt(picture, 1, 0), [10, 10, 220, 200], 'the original is untouched');
+});
+
+test('modifyPicture does only the steps asked for, each on its own or together', () => {
+  // An 8×4 picture: the left half a near-red, the right half see-through.
+  const picture = blankPicture(8, 4);
+  for (let y = 0; y < 4; y += 1) for (let x = 0; x < 4; x += 1) setPixel(picture, x, y, [200, 30, 30, 255]);
+  const palette = ['#ff0000', '#0000ff'];
+
+  const asIs = modifyPicture(picture);
+  assert.deepEqual([asIs.width, asIs.height], [8, 4]);
+  assert.deepEqual(asIs.data, picture.data, 'nothing asked for is the picture as it is');
+  assert.notEqual(asIs, picture, 'and still its own copy');
+
+  const cut = modifyPicture(picture, { box: { x: 2, y: 0, w: 4, h: 4 } });
+  assert.deepEqual([cut.width, cut.height], [4, 4]);
+  assert.deepEqual(marks(cut).length, 8, 'the crop straddles the edge of the red half');
+  assert.deepEqual(pixelAt(cut, 0, 0), [200, 30, 30, 255], 'a crop alone changes no colour');
+
+  const small = modifyPicture(picture, { side: 4 });
+  assert.deepEqual([small.width, small.height], [4, 2], 'the shape is kept');
+  assert.deepEqual(pixelAt(small, 0, 0), [200, 30, 30, 255]);
+
+  const snapped = modifyPicture(picture, { palette });
+  assert.deepEqual([snapped.width, snapped.height], [8, 4], 'a recolour alone keeps the size');
+  assert.deepEqual(pixelAt(snapped, 0, 0), [255, 0, 0, 255]);
+
+  const all3 = modifyPicture(picture, { box: { x: 0, y: 0, w: 4, h: 4 }, side: 2, palette });
+  assert.deepEqual([all3.width, all3.height], [2, 2]);
+  assert.deepEqual(marks(all3), ['0,0', '1,0', '0,1', '1,1']);
+  assert.deepEqual(pixelAt(all3, 1, 1), [255, 0, 0, 255]);
+  assert.deepEqual(pixelAt(picture, 0, 0), [200, 30, 30, 255], 'the original is untouched');
 });
