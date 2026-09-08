@@ -38,7 +38,11 @@ is gone unless it is snapshotted and put back.
   name or it jumps to the top on the next render.
 - **The open dialog**, which is built once and re-appended as the same node,
   never rebuilt mid-decision — a background render used to wipe what was
-  being typed into it. ⚠️
+  being typed into it. ⚠️ Re-appending is still a leave and a return, and
+  leaving the document empties a scroller, so the dialog's box is a named one
+  (`dialog`) and so is the shelf grid inside it (`shelf`): a banner leaving
+  six seconds after it arrived used to send Modify image back to its top
+  while its bottom was being set.
 - **The @ menu over the composer**, for the same reason the composer itself
   survives a render: it is one node on the body, painted in place and never
   through `render()`. Rendering it would rebuild the whole thread on every

@@ -106,6 +106,16 @@ test('the dressing dialog names all three and says what each is for', () => {
   }
 });
 
+test('a dialog’s box is a named scroller, so a background render does not send it to the top', () => {
+  // main.js keeps the dialog node and re-appends it on every render, and
+  // leaving the document is enough to lose where it was scrolled to — the
+  // scroll snapshot puts back what has a name (spec.md §17).
+  const dialog = dialogFor({ kind: 'add-dressing' });
+  const box = withClass(dialog, 'dialog')[0];
+  assert.ok(box, 'the box is there');
+  assert.equal(box.attrs['data-scroll'], 'dialog');
+});
+
 test('a dressing already there says so before it is replaced', () => {
   S.files = [picture(HERO_IMAGE)];
   const dialog = dialogFor({ kind: 'add-dressing' });

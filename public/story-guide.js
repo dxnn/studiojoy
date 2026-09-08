@@ -474,7 +474,7 @@ const PICTURES = Object.keys(TITLES);
 // dialog; a picture of your own keeps the way out of the collection it had on
 // the strip.
 export function renderShelfDialog(d, { wide, cancel, close }) {
-  const grid = h('div', { class: 'shelf-grid' });
+  const grid = h('div', { class: 'shelf-grid', 'data-scroll': 'shelf' });
   const filter = h('input', {
     type: 'search', placeholder: 'Find one by word', 'aria-label': 'Find a picture by word',
   });

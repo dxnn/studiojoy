@@ -138,8 +138,11 @@ const submitOnEnter = (box) => (e) => {
 
 export function dialogFor(d) {
   const close = () => { S.dialog = null; render(); };
+  // The box is the scroller, and it is a named one: main.js keeps the node and
+  // re-appends it on every render, and leaving the document is enough to send
+  // its scroll back to the top — mid-decision, under the pointer (spec.md §17).
   const wrap = (title, ...body) => {
-    const box = h('div', { class: 'dialog' }, h('h2', { text: title }), ...body);
+    const box = h('div', { class: 'dialog', 'data-scroll': 'dialog' }, h('h2', { text: title }), ...body);
     box.addEventListener('keydown', submitOnEnter(box));
     return h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } }, box);
   };
