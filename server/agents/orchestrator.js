@@ -24,6 +24,7 @@ import {
   sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
   notesForPlanner, begunNote, SIZING_MAX_TOKENS, CONFIRM_TRIGGER, resizeTrigger, specText,
 } from './sizing.js';
+import { arcFor } from '../../public/arc.js';
 
 // Context budgets (spec.md §8). DeepSeek's window is 1,048,576 tokens, so
 // these caps are about cost and latency rather than capability — roughly
@@ -358,6 +359,20 @@ function studioPreamble({
       '"Make one for me", which draws a simple picture at the name the story expects. So somebody stuck',
       'for words or for art has a button for it, and neither one needs you.',
     );
+  }
+  // Where the game is on its arc (public/arc.js, spec.md §6), so a helper's
+  // suggestions fit the stamp the person is working towards and it can say
+  // when a request belongs to a later one. One line, changing only when a
+  // stamp is pressed — the person's judgement, which a helper reads and never
+  // moves.
+  {
+    const arc = arcFor(project.type);
+    const stage = Math.min(project.stage ?? 0, arc.length);
+    const next = arc[stage];
+    lines.push('', next
+      ? `This game holds ${stage} of ${arc.length} stamps on its arc and is working towards "${next.name}": `
+        + `${next.principle} Suggest what belongs to this stamp, and say so when a request belongs to a later one.`
+      : `This game holds every one of the ${arc.length} stamps on its arc: it is done unless somebody wants more.`);
   }
   lines.push(
     '',
@@ -1804,7 +1819,7 @@ export function createOrchestrator({
                 a.name AS agent_name, a.description, a.model, a.thinking,
                 a.file_tools, a.deleted, a.builtin,
                 c.builder,
-                p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on
+                p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on, p.stage
            FROM chat_agents ca
            JOIN chats c ON c.id = ca.chat_id
            JOIN agents a ON a.id = ca.agent_id
@@ -1816,7 +1831,7 @@ export function createOrchestrator({
 
     const project = {
       id: row.project_id, slug: row.slug, name: row.project_name, kind: row.kind,
-      type: row.type, scores_on: row.scores_on,
+      type: row.type, scores_on: row.scores_on, stage: row.stage,
     };
     const chat = { id: row.chat_id, name: row.chat_name };
     const clearPending = () => db

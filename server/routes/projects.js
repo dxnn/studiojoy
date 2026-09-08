@@ -27,6 +27,7 @@ import {
 } from '../authors.js';
 import { unseenInProject, unseenInChat } from '../mentions.js';
 import { projectHasUnread, chatHasUnread } from '../reads.js';
+import { arcFor } from '../../public/arc.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -83,6 +84,8 @@ function projectPublic(ctx, row, user = null) {
     // When the game last changed — its tree or its row, never its chat — and
     // what the sidebar sorts each group on (§3, §6).
     updated_at: row.updated_at,
+    // How many stamps it holds on its arc (§6, public/arc.js).
+    stage: row.stage ?? 0,
     last_message_at: last?.created_at ?? row.created_at,
     preview: last ? last.body.slice(0, 80) : '',
     // How many messages in this project have called *you* by name and not
@@ -509,6 +512,31 @@ export function projectRoutes(r) {
       slug: project.slug, name: project.name, archived: project.archived === 1, published,
     });
     json(ctx.res, 200, { slug: project.slug, published });
+  });
+
+  // The arc's ratchet (spec/ §6, ideas/doneness.md): how many stamps the game
+  // holds, moved one at a time by an editor — forward when they judge the
+  // next one earned, back for a press by mistake. The stamps are a person's
+  // judgement and a column, never a file: no write_file can move them. A chat
+  // has no game and so no arc.
+  r.post('/api/projects/:slug/stage', async (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx, { write: true });
+    if (project.kind !== 'game') throw new HttpError(400, 'a chat has no arc');
+    const body = await readJson(ctx.req);
+    const { stage } = body;
+    const arc = arcFor(typeOf(ctx, project));
+    if (!Number.isInteger(stage) || stage < 0 || stage > arc.length) {
+      throw new HttpError(400, `stage must be a whole number from 0 to ${arc.length}`);
+    }
+    if (Math.abs(stage - (project.stage ?? 0)) !== 1) {
+      throw new HttpError(409, 'a stamp is earned or taken back one at a time');
+    }
+    ctx.db.prepare('UPDATE projects SET stage = ? WHERE id = ?').run(stage, project.id);
+    ctx.broker.broadcast('project.updated', {
+      slug: project.slug, name: project.name, archived: project.archived === 1, stage,
+    });
+    json(ctx.res, 200, { slug: project.slug, stage });
   });
 
   // Both doors are the *originator's* — the person who made the game,

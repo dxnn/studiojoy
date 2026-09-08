@@ -387,6 +387,13 @@ and prefer `patch_file` for a single value. A human editing at the same time
 is just the `If-Match` conflict already in the file routes (§6), which the
 form uses like the text editor does.
 
+One line says **where the game is on its arc** (§6, `public/arc.js`): how
+many stamps it holds and which it is working towards, with that stamp's
+principle, and the ask to suggest what belongs to it and say so when a
+request belongs to a later one. Read from `projects.stage`, which a helper
+never moves — the stamps are a person's judgement — and changing only when
+one is pressed, so it costs the cache nothing between presses.
+
 The preamble also names **every studio affordance an agent cannot reach on
 its own**, by the words on the button — an agent that doesn't know a person
 can draw a sprite in one click writes the game without one, and one that

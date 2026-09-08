@@ -52,6 +52,7 @@ address: a list of names needn't be a list of emails to do its job.
 | POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
 | DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |
 | POST | `/api/projects/:slug/open` | `{open_edit: bool}` | open the game to every account, or close it to its editors |
+| POST | `/api/projects/:slug/stage` | `{stage: n}` | the arc's ratchet: how many *stamps* the game holds, one more or one fewer than now (409 otherwise), 0 to the arc's length; an editor's; a chat is 400. Broadcasts `project.updated` with `stage` |
 | POST | `/api/projects/:slug/fork` | `{name, slug?}` | copy the working tree and its history into a new game — neither the thread nor the original's helpers come along; the copy has the *builder* in its own `Building` like any game; games only |
 | POST | `/api/projects/:slug/publish` | `{published: bool}` | list or unlist the game in the public catalog; games only |
 
@@ -509,6 +510,25 @@ write to its tree or a change to its row, never a message — a busy chat is
 not a changed game. A `files.changed` from any game moves that game's row as
 it lands, on the tab's own clock; a `project.updated` refetches the list
 (§9). The line under a game's name still follows its newest message.
+
+**The arc at the top of Building** (`public/arc-card.js`, `public/arc.js`,
+ideas/doneness.md): how done a game is, apart from whether it is out. A game
+collects **stamps** in the order its type sets — the arcade's run *It moves*,
+*It loops*, *It looks like something*, *It feels good*, *It's fair*, *Someone
+else played it*, *It's out*; a visual novel's put story where the loop is and
+*Read it aloud* where tuning is; a quiz's are five; a blank game's start with
+*What is it?* Each stamp is one principle real game makers hold, in a kid's
+words, with what makers say about it, the **checks** the studio ticks from the
+tree and the row (names, never a file's bytes), and two or three **asks** —
+pressed, the request lands in the composer, unsent, so a kid learns what to
+ask for by asking for it. The stamp is the person's call: *This one's earned*
+moves `projects.stage` (§3) by one, the card's `···` takes one back, and the
+checks are hints, never gates — publishing never waits for a stamp. Editors
+press; everybody sees. The head is the fold (per game in `prefs`), and with
+every stamp earned the card is its row of dots and one line. Building only,
+because the arc is a list of things to ask the builder for, and the preamble
+carries the same stamp so the builder's answers fit it (§8). Nothing about
+stamps on the front page or in the sidebar, yet: doneness is the maker's.
 
 **Typing an `@` in the composer opens the menu of everybody it could reach**
 — the people, then the helpers, in the order the Crew tab lists them, each

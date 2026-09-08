@@ -1,5 +1,9 @@
 # Doneness: an arc of stamps a game collects
 
+**Built 2026-09-07** as sketched, with the defaults: *stamp* and *arc* in the
+interface, `stage` in the code; the card at the top of Building; checks over
+names only. What is below is the plan as decided; spec/ §6 is the record.
+
 (Dann, 2026-09-07: "I'd like some notion of the doneness of a game,
 independent of its published status. Maybe a manual ratchet: core mechanic,
 story, design, polish, tuning — some kind of arc to guide the kids through

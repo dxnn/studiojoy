@@ -589,6 +589,10 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // Moments are what achievements are written over, so the preamble says where
   // to say them.
   assert.match(system, /Moments\.say\("name", value\)/);
+  // Where the game is on its arc, so a helper's suggestions fit the stamp the
+  // person is working towards. A blank game's first stamp is the question a
+  // template would have answered.
+  assert.match(system, /holds 0 of 8 stamps on its arc and is working towards "What is it\?"/);
   // A free-form game gets no type section: nothing here is a visual novel.
   assert.ok(!system.includes('This game is a visual novel'), 'no type section without a type');
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');

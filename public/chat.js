@@ -16,6 +16,7 @@ import {
   toggleChatty, detachAgent, openChat, readMark, marked, retrySend,
 } from './chats.js';
 import { modesFor } from './game-types.js';
+import { renderArcCard } from './arc-card.js';
 
 /* Render: chat ------------------------------------------------------------ */
 
@@ -932,6 +933,8 @@ export function renderChat() {
       !isChat() && h('button', { class: 'quiet only-narrow', text: 'Preview', onclick: () => { S.narrowPane = 'rail'; render(); } })),
     renderModes(p),
     body ? null : renderChatTabs(p),
+    // The arc, under the pills of the builder's room only (arc-card.js).
+    body ? null : renderArcCard(p),
     body ?? scroller,
     // Send sits beside the box rather than under it: the strip it used to have
     // to itself was a whole row of studio for one button, and the box is wide

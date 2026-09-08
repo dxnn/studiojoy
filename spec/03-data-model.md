@@ -166,6 +166,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `created_by` | INTEGER NOT NULL → users | the **originator**: the one account that may archive the game (§11). Display otherwise |
 | `created_at` | TEXT NOT NULL | |
 | `updated_at` | TEXT | when the game last changed: its tree or its row, never its chat. What the sidebar sorts each group on (§6) |
+| `stage` | INTEGER NOT NULL DEFAULT 0 | how many **stamps** the game holds on its **arc** (§6, `public/arc.js`): a person's judgement, moved one at a time by `POST /stage`. A column and never a file, so no `write_file` can move it |
 
 `updated_at` is stamped from one hook on the broker (`watchChanges`, the
 same place web push hangs) on every `files.changed` and `project.updated`:

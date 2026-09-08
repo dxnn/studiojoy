@@ -720,3 +720,31 @@ test('updated_at follows the game’s changes and ignores its chat', async (t) =
   const listed = (await app.client.json('GET', '/api/projects')).body;
   assert.equal(listed[0].updated_at, renamed.updated_at, 'and the list carries it');
 });
+
+// The arc's ratchet (spec/ §6, public/arc.js): stamps a game holds, moved one
+// at a time by an editor, forward or back, and never by anybody else.
+test('stamps are earned one at a time, taken back one at a time, and are an editor’s', async (t) => {
+  const app = await studio(t);
+  const made = (await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } })).body;
+  assert.equal(made.stage, 0, 'a new game holds no stamps');
+
+  const stamp = (stage) => app.client.json('POST', '/api/projects/tank/stage', { body: { stage } });
+  assert.equal((await stamp(1)).status, 200);
+  assert.equal((await stamp(3)).status, 409, 'one at a time');
+  assert.equal((await stamp(2)).status, 200);
+  assert.equal((await stamp(1)).status, 200, 'and one back');
+  assert.equal((await stamp(-1)).status, 400);
+  assert.equal((await stamp('two')).status, 400);
+  assert.equal((await app.client.json('GET', '/api/projects/tank')).body.stage, 1);
+
+  // Past the end is refused: a blank game's arc is the arcade's with one in
+  // front, eight stamps.
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
+  const other = app.newClient();
+  await signIn(app, { email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: other });
+  const theirs = await other.json('POST', '/api/projects/tank/stage', { body: { stage: 2 } });
+  assert.equal(theirs.status, 403, 'somebody who may not change the game may not stamp it');
+
+  await app.client.json('POST', '/api/projects', { body: { name: 'Room', slug: 'room', kind: 'chat' } });
+  assert.equal((await app.client.json('POST', '/api/projects/room/stage', { body: { stage: 1 } })).status, 400);
+});

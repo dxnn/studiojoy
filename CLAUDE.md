@@ -301,6 +301,12 @@ specified:
   service worker each, neither caching anything (§7). The studio's worker has
   one other job: showing a **notification** and handling a press on one, since
   a plain `new Notification` never fires on an installed iOS PWA.
+- **The arc** (`public/arc.js`, `public/arc-card.js`, §6, ideas/doneness.md):
+  how done a game is, apart from published. A game collects **stamps** in its
+  type's order, each a game-making principle in a kid's words with checks the
+  studio ticks from names and asks that land in the composer; the person
+  presses to earn one (`projects.stage`, one at a time), the checks never
+  gate, and the builder is told the stamp in one preamble line.
 - **Notifications** (`public/notify.js`, §6, ideas/notifications.md): a
   message landing in a room you are not reading, while the studio is not the
   thing on screen. The same decision as the unread mark, made once in

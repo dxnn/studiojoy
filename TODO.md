@@ -3,9 +3,6 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- decide the words and the place, then build the doneness arc: stamps a game
-  collects, per type, with a card at the top of Building and one line in the
-  preamble (ideas/doneness.md)
 - the plan card's synopsis — one no-tools call over the pieces' headlines —
   and sub-pieces when a piece outruns its budget, one level deep
   (ideas/planner.md, second chapter, step 6)

@@ -513,6 +513,12 @@ export function openDb(dbPath) {
   // broker (app.js), so every route that tells the tabs a game changed counts
   // it. A game from before the column is dated from its newest message, else
   // its making: a migration cannot ask git, and the next change corrects it.
+  // How many stamps the game holds on its arc (spec/ §6, public/arc.js): a
+  // person's judgement, moved one at a time from the card at the top of
+  // Building. A column and never a file, so no write_file can move it. Every
+  // game starts at the first stamp — an old game with everything in it
+  // collects them in a minute, which is its own small pleasure.
+  addColumnIfMissing(db, 'projects', 'stage', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'projects', 'updated_at', 'TEXT', (d) => {
     d.prepare(
       `UPDATE projects SET updated_at = COALESCE(

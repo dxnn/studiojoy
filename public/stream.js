@@ -285,6 +285,7 @@ function onEvent(name, data) {
         S.project.name = data.name ?? S.project.name;
         if (data.archived !== undefined) S.project.archived = data.archived;
         if (data.scores_on !== undefined) S.project.scores_on = data.scores_on;
+        if (data.stage !== undefined) S.project.stage = data.stage;
         render();
       }
       return;
