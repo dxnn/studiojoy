@@ -1006,8 +1006,8 @@ export function dialogFor(d) {
       // Rename. Not for an upload, whose old name was never in the game.
       const renamed = !d.file && outPath !== d.path;
       if (renamed && !(await deleteFile(d.path))) return;
-      say(`${renamed ? `Made ${outPath} in place of ${d.path}` : `Changed ${outPath}`}: `
-        + `${result.width} × ${result.height} pixels.`);
+      const did = renamed ? `Made ${outPath} in place of ${d.path}` : `${d.file ? 'Added' : 'Changed'} ${outPath}`;
+      say(`${did}: ${result.width} × ${result.height} pixels.`);
       await openFile(outPath);
     });
     const keep = d.fallback
