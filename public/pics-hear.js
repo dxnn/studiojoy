@@ -231,7 +231,7 @@ export function renderPickInspector() {
   if (S.mode === 'hear') {
     if (!S.open || !isAudioFile(S.open)) return null;
     const { path } = S.open;
-    return box(head('Sound', path.split('/').pop(), fileMore(path), shut(() => closeOpenFile())),
+    return box(head('Sound', path.split('/').pop(), fileMore(path, `rail:${path}`), shut(() => closeOpenFile())),
       S.sound ? renderSoundEditor() : renderMedia(S.open),
       S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused }) : null,
       fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: path })));
@@ -250,7 +250,7 @@ export function renderPickInspector() {
     // old two-click open feel pointless.
     return box(
       head(dressing ? 'Studio dressing' : sprite ? 'Sprite' : 'Picture', path.split('/').pop(),
-        fileMore(path), shut(() => closeOpenFile())),
+        fileMore(path, `rail:${path}`), shut(() => closeOpenFile())),
       fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: `${path} · ${sizeText(f.size)}` })),
       dressing ? fieldRow('Dresses', h('span', { class: 'hint muted', text: DRESSING[path].what })) : null);
   }

@@ -100,19 +100,18 @@ export function assetPath(folder, filename) {
 }
 
 // What an upload would do, worked out before anything is sent so the dialog can
-// show it: where each file lands, whether it replaces one already there, and
-// the reason a file is being left out.
-//
-// `folder` is the override typed into the dialog. Empty — which is how it
-// starts — means each file goes to the folder its kind says, so a drop of a
-// sound and two sprites lands in two places without anybody choosing twice.
-export function uploadPlan(folder, items) {
+// show it: whether each file replaces one already there, and the reason a
+// file is being left out. Each item arrives with the `path` the dialog has
+// for it — the name is the dialog's question now (formerly: one folder
+// overruling every file, the names never asked).
+export function uploadPlan(items) {
   const taken = new Set();
   return items.map((item) => {
-    const { file } = item;
-    const path = assetPath(folder || item.folder, file.name);
+    const { file, path } = item;
     let problem = null;
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (!path) {
+      problem = 'needs a name';
+    } else if (file.size > MAX_UPLOAD_BYTES) {
       problem = `too big — ${MAX_UPLOAD_MB} MB is the most`;
     } else if (taken.has(path)) {
       // Two dropped files can tidy down to one name. Letting the second

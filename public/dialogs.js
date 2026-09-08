@@ -122,10 +122,27 @@ function duplicateNote(from, to) {
     + `${from} stays as it is.`;
 }
 
+// Enter in a dialog's one text field presses its one filled button, the way a
+// form submits: a new name, a new game's, a chat's. Only with exactly one such
+// field and one such button, so a page of fields with a button per row —
+// Studio settings — is left to its rows, and a textarea keeps Enter for a new
+// line.
+const submitOnEnter = (box) => (e) => {
+  if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+  const fields = box.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file])');
+  const buttons = box.querySelectorAll('.actions button.filled:not(:disabled)');
+  if (fields.length !== 1 || buttons.length !== 1) return;
+  e.preventDefault();
+  buttons[0].click();
+};
+
 export function dialogFor(d) {
   const close = () => { S.dialog = null; render(); };
-  const wrap = (title, ...body) => h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
-    h('div', { class: 'dialog' }, h('h2', { text: title }), ...body));
+  const wrap = (title, ...body) => {
+    const box = h('div', { class: 'dialog' }, h('h2', { text: title }), ...body);
+    box.addEventListener('keydown', submitOnEnter(box));
+    return h('div', { class: 'backdrop', onclick: (e) => { if (e.target === e.currentTarget) close(); } }, box);
+  };
   const cancel = h('button', { class: 'quiet', text: 'Cancel', onclick: close });
   // Room for a row of sliders. Everything else is a question with one answer
   // and stays narrow.
@@ -659,28 +676,76 @@ export function dialogFor(d) {
   // afterwards. Any kind of file: what the studio can show it as is a separate
   // question, answered by MEDIA_KINDS when it is opened.
   if (d.kind === 'upload') {
-    // Empty on purpose: each file already knows the folder its kind goes to,
-    // and the rows below say so in full. Typing here overrules all of them at
-    // once, which is the only thing one box can honestly do for a drop of
-    // several kinds.
-    const folder = h('input', { placeholder: 'each one goes where its kind goes' });
-    const list = h('div', { class: 'plan' });
+    // One row per file, in the Rename dialog's shape: the name to type, the
+    // folder and the ending fixed around it, and one link that opens every
+    // row up to the whole path. The folder starts as the one the file's kind
+    // goes to (uploadItems) and the name as the file's own, tidied
+    // (assetPath). Naming a file on the way in is the same question as naming
+    // it later, so it is the same control. (formerly: one folder box that
+    // overruled every file at once, and no way to change a name.)
+    let whole = false;
+    const rows = d.items.map((item) => {
+      const row = {
+        item,
+        parts: splitName(assetPath(item.folder, item.file.name)),
+        input: h('input', { 'aria-label': `Name for ${item.file.name}` }),
+        before: h('span', { class: 'fixed mono' }),
+        after: h('span', { class: 'fixed mono' }),
+        note: h('span', { class: 'hint muted' }),
+      };
+      row.input.value = row.parts.stem;
+      // No spacer: the name box takes the room and the note keeps to the end.
+      row.el = h('div', { class: 'plan-row' },
+        h('div', { class: 'name-row' }, row.before, row.input, row.after),
+        row.note);
+      return row;
+    });
+    // What a row's file will be called, in either mode — the Rename dialog's
+    // own arithmetic.
+    const target = (row) => {
+      const typed = row.input.value.trim();
+      if (whole || !typed) return typed;
+      const { dir, ext } = row.parts;
+      const stem = ext && typed.length > ext.length && typed.toLowerCase().endsWith(ext.toLowerCase())
+        ? typed.slice(0, -ext.length)
+        : typed;
+      return dir + stem + ext;
+    };
+    const more = h('button', { class: 'link tiny' });
     const ok = h('button', { class: 'filled', text: 'Add it' });
-
-    const paint = () => {
-      const plan = uploadPlan(folder.value.trim(), d.items);
-      list.replaceChildren(...plan.map((it) => h('div', {
-        class: `plan-row${it.problem ? ' skip' : ''}`,
-      },
-      h('span', { class: 'mono', text: it.path }),
-      h('div', { class: 'spacer' }),
-      h('span', { class: 'hint muted', text: it.problem ?? it.note }))));
+    const planned = () => uploadPlan(rows.map((row) => ({ ...row.item, path: target(row) })));
+    const check = () => {
+      const plan = planned();
+      plan.forEach((it, i) => {
+        rows[i].note.textContent = it.problem ?? it.note;
+        rows[i].el.classList.toggle('skip', Boolean(it.problem));
+      });
       ok.disabled = plan.every((it) => it.problem);
     };
-    paint();
-    folder.addEventListener('input', paint);
+    const show = () => {
+      for (const row of rows) {
+        row.before.textContent = whole ? '' : row.parts.dir;
+        row.after.textContent = whole ? '' : row.parts.ext;
+      }
+      more.textContent = whole ? 'Just the names' : 'Change the folder or the ending too';
+      check();
+    };
+    // The names carry across: opened up, each box shows the whole of its path
+    // as it stands; closed again, the same names back in pieces.
+    more.addEventListener('click', () => {
+      for (const row of rows) {
+        const to = target(row) || assetPath(row.item.folder, row.item.file.name);
+        if (!whole) row.input.value = to;
+        else { row.parts = splitName(to); row.input.value = row.parts.stem; }
+      }
+      whole = !whole;
+      show();
+      rows[0]?.input.focus();
+    });
+    for (const row of rows) row.input.addEventListener('input', check);
+    show();
     ok.addEventListener('click', async () => {
-      const plan = uploadPlan(folder.value.trim(), d.items).filter((it) => !it.problem);
+      const plan = planned().filter((it) => !it.problem);
       close();
       // One picture too big to draw on goes through Make pixel art first,
       // before its bytes are in the game for good. A drop of several lands as
@@ -694,8 +759,9 @@ export function dialogFor(d) {
     });
 
     return wrap(d.items.length === 1 ? 'Upload this file' : `Upload ${d.items.length} files`,
-      h('label', { text: `Which folder? Sounds go to ${SOUND_DIR}/, pictures to ${IMAGE_DIR}/, film strips to ${SPRITE_DIR}/ — put something here to send them all somewhere else instead.` }), folder,
-      list,
+      h('label', { text: d.items.length === 1 ? 'Call it' : 'Call them' }),
+      h('div', { class: 'plan' }, rows.map((row) => row.el)),
+      more,
       h('div', { class: 'actions' }, cancel, ok));
   }
 

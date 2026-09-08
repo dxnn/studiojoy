@@ -178,7 +178,13 @@ bytes, one request and one commit per file. Client-side only; no route
 distinguishes an upload from an edit or one kind of file from another —
 `checkProjectPath` validates a path's shape, never its extension, so
 accepting a `.zip` needed no server change, only a button that no longer
-claims to take just pictures and sounds.
+claims to take just pictures and sounds. The dialog names each file the
+Rename dialog's way: the name to type, the folder and the ending fixed around
+it, one *Change the folder or the ending too* opening every row up to its
+whole path; the folder starts as the one the file's kind goes to and the name
+as the file's own, tidied (`assetPath`). Naming a file on the way in is the
+same question as naming it later, so it is the same control. (formerly: one
+folder box overruling every file at once, and no way to change a name.)
 
 What the pane can *show* is separate, answered by `MEDIA_KINDS` in
 `public/files-tab.js`: one entry per kind, matched in order — the only place
@@ -570,7 +576,10 @@ below it.
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 the chat, then the type's editors (**Write** for a visual novel), then
 pictures, sounds, controls, the tree, the versions and the public face. A chat
-project has no row.
+project has no row. **The pill you are on, pressed again, closes the open
+file** and leaves the mode: the way back to the cards, the rows or the tree
+without reaching for the bar's ✕. Not under Questions or Controls, where the
+file is the mode.
 
 ⚠️ **The pills are named for the senses; nothing else is.** They read
 **Speak**, **See**, **Hear**, **Touch**, **Taste**, **Recall**, **Smell**,
@@ -616,8 +625,9 @@ mood) over **Places** (backgrounds, with scene counts); for every game,
 **Sprites** (first frame), **Pictures**, the three *reserved images* under
 **Studio dressing**, and **Other pictures** last, so nothing the tree holds
 is missing. ⚠️ A card pressed **once** opens full width in the *pixel
-editor*, the bar's ✕ the way back, and the rail carries the open picture's
-fields — where it lives, what it dresses. Selecting into the rail first and
+editor*, the bar's ✕ — or the pill pressed again — the way back, the file's
+own `···` beside the ✕ since on a phone the card it came from is gone, and
+the rail carries the open picture's fields — where it lives, what it dresses. Selecting into the rail first and
 opening on the second click was a step that bought nothing: what the rail
 showed was the same picture at a size nothing could be done with, and Code's
 rows already went straight to the editor, so the two panes contradicted each
@@ -1190,6 +1200,12 @@ will mean before it happens, and ⚠️ crossing into or out of `studio/` gets
 its own sentence, because that is the one move that changes who may edit the
 file rather than only where it lives. It is allowed either way — the
 library is refused to *agents*, not to people (§4) — but not silently.
+
+**Enter in a dialog's one text field presses its one filled button**, the way
+a form submits — a new name, a new game's, a chat's (`submitOnEnter` in
+`dialogs.js`). Only in a dialog with exactly one such field and one such
+button: a page of fields with a button per row, Studio settings, is left to
+its rows, and a textarea keeps Enter for a new line.
 
 `Duplicate…` sits beside it and copies instead of moving, to one of three
 places its own `Where to?` picks between: **this game** (the default), one

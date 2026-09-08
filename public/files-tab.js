@@ -244,9 +244,11 @@ export function renderFilesTab() {
 // send the copy to another game instead, and copying out of a game takes
 // nothing from it — the rights that matter are the destination's, which the
 // dialog minds.
-export function fileMore(path) {
+// `key` tells two ··· for the same file apart — the open file's bar and the
+// rail both wear one — so opening one does not open both.
+export function fileMore(path, key = `file:${path}`) {
   const picture = S.files.find((f) => f.path === path)?.mime?.startsWith('image/');
-  return more(`file:${path}`, [
+  return more(key, [
     !frozen() && { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-file', path }; render(); } },
     { text: 'Duplicate…', title: 'In this game, into another one, or a picture into the studio\'s collection', onPick: () => { S.dialog = { kind: 'duplicate-file', path }; render(); } },
     !frozen() && picture && { text: 'Make pixel art…', title: 'Cut it down, shrink it to a sprite’s size and use the game’s colours', onPick: () => { S.dialog = { kind: 'pixel-art', path }; render(); } },
@@ -278,10 +280,12 @@ export function renderOpenFile() {
           : 'Versions',
         onclick: () => { showMode('versions'); return loadHistory(S.open.path); },
       }),
-      // Rename, Duplicate and Delete are the file's ··· on its row or card
-      // (spec.md §6); the bar is the file's name, its versions, and the way
-      // out — except under Questions and Controls, where the file is the
-      // mode and there is nowhere to close it to.
+      // The file's own ··· — the same menu as on its row or card (spec.md
+      // §6) — sits between the versions and the way out, because on a phone
+      // the open file is the whole pane and the row it came from is gone.
+      // Neither under Questions and Controls, where the file is the mode and
+      // there is nowhere to close it to.
+      S.mode === 'quiz' || S.mode === 'controls' ? null : fileMore(S.open.path, `bar:${S.open.path}`),
       S.mode === 'quiz' || S.mode === 'controls' ? null : h('button', {
         class: 'icon tiny', text: '✕', title: 'Close this file',
         // Wrapped, not passed: closeOpenFile's first argument is the file to

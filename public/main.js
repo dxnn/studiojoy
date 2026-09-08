@@ -559,6 +559,12 @@ function placeMenu(button, menu) {
 // on the way there would write the mode's address without what it is about.
 // ⚠️ The promise goes all the way up to the onclick (see syncUrl).
 export async function openMode(id) {
+  // The pill you are on, pressed again, is the way back to the list without
+  // the bar's ✕: the open file closes and the mode stays. Not under Questions
+  // or Controls, where the file is the mode and there is nothing to go back to.
+  if (S.open && modeOf(id) === S.mode && !['quiz', 'controls'].includes(S.mode)) {
+    return closeOpenFile();
+  }
   await urlAs('hold', async () => {
     showMode(id);
     if (S.mode === 'share') await loadShare();

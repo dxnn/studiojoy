@@ -71,6 +71,9 @@
 .plan { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
 .plan-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .plan-row.skip .mono { color: var(--muted); text-decoration: line-through; }
+/* An upload row names its file the Rename dialog's way: the name box takes
+   the room and the note keeps to the end. */
+.plan-row .name-row { flex: 1; min-width: 0; }
 /* The open switch, in the Editors dialog rather than the bar: same shape as
    the rest, with the lock's meaning spelled out beside it. */
 .plan-row.switch { align-items: center; gap: 10px; margin-bottom: 8px; }
