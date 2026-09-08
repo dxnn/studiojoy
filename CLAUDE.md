@@ -236,8 +236,11 @@ walk into, each paid for once already.
   `role=button[name="…"]`, `… >> nth=0`), not by ref. `browser_run_code_unsafe`
   gives `page.mouse` for a real drag on a canvas, and an in-page `fetch` PUT
   to `/api/projects/<slug>/files/x.txt` is a deterministic way to cause a
-  background `files.changed` render. Stop the task and close the browser in
-  the same turn. Checked 2026-09-07, when it caught a scroll jump no test could.
+  background `files.changed` render. A file for `browser_file_upload` has to
+  sit under `/tmp/claude/playwright/` or this checkout, and not be called
+  `hero.png`, `icon.png` or `chat.png` — a reserved name lands as dressing and
+  skips the over-1024 check. Stop the task and close the browser in the same
+  turn. Checked 2026-09-07, when it caught a scroll jump no test could.
 
 ## Audience and direction
 
