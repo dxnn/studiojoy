@@ -35,7 +35,9 @@ holds plans and sketches. Completed work is git history, not this file.
   pointer, at 390px and 1280px. Needs `npx playwright install chromium` once.
   Not in `npm test`. ⚠️ **A coding agent cannot run this** — Chrome's Mach
   port bootstrap is denied in the agent sandbox, with Playwright and with a
-  hand-rolled driver alike. An agent writes these; a person runs them.
+  hand-rolled driver alike. An agent writes these; a person runs them. What
+  an agent *can* do is drive a throwaway studio through the Playwright MCP
+  server, which is the operator's own process — see the last dev gotcha.
 - `npm run adduser -- <email> "<Name>"` — makes an account without a studio
   running; the admin panel does the same from a browser.
 - `npm run deluser -- <email>` — ⚠️ the *only* way somebody leaves the studio:
@@ -224,6 +226,18 @@ walk into, each paid for once already.
 - A migrated game is verified in a browser at
   `localhost:8080/fam/gamestudio/games/<slug>/index.html`, which needs no
   studio running.
+- **Seeing a studio change in a real browser** (the one check `npm run ui`
+  cannot give an agent): the Playwright MCP tools drive a Chromium outside
+  the sandbox. `mkdir -p $TMPDIR/gs-x/games`, `adduser` against
+  `DB_PATH=$TMPDIR/gs-x/db`, start the studio as a tracked background task on
+  a spare port pair with that `DB_PATH` and `GAMES_DIR`, sign in with the
+  browser tools and drive it. ⚠️ Refs from a snapshot go stale on every
+  background render, so once a page is live click by selector (`text=…`,
+  `role=button[name="…"]`, `… >> nth=0`), not by ref. `browser_run_code_unsafe`
+  gives `page.mouse` for a real drag on a canvas, and an in-page `fetch` PUT
+  to `/api/projects/<slug>/files/x.txt` is a deterministic way to cause a
+  background `files.changed` render. Stop the task and close the browser in
+  the same turn. Checked 2026-09-07, when it caught a scroll jump no test could.
 
 ## Audience and direction
 
