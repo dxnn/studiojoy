@@ -10,6 +10,7 @@ import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
 import { NOTE_BYTES } from '../server/agents/orchestrator.js';
 import { tokensForChars } from '../server/llm/deepseek.js';
+import { arcFor } from '../public/arc.js';
 
 // A studio with one project, one agent, and the chat that agent is in. The
 // human-only chat a project opens on is not that chat, so every message here
@@ -591,8 +592,19 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /Moments\.say\("name", value\)/);
   // Where the game is on its arc, so a helper's suggestions fit the stamp the
   // person is working towards. A blank game's first stamp is the question a
-  // template would have answered.
-  assert.match(system, /holds 0 of 8 stamps on its arc and is working towards "What is it\?"/);
+  // template would have answered — held as `what`, and its words read from
+  // public/arc.js rather than repeated here, so rewording a stamp never means
+  // editing a test. What this holds is the sentence's shape and which stamp
+  // it names.
+  const blank = arcFor(null);
+  assert.equal(blank[0].id, 'what', 'a blank game starts at the question');
+  assert.ok(
+    system.includes(
+      `This game holds 0 of ${blank.length} stamps on its arc `
+      + `and is working towards "${blank[0].name}": ${blank[0].principle}`,
+    ),
+    'the arc line names the stamp and its principle',
+  );
   // A free-form game gets no type section: nothing here is a visual novel.
   assert.ok(!system.includes('This game is a visual novel'), 'no type section without a type');
   assert.match(system, /POST \/_scores\/<slug>/, 'the scoreboard is named');

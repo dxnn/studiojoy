@@ -20,6 +20,12 @@ const is = (path) => (p) => p === path;
 // One stamp: what to call it, the principle in a kid's words, what makers say
 // about it, the checks, and the asks — each a short label and the request a
 // press drops into the composer.
+//
+// ⚠️ A name carries no number. Where a stamp falls is the arc's business, and
+// the card writes "Step 3" from its position (public/arc-card.js) — a number
+// typed in here would be a second truth to keep, and wrong the moment a stamp
+// moves or a type takes a different arc. Nothing else reads a name either:
+// the tests hold ids, so these words are free to change.
 const stamp = (id, name, principle, makers, checks, asks) => ({
   id, name, principle, makers, checks, asks,
 });
@@ -61,7 +67,7 @@ const OUT = stamp(
 
 // What a blank game asks first: the sentence a template would have answered.
 const WHAT = stamp(
-  'what', 'Step 1: What is this game?',
+  'what', 'What is this game?',
   'Try to describe it in one sentence: you are an X, and you do Y!',
   'Change the SPEC.md file after it is made, so it matches what you want.',
   [{ text: 'Goal: a SPEC.md file that describes the game', test: (f) => has(f.files, is('SPEC.md')) }],
@@ -71,7 +77,7 @@ const WHAT = stamp(
 export const ARCS = {
   arcade: [
     stamp(
-      'moves', 'Step 2: It moves!',
+      'moves', 'It moves!',
       'Make a toy before you make the full game: get one thing working and feeling good.',
       "“Find the fun first.” -- if the basic game loop isn't fun, more features won't save it.",
       [
@@ -83,7 +89,7 @@ export const ARCS = {
       ],
     ),
     stamp(
-      'loops', 'Step 3: It loops!',
+      'loops', 'It loops!',
       'Something to gain, something to lose, and a reason to go again.',
       '"A game is a series of interesting decisions" -- and the loop makes the second play different from the first.',
       [{ text: 'the numbers in config/play.js', test: (f) => has(f.files, is('config/play.js')) }],

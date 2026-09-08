@@ -6,6 +6,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { signIn } from '../helpers.js';
 import { openStudio, pageFor, PHONE } from './browser.js';
+import { arcFor } from '../../public/arc.js';
+
+// ⚠️ Held by id, never by the words on the card. A stamp's name, its principle
+// and its asks are somebody's to reword on any afternoon, and a check that
+// fails when they do is a check that stops the rewording. What is asserted is
+// which stamp the card is on (`data-stamp`), that the studio numbers it, and
+// that an ask lands in the composer exactly as public/arc.js writes it.
+const BLANK = arcFor(null);
+const stampAt = (i) => BLANK[i];
 
 test('the arc shows in Building, folds on its head, and a press earns a stamp', async (t) => {
   const { app, browser } = await openStudio(t);
@@ -15,10 +24,13 @@ test('the arc shows in Building, folds on its head, and a press earns a stamp', 
   await page.goto(`${app.base}/p/tank?chat=${made.body.chat.id}`);
   await page.locator('.arc').waitFor();
 
-  // A blank game: eight dots, none earned, "What is it?" up next.
-  assert.equal(await page.locator('.arc-dot').count(), 8);
+  // A blank game: a dot per stamp, none earned, the first one up next — and
+  // the step number written by the card, since no name carries one.
+  const next = page.locator('.arc-next');
+  assert.equal(await page.locator('.arc-dot').count(), BLANK.length);
   assert.equal(await page.locator('.arc-dot.earned').count(), 0);
-  assert.equal(await page.locator('.arc-next').textContent(), 'What is it?');
+  assert.equal(await next.getAttribute('data-stamp'), stampAt(0).id);
+  assert.equal(await next.textContent(), `Step 1: ${stampAt(0).name}`);
 
   // The button is a thumb's size.
   const earn = page.getByRole('button', { name: /This one’s done/ });
@@ -27,12 +39,14 @@ test('the arc shows in Building, folds on its head, and a press earns a stamp', 
   await earn.click();
   await page.locator('.arc-dot.earned').first().waitFor();
   assert.equal(await page.locator('.arc-dot.earned').count(), 1);
-  assert.equal(await page.locator('.arc-next').textContent(), 'It moves');
+  assert.equal(await next.getAttribute('data-stamp'), stampAt(1).id);
+  assert.equal(await next.textContent(), `Step 2: ${stampAt(1).name}`);
   assert.equal(app.db.prepare("SELECT stage FROM projects WHERE slug = 'tank'").get().stage, 1);
 
-  // An ask lands in the composer, unsent.
-  await page.getByRole('button', { name: 'Make it move' }).click();
-  assert.match(await page.locator('textarea').inputValue(), /Make the thing I steer move/);
+  // An ask lands in the composer, unsent and word for word.
+  const [ask] = stampAt(1).asks;
+  await page.getByRole('button', { name: ask.label }).click();
+  assert.equal(await page.locator('textarea').inputValue(), ask.text);
   assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM messages WHERE user_id IS NOT NULL').get().n, 0);
 
   // The head folds the card to its row and back.

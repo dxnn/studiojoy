@@ -522,12 +522,19 @@ it lands, on the tab's own clock; a `project.updated` refetches the list
 
 **The arc at the top of Building** (`public/arc-card.js`, `public/arc.js`,
 ideas/doneness.md): how done a game is, apart from whether it is out. A game
-collects **stamps** in the order its type sets — the arcade's run *It moves*,
-*It loops*, *It looks like something*, *It feels good*, *It's fair*, *Someone
-else played it*, *It's out*; a visual novel's put story where the loop is and
-*Read it aloud* where tuning is; a quiz's are five; a blank game's start with
-*What is it?* Each stamp is one principle real game makers hold, in a kid's
-words, with what makers say about it, the **checks** the studio ticks from the
+collects **stamps** in the order its type sets: seven for the arcade, eight
+for a visual novel — story where the loop is, reading aloud where tuning is —
+five for a quiz, and a blank game takes the arcade's seven with the question a
+template would have answered in front, which is the eight a new game shows.
+The card numbers them from their position — *Step 3* — so no stamp's name
+carries a number of its own. ⚠️ The stamps themselves — their ids,
+their order and every word on them — are `public/arc.js` and are not repeated
+here: they are the wording of a card a kid reads, reworded whenever the words
+are wrong, and a list of them in the design-of-record is a second truth that
+goes stale the first time somebody improves a sentence. The tests hold the
+ids for the same reason. Each stamp is one principle real game makers hold,
+in a kid's words, with what makers say about it, the **checks** the studio
+ticks from the
 tree and the row (names, never a file's bytes), and two or three **asks** —
 pressed, the request lands in the composer, unsent, so a kid learns what to
 ask for by asking for it. The stamp is the person's call: *This one's earned*

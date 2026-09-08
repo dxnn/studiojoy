@@ -14,13 +14,16 @@ test('every arc is whole stamps in a fixed order, ending with somebody else and 
       assert.ok(s.id && s.name && s.principle && s.makers, `${type}/${s.id} says what it is`);
       assert.ok(Array.isArray(s.checks) && Array.isArray(s.asks), `${type}/${s.id} has checks and asks`);
       for (const a of s.asks) assert.ok(a.label && a.text, `${type}/${s.id} asks in words`);
+      for (const c of s.checks) {
+        assert.ok(c.text && typeof c.test === 'function', `${type}/${s.id} checks in words`);
+      }
     }
     assert.deepEqual(arc.slice(-2).map((s) => s.id), ['played', 'out'], `${type} ends the same way`);
     assert.equal(new Set(arc.map((s) => s.id)).size, arc.length, `${type} repeats no stamp`);
   }
 });
 
-test('a game with no type takes the arcade’s arc with "What is it?" in front', () => {
+test('a game with no type takes the arcade’s arc with the `what` stamp in front', () => {
   const blank = arcFor(null);
   assert.equal(blank[0].id, 'what');
   assert.deepEqual(blank.slice(1), ARCS.arcade);
@@ -29,11 +32,11 @@ test('a game with no type takes the arcade’s arc with "What is it?" in front',
 });
 
 test('checks tick from the tree and the row, and nothing else', () => {
+  // Answers only, never the words: what a check *says* is on the card and
+  // belongs to public/arc.js alone, and that each one says something is held
+  // once, above, for every arc.
   const [moves, loops, looks] = ARCS.arcade;
-  assert.deepEqual(checks(moves, facts([])), [
-    { text: 'a script in js/', ok: false },
-    { text: 'the controls in config/controls.js', ok: false },
-  ]);
+  assert.deepEqual(checks(moves, facts([])).map((c) => c.ok), [false, false]);
   assert.deepEqual(
     checks(moves, facts(['js/game.js', 'config/controls.js'])).map((c) => c.ok),
     [true, true],

@@ -56,7 +56,17 @@ export function renderArcCard(p) {
     onclick: () => { prefs.set(key(), shut ? 'open' : 'closed'); render(); },
   },
   dots,
-  h('span', { class: 'arc-next', text: next ? next.name : 'This game is done — well, until somebody wants a level 11.' }),
+  // "Step 3: It loops!" — the number is this stamp's place in the arc, written
+  // here rather than typed into its name (public/arc.js), so the words are
+  // free to change and a stamp can move. `data-stamp` is the same identity in
+  // a form a test can hold, since the words are not one.
+  h('span', {
+    class: 'arc-next',
+    'data-stamp': next ? next.id : null,
+    text: next
+      ? `Step ${stage + 1}: ${next.name}`
+      : 'This game is done — well, until somebody wants a level 11.',
+  }),
   h('span', { class: 'caret', text: shut ? '▾' : '▴' }));
   // One way backwards, for a press by mistake; absent for anybody who may not
   // press it, and with nothing to take back.
