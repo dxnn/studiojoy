@@ -312,6 +312,10 @@ test('one change is a plan of one piece, run at once behind its card', async (t)
   t.after(() => stream.close());
 
   await send(app, chatId, 'make the tanks a bit faster');
+  // The line under the name names the sizing call first, since it streams
+  // nothing of its own (spec.md §9).
+  const sizing = await stream.waitFor((e) => e.event === 'agent.tool');
+  assert.equal(sizing.data.tool, 'size');
   const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
   assert.equal(card.data.body.split('\n')[0], 'One piece:');
   const row = await stream.waitFor((e) => e.event === 'message.new' && e.data.plan_message_id === card.data.id);
@@ -323,6 +327,25 @@ test('one change is a plan of one piece, run at once behind its card', async (t)
   assert.equal(done.data.body, 'Done:\n1. Faster tanks — config/play.js\n   Try a lap and see if it feels right.');
   assert.equal(llm.calls.length, 2);
   assert.equal(llm.calls[0].thinking, 'low', 'no plan thought for it, so the builder\'s own level');
+
+  // The piece was marked running before its stream began, so the card had a
+  // line for the live reply to be born on (spec.md §8); and the write was
+  // announced as the file arrived, then again as it ran (§9).
+  const running = stream.events.findIndex((e) => e.event === 'plan.update' && e.data.plan.pieces[0].status === 'running');
+  const starts = stream.events.map((e, i) => (e.event === 'agent.stream.start' ? i : -1)).filter((i) => i >= 0);
+  assert.equal(starts.length, 2, 'the sizing\'s fire, then the piece\'s');
+  assert.ok(running > starts[0] && running < starts[1], 'running is told before the piece\'s start');
+  const writes = stream.events.filter((e) => e.event === 'agent.tool' && e.data.tool === 'write_file');
+  assert.deepEqual(writes.map((w) => w.data.path), ['config/play.js', 'config/play.js']);
+
+  // The card's token note opens its piece's receipt, and its prompt is the
+  // piece's: no fire was the card's own.
+  const receipt = await app.client.json('GET', `/api/messages/${card.data.id}/receipt`);
+  assert.equal(receipt.status, 200);
+  assert.equal(receipt.body.breakdown.requests.length, 2);
+  assert.equal(receipt.body.breakdown.loop.tool_calls, 1);
+  assert.equal(receipt.body.prompt_held, true);
+  assert.equal((await app.client.request('GET', `/api/messages/${card.data.id}/prompt`)).status, 200);
 
   // The thread holds the card and not the row; the row is there by id.
   const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
@@ -364,6 +387,8 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.match(card.data.body, /Assuming:\n- Arrow keys for one, WASD for the other\./);
   assert.equal(card.data.plan.status, 'draft');
   assert.equal(card.data.tokens, null, 'nothing has cost anything yet');
+  assert.equal((await app.client.json('GET', `/api/messages/${card.data.id}/receipt`)).status, 404,
+    'no piece has landed, so nothing to open');
   assert.equal(card.data.plan.summary, 'A tank game for two on one keyboard.');
   assert.deepEqual(card.data.plan.pieces.map((p) => [p.title, p.status]),
     [['The page', 'todo'], ['Tanks that drive', 'todo']]);
@@ -395,6 +420,18 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   // number for the plan where a reply has one for itself.
   assert.ok(first.data.tokens > 0 && second.data.tokens > 0, 'each piece costs');
   assert.equal(done.data.tokens, first.data.tokens + second.data.tokens);
+  // And the note opens the pieces' receipts as one: every request in order,
+  // the loop counts summed, the pieces counted; the prompt is the last piece's.
+  const receipt = await app.client.json('GET', `/api/messages/${card.data.id}/receipt`);
+  assert.equal(receipt.status, 200);
+  assert.equal(receipt.body.breakdown.pieces, 2);
+  assert.equal(receipt.body.breakdown.requests.length, 4, 'two turns a piece');
+  assert.equal(receipt.body.breakdown.loop.tool_calls, 4);
+  assert.equal(receipt.body.breakdown.loop.turns, 4);
+  assert.equal(receipt.body.prompt_held, true);
+  const prompt = await app.client.request('GET', `/api/messages/${card.data.id}/prompt`);
+  assert.equal(prompt.status, 200);
+  assert.match(await prompt.text(), /piece 2 of 2: Tanks that drive/);
   // The card's body is the reply the thread keeps: its head says it is done,
   // each line a piece's title, the files it changed and its headline.
   assert.equal(done.data.body, [

@@ -1085,6 +1085,12 @@ export function createOrchestrator({
           } else if (event.type === 'delta') {
             text += event.text;
             emit('agent.stream.chunk', { delta: event.text });
+          } else if (event.type === 'tool_start' || event.type === 'tool_progress') {
+            // A call still arriving (spec.md §9): the line under the name says
+            // which file and how much of it has come, while it is being
+            // written rather than once it has been. The same event again
+            // when the call runs, below.
+            emit('agent.tool', { tool: event.name, path: event.path, bytes: event.bytes ?? null });
           } else if (event.type === 'tool_use') {
             calls.push(event);
           } else if (event.type === 'tool_use_failed') {
@@ -1428,7 +1434,10 @@ export function createOrchestrator({
   async function sizeRequest(fire, {
     paused = null, notes = null, begun = null, trigger = null,
   } = {}) {
-    const { agent, context, asker } = fire;
+    const { agent, context, asker, emit } = fire;
+    // One whole answer streams nothing, so the line under the name says what
+    // is happening itself (spec.md §9): not a tool, but the one word for it.
+    emit('agent.tool', { tool: 'size', path: null });
     const messages = context.messages.map((m) => ({ ...m }));
     // Build it adds its own turn: the newest message is the card, the
     // builder's own, and the trigger goes on as a user turn after it.
@@ -1773,11 +1782,13 @@ export function createOrchestrator({
         return;
       }
       const piece = current.pieces[i];
-      emit('agent.stream.start');
-      state.live = true;
-      // Marked running so the card can show the live reply on this line.
+      // Marked running before the start event, so the card is showing this
+      // line as the live reply's place by the time there is one: the other
+      // way round it was born at the foot of the thread and jumped up.
       current = setPiece(db, plan.message_id, i, { status: 'running' });
       announcePlan(fire, current);
+      emit('agent.stream.start');
+      state.live = true;
       const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
       const turn = pieceTurn({
         request: current.request, pieces: current.pieces, index: i,

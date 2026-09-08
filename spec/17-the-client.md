@@ -64,7 +64,9 @@ never per delta: repainting the box and forcing a reflow ~90 times a second
 grows with the trace and froze the page right at the thinking cap. The trace
 panel sticks to the newest thought unless the reader has scrolled up, and the
 elapsed line (`thinking, 2m 14s`) counts off the deltas themselves, not a
-timer. Checked at 87,000 characters of trace.
+timer. Checked at 87,000 characters of trace. A file being written moves the
+same line by its arrival (`agent.tool` with `bytes`, §9) and the sizing call
+names itself on it: every movement there is something that arrived.
 
 ### The URL is the view
 

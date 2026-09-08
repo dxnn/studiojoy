@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createDeepSeek, tokensCharged, tokensForChars, LlmError, MODEL_IDS,
-  DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS,
+  DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS, PROGRESS_STEP,
 } from '../server/llm/deepseek.js';
 
 // Build an SSE body from chunk objects. `sliceAt` emits the bytes in small
@@ -114,6 +114,48 @@ test('tool call fragments are reassembled and parsed', async () => {
   assert.equal(call.name, 'write_file');
   assert.deepEqual(call.input, { path: 'index.html', content: '<h1>Hi</h1>' });
   assert.equal(events.at(-1).finish_reason, 'tool_calls');
+});
+
+// A file takes as long to arrive as the model takes to write it, so the call
+// is announced as it begins and its size reported as it grows (spec.md §9);
+// the call itself still comes whole at the end.
+test('a tool call says what it is as it arrives, and how much has come', async () => {
+  const filler = 'x'.repeat(300);
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'call_1', type: 'function', function: { name: 'write_file', arguments: '' } }),
+    toolChunk(0, { function: { arguments: '{"path": "js/ga' } }),
+    toolChunk(0, { function: { arguments: 'me.js", "content": "' } }),
+    toolChunk(0, { function: { arguments: filler } }),
+    toolChunk(0, { function: { arguments: filler } }),
+    toolChunk(0, { function: { arguments: filler } }),
+    toolChunk(0, { function: { arguments: filler } }),
+    toolChunk(0, { function: { arguments: '"}' } }),
+    finalChunk('tool_calls'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+  const kinds = events.map((e) => e.type);
+
+  // Announced once the path closes: not on the name alone, not on half a path.
+  assert.deepEqual(events[0], { type: 'tool_start', index: 0, name: 'write_file', path: 'js/game.js' });
+  // 1,237 characters of arguments is two steps.
+  const progress = events.filter((e) => e.type === 'tool_progress');
+  assert.deepEqual(progress.map((e) => [e.name, e.path]), [['write_file', 'js/game.js'], ['write_file', 'js/game.js']]);
+  assert.ok(progress[0].bytes >= PROGRESS_STEP && progress[0].bytes < 2 * PROGRESS_STEP, `${progress[0].bytes}`);
+  assert.ok(progress[1].bytes >= 2 * PROGRESS_STEP, `${progress[1].bytes}`);
+  assert.ok(kinds.indexOf('tool_use') > kinds.lastIndexOf('tool_progress'), 'the call itself comes last');
+  assert.deepEqual(events.find((e) => e.type === 'tool_use').input, { path: 'js/game.js', content: filler.repeat(4) });
+});
+
+test('a call whose path is not first is announced with it unknown, then named', async () => {
+  const fetchImpl = fakeFetch([
+    toolChunk(0, { id: 'c', function: { name: 'write_file', arguments: `{"content": "${'y'.repeat(600)}", ` } }),
+    toolChunk(0, { function: { arguments: '"path": "a.txt"}' } }),
+    finalChunk('tool_calls'),
+  ]);
+  const events = await collect(createDeepSeek({ apiKey: 'k', fetchImpl }));
+  assert.deepEqual(events[0], { type: 'tool_start', index: 0, name: 'write_file', path: null });
+  assert.equal(events.find((e) => e.type === 'tool_progress').path, 'a.txt', 'read once it is there');
+  assert.equal(events.find((e) => e.type === 'tool_use').input.path, 'a.txt');
 });
 
 test('parallel tool calls come out in index order', async () => {

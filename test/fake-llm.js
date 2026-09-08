@@ -26,6 +26,14 @@ export function says(text, { reasoning = null, tokens = 10, reasoningTokens = 0 
 export function calls(toolCalls, { text = '', tokens = 20, reasoningTokens = 0 } = {}) {
   const events = [];
   if (text) events.push({ type: 'delta', text });
+  // The real client says what a call is as it begins to arrive and yields it
+  // whole at the end (deepseek.js); both here, so every test that writes a
+  // file also drives the orchestrator's handling of the first.
+  toolCalls.forEach((call, i) => {
+    events.push({
+      type: 'tool_start', index: i, name: call.name, path: call.input?.path ?? null,
+    });
+  });
   toolCalls.forEach((call, i) => {
     events.push({
       type: 'tool_use',

@@ -64,7 +64,9 @@ function tintStyle(agent, id) {
 // this helper was given the recent part of it and not the beginning. When the
 // reply left a receipt, the token count is the link that opens it — a reply
 // from before receipts existed stays a plain note, because a note that lights
-// up must open something.
+// up must open something. A plan card's count is its pieces' cost and opens
+// their receipts as one (spec.md §8): no fire was the card's own, so its flag
+// is false and a landed piece is what says there is something to open.
 // The last thing in the thread, which is where a warning about your own day
 // belongs: on every reply it would be a drumbeat, and on an old one it would
 // be about a number that has since moved.
@@ -74,7 +76,8 @@ function footnote(msg) {
   const parts = [];
   if (msg.tokens) {
     const label = `${msg.tokens.toLocaleString()} tokens`;
-    parts.push(msg.receipt
+    const opens = msg.receipt || Boolean(msg.plan?.pieces.some((p) => p.message_id));
+    parts.push(opens
       ? h('button', {
         class: 'link',
         text: S.receipt?.id === msg.id ? `${label} — hide` : label,
@@ -167,6 +170,9 @@ function renderReceipt(msg, receipt) {
 
   const requests = b.requests ?? [];
   const cost = [];
+  // A plan card's receipt is its pieces' as one, so say how many fires the
+  // requests below belong to.
+  if (b.pieces > 1) cost.push(row('pieces, one fire each', String(b.pieces)));
   // Why the "remembered" column can drop between requests: the loop told the
   // model to let go of its earlier thinking to keep the bill down.
   if (loop.sheds) {

@@ -3,7 +3,7 @@
 // dispatch of everything the server pushes onto it.
 
 import {
-  S, api, render, say, urlAs, hasEditor, loadProjects, loadMe, setConnected,
+  S, api, render, say, urlAs, hasEditor, loadProjects, loadMe, setConnected, sizeText,
 } from './main.js';
 import { dropArtIndex } from './story-guide.js';
 import { applyReactionDelta } from './chat.js';
@@ -172,6 +172,9 @@ function paintTrace(entry) {
 function paintReply(entry) {
   entry.nodes.reply.textContent = entry.reply;
   entry.nodes.reply.hidden = false;
+  // Words arriving are the model talking again, so the line under the name
+  // goes back to the count — a chunk cleared whatever tool it named.
+  entry.nodes.tool.textContent = toolLabel(entry.tool) || thinkingFor(entry);
   stickToBottom();
 }
 
@@ -319,6 +322,9 @@ function onEvent(name, data) {
     case 'agent.stream.reasoning': {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.trace += data.delta;
+      // Thinking again: whatever the line named — a file being written, the
+      // sizing call — is over, and the count takes the line back.
+      entry.tool = null;
       if (!here(data)) return;
       if (entry.nodes) paintSoon(entry, 'trace', paintTrace);
       else render();
@@ -328,6 +334,7 @@ function onEvent(name, data) {
     case 'agent.stream.chunk': {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
       entry.reply += data.delta;
+      entry.tool = null;
       if (!here(data)) return;
       if (entry.nodes) paintSoon(entry, 'reply', paintReply);
       else render();
@@ -336,7 +343,10 @@ function onEvent(name, data) {
 
     case 'agent.tool': {
       const entry = liveFor(data.project_slug, data.chat_id, data.agent_id);
-      entry.tool = data.path ? `${data.tool} ${data.path}` : data.tool;
+      // Sent as a call begins to arrive, every so often with how much of it
+      // has, and again as it runs; and once for the builder's sizing call,
+      // which is not a tool but streams nothing either (spec.md §9).
+      entry.tool = { name: data.tool, path: data.path ?? null, bytes: data.bytes ?? null };
       // A tool call ends a turn, and what the turn said ahead of it was said
       // on the way, not to the person: fold it into the working panel, so
       // the bubble holds the latest thing said and never grows into a wall.
@@ -478,13 +488,17 @@ export function thinkingFor(entry) {
   return `thinking, ${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
+// What the helper is doing instead of talking, in plain words: the tool and
+// its file, with how much of the file has arrived while it is still coming.
 export function toolLabel(tool) {
   if (!tool) return '';
-  const [verb, ...rest] = tool.split(' ');
-  const path = rest.join(' ');
   const words = {
     write_file: 'writing', patch_file: 'editing',
     read_file: 'reading', delete_file: 'deleting',
+    // Not a tool: the builder's sizing call, one whole answer with nothing to
+    // stream (spec.md §8).
+    size: 'working out how big this is',
   };
-  return `${words[verb] ?? verb} ${path}`.trim();
+  const doing = [words[tool.name] ?? tool.name, tool.path].filter(Boolean).join(' ');
+  return tool.bytes ? `${doing}, ${sizeText(tool.bytes)}` : doing;
 }

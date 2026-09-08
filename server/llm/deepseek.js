@@ -4,6 +4,8 @@
 // Yields a simplified event stream the orchestrator consumes:
 //   {type:'reasoning', text}       reasoning trace, never persisted
 //   {type:'delta', text}           reply text
+//   {type:'tool_start', index, name, path}          a call as it begins to arrive
+//   {type:'tool_progress', index, name, path, bytes} how much of it has, so far
 //   {type:'tool_use', id, name, input}
 //   {type:'tool_use_failed', id, name, reason}
 //   {type:'end', text, finish_reason, usage}
@@ -54,6 +56,50 @@ export const MAX_OUTPUT_TOKENS = 65536;
 export const DEFAULT_MAX_TOKENS = MAX_OUTPUT_TOKENS;
 
 export const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
+
+// A tool call while it is still arriving, for the line under a helper's name
+// (spec.md §9). Arguments stream as fragments and are only whole at the end,
+// which is when the call itself is yielded — but a file takes as long to
+// arrive as it takes the model to write it, and that was the longest silence
+// in a fire. So: `tool_start` once the call's name and path can be read, and
+// `tool_progress` every PROGRESS_STEP characters after, saying how much has
+// come. `path` is the first key in every tool's arguments (agents/tools.js),
+// so it is readable within the first fragment or two; a call that has run
+// PROGRESS_STEP characters without one is announced with the path unknown
+// rather than kept back.
+const PATH_IN_ARGS = /"path"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+// At the ~360 characters a second measured in §14, one event a second or two.
+export const PROGRESS_STEP = 512;
+
+function pathIn(args) {
+  const found = PATH_IN_ARGS.exec(args);
+  if (!found) return null;
+  try {
+    return JSON.parse(`"${found[1]}"`);
+  } catch {
+    return found[1];
+  }
+}
+
+function toolProgress(current, index) {
+  if (!current.name) return null;
+  if (!current.announced) {
+    const path = pathIn(current.args);
+    if (path === null && current.args.length < PROGRESS_STEP) return null;
+    current.announced = true;
+    current.path = path;
+    return { type: 'tool_start', index, name: current.name, path };
+  }
+  const step = Math.floor(current.args.length / PROGRESS_STEP);
+  if (step <= current.reported) return null;
+  current.reported = step;
+  // Announced without one: the path may be readable by now.
+  if (current.path === null) current.path = pathIn(current.args);
+  return {
+    type: 'tool_progress', index, name: current.name, path: current.path,
+    bytes: Buffer.byteLength(current.args, 'utf8'),
+  };
+}
 
 export class LlmError extends Error {
   constructor(message, {
@@ -328,11 +374,13 @@ export function createDeepSeek({
             for (const call of delta.tool_calls ?? []) {
               const index = call.index ?? 0;
               const current = partialTools.get(index)
-                ?? { id: '', name: '', args: '' };
+                ?? { id: '', name: '', args: '', announced: false, path: null, reported: 0 };
               if (call.id) current.id = call.id;
               if (call.function?.name) current.name = call.function.name;
               if (call.function?.arguments) current.args += call.function.arguments;
               partialTools.set(index, current);
+              const arriving = toolProgress(current, index);
+              if (arriving) yield arriving;
             }
           }
         }

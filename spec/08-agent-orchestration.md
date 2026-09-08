@@ -160,7 +160,8 @@ Then one fire per **piece**, in order:
   the thinking. A plan of one at the builder's own level.
 - Its own message row behind the card, commit (`Builder: piece i of N —
   title`), receipt, and `plan.update` (§9) as it starts — the piece marked
-  `running`, so the card shows the live reply on its line — and as it lands.
+  `running` *before* its stream's start event, so the card's line is where
+  the live reply is born rather than the foot of the thread — and as it lands.
   A piece that hit a limit still counts as done: what it wrote is on disk and
   the next piece builds on it.
 
@@ -473,7 +474,10 @@ newest thought: the block is a few lines tall and a trace runs to hundreds,
 so left alone it showed the first ten lines for as long as the helper
 thought — a working nine-minute reply that looked like a stopped one. The
 line under the name counts the thinking (`thinking, 2m 14s`) off the deltas
-themselves, not a timer, so it stops when they do.
+themselves, not a timer, so it stops when they do; a tool call takes the line
+over as it *arrives* (`agent.tool`, §9), with how much of the file has come,
+and the sizing call names itself there, so a fire that is working never
+stands still on the screen.
 
 Thinking is bounded twice. The level (§14) decides how hard it thinks at
 all, and the **thinking cap** stops a turn whose trace runs past

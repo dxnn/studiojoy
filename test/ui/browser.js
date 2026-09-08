@@ -61,9 +61,10 @@ async function launch() {
 
 // A studio and a browser, both closed when the test ends. The fixture is the
 // same one every API test uses, so seeding is the API rather than a second
-// set of fixtures that can drift from it.
-export async function openStudio(t) {
-  const app = await setup({ publicDir: PUBLIC_DIR });
+// set of fixtures that can drift from it; `opts` are its — an `llm` for a
+// check that needs a helper to answer.
+export async function openStudio(t, opts = {}) {
+  const app = await setup({ publicDir: PUBLIC_DIR, ...opts });
   // ⚠️ Registered before the browser is launched, never after. A launch that
   // throws used to leave the studio's own listener open, and a listening
   // server keeps node alive: the run hung instead of finishing, so the

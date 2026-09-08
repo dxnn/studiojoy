@@ -15,7 +15,7 @@ broker entirely.
 | `agent.stream.start` | `{project_slug, agent_id}` |
 | `agent.stream.reasoning` | `{project_slug, agent_id, delta}` — reasoning trace, rendered dimmed and collapsible, never persisted |
 | `agent.stream.chunk` | `{project_slug, agent_id, delta}` — reply text |
-| `agent.tool` | `{project_slug, agent_id, tool, path}` — drives a live "writing game.js…" indicator, and folds what the turn said into the live reply's `Working` panel, since a tool call ends a turn (§8) |
+| `agent.tool` | `{project_slug, agent_id, tool, path, bytes?}` — drives the line under the name (`writing js/game.js, 3 KB`). Sent as a call *begins to arrive* — its name and path read off the first fragments (`tool_start` in the DeepSeek client) — then every 512 characters with `bytes` so far (`tool_progress`), and again as it runs: a file takes as long to arrive as the model takes to write it, and that was a fire's longest silence. Once more ahead of the builder's *sizing* call as `tool: 'size'`, not a tool but the one thing in a fire that streams nothing at all. A tool call ends a turn, so it also folds what the turn said into the live reply's `Working` panel (§8) |
 | `agent.stream.end` | `{project_slug, agent_id, message_id?, error?}` |
 | `chats.changed` | `{project_slug}` — a chat was added or renamed; the client refetches the list rather than being sent it |
 | `files.changed` | `{project_slug, paths: string[]}` — the tree changed: client refreshes the tree and reloads the preview iframe. Fires on the write, which for a save is before its commit (§5) |

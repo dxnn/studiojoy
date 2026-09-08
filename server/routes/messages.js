@@ -220,16 +220,31 @@ export function messageRoutes(r) {
   // and every account sees every project, so auth is the whole check.
   r.get('/api/messages/:id/receipt', (ctx) => {
     requireAuth(ctx);
+    const id = requireMessageId(ctx);
     const row = ctx.db
       .prepare(
         `SELECT breakdown, prompt IS NOT NULL AS held
            FROM message_receipts WHERE message_id = ?`,
       )
-      .get(requireMessageId(ctx));
-    if (!row) throw new HttpError(404, 'no receipt for that message');
+      .get(id);
+    if (row) {
+      json(ctx.res, 200, { breakdown: JSON.parse(row.breakdown), prompt_held: row.held === 1 });
+      return;
+    }
+    // A plan card had no fire of its own: its receipt is its pieces', so the
+    // card's token note opens the way a reply's does (spec.md §8). Nothing
+    // has landed yet, no receipt yet.
+    const pieces = ctx.db
+      .prepare(
+        `SELECT r.breakdown, r.prompt IS NOT NULL AS held
+           FROM messages m JOIN message_receipts r ON r.message_id = m.id
+          WHERE m.plan_message_id = ? ORDER BY m.id`,
+      )
+      .all(id);
+    if (pieces.length === 0) throw new HttpError(404, 'no receipt for that message');
     json(ctx.res, 200, {
-      breakdown: JSON.parse(row.breakdown),
-      prompt_held: row.held === 1,
+      breakdown: piecesBreakdown(pieces.map((p) => JSON.parse(p.breakdown))),
+      prompt_held: pieces.at(-1).held === 1,
     });
   });
 
@@ -262,16 +277,38 @@ export function messageRoutes(r) {
 
   // The prompt itself, exactly as the last request of that fire carried it.
   // Held only for the newest reply in each project — the next fire takes it.
+  // A plan card's is its last piece's, the way its receipt is its pieces'.
   r.get('/api/messages/:id/prompt', (ctx) => {
     requireAuth(ctx);
+    const id = requireMessageId(ctx);
     const row = ctx.db
-      .prepare('SELECT prompt FROM message_receipts WHERE message_id = ?')
-      .get(requireMessageId(ctx));
+      .prepare(
+        `SELECT prompt FROM message_receipts
+          WHERE message_id = ?
+             OR message_id = (SELECT MAX(id) FROM messages WHERE plan_message_id = ?)`,
+      )
+      .get(id, id);
     if (!row || row.prompt === null) {
       throw new HttpError(404, 'the prompt is only kept for the newest reply in a project');
     }
     text(ctx.res, 200, row.prompt);
   });
+}
+
+// The pieces' receipts as one. What the fire was given is the last piece's —
+// every piece runs on the sizing's own block, so they differ only in their
+// turn — and what it cost is every piece's requests in order, the loop counts
+// summed, and how many pieces there were.
+function piecesBreakdown(list) {
+  const sum = (key) => list.reduce((n, b) => n + (b.loop?.[key] ?? 0), 0);
+  return {
+    ...list.at(-1),
+    pieces: list.length,
+    loop: {
+      turns: sum('turns'), tool_calls: sum('tool_calls'), appended_bytes: sum('appended_bytes'), sheds: sum('sheds'),
+    },
+    requests: list.flatMap((b) => b.requests ?? []),
+  };
 }
 
 function requireMessageId(ctx) {
