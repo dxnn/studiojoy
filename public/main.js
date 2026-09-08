@@ -303,7 +303,11 @@ function restoreFocus(snap) {
   // A remembered element that did not make it back into the tree — the render
   // that ran was the one closing its dialog — has nowhere to put the focus.
   if (!el || (snap.el && !el.isConnected)) return;
-  el.focus();
+  // Without preventScroll, focus() scrolls the control into view — centred, in
+  // Chrome — and restoreScroll has already put every scroller where it was:
+  // the select just changed at the foot of a dialog pulled the dialog up to
+  // meet it on every background render.
+  el.focus({ preventScroll: true });
   if (snap.start !== null && snap.start !== undefined) el.setSelectionRange(snap.start, snap.end);
   el.scrollTop = snap.scroll;
 }

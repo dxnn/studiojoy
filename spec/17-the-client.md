@@ -42,7 +42,9 @@ is gone unless it is snapshotted and put back.
   leaving the document empties a scroller, so the dialog's box is a named one
   (`dialog`) and so is the shelf grid inside it (`shelf`): a banner leaving
   six seconds after it arrived used to send Modify image back to its top
-  while its bottom was being set.
+  while its bottom was being set. The focus restore that follows uses
+  `preventScroll`, since `focus()` otherwise scrolls the control into view —
+  centred, in Chrome — after the snapshot has already put the scroller back.
 - **The @ menu over the composer**, for the same reason the composer itself
   survives a render: it is one node on the body, painted in place and never
   through `render()`. Rendering it would rebuild the whole thread on every
