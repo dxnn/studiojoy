@@ -374,7 +374,9 @@ function renderPlanCard(msg) {
         class: `pieces-state${plan.status === 'running' || plan.status === 'queued' ? ' dots' : ''}`, text: state,
       }) : null),
     reactionsRow(msg),
-    footnote(msg));
+    footnote(msg),
+    // The pieces' receipts as one, opened from the note the way a reply's is.
+    S.receipt?.id === msg.id ? renderReceipt(msg, S.receipt) : null);
 }
 
 // The plan's words over its pieces: what it is, and what the planner assumed
