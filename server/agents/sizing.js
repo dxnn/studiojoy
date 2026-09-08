@@ -35,6 +35,8 @@ export function sizingRules() {
     'most — and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for',
     'the helper who will do that piece, saying what it makes and what it must not touch. Order the pieces',
     'so each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
+    'Every piece that brings numbers or words into the game names the config/ file they go in among its',
+    'files — config/play.js, look.js, words.js or world.js — so no constant is ever written into js/.',
     'With two or more pieces add "summary": one paragraph in the person\'s own words saying what the game',
     'or the change is, and "assumptions": a short list of one-sentence decisions you made where the request',
     'left things open. The person reads and changes both before the plan is built, so write them for them.',
@@ -149,6 +151,8 @@ export function pieceTurn({
     `This reply is piece ${index + 1} of ${n}: ${piece.title} (${piece.files.join(', ')}). ${piece.what}`,
     'Do only this piece, then stop with one short paragraph saying what you made and what to try — that',
     'paragraph is what the person reads. The other pieces are later replies.',
+    'Numbers and words this piece brings in go in config/ with a comment, never in js/: a piece is not done',
+    'while a constant sits in game code.',
   );
   return lines.join('\n');
 }

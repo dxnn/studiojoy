@@ -370,7 +370,14 @@ colours and sizes, `words.js` for every string the player sees, `controls.js`
 for which button does what (§6, Files). The preamble asks for plain
 `const NAME = value;` declarations — numbers, strings, booleans, and lists
 or groups of those, each with a comment — since the studio opens these files
-as a **config form** rather than text (§6, Files).
+as a **config form** rather than text (§6, Files). ⚠️ **Every number and
+every word the game uses lives in one, and none in `js/`**: the rule the
+preamble leads the block with, repeated in the sizing rules (a piece names
+the config file its constants go in among its files) and on every piece
+turn, and the blank page's brief names the three files a new game has yet to
+make. Said three times because the builder, told only what a config file
+looks like, left constants in game code until a person asked each time
+(2026-09-07).
 
 Agents change config files whenever the game needs it — adding a level or a
 line of dialogue *is* the job, which is why the earlier "never rewrite one"

@@ -13,6 +13,9 @@ What is here now:
   input library. See Controls below.
 - config/achievements.js — an empty list, seeded by the achievements library.
   Fill it in once the game says moments worth earning something for.
+- config/play.js, config/look.js, config/words.js — not here yet. The first
+  thing built makes them, and every number and word the game uses goes in
+  them rather than in js/: the studio's rule, and the one most often missed.
 
 All six libraries are loaded already, so a first script can call Input.held,
 Sound.play, Sprites.draw, Screens.title and Moments.say without touching

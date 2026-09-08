@@ -431,6 +431,7 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.equal(confirm.messages.at(-1).content, '[studio] Build the plan above as written. Answer {"ok":true}.');
   assert.equal(confirm.messages.at(-2).role, 'assistant', 'the card is the turn before it');
   assert.match(confirm.system, /--- FILE: SPEC\.md/, 'the block the pieces run on carries the spec');
+  assert.match(confirm.system, /names the config\/ file they go in/, 'the planner gives each piece its config file');
   assert.equal(llm.calls[0].system, confirm.system);
   assert.equal(llm.calls[2].system, confirm.system, 'the block is the confirmation\'s for every piece');
   // The fake keeps the array the loop went on appending to: the exchange, the
@@ -443,6 +444,7 @@ test('a big ask becomes a plan card and one fire per piece', async (t) => {
   assert.equal(turn1.role, 'user');
   assert.match(turn1.content, /piece 1 of 2: The page/);
   assert.match(turn1.content, /Do only this piece/);
+  assert.match(turn1.content, /go in config\/ with a comment, never in js\//, 'every piece is told where constants live');
   assert.match(turn1.content, /"build me a tank game"/);
   assert.match(turn1.content, /What it is: A tank game for two on one keyboard\./);
   assert.match(turn1.content, /Decided:\n- Arrow keys for one, WASD for the other\./);

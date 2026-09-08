@@ -537,6 +537,9 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /config\/play\.js/);
   assert.match(system, /config\/words\.js/);
   assert.match(system, /`const NAME = value;`/);
+  // The rule, not only the shape: told what a config file looks like and not
+  // that every constant belongs in one, the builder left them in js/.
+  assert.match(system, /lives here and nowhere else/, 'every number and word is a config value');
   assert.match(system, /BRIEF\.md — the file map/);
   assert.match(system, /SPEC\.md — what the game is/);
   assert.match(system, /TODO\.md — one task per line/);
