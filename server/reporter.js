@@ -45,7 +45,14 @@ const REPORTER_JS = `(function () {
     return s.replace(/^[a-z]+:\\/\\/[^/]+\\//, '');
   }
 
+  // Chrome's notice that a ResizeObserver callback resized what it watches, so
+  // the rest is delivered next frame. The screens library does that on
+  // purpose, twice, and it settles; never a game's fault, so never a problem
+  // a helper should be asked to fix — one was, and explained Chrome instead.
+  var BENIGN = /ResizeObserver loop/;
+
   function report(message, where) {
+    if (BENIGN.test(String(message))) return;
     var key = message + '@' + where;
     // One line per distinct problem: a broken game loop throws sixty times a
     // second, and none of those repeats tell a helper anything new.

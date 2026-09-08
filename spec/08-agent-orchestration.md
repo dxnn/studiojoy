@@ -529,7 +529,12 @@ Inside the game the reporter catches uncaught errors, failed resource loads
 and `console.error`, posting each distinct one to `window.parent`. It
 reports only when framed, never throws, and sends each distinct problem
 once per page load, capped at 20 — a game throwing inside its animation
-loop would otherwise report sixty times a second.
+loop would otherwise report sixty times a second. One message it drops on
+purpose: Chrome's `ResizeObserver loop completed with undelivered
+notifications`, the browser saying the rest is delivered next frame. The
+screens library trips it twice by design and it settles, so it is never a
+game's fault — and as a problem row it sent a kid to the builder to fix
+nothing (2026-09-07).
 
 Each report carries the **version the wrapper was built from**, which files
 a problem against the code that actually caused it rather than whatever

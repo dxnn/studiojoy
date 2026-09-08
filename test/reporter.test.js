@@ -94,3 +94,16 @@ test('an error still posts as it did, keyed to the version', () => {
     gamestudio: 'error', slug: 'tank', version: 'abc123', message: 'boom', location: 'js/game.js:12',
   }]);
 });
+
+// Chrome's ResizeObserver notice is the browser saying "next frame", not the
+// game breaking: the screens library trips it on purpose and it settles. As a
+// problem row it sent a kid to the builder to fix nothing.
+test('the browser’s ResizeObserver notice is not a problem', () => {
+  const g = boot();
+  g.handlers.get('error')({
+    message: 'ResizeObserver loop completed with undelivered notifications.', filename: '', lineno: 0,
+  });
+  assert.deepEqual(g.posts, []);
+  g.handlers.get('error')({ message: 'boom', filename: 'http://x/tank/js/game.js', lineno: 12 });
+  assert.equal(g.posts.length, 1, 'a real error still posts');
+});
