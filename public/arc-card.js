@@ -83,8 +83,12 @@ export function renderArcCard(p) {
           onclick: () => askBuilder(a.text),
         })),
         h('div', { class: 'spacer' }),
+        // The studio's ordinary button size, not `tiny`: this is the one
+        // button on the card a kid presses on a phone, and a thumb wants 32px
+        // (test/ui/arc-card.ui.js). The asks beside it stay small — a row of
+        // them at full size would push the earn button off the line.
         h('button', {
-          class: 'filled tiny', text: 'This one’s earned ✓', title: `Give the game its “${next.name}” stamp`,
+          class: 'filled', text: 'This one’s earned ✓', title: `Give the game its “${next.name}” stamp`,
           onclick: () => setStage(stage + 1),
         })) : null);
   }
