@@ -224,7 +224,10 @@ export function catalogPage({ games, player = null }) {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
     min-height: 84px; padding: 14px 16px;
     border: 1px solid var(--border); border-radius: 12px;
-    background: var(--panel);
+    /* ⚠️ background-color, never the background shorthand: the shorthand
+       resets background-image to none, and the hero rule below has to be
+       able to set one. */
+    background-color: var(--panel);
     text-decoration: none; color: var(--text); font-weight: 600; font-size: 18px;
   }
   ul a:not(.players):hover {
@@ -232,8 +235,13 @@ export function catalogPage({ games, player = null }) {
     box-shadow: 0 0 20px color-mix(in oklab, var(--cyan) 28%, transparent);
   }
   /* A game's hero picture fills its card under a dark wash, so the name
-     stays legible whatever the picture is. */
-  a.hero {
+     stays legible whatever the picture is.
+     ⚠️ "ul a.hero", not "a.hero": the plain card above is "ul a:not(.players)"
+     and :not() carries its argument's weight, so a bare "a.hero" loses to it
+     on every property they share. That is how the hero pictures vanished the
+     day the players link arrived — the class and the variable were right, and
+     nothing painted. */
+  ul a.hero {
     min-height: 136px;
     background-image:
       linear-gradient(rgba(10, 8, 18, 0.12), rgba(10, 8, 18, 0.66)),
