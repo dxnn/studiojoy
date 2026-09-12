@@ -142,8 +142,12 @@ export const S = {
   // `slot` is which colour square is chosen. The colours themselves are the
   // game's, not this browser's — see S.palette. `ghost` is whether a strip's
   // previous frame shows faintly under the one being drawn.
+  // `zoom` is 'fit' — the whole picture, however big the pane is — or a whole
+  // number of screen pixels per picture pixel. It is a standing choice like
+  // the tool and the brush, so leaning into one sprite and opening the next
+  // keeps the magnification you were working at.
   drawPrefs: {
-    tool: 'pencil', brush: 1, slot: 0, ghost: false,
+    tool: 'pencil', brush: 1, slot: 0, ghost: false, zoom: 'fit',
   },
   // The open project's colours, read from its own config/look.js so that
   // changing one is a change to the game with a version behind it, rather than

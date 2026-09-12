@@ -4,18 +4,21 @@
    without smoothing, so a 32-square sprite stays 32 squares however big the
    pane is.
 
-   The element fills its box and `contain` fits the picture inside it. Letting
-   width and height do the fitting instead does not work: a canvas has an
-   intrinsic size, so a definite width with a capped height squashes it rather
-   than shrinking it, which is a 16-square sprite drawn as 16 by 7. The empty
-   strip that `contain` leaves is what the pointer maths corrects for. */
+   .picture-box is the picture's box on screen and renderDrawing gives it both
+   sides in pixels, off one scale; the canvas fills it, so the element and the
+   picture are the same shape and there is no letterbox for the pointer maths
+   to correct for. ⚠️ Sizing by `width: 100%` and a capped height is what does
+   not work — a canvas has an intrinsic size, so that squashes rather than
+   shrinks, and a 16-square sprite comes out 16 by 7. Both sides in pixels is
+   exact. `contain` used to do this job and the empty strip it left is what
+   the old arithmetic was for. */
 .drawing { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.picture-box { position: relative; flex: none; }
 .pixels {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 0;
-  object-fit: contain;
   image-rendering: pixelated;
   touch-action: none;
   cursor: crosshair;
@@ -24,18 +27,18 @@
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
 
-/* ⚠️ The canvas is the only thing in its pane that can give, and it once gave
-   all the way to nothing: everything stacked above it and under it — the bar,
-   the tools, the brushes, the palette — is fixed height, and in a short window
-   they added up to more than the window, so the canvas came out 0 pixels high,
-   which is not a small canvas but no canvas at all, since a pointer has to
-   land on it for a stroke to happen. So the canvas keeps a floor, and in a
-   short window the tools scroll instead. (It lived in the rail when this was
-   found; under Pics and Code it has the centre, and the same rule holds.) */
-/* A floor of 150, or a quarter of the window where a quarter is less than
-   that — a phone held sideways is 390 tall, and a canvas taking 150 of it
-   leaves the tools nothing. */
-.drawing .media { min-height: min(150px, 25vh); }
+/* ⚠️ Two ways to get this wrong and both have been met. Too small a floor and
+   the canvas goes to nothing, which is not a small canvas but no canvas at
+   all, since a pointer has to land on it for a stroke to happen. Too big a
+   one and the tools go to nothing instead — at 320 on a phone held sideways
+   the palette had 24px to live in, which is a colour you cannot pick.
+
+   So: 320 where the window can spare it, never more; never less than the old
+   floor of 150, or a quarter of the window where a quarter is less than that;
+   and in between, whatever is left after the 470-odd pixels the studio's own
+   furniture and one band of tools need. The tools scroll under it either
+   way. Measured at 1280 × 820, 390 × 844 and 844 × 390. */
+.drawing .media { min-height: clamp(min(150px, 25vh), calc(100vh - 470px), 320px); }
 .drawing > .pad { min-height: 0; overflow-y: auto; }
 /* The strip looping beside the frame buttons while it is edited. */
 .strip-preview {
@@ -47,24 +50,22 @@
 /* Where the picture ends: a transparent pixel and the empty strip beside the
    picture are the same checkerboard, so without this line the edge is a
    guess — a sprite drawn to its corner looked like one drawn to nowhere.
-   Fitted like .frame-lines below; the border sits outside the pixels rather
-   than over the outer row of them, and the shadow dims the strip so the
-   picture reads as the paper. */
+   Inset on .picture-box, like .frame-lines below; the border sits outside the
+   pixels rather than over the outer row of them, and the shadow dims the
+   strip so the picture reads as the paper. */
 .picture-edge {
   position: absolute;
   inset: 0;
-  margin: auto;
   pointer-events: none;
   box-sizing: content-box;
   border: 1px solid var(--muted);
   box-shadow: 0 0 0 100vmax rgba(8, 4, 24, 0.4);
 }
-/* Frame boundaries over a strip: fitted to the picture inside the letterboxed
-   canvas by renderDrawing, centred here, one screen pixel at any zoom. */
+/* Frame boundaries over a strip: inset on .picture-box, so they follow a zoom
+   without being sized. One screen pixel at any zoom. */
 .frame-lines {
   position: absolute;
   inset: 0;
-  margin: auto;
   pointer-events: none;
   background-image: linear-gradient(to left, var(--accent) 1px, transparent 1px);
   background-size: calc(100% / var(--frames)) 100%;

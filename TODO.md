@@ -108,11 +108,10 @@ deliberately deferred.
   block for the new shape's, or the presets are made shape-neutral and the
   prose lives only in the panel — the second is smaller and loses the
   vocabulary a hand-editor wants (ideas/control-schemes.md, "Picking one")
-- ! the pixel editor's three bands, then zoom and pan: the canvas gets about
-  190px of an 820px window and the controls under it get 200, and there is no
-  zoom at all, so a 256 picture is drawn at 1:1 (ideas/pixel-editor.md, 1–2).
-  A finger draws well already (checked on a phone 2026-09-11), so this is
-  about room and detail, not about reaching a pixel
+- pinch to zoom the pixel editor. Two fingers pan it and the buttons zoom it
+  (2026-09-11); a pinch changing the zoom about its own centre was left out to
+  keep that change small, and wants the scroll maths pan does not
+  (ideas/pixel-editor.md, 1)
 - pixel-perfect strokes, then line, rectangle and ellipse
   (ideas/pixel-editor.md, 4)
 - selection and move, then mirror, flip and rotate (ideas/pixel-editor.md, 5–6)

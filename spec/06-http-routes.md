@@ -270,7 +270,7 @@ exactly the size it arrived. Pixels are RGBA, as a canvas keeps them, so an
 uploaded picture loses nothing on open. The tools live in
 `public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
 editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
-Seven choices worth naming:
+Ten choices worth naming:
 
 - **What it draws is smaller than what it opens.** `MAX_DRAWN` is 256 and
   `MAX_SIDE` is 1024: a picture made here is at most 256 a side — and at most
@@ -325,11 +325,31 @@ Seven choices worth naming:
   underneath the editor — so anything held per-file would be thrown away on
   every save. The picture and its undo stack are per-file; the choices are
   not.
-- **The canvas element fills its box and the picture is fitted inside it.**
-  Sizing it by width and height instead squashes it: a canvas has an
-  intrinsic size, so a definite width with a capped height draws a 16-square
-  sprite at 16 by 7. The pointer maths takes the resulting empty strip back
-  off.
+- **The picture has a box of its own and the canvas fills it**, so there is
+  no letterbox and the pointer maths is a division. `.picture-box` is given
+  both sides in pixels off one scale by
+  `renderDrawing`, the edge and the frame lines are inset on it, and `.media`
+  centres it while it is smaller than the pane and scrolls it once it is
+  bigger — which is the whole of panning. ⚠️ Sizing by `width: 100%` and a
+  capped height is what squashes: a canvas has an intrinsic size, so that
+  draws a 16-square sprite at 16 by 7. Both sides in pixels is exact.
+
+- **Zoom is Fit or a whole number of screen pixels per picture pixel**
+  (`ZOOMS` in `drawing.js`, `S.drawPrefs.zoom`). Fit is as big as the pane
+  allows and is where a picture opens; `−` and `+` step from whatever the
+  scale currently is, so the first press from Fit changes something you can
+  see instead of jumping to 1×. A zoom holds the middle of the view still,
+  survives the pane resizing under it, and is a standing choice like the tool
+  and the brush. A trackpad pinch — a wheel with ctrl held — zooms; a plain
+  wheel scrolls the pane. One finger draws, so two are how a picture bigger
+  than its pane is moved about, and a second finger landing ends the stroke
+  the first one started rather than bending it. ⚠️ Ending it there must not
+  render: a render replaces the canvas under the fingers still on it.
+  The canvas's floor against the tools' is
+  `clamp(min(150px, 25vh), calc(100vh - 470px), 320px)` — too small a floor
+  and the canvas goes to nothing, which is no canvas at all since a pointer
+  has to land on it; too big a one and the palette had 24px to live in on a
+  phone held sideways.
 - **The palette is the game's, and it is built rather than chosen from.**
   Thirty-two colours in `PALETTE` in the game's own `config/look.js` — two
   rows of sixteen, greys then rainbow then the ones with character. The

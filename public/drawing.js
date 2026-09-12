@@ -39,6 +39,11 @@ const DRAW_TOOLS = [
   { key: 'pick', name: 'dropper', label: 'Eyedropper', hint: 'click a pixel to put its colour in the chosen square' },
 ];
 
+// Whole screen pixels per picture pixel, because half a pixel drawn is what
+// makes an editor look soft. Fit is the other level and is not in the list:
+// it is whatever the pane allows, and is where a picture opens.
+const ZOOMS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+
 function pictureCanvas(picture) {
   const canvas = document.createElement('canvas');
   canvas.width = picture.width;
@@ -383,28 +388,78 @@ export function renderDrawing() {
   whole.height = picture.height;
 
   // The picture's edge and, in the whole-strip view, the frame boundaries are
-  // overlays — one screen pixel at any zoom, never part of what is saved. The
-  // canvas letterboxes the picture (object-fit: contain), so both are fitted
-  // with the same arithmetic spotOf uses, re-run on every resize. The edge is
-  // there because a transparent pixel and the empty strip beside the picture
-  // are the same checkerboard: without it, where the picture ends is a guess.
+  // overlays — one screen pixel at any zoom, never part of what is saved. Both
+  // are inset on the picture's box, so neither is sized by hand, and both
+  // follow a zoom for nothing. The edge is there because a transparent pixel
+  // and the empty strip beside the picture are the same checkerboard: without
+  // it, where the picture ends is a guess.
   const edge = h('div', { class: 'picture-edge' });
   let lines = null;
   if (frames > 1 && !frameMode) {
     lines = h('div', { class: 'frame-lines' });
     lines.style.setProperty('--frames', frames);
   }
-  const fit = () => {
-    const box = canvas.getBoundingClientRect();
-    if (!box.width || !box.height) return;
-    const scale = Math.min(box.width / viewW, box.height / picture.height);
-    for (const overlay of [edge, lines]) {
-      if (!overlay) continue;
-      overlay.style.width = `${viewW * scale}px`;
-      overlay.style.height = `${picture.height * scale}px`;
-    }
+
+  // The picture's box on screen, which the canvas fills exactly — so there is
+  // no letterbox to correct for: one element's size is the whole of zoom, and
+  // spotOf has one rectangle to read. .media centres it while it is smaller
+  // than the pane and scrolls it once it is bigger, which is the whole of
+  // panning.
+  const pictureBox = h('div', { class: 'picture-box' }, canvas, edge, lines);
+  const media = h('div', { class: 'media grow' }, pictureBox);
+
+  // Screen pixels per picture pixel. `fit` is as big as the pane allows —
+  // what a picture opens at, and what the canvas always did — and a number is
+  // a zoom somebody chose, which survives the pane resizing under it.
+  // ⚠️ Both sides of the box come off one scale, so its shape is the picture's
+  // exactly: spotOf divides by that shape, and a drift of a pixel puts the far
+  // corner on the wrong square.
+  let pane = null;
+  const scaleNow = () => {
+    if (!pane?.width || !pane.height) return 0;
+    if (S.drawPrefs.zoom !== 'fit') return S.drawPrefs.zoom;
+    return Math.min(pane.width / viewW, pane.height / picture.height);
   };
-  new ResizeObserver(fit).observe(canvas);
+  const sizeBox = () => {
+    const scale = scaleNow();
+    if (!(scale > 0)) return;
+    // Hold the middle of the view still across a zoom, or pressing + walks off
+    // towards the top-left corner of the picture.
+    const was = [pictureBox.offsetWidth, pictureBox.offsetHeight];
+    const cx = was[0] ? (media.scrollLeft + media.clientWidth / 2) / was[0] : 0.5;
+    const cy = was[1] ? (media.scrollTop + media.clientHeight / 2) / was[1] : 0.5;
+    const w = viewW * scale;
+    const hi = picture.height * scale;
+    pictureBox.style.width = `${w}px`;
+    pictureBox.style.height = `${hi}px`;
+    media.scrollLeft = cx * w - media.clientWidth / 2;
+    media.scrollTop = cy * hi - media.clientHeight / 2;
+  };
+  // The observer's content rect is the pane inside its padding, which is the
+  // room the picture actually has. Reading it here is what keeps Fit fitting
+  // when the window changes, the rail folds or the tools wrap to a new line.
+  new ResizeObserver(([entry]) => { pane = entry.contentRect; sizeBox(); }).observe(media);
+
+  // Stepping from Fit means stepping from whatever Fit currently is, so the
+  // first press changes the size by something you can see rather than jumping
+  // to 1× and shrinking a picture that was filling the pane.
+  const stepZoom = (dir) => {
+    const now = scaleNow();
+    const next = dir > 0
+      ? ZOOMS.find((z) => z > now + 0.01)
+      : ZOOMS.filter((z) => z < now - 0.01).pop();
+    if (!next) return;
+    S.drawPrefs.zoom = next;
+    sizeBox();
+    showZoom();
+  };
+  // A plain wheel scrolls the pane, which is panning; a pinch on a trackpad
+  // arrives as a wheel with ctrl held, and that is the one that zooms.
+  media.addEventListener('wheel', (event) => {
+    if (!event.ctrlKey || !event.deltaY) return;
+    event.preventDefault();
+    stepZoom(event.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
   const state = h('span', { class: 'hint muted' });
   // The picture saves itself two seconds after a stroke (spec.md §5); the
   // game's colours are the other work in this pane, saved with it and on the
@@ -468,30 +523,49 @@ export function renderDrawing() {
 
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(chosenColour()));
 
-  // The canvas element fills its box and the picture is fitted inside it, so
-  // the picture is centred with an empty strip on two sides. Both have to come
-  // off before a position on screen is a square in the picture — plus the
-  // frame's own offset, when the canvas is showing one frame of a strip.
+  // The canvas is the picture's box, so a position on screen is a square in
+  // the picture as soon as it is divided by how big a square is drawn — plus
+  // the frame's own offset, when the canvas is showing one frame of a strip.
   const spotOf = (event) => {
     const box = canvas.getBoundingClientRect();
-    const scale = Math.min(box.width / viewW, box.height / picture.height);
+    const sx = box.width / viewW;
+    const sy = box.height / picture.height;
     // ⚠️ A canvas the layout has squeezed to nothing scales by zero, and the
     // arithmetic below then answers NaN rather than a square — which drawLine
     // walks towards forever, because NaN is never equal to the end of the
     // line. That is a frozen page, not a missed stroke. There is no pixel
     // under the pointer here, so say so and let every tool refuse the gesture.
-    if (!(scale > 0)) return null;
-    const left = box.left + (box.width - viewW * scale) / 2;
-    const top = box.top + (box.height - picture.height * scale) / 2;
+    if (!(sx > 0) || !(sy > 0)) return null;
     return [
-      Math.floor((event.clientX - left) / scale) + offsetX,
-      Math.floor((event.clientY - top) / scale),
+      Math.floor((event.clientX - box.left) / sx) + offsetX,
+      Math.floor((event.clientY - box.top) / sy),
     ];
+  };
+
+  // One finger draws, so two are how a picture bigger than its pane gets moved
+  // about: .media is a scroll box and this drags it. A second finger landing
+  // ends the stroke the first one had started rather than bending it — a pan
+  // is not a line — and that stroke is one Undo like any other. ⚠️ Ending it
+  // here must not render: a render replaces the canvas under the fingers still
+  // on it, and the rest of the gesture goes to an element off the page.
+  const fingers = new Map();
+  let panned = null;
+  const middle = () => {
+    const [a, b] = [...fingers.values()];
+    return [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2];
   };
 
   let last = null;
   canvas.addEventListener('pointerdown', (event) => {
-    if (frozen()) return;
+    fingers.set(event.pointerId, event);
+    if (fingers.size === 2) {
+      event.preventDefault();
+      if (last) { last = null; closed(); }
+      const [mx, my] = middle();
+      panned = { mx, my, left: media.scrollLeft, top: media.scrollTop };
+      return;
+    }
+    if (fingers.size > 2 || frozen()) return;
     event.preventDefault();
     const spot = spotOf(event);
     if (!spot) return;
@@ -528,6 +602,14 @@ export function renderDrawing() {
   });
 
   canvas.addEventListener('pointermove', (event) => {
+    if (fingers.has(event.pointerId)) fingers.set(event.pointerId, event);
+    if (panned) {
+      if (fingers.size < 2) return;
+      const [mx, my] = middle();
+      media.scrollLeft = panned.left + (panned.mx - mx);
+      media.scrollTop = panned.top + (panned.my - my);
+      return;
+    }
     if (!last || S.drawPrefs.tool === 'pick') return;
     const spot = spotOf(event);
     if (!spot) return;
@@ -540,7 +622,16 @@ export function renderDrawing() {
 
   // Lifting the pointer is what ends a stroke, and therefore what makes it one
   // step back rather than a hundred.
-  const stop = () => {
+  const stop = (event) => {
+    if (event) fingers.delete(event.pointerId);
+    // The render the pan owes: the stroke it interrupted was closed without
+    // one, so Undo is still sitting there greyed out.
+    if (panned) {
+      if (fingers.size >= 2) return;
+      panned = null;
+      render();
+      return;
+    }
     if (!last) return;
     last = null;
     closed();
@@ -686,9 +777,34 @@ export function renderDrawing() {
       }) : null);
   }
 
+  // Zoom is about the view rather than the drawing, so it sits in the bar
+  // with Undo instead of among the tools. Fit is left out while it is what
+  // you are already looking at, the way every other control here is.
+  const zoomLabel = h('span', { class: 'hint muted' });
+  const fitBtn = h('button', {
+    class: 'quiet tiny',
+    text: 'Fit',
+    title: 'Show the whole picture again',
+    onclick: () => { S.drawPrefs.zoom = 'fit'; sizeBox(); showZoom(); },
+  });
+  // The label says Fit, or how many screen pixels a picture pixel is getting.
+  const showZoom = () => {
+    zoomLabel.textContent = S.drawPrefs.zoom === 'fit' ? 'Fit' : `${S.drawPrefs.zoom}×`;
+    fitBtn.hidden = S.drawPrefs.zoom === 'fit';
+  };
+  const zoomBtn = (text, dir, title) => h('button', {
+    class: 'quiet tiny', text, title, onclick: () => stepZoom(dir),
+  });
+  const zoomRow = h('div', { class: 'row' },
+    zoomBtn('−', -1, 'Make the squares smaller'),
+    zoomLabel,
+    zoomBtn('+', 1, 'Make the squares bigger, to draw one pixel at a time'),
+    fitBtn);
+  showZoom();
+
   paint();
   return h('div', { class: 'drawing grow' },
-    h('div', { class: 'media grow' }, canvas, edge, lines),
+    media,
     h('div', { class: 'pad col' }, frameRow, tools, brushes, swatches),
     h('div', { class: 'editor-bar row' },
       state,
@@ -701,6 +817,7 @@ export function renderDrawing() {
             : `${picture.width} × ${picture.height}`,
       }),
       h('div', { class: 'spacer' }),
+      zoomRow,
       iconButton({
         name: 'undo',
         label: 'Undo',

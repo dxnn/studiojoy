@@ -86,10 +86,14 @@ Seven things are missing outright:
 
 ### Tier 1 — changes what can be made
 
-1. **Zoom and pan.** A zoom level, two-finger pan, and Fit. ⚠️ The trap is
-   `spotOf` in `drawing.js`: it turns a screen position into a square by
-   undoing `object-fit: contain`, and the zoom has to enter that one function
-   and nowhere else — every tool below reads its answer.
+1. **Zoom and pan.** Built 2026-09-11. `object-fit: contain` is gone: the
+   picture has a box of its own (`.picture-box`), the canvas fills it, and
+   `spotOf` is a division with no letterbox to undo — so the trap this item
+   warned about was removed rather than worked around. `−`, the level, `+`
+   and Fit sit in the bar; `.media` scrolls, which is panning, and two fingers
+   drag it. Still open: **pinch** to zoom about its own centre, which needs
+   scroll maths a pan does not. The bands went with it — the canvas gets 345px
+   of an 820px window against the tools' 252, where it was ~190 against ~200.
 2. **Line, rectangle, ellipse**, each dragged out and drawn on release, with
    the shape previewed while the pointer is down. `drawLine` exists; the other
    two are the same integer arithmetic. Filled and outline both.
