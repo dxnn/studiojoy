@@ -112,8 +112,9 @@ deliberately deferred.
   (2026-09-11); a pinch changing the zoom about its own centre was left out to
   keep that change small, and wants the scroll maths pan does not
   (ideas/pixel-editor.md, 1)
-- pixel-perfect strokes, then line, rectangle and ellipse
-  (ideas/pixel-editor.md, 4)
+- pixel-perfect strokes: where three pixels in a row make an L, drop the
+  middle one. About fifteen lines as a stroke closes, and testable without a
+  screen (ideas/pixel-editor.md, 3)
 - selection and move, then mirror, flip and rotate (ideas/pixel-editor.md, 5–6)
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,

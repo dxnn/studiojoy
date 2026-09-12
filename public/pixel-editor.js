@@ -228,6 +228,89 @@ export function drawLine(picture, x0, y0, x1, y1, rgba, size = 1) {
   }
 }
 
+// The three shapes a hand cannot draw square by square. Each one is dragged
+// out from where the pointer went down to where it is now, so both ends are
+// given and neither is a centre — a corner-to-corner box is what a person is
+// actually doing with their hand, and it is the same box for both of them.
+//
+// Filled and outline come out of the same arithmetic rather than two, so
+// turning Fill it in on cannot change the shape by a pixel: the outline is
+// the boundary pixels, and the fill is the span between the boundary's own
+// ends on each row.
+
+export function drawRect(picture, x0, y0, x1, y1, rgba, size = 1, filled = false) {
+  const left = Math.min(x0, x1);
+  const right = Math.max(x0, x1);
+  const top = Math.min(y0, y1);
+  const bottom = Math.max(y0, y1);
+  let changed = 0;
+  if (filled) {
+    for (let y = top; y <= bottom; y += 1) changed += drawLine(picture, left, y, right, y, rgba);
+    return changed;
+  }
+  changed += drawLine(picture, left, top, right, top, rgba, size);
+  changed += drawLine(picture, left, bottom, right, bottom, rgba, size);
+  changed += drawLine(picture, left, top, left, bottom, rgba, size);
+  changed += drawLine(picture, right, top, right, bottom, rgba, size);
+  return changed;
+}
+
+// Bresenham's ellipse in its bounding-box form (Zingl), which is integers all
+// the way down and gets both odd and even diameters right — the two cases a
+// midpoint circle walked from a centre cannot both have. It walks one quarter
+// and mirrors each pixel into the other three.
+function ellipsePoints(x0, y0, x1, y1) {
+  let left = Math.min(x0, x1);
+  let right = Math.max(x0, x1);
+  let top = Math.min(y0, y1);
+  const across = right - left;
+  const down = Math.max(y0, y1) - top;
+  const odd = down & 1;
+  let bottom = top + Math.floor((down + 1) / 2);
+  top = bottom - odd;
+  let dx = 4 * (1 - across) * down * down;
+  let dy = 4 * (odd + 1) * across * across;
+  let error = dx + dy + odd * across * across;
+  const stepY = 8 * across * across;
+  const stepX = 8 * down * down;
+  const points = [];
+  do {
+    points.push([right, top], [left, top], [left, bottom], [right, bottom]);
+    const twice = 2 * error;
+    // ⚠️ The two halves walk apart from the middle row, not together: bottom
+    // goes down and top goes up. Swapped, an ellipse closes into a lens.
+    if (twice <= dy) { bottom += 1; top -= 1; dy += stepY; error += dy; }
+    if (twice >= dx || 2 * error > dy) { left += 1; right -= 1; dx += stepX; error += dx; }
+  } while (left <= right);
+  // A very flat ellipse stops before its ends are drawn, and the tips are what
+  // make it read as an ellipse rather than as a bar.
+  while (bottom - top < down) {
+    points.push([left - 1, top], [right + 1, top], [left - 1, bottom], [right + 1, bottom]);
+    bottom += 1;
+    top -= 1;
+  }
+  return points;
+}
+
+export function drawEllipse(picture, x0, y0, x1, y1, rgba, size = 1, filled = false) {
+  const points = ellipsePoints(x0, y0, x1, y1);
+  let changed = 0;
+  if (!filled) {
+    for (const [x, y] of points) changed += stamp(picture, x, y, rgba, size);
+    return changed;
+  }
+  // Each row's own two ends, so the fill reaches exactly as far as the outline
+  // would have and no further.
+  const rows = new Map();
+  for (const [x, y] of points) {
+    const span = rows.get(y);
+    if (!span) rows.set(y, [x, x]);
+    else { span[0] = Math.min(span[0], x); span[1] = Math.max(span[1], x); }
+  }
+  for (const [y, [lo, hi]] of rows) changed += drawLine(picture, lo, y, hi, y, rgba);
+  return changed;
+}
+
 const matches = (picture, x, y, target) => {
   const here = pixelAt(picture, x, y);
   if (!here) return false;

@@ -94,9 +94,12 @@ Seven things are missing outright:
    drag it. Still open: **pinch** to zoom about its own centre, which needs
    scroll maths a pan does not. The bands went with it — the canvas gets 345px
    of an 820px window against the tools' 252, where it was ~190 against ~200.
-2. **Line, rectangle, ellipse**, each dragged out and drawn on release, with
-   the shape previewed while the pointer is down. `drawLine` exists; the other
-   two are the same integer arithmetic. Filled and outline both.
+2. **Line, rectangle, ellipse.** Built 2026-09-12, as described: dragged out,
+   previewed on a canvas of its own while the pointer is down, landing on
+   release as one Undo. Filled and outline come out of one arithmetic — the
+   fill is the span between the outline's own ends on each row — so the switch
+   cannot move an edge. The ellipse is Bresenham's bounding-box form, which is
+   the one that gets odd and even diameters both right.
 3. **Pixel-perfect freehand.** Where three pixels in a row make an L, drop the
    middle one. About fifteen lines, applied as the stroke closes, and testable
    without a screen like everything else in `pixel-editor.js`.

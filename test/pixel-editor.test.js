@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   PALETTE, PALETTE_COLUMNS, GREYS, RAINBOW, FUN, isColour,
   SIZES, BRUSHES, MAX_SIDE, MAX_DRAWN, UNDO_BYTES, CLEAR,
-  blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, floodFill,
+  blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, drawRect, drawEllipse, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
@@ -70,6 +70,93 @@ test('a line that goes nowhere is one pixel', () => {
   const picture = blankPicture(5, 5);
   assert.equal(drawLine(picture, 2, 3, 2, 3, RED), 1);
   assert.deepEqual(marks(picture), ['2,3']);
+});
+
+test('a rectangle is its four sides, and dragging it backwards is the same one', () => {
+  const forwards = blankPicture(6, 6);
+  drawRect(forwards, 1, 1, 4, 3, RED);
+  assert.deepEqual(marks(forwards), [
+    '1,1', '2,1', '3,1', '4,1',
+    '1,2', '4,2',
+    '1,3', '2,3', '3,3', '4,3',
+  ]);
+  const backwards = blankPicture(6, 6);
+  drawRect(backwards, 4, 3, 1, 1, RED);
+  assert.deepEqual(marks(backwards), marks(forwards));
+});
+
+test('a filled rectangle is every pixel the outline encloses, and no more', () => {
+  const filled = blankPicture(6, 6);
+  drawRect(filled, 1, 1, 4, 3, RED, 1, true);
+  assert.equal(marks(filled).length, 4 * 3);
+  const outline = blankPicture(6, 6);
+  drawRect(outline, 1, 1, 4, 3, RED);
+  // Every pixel of the outline is in the fill: turning Fill it in on can only
+  // add to the shape, never move its edge.
+  for (const mark of marks(outline)) assert.equal(marks(filled).includes(mark), true, mark);
+});
+
+test('a rectangle with no width is a line, and one of no size is a pixel', () => {
+  const line = blankPicture(5, 5);
+  drawRect(line, 2, 0, 2, 4, RED);
+  assert.deepEqual(marks(line), ['2,0', '2,1', '2,2', '2,3', '2,4']);
+  const dot = blankPicture(5, 5);
+  assert.equal(drawRect(dot, 3, 3, 3, 3, RED), 1);
+  assert.deepEqual(marks(dot), ['3,3']);
+});
+
+// The ellipse is the one shape with real arithmetic behind it, so it is
+// checked as a shape rather than against a remembered list of pixels: it
+// touches all four sides of the box it was dragged out in, stays inside it,
+// and is symmetric both ways.
+const bounds = (picture) => {
+  const drawn = marks(picture).map((m) => m.split(',').map(Number));
+  return {
+    left: Math.min(...drawn.map((p) => p[0])),
+    right: Math.max(...drawn.map((p) => p[0])),
+    top: Math.min(...drawn.map((p) => p[1])),
+    bottom: Math.max(...drawn.map((p) => p[1])),
+  };
+};
+
+test('an ellipse fills the box it was dragged out in, both diameters', () => {
+  // Odd and even across and down, because the two cases are what a circle
+  // walked from a centre point cannot both get right.
+  for (const [w, h] of [[8, 8], [9, 9], [9, 6], [6, 9], [2, 2], [12, 3]]) {
+    const picture = blankPicture(16, 16);
+    drawEllipse(picture, 1, 1, w, h, RED);
+    assert.deepEqual(
+      bounds(picture),
+      { left: 1, right: w, top: 1, bottom: h },
+      `${w + 1} by ${h + 1} ellipse`,
+    );
+  }
+});
+
+test('an ellipse is the same on both sides and the same top to bottom', () => {
+  const picture = blankPicture(16, 16);
+  drawEllipse(picture, 2, 2, 12, 9, RED);
+  const drawn = new Set(marks(picture));
+  for (const mark of drawn) {
+    const [x, y] = mark.split(',').map(Number);
+    assert.equal(drawn.has(`${2 + 12 - x},${y}`), true, `no mirror across for ${mark}`);
+    assert.equal(drawn.has(`${x},${2 + 9 - y}`), true, `no mirror down for ${mark}`);
+  }
+});
+
+test('a filled ellipse reaches exactly as far as its outline on every row', () => {
+  const outline = blankPicture(16, 16);
+  drawEllipse(outline, 1, 1, 13, 10, RED);
+  const filled = blankPicture(16, 16);
+  drawEllipse(filled, 1, 1, 13, 10, RED, 1, true);
+  assert.deepEqual(bounds(filled), bounds(outline));
+  const inFill = new Set(marks(filled));
+  for (const mark of marks(outline)) assert.equal(inFill.has(mark), true, mark);
+  // A fill is solid: no see-through pixel between the two ends of a row.
+  for (let y = 1; y <= 10; y += 1) {
+    const row = marks(filled).filter((m) => Number(m.split(',')[1]) === y).map((m) => Number(m.split(',')[0]));
+    assert.equal(row.length, row[row.length - 1] - row[0] + 1, `row ${y} has a hole`);
+  }
 });
 
 test('a line has no gaps whichever way it runs', () => {

@@ -7,7 +7,7 @@
 import { h, iconButton } from './dom.js';
 import {
   PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
-  blankPicture, pictureFrom, pixelAt, drawLine, floodFill,
+  blankPicture, pictureFrom, pixelAt, drawLine, drawRect, drawEllipse, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isColour,
@@ -37,7 +37,16 @@ const DRAW_TOOLS = [
   { key: 'eraser', name: 'eraser', label: 'Erase', hint: 'take the colour out again, back to see-through' },
   { key: 'fill', name: 'bucket', label: 'Fill', hint: 'flood everything joined to the pixel you click' },
   { key: 'pick', name: 'dropper', label: 'Eyedropper', hint: 'click a pixel to put its colour in the chosen square' },
+  { key: 'line', name: 'line', label: 'Line', hint: 'drag from one end to the other' },
+  { key: 'rect', name: 'rect', label: 'Rectangle', hint: 'drag from one corner to the opposite one' },
+  { key: 'ellipse', name: 'ellipse', label: 'Ellipse', hint: 'drag out the box it fits inside' },
 ];
+
+// A shape is dragged out and lands when the pointer lifts, so none of the
+// three draws anything until then. `filled` is theirs alone and the two it
+// means nothing to leave the button out rather than grey it.
+const SHAPES = { line: drawLine, rect: drawRect, ellipse: drawEllipse };
+const FILLABLE = new Set(['rect', 'ellipse']);
 
 // Whole screen pixels per picture pixel, because half a pixel drawn is what
 // makes an editor look soft. Fit is the other level and is not in the list:
@@ -400,12 +409,25 @@ export function renderDrawing() {
     lines.style.setProperty('--frames', frames);
   }
 
+  // The shape being dragged out, on a canvas of its own over the picture. The
+  // call that will land is the one that draws it — into a scratch picture the
+  // size of what the canvas shows — so what somebody sees while dragging is
+  // exactly what lifting the pointer writes. Nothing touches the real picture
+  // until then: no step to undo, no half-drawn shape to save, and abandoning
+  // one costs a clear.
+  const preview = h('canvas', { class: 'pixels preview', width: viewW, height: picture.height });
+  const scratch = blankPicture(viewW, picture.height);
+  const clearPreview = () => {
+    scratch.data.fill(0);
+    preview.getContext('2d').clearRect(0, 0, viewW, picture.height);
+  };
+
   // The picture's box on screen, which the canvas fills exactly — so there is
   // no letterbox to correct for: one element's size is the whole of zoom, and
   // spotOf has one rectangle to read. .media centres it while it is smaller
   // than the pane and scrolls it once it is bigger, which is the whole of
   // panning.
-  const pictureBox = h('div', { class: 'picture-box' }, canvas, edge, lines);
+  const pictureBox = h('div', { class: 'picture-box' }, canvas, preview, edge, lines);
   const media = h('div', { class: 'media grow' }, pictureBox);
 
   // Screen pixels per picture pixel. `fit` is as big as the pane allows —
@@ -523,6 +545,23 @@ export function renderDrawing() {
 
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(chosenColour()));
 
+  const shaping = () => SHAPES[S.drawPrefs.tool] ?? null;
+
+  // One call draws a shape, and where it lands is the only difference between
+  // seeing it and keeping it. ⚠️ spotOf answers in the picture's own
+  // coordinates while the preview canvas holds one frame of a strip, so the
+  // frame's offset comes back off for the preview and stays on for the real
+  // thing. The other way round puts the shape off the side of a strip.
+  const putShape = (target, from, to, shift) => shaping()(
+    target, from[0] - shift, from[1], to[0] - shift, to[1],
+    colour(), S.drawPrefs.brush, S.drawPrefs.filled,
+  );
+  const showShape = (from, to) => {
+    scratch.data.fill(0);
+    putShape(scratch, from, to, offsetX);
+    preview.getContext('2d').putImageData(new ImageData(scratch.data, viewW, picture.height), 0, 0);
+  };
+
   // The canvas is the picture's box, so a position on screen is a square in
   // the picture as soon as it is divided by how big a square is drawn — plus
   // the frame's own offset, when the canvas is showing one frame of a strip.
@@ -555,11 +594,17 @@ export function renderDrawing() {
     return [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2];
   };
 
+  // Where a shape was started from. Held apart from `last` because the two
+  // gestures are not the same shape of thing: a stroke is a run of pixels as
+  // it happens, a shape is two corners and nothing at all until it is let go.
+  let anchor = null;
+
   let last = null;
   canvas.addEventListener('pointerdown', (event) => {
     fingers.set(event.pointerId, event);
     if (fingers.size === 2) {
       event.preventDefault();
+      if (anchor) { anchor = null; clearPreview(); }
       if (last) { last = null; closed(); }
       const [mx, my] = middle();
       panned = { mx, my, left: media.scrollLeft, top: media.scrollTop };
@@ -577,6 +622,14 @@ export function renderDrawing() {
       // Into the chosen square, so picking a colour off the picture is how you
       // build the palette up rather than something separate from it.
       if (found && found[3] !== 0) setPaletteColour(S.drawPrefs.slot, hexOf(found));
+      return;
+    }
+    if (shaping()) {
+      // No step is opened and the picture is not touched: a shape exists only
+      // on the preview until the pointer lifts.
+      anchor = [x, y];
+      try { canvas.setPointerCapture(event.pointerId); } catch { /* no capture */ }
+      showShape(anchor, anchor);
       return;
     }
     // A pointerup that never arrived — released off-window with no capture —
@@ -610,6 +663,11 @@ export function renderDrawing() {
       media.scrollTop = panned.top + (panned.my - my);
       return;
     }
+    if (anchor) {
+      const spot = spotOf(event);
+      if (spot) showShape(anchor, spot);
+      return;
+    }
     if (!last || S.drawPrefs.tool === 'pick') return;
     const spot = spotOf(event);
     if (!spot) return;
@@ -621,8 +679,9 @@ export function renderDrawing() {
   });
 
   // Lifting the pointer is what ends a stroke, and therefore what makes it one
-  // step back rather than a hundred.
-  const stop = (event) => {
+  // step back rather than a hundred. For a shape it is the whole of the
+  // drawing: everything before it was a picture of one.
+  const stop = (event, cancelled = false) => {
     if (event) fingers.delete(event.pointerId);
     // The render the pan owes: the stroke it interrupted was closed without
     // one, so Undo is still sitting there greyed out.
@@ -632,13 +691,27 @@ export function renderDrawing() {
       render();
       return;
     }
+    if (anchor) {
+      const from = anchor;
+      const to = (!cancelled && event && spotOf(event)) || from;
+      anchor = null;
+      clearPreview();
+      // A cancelled gesture — the browser taking the pointer away — leaves
+      // the picture alone, which is what the empty preview already showed.
+      if (cancelled) return;
+      opened();
+      putShape(picture, from, to, 0);
+      closed();
+      render();
+      return;
+    }
     if (!last) return;
     last = null;
     closed();
     render();
   };
-  canvas.addEventListener('pointerup', stop);
-  canvas.addEventListener('pointercancel', stop);
+  canvas.addEventListener('pointerup', (event) => stop(event));
+  canvas.addEventListener('pointercancel', (event) => stop(event, true));
 
   const tools = h('div', { class: 'row wrap' }, DRAW_TOOLS.map((t) => iconButton({
     name: t.name,
@@ -662,7 +735,15 @@ export function renderDrawing() {
       text: n === 1 ? '1 pixel' : `${n}`,
       title: `Paint ${n} pixel${n === 1 ? '' : 's'} across`,
       onclick: () => { S.drawPrefs.brush = n; render(); },
-    })));
+    })),
+    // Only where it means something: a line has no inside, and the four tools
+    // above it are not shapes at all. Left out rather than greyed out.
+    FILLABLE.has(S.drawPrefs.tool) ? h('button', {
+      class: `quiet tiny${S.drawPrefs.filled ? ' on' : ''}`,
+      text: 'Fill it in',
+      title: 'Colour the middle as well as the edge',
+      onclick: () => { S.drawPrefs.filled = !S.drawPrefs.filled; render(); },
+    }) : null);
 
   // The game's colours, two rows of sixteen. Choosing one says both "draw with
   // this" and "this is the one the colour box and the eyedropper will change".

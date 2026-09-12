@@ -36,6 +36,11 @@ const ICONS = {
   // A round bulb, because the first draft was a tapered diagonal body and read
   // as a second pencil sitting next to the pencil.
   dropper: ['M3 21l1-3.6 7.8-7.8 2.6 2.6L6.6 20 3 21z', 'M12.8 9.6l2.6 2.6', 'M14.5 6.5a3.2 3.2 0 1 0 6.4 0a3.2 3.2 0 1 0-6.4 0'],
+  // The three shapes, drawn as themselves: there is nothing to be clever
+  // about, and a kid reading the row wants to see the thing they will get.
+  line: ['M4 20L20 4'],
+  rect: ['M4 6h16v12H4z'],
+  ellipse: ['M12 5a8 7 0 1 0 0 14a8 7 0 1 0 0-14'],
   undo: ['M2 5v6h6', 'M4.6 15.5a9 9 0 1 0 1.9-9.2L2 11'],
   redo: ['M22 5v6h-6', 'M19.4 15.5a9 9 0 1 1-1.9-9.2L22 11'],
 };

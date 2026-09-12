@@ -270,7 +270,7 @@ exactly the size it arrived. Pixels are RGBA, as a canvas keeps them, so an
 uploaded picture loses nothing on open. The tools live in
 `public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
 editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
-Ten choices worth naming:
+Eleven choices worth naming:
 
 - **What it draws is smaller than what it opens.** `MAX_DRAWN` is 256 and
   `MAX_SIDE` is 1024: a picture made here is at most 256 a side — and at most
@@ -334,6 +334,23 @@ Ten choices worth naming:
   capped height is what squashes: a canvas has an intrinsic size, so that
   draws a 16-square sprite at 16 by 7. Both sides in pixels is exact.
 
+- **A shape is dragged out and exists nowhere until it lands.** Line,
+  Rectangle and Ellipse (`SHAPES` in `drawing.js`, `drawRect` and
+  `drawEllipse` in `pixel-editor.js`) are drawn from the pointer going down to
+  where it is now — two corners, neither of them a centre, which is what a
+  hand is actually doing. While the pointer is down the shape is on a **preview
+  canvas** over the picture, drawn by *the same call* that will land, into a
+  scratch picture; the real picture is not touched and no step is opened, so
+  an abandoned shape costs a clear and a landed one is one Undo. ⚠️ `spotOf`
+  answers in the picture's coordinates and the preview holds one frame of a
+  strip, so the frame's offset comes off for the preview and stays on for the
+  real thing. **Fill it in** (`S.drawPrefs.filled`) is the rectangle's and the
+  ellipse's alone and is left out for everything else. Filled and outline come
+  out of one arithmetic rather than two — the outline is the boundary pixels,
+  the fill is the span between that boundary's own ends on each row — so
+  turning it on cannot move the shape's edge by a pixel. The ellipse is
+  Bresenham's bounding-box form, which gets odd and even diameters both right.
+
 - **Zoom is Fit or a whole number of screen pixels per picture pixel**
   (`ZOOMS` in `drawing.js`, `S.drawPrefs.zoom`). Fit is as big as the pane
   allows and is where a picture opens; `−` and `+` step from whatever the
@@ -374,7 +391,7 @@ Ten choices worth naming:
   working against the drawing instead of for it. The picture saves itself two
   seconds after a stroke and the colours go with it (§5's *pending commit* is
   what makes that affordable); the bar says which is on its way. There is no
-  Save. The four tools are icons, with words on `title` and `aria-label` so
+  Save. The seven tools are icons, with words on `title` and `aria-label` so
   nothing is only a picture.
 
 - **A step is the pixels it changed, not a copy of the picture.** One

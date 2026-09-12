@@ -27,6 +27,11 @@
    pane picks per picture rather than once for all of them. */
 .pixels.smooth { image-rendering: auto; }
 
+/* The shape being dragged out, over the picture and never part of it. The same
+   box as the canvas, so it takes the zoom for nothing; see-through where the
+   shape is not, so the picture underneath shows through it. */
+.pixels.preview { position: absolute; inset: 0; pointer-events: none; }
+
 /* ⚠️ Two ways to get this wrong and both have been met. Too small a floor and
    the canvas goes to nothing, which is not a small canvas but no canvas at
    all, since a pointer has to land on it for a stroke to happen. Too big a

@@ -146,8 +146,10 @@ export const S = {
   // number of screen pixels per picture pixel. It is a standing choice like
   // the tool and the brush, so leaning into one sprite and opening the next
   // keeps the magnification you were working at.
+  // `filled` belongs to the rectangle and the ellipse alone — whether the
+  // middle is coloured in as well as the edge.
   drawPrefs: {
-    tool: 'pencil', brush: 1, slot: 0, ghost: false, zoom: 'fit',
+    tool: 'pencil', brush: 1, slot: 0, ghost: false, zoom: 'fit', filled: false,
   },
   // The open project's colours, read from its own config/look.js so that
   // changing one is a change to the game with a version behind it, rather than
