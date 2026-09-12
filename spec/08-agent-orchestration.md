@@ -616,11 +616,35 @@ iterations.
 | `write_file` | `path, content` | create or overwrite, whole file |
 | `patch_file` | `path, old_text, new_text` | exact replace; errors unless `old_text` occurs exactly once |
 | `read_file` | `path` | a file the byte cap dropped, or one at an older commit |
+| `look_at` | `path` | the picture itself: PNG, JPEG, GIF, WebP |
 | `delete_file` | `path` | remove; recoverable from git |
 
 Every tool validates its path per §4 and returns an error string to the
 model on violation rather than throwing — a confused agent gets a
 correction, not a dead turn.
+
+`look_at` is the one tool that hands back something other than a sentence:
+a label and the picture as DeepSeek's content parts, on the `role: 'tool'`
+result. ⚠️ It has to be there rather than in the file block, because an
+image on a system message is a 400 (§14) and the file block is the system
+prompt's. The block still names every picture by path and size; this shows
+one. Two consequences worth keeping:
+
+- **A picture costs nothing until an agent asks.** ~200 tokens when it does,
+  and it caches like anything else (§14).
+- ⚠️ **A picture weighs what it costs, not what it measures.** A data URI is
+  hundreds of kilobytes of base64 for ~200 tokens, so `weigh()` counts an
+  image part at a flat 4 KB against `LOOP_GROWTH_BYTES` rather than at its
+  length. Counted by its bytes, the second look in a fire would end it.
+- ⚠️ **The receipt keeps a placeholder, never the picture** — the way it does
+  for a reasoning trace (§12). A receipt is a row in SQLite that
+  `npm run backup` copies, and the bytes are already on disk under the name
+  printed beside the placeholder.
+
+Refusals are sentences a helper can act on: an SVG or a `.js` is answered
+with *read_file gives you all of it*, a `.wav` with what can be looked at, a
+missing file and a bad path with what they are. Nothing reaches the API that
+the API would reject, because a rejection there is a dead turn.
 
 Bounded loop: at most 24 assistant turns, 40 tool calls, and
 `LOOP_GROWTH_BYTES` of appended messages per fire, ending with a `'system'`

@@ -8,7 +8,7 @@ import {
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
-import { NOTE_BYTES } from '../server/agents/orchestrator.js';
+import { NOTE_BYTES, weigh } from '../server/agents/orchestrator.js';
 import { tokensForChars } from '../server/llm/deepseek.js';
 import { arcFor } from '../public/arc.js';
 
@@ -424,6 +424,97 @@ test('read_file reaches a file that was left out of context', async (t) => {
   assert.match(observed.at(-1).at(-1), /design notes here/);
 });
 
+// ⚠️ The shape is the API's, measured 2026-09-12 (spec/ §14): a picture rides
+// a tool result as content parts, because an image on a system message is a
+// 400 and the ambient file block lives there.
+test('look_at hands back the picture itself, labelled', async (t) => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe]);
+  const observed = [];
+  const llm = createFakeLlm((opts, turn) => {
+    observed.push(opts.messages.filter((m) => m.role === 'tool').map((m) => m.content));
+    if (turn === 0) {
+      return calls([{ name: 'look_at', input: { path: 'assets/sprites/hero.png' } }]);
+    }
+    return says('Green, mostly.');
+  });
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/assets/sprites/hero.png', {
+    rawBody: png,
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'what colour is the hero?');
+  const reply = await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  );
+
+  const result = observed.at(-1).at(-1);
+  assert.ok(Array.isArray(result), 'a picture is content parts, not a sentence');
+  assert.deepEqual(result[0], {
+    type: 'text', text: `assets/sprites/hero.png (${png.length} bytes)`,
+  });
+  assert.equal(result[1].type, 'image_url');
+  assert.equal(
+    result[1].image_url.url,
+    `data:image/png;base64,${png.toString('base64')}`,
+  );
+
+  // ⚠️ The receipt keeps a note of the picture, never the picture: it is a row
+  // in SQLite that npm run backup copies, and the bytes are already on disk.
+  const kept = await (await app.client.request(
+    'GET', `/api/messages/${reply.data.id}/prompt`,
+  )).text();
+  assert.match(kept, /assets\/sprites\/hero\.png \(7 bytes\)/);
+  assert.match(kept, /\[picture: \d+ KB, not kept\]/);
+  assert.ok(!kept.includes('base64'), 'no data URI in the receipt');
+});
+
+test('look_at refuses what the API would refuse, with a reason', async (t) => {
+  const asked = ['js/game.js', 'BRIEF.md', 'assets/sounds/laser.wav', 'nope.png', '../escape.png'];
+  const observed = [];
+  const llm = createFakeLlm((opts, turn) => {
+    observed.push(opts.messages.filter((m) => m.role === 'tool').map((m) => m.content));
+    if (turn < asked.length) return calls([{ name: 'look_at', input: { path: asked[turn] } }]);
+    return says('None of those, then.');
+  });
+  const { app } = await studio(t, { llm });
+  await app.client.json('PUT', '/api/projects/tank/files/assets/sounds/laser.wav', {
+    rawBody: Buffer.from([0x52, 0x49, 0x46, 0x46]),
+  });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'look at everything');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const results = observed.at(-1);
+  // Text says so and points at the tool that does work on it; a sound says
+  // what can be looked at; a missing file and a bad path say what they are.
+  assert.match(results[0], /js\/game\.js is text.*read_file/);
+  assert.match(results[1], /BRIEF\.md is text.*read_file/);
+  assert.match(results[2], /only PNG, JPEG, GIF and WebP/);
+  assert.match(results[3], /no such file: nope\.png/);
+  assert.match(results[4], /invalid path/);
+  for (const r of results) assert.equal(typeof r, 'string', 'a refusal is a sentence');
+});
+
+// The growth limit stands for context, and a picture is at most 1,024 tokens
+// of it however many kilobytes of base64 it is (§14). Counted by its bytes, a
+// second look would end the fire.
+test('a picture weighs what it costs, not what it measures', async () => {
+  const url = `data:image/png;base64,${'A'.repeat(400 * 1024)}`;
+  const asPicture = weigh({
+    role: 'tool',
+    tool_call_id: 'c1',
+    content: [{ type: 'text', text: 'a.png (300000 bytes)' }, { type: 'image_url', image_url: { url } }],
+  });
+  assert.ok(asPicture < 8 * 1024, `${asPicture} bytes for a 400 KB data URI`);
+  // A plain result is still weighed verbatim.
+  const asText = weigh({ role: 'tool', tool_call_id: 'c1', content: 'x'.repeat(1000) });
+  assert.ok(asText > 1000 && asText < 1100, asText);
+});
+
 test('delete_file removes the file and the deletion is recorded', async (t) => {
   const llm = createFakeLlm([
     calls([{ name: 'delete_file', input: { path: 'old.txt' } }]),
@@ -531,6 +622,9 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /Keep it under 200KB/, 'the brief is injected');
   assert.match(system, /You design games\./, 'the agent description is injected');
   assert.match(system, /prefer patch_file/i);
+  // ⚠️ A capability an agent is not told about may as well not exist, and
+  // seeing is the newest one (spec/ §14).
+  assert.match(system, /You can see\. look_at shows you any \.png/);
 
   // The studio asks for many small files, a config/ directory, and the three
   // project documents.

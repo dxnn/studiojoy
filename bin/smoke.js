@@ -5,6 +5,7 @@
 //
 // In the development sandbox all egress goes through a CONNECT proxy and DNS
 // does not resolve, which is why the npm script passes --use-env-proxy.
+import { readFile } from 'node:fs/promises';
 import { createDeepSeek, tokensCharged, MODEL } from '../server/llm/deepseek.js';
 
 const apiKey = process.env.DEEPSEEK_API_KEY;
@@ -131,6 +132,44 @@ console.log(`model: ${MODEL}\n`);
   });
   check('parallel tool calls arrive', seen.tools.length >= 2,
     seen.tools.map((c) => c.input?.path).join(', '));
+}
+
+// 5. The one shape `npm test` can assert but never prove: a picture handed
+//    back on a tool result, which is where look_at puts one (spec.md §14).
+//    ⚠️ An image on a system or assistant message is a 400; only user and
+//    tool messages take one, which is why the ambient file block cannot.
+{
+  const png = await readFile('public/story-art/backgrounds/forest.png');
+  const url = `data:image/png;base64,${png.toString('base64')}`;
+  const call = {
+    id: 'call_look', type: 'function',
+    function: { name: 'look_at', arguments: '{"path":"assets/images/forest.png"}' },
+  };
+  const seen = await drain({
+    messages: [
+      { role: 'user', content: 'What two colours is assets/images/forest.png? Six words max.' },
+      { role: 'assistant', content: null, tool_calls: [call] },
+      {
+        role: 'tool',
+        tool_call_id: call.id,
+        content: [
+          { type: 'text', text: 'assets/images/forest.png (3177 bytes)' },
+          { type: 'image_url', image_url: { url } },
+        ],
+      },
+    ],
+    thinking: 'none',
+    maxTokens: 64,
+  });
+  // The picture is a green and brown pixel-art forest. Naming either one is
+  // the whole check: it cannot be guessed from the path, which says only
+  // "forest", and a model that dropped the image answers colours at random —
+  // which is exactly what deepseek-v4-pro does.
+  check('a picture on a tool result is seen', /green|brown/i.test(seen.text),
+    JSON.stringify(seen.text));
+  const pictureTokens = (seen.end?.usage?.prompt_tokens ?? 0) - 40;
+  check('and costs a couple of hundred tokens, not its bytes',
+    pictureTokens > 50 && pictureTokens < 1100, `~${pictureTokens} tokens for 3.1 KB of PNG`);
 }
 
 console.log(failures === 0 ? '\nall live checks passed' : `\n${failures} live check(s) failed`);

@@ -36,6 +36,11 @@ Tests enforce each of these.
   replayed into a later fire. Within one fire a capped trace is handed on
   once, as text on a user turn — to the same turn's retry, or to the sizing
   call — and the receipt's prompt keeps a placeholder where it rode (§8).
+- No picture's bytes are ever written to a receipt either: `look_at` puts one
+  on a `role: 'tool'` result inside a fire, and the receipt's prompt keeps a
+  placeholder beside the path the bytes are already on disk under (§8, §14).
+- An image never rides the system prompt. The API refuses one there (§14), so
+  the ambient file block names a picture and `look_at` shows it.
 - The builder's room holds the builder and nobody else: `assertBotsAllowed`
   refuses every other helper there, no route and no mention puts the builder
   anywhere else, and nothing edits or deletes its row.

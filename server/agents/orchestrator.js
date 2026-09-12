@@ -230,6 +230,13 @@ function studioPreamble({
       'on it. Worth it for a plain shape, an icon or a background; a sprite someone should be proud of is',
       'still a person job.',
       '',
+      'You can see. look_at shows you any .png, .jpg, .gif or .webp in the game — read_file cannot, and the',
+      'file list only names them. Look before you judge a picture: whether a sprite reads at the size it is',
+      'drawn, which way it faces, what its colours are, whether two of them belong in the same game. Do not',
+      'look at one whose contents do not matter to what you are doing; every look costs, and the name is',
+      'usually enough. An .svg is text — read_file it instead, and you get the shapes rather than a picture',
+      'of them.',
+      '',
       'config/ is the part a person tunes without reading code, so it has rules of its own:',
       '- ⚠️ Every number and every word the game uses lives here and nowhere else — speeds, sizes, counts,',
       '  colours, timings, lives, scores, level data, every string the player sees. A js/ file reads them',
@@ -837,6 +844,36 @@ async function buildContext({
   };
 }
 
+// ⚠️ A picture weighs what it costs, not what it measures. `look_at` hands
+// back a data URI that is hundreds of kilobytes of base64 and at most 1,024
+// prompt tokens (§14), so counting its bytes against LOOP_GROWTH_BYTES would
+// stop a fire on its second look. The growth limit stands for context, and
+// this is what the picture takes of it.
+const PICTURE_WEIGHT_BYTES = 4 * 1024;
+
+export function weigh(message) {
+  if (!Array.isArray(message.content)) return JSON.stringify(message).length;
+  const { content, ...rest } = message;
+  return JSON.stringify(rest).length + content.reduce(
+    (n, part) => n + (part.type === 'image_url'
+      ? PICTURE_WEIGHT_BYTES
+      : JSON.stringify(part).length),
+    0,
+  );
+}
+
+// A picture as the receipt should keep it: the label it came with and a note
+// of what was there. ⚠️ Never the data URI — a receipt is a row in SQLite that
+// `npm run backup` copies, and the picture is already on disk under the name
+// printed right here.
+function picturePlaceholder(parts) {
+  return parts
+    .map((part) => (part.type === 'image_url'
+      ? `[picture: ${Math.round((part.image_url?.url?.length ?? 0) / 1024)} KB, not kept]`
+      : part.text ?? ''))
+    .join('\n');
+}
+
 // The prompt as readable text, one labelled part per message, verbatim
 // content. Rendered rather than dumped as the JSON body so the person
 // debugging reads what the model read; a tool call keeps its raw argument
@@ -850,7 +887,8 @@ function promptText(system, messages) {
         .map((c) => `[tool call ${c.id}: ${c.function.name}]\n${c.function.arguments}`);
       parts.push([`[assistant]${m.content ? `\n${m.content}` : ''}`, ...calls].join('\n\n'));
     } else if (m.role === 'tool') {
-      parts.push(`[tool result ${m.tool_call_id}]\n${m.content}`);
+      const body = Array.isArray(m.content) ? picturePlaceholder(m.content) : m.content;
+      parts.push(`[tool result ${m.tool_call_id}]\n${body}`);
     } else {
       parts.push(`[${m.role}]\n${m.content}`);
     }
@@ -990,7 +1028,7 @@ export function createOrchestrator({
     let grown = 0;
     const append = (message) => {
       messages.push(message);
-      grown += JSON.stringify(message).length;
+      grown += weigh(message);
     };
     // ⚠️ The one place a trace enters a request: this fire, once, as text.
     // It never reaches the receipt — the prompt kept there carries a

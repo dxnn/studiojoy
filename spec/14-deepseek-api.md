@@ -234,18 +234,62 @@ sizing call does.
 
 ### Images
 
-**Not supported.** Both content-part shapes are rejected before the model is
-reached: `{type: 'image_url', image_url: {url}}` returns 400 `unknown variant
-'image_url', expected 'text'`, and the Anthropic-style `{type: 'image',
-source: {...}}` returns 400 `unknown variant 'image'`. The deserializer
-accepts only `text`, so this is not a model capability gate that a different
-model id would lift.
+**Supported, on `deepseek-flash` only.** Re-measured 2026-09-12
+(`tmp/probe-v41*.mjs`) because V4.1 reversed the finding this section carried
+for a month — that both content-part shapes were rejected by the deserializer
+before the model was reached, and that no model id could lift it.
 
-The consequence is architectural: an agent cannot be shown what its game looks
-like. Screenshots are not merely awkward to produce without a headless browser
-— they could not be sent even if we had them. Anything an agent learns about
-its running game has to arrive as text, which is what the runtime error feed
-is for (§8).
+`{type: 'image_url', image_url: {url: 'data:image/png;base64,…'}}` is
+accepted. PNG, JPEG, GIF and WebP; **not SVG**, which is text anyway and which
+`read_file` gives an agent more of. External `http(s)` URLs and an uploaded
+`file_id` also work and are not used here: a game's pictures are on the
+studio's own disk.
+
+⚠️ **`deepseek-v4-pro` does not reject an image. It drops it and answers
+anyway.** Same picture, same question, same request: Flash reported 209 prompt
+tokens and said *"Green and brown"* of a green-and-brown forest; Pro reported
+22 and said *"White and blue."* No error, no warning, a confident wrong
+answer. A studio that offered both models would have to gate the capability on
+the model; a studio with one model does not, and this is one of the reasons
+there is one (see Models).
+
+**Where a picture may sit is decided by the API, not by us:**
+
+| placement | result |
+| --- | --- |
+| `system` message | 400 `Image in system message is unsupported` |
+| `assistant` message | 400 `Image in assistant message is not supported` |
+| `user` message | works |
+| **`tool` result** | **works** — and is what `look_at` uses (§8) |
+
+⚠️ The system-message refusal is the load-bearing one: the **ambient file
+block lives in the system prompt** (§8, §12) and therefore cannot carry
+pictures. It names them — `[binary: assets/sprites/hero.png, 1234 bytes]` —
+and `look_at` shows one on request, which also means a picture costs nothing
+until an agent asks for it.
+
+**What a picture costs.** A 3.1 KB pixel-art PNG measured **~195–233 prompt
+tokens**, a portrait the same; the documented ceiling is 1,024 tokens per
+image whatever its size, images being resized to between ~544 and ~1300 px a
+side. At the miss price that is $0.00006 a look. ⚠️ The **bytes** are not the
+cost — a data URI is hundreds of kilobytes of base64 for those ~200 tokens —
+which is why the loop's growth limit weighs a picture at a flat allowance
+rather than at `JSON.stringify(message).length` (§8).
+
+**A picture caches.** The same picture sent twice hit 99%: image tokens ride
+the prefix cache like any others.
+
+⚠️ **A picture on the last user message does not cost the ~6,000-token
+prefix** that a ≥160-token text message costs (below). Measured on a
+9.5 K-token prompt: the request extending it hit 98%, against 98% for a
+short-message control and the 48–50% signature of the loss. One run. Nothing
+leans on this yet; it is here because the arithmetic — a picture is ~200
+tokens, the rule bites at ~160 — says it should have bitten and did not.
+
+Limits, from the vision guide, unverified here: 600 images per request, 8,192
+px a side (4,096 at ≥15 images), 32 MiB per external image, 48 MiB of request
+body inline. The studio's own cap is 2 MB per picture (`agents/tools.js`),
+which no picture its pixel editor makes comes near.
 
 ### Prices
 

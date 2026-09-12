@@ -8,6 +8,26 @@ import {
 // Cap on what read_file hands back, so one call can't blow the context.
 const MAX_READ_BYTES = 128 * 1024;
 
+// What DeepSeek will look at (spec.md §14, measured 2026-09-12) — and nothing
+// by extension alone that it would reject, because a refusal from the API is a
+// dead turn where a refusal from here is a sentence the helper can act on.
+// ⚠️ Not SVG: the API rejects it, and an SVG is text, so `read_file` gives a
+// helper more of one than a picture of it ever could.
+const LOOKABLE = new Map([
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.gif', 'image/gif'],
+  ['.webp', 'image/webp'],
+]);
+
+// A picture costs at most 1,024 prompt tokens whatever its size (§14), so this
+// is not a context guard — it is a guard on the request body, which has its
+// own ceiling, and on a game that keeps a 20 MB photo somebody dropped in.
+// The studio's own pixel editor never makes anything near it: MAX_SIDE is
+// 1024 and a PNG that size is tens of kilobytes.
+const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
+
 // Tool definitions in the OpenAI function-calling shape DeepSeek accepts.
 const TOOL_DEFINITIONS = [
   {
@@ -56,6 +76,24 @@ const TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: { path: { type: 'string' } },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'look_at',
+      description:
+        'Look at a picture in this game — a PNG, JPEG, GIF or WebP. Use it '
+        + 'when what the picture shows matters: whether a sprite reads at its '
+        + 'size, what colours it uses, which way it faces, whether two pictures '
+        + 'go together. read_file cannot read one; this can.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'project-relative path, / separated' },
+        },
         required: ['path'],
       },
     },
@@ -193,6 +231,38 @@ export function createToolset({ dir, mutex, slug, pending = null }) {
     return `${target.rel} (${buffer.length} bytes)\n${buffer.toString('utf8')}`;
   }
 
+  // The one tool that hands back something other than a sentence: a label and
+  // the picture itself, as the content parts DeepSeek takes on a tool result
+  // (spec.md §14). ⚠️ Images are refused on a system message, so the ambient
+  // file block cannot carry one — it names the picture, this shows it.
+  //
+  // Read-only, and through the same `resolve` as everything else: the library
+  // holds no pictures today, and if it ever does, looking at one is reading.
+  async function lookAt({ path: p }) {
+    const target = resolve(p);
+    if (target.error) return target.error;
+    const ext = path.extname(target.rel).toLowerCase();
+    const mime = LOOKABLE.get(ext);
+    if (!mime) {
+      return isTextPath(target.rel)
+        ? `${target.rel} is text, not a picture — read_file gives you all of it`
+        : `${target.rel} cannot be looked at: only PNG, JPEG, GIF and WebP can`;
+    }
+    const buffer = await readFileAt(target.abs);
+    if (buffer === null) return `no such file: ${target.rel}`;
+    if (buffer.length > MAX_PICTURE_BYTES) {
+      return `${target.rel} is ${buffer.length} bytes, over the ${MAX_PICTURE_BYTES} `
+        + 'byte limit for looking at a picture';
+    }
+    return [
+      { type: 'text', text: `${target.rel} (${buffer.length} bytes)` },
+      {
+        type: 'image_url',
+        image_url: { url: `data:${mime};base64,${buffer.toString('base64')}` },
+      },
+    ];
+  }
+
   async function deleteFile({ path: p }) {
     const target = resolveForWrite(p);
     if (target.error) return target.error;
@@ -209,6 +279,7 @@ export function createToolset({ dir, mutex, slug, pending = null }) {
     write_file: writeFile,
     patch_file: patchFile,
     read_file: readFile,
+    look_at: lookAt,
     delete_file: deleteFile,
   };
 

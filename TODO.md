@@ -8,9 +8,6 @@ deliberately deferred.
 - ! re-measure §14's cliff and the 6 K prefix rule on V4.1 — the *thinking
   level*, the *thinking cap* and every `none` *piece* rest on tables taken on
   a model that no longer exists (ideas/flash.md, "What to re-measure")
-- let a helper look at a picture: one tool, the picture as a `role: 'tool'`
-  result. ⚠️ `deepseek-v4-pro` drops an image and answers anyway, so the tool
-  is absent on a Pro agent rather than blind (ideas/flash.md, stage 2)
 - the plan card's synopsis — one no-tools call over the pieces' headlines —
   and sub-pieces when a piece outruns its budget, one level deep
   (ideas/planner.md, second chapter, step 6)
@@ -32,9 +29,10 @@ deliberately deferred.
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, with a map editor over `config/world.js`
   where one fits (ideas/templates.md)
-- ! the point-and-click adventure template and its editor — the spot picker
-  is the editor, not a follow-up, because a helper cannot see a picture
-  (ideas/point-and-click.md)
+- ! the point-and-click adventure template and its editor — ⚠️ re-read
+  ideas/point-and-click.md before building it. Its reason for making the spot
+  picker the editor rather than a follow-up was that a helper cannot see a
+  picture, and since 2026-09-12 one can (`look_at`, spec/ §8)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
