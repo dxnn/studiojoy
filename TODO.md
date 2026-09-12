@@ -9,16 +9,8 @@ deliberately deferred.
 - probe `deepseek-v4-pro` against tools at `none` before any escalation
   (ideas/planner.md, second chapter, step 9)
 
-- ! `npm run pushkeys` on the studio machine, the three `VAPID_*` into
-  studio.env, restart, then press the bell on a real phone and a real laptop:
-  the permission prompt, a *notification* with the studio in the background,
-  one with it closed altogether, and the press landing back in the right
-  conversation. ⚠️ None of that is checkable from a coding agent — no
-  permission prompt, no OS, no push endpoint reachable — so `npm test` holds
-  the decisions and the encryption against the RFCs' own vectors, and says
-  nothing about whether one ever appears. ⚠️ **Once**: a second pair silently
-  stops every browser already subscribed (ideas/notifications.md)
-- once a real push has landed, check the two things only a real one shows:
+- now a real push has landed (2026-09-11, installed PWA on a phone), check the
+  two things only a real one shows:
   whether the service worker's visible-window suppression is right on a phone
   (a PWA in the app switcher may not be `visible`), and whether the shared
   `tag` really does collapse rung 1's notification and the push into one on
@@ -63,15 +55,15 @@ deliberately deferred.
 - merge several pictures into one sprite sheet on the way into the studio
   collection — a thing's moods, angles or frames as one strip rather than a
   row each; today `Duplicate…` puts in one picture at a time (spec/ §3)
-- ! run `npm run pullart -- --dry` on a laptop and see whether the svgsilh
-  half works: it is written and has never been run, because this sandbox
-  cannot reach svgsilh at all (Cloudflare, 403 on every path). Everything
-  around the fetching *is* checked — the parser against the site's real
-  markup (`test/svgsilh.test.js`), and the pick path in a browser against a
-  stand-in silhouette (600×300 in, 255×128 PNG out, the strip shave firing).
-  A dry run takes about ten minutes and should report ~1,100; then run it for
-  real and commit. It refuses in three seconds from here, which is what the
-  403 looks like
+- the svgsilh half of `npm run pullart` is still written and never run: the
+  1,775 pictures in `public/big-set/` are Kenney and PhyloPic, and neither
+  `index.json` nor `licences.txt` has an svgsilh entry. No longer urgent —
+  there is enough art (said 2026-09-11) — so this is only worth a laptop's
+  ten minutes if somebody wants the ~1,100 silhouettes. Everything around the
+  fetching *is* checked: the parser against the site's real markup
+  (`test/svgsilh.test.js`), and the pick path in a browser against a stand-in
+  silhouette (600×300 in, 255×128 PNG out, the strip shave firing). It
+  refuses in three seconds from this sandbox, which is the Cloudflare 403
 - live **summon**: an Openverse-backed search past the repo, server-proxied,
   restricted to subject-bounded CC0 sources. Designed and measured, unbuilt —
   the big set may turn out to be enough, which is why it waits (ideas/summon.md)
@@ -104,15 +96,14 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! deploy input v6 / screens v14: npm run sweep on the studio machine, then
-  re-try the five touch complaints on the real phone (text selection and feel
-  were never checkable headless). asteriskoids and vroooooooom hold screens 13
-  by hand and the sweep raises them; then hold the phone sideways, swipe up
-  once, and check Safari's toolbars go — that is what 14 is for, and it is
-  untested on a device
-- ! deploy redwolf-radness too: it is the third game on `Screens.fit`, and
-  the only other canvas game that was cut off sideways (spec/ §4 — the other
-  17 size their canvas to the window and need nothing)
+- ! input v6 / screens v14 are swept onto the studio machine (2026-09-11);
+  what the sweep cannot do is the phone. Re-try the five touch complaints on
+  a real device (text selection and feel were never checkable headless), then
+  hold it sideways, swipe up once, and check Safari's toolbars go — that is
+  what 14 is for, and it is untested on a device. Try all three `Screens.fit`
+  games while you are there: asteriskoids, vroooooooom and redwolf-radness,
+  the three that were cut off sideways (spec/ §4 — the other 17 size their
+  canvas to the window and need nothing)
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
   in its code, so a rename in a form is a silent code break. It wants either a
@@ -158,9 +149,11 @@ deliberately deferred.
 - ! watch the first real fires on the new `low` default and see whether the
   games come out as good — the measurement scored whether files got written,
   not whether they were any good (spec/ §14, the caveat)
-- ! watch the first real plans in production: whether the pieces the sizing
-  cuts are the right size, whether `none` pieces come out as good as `low`
-  ones, and whether the small ask's 6-turn budget is right — a real small
+- ! keep watching real plans in production. The first ones read well
+  (2026-09-11), which settles the card and leaves the numbers: whether the
+  pieces the sizing cuts are the right size, whether `none` pieces come out
+  as good as `low` ones, and whether the small ask's 6-turn budget is right
+  — a real small
   change that keeps outrunning it and getting planned means it is too tight,
   a "small" that fills it every time means the sizing is calling big things
   small (spec/ §8, `SMALL_TURNS`)
