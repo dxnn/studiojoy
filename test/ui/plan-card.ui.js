@@ -34,7 +34,10 @@ async function draftWaiting(t) {
       { title: 'The page', files: ['index.html'], what: 'The page and its styles.', status: 'todo', message_id: null, note: null },
       { title: 'Tanks that drive', files: ['js/tank.js'], what: 'Two tanks and the loop.', status: 'todo', message_id: null, note: null },
     ]),
-    now, now, 'A tank game for two.', JSON.stringify(['Arrow keys and WASD.']),
+    now, now, 'A tank game for two.',
+    // Two, so the count below can tell one block of assumptions from one field
+    // each: with a single assumption both shapes count the same.
+    JSON.stringify(['Arrow keys and WASD.', 'Two players at one keyboard.']),
   );
   const page = await pageFor(browser, app, app.client, { width: PHONE, touch: true });
   await page.goto(`${app.base}/p/tank?chat=${chatId}`);
@@ -45,7 +48,8 @@ async function draftWaiting(t) {
 test('a draft card is fields and one button, all big enough for a thumb', async (t) => {
   const { page } = await draftWaiting(t);
   const fields = page.locator('.pieces.draft .plan-field');
-  // The summary, the assumptions, and a title and a what per piece.
+  // The summary, the assumptions as one block however many there are, and a
+  // title and a what per piece.
   assert.equal(await fields.count(), 6);
   for (let i = 0; i < 6; i += 1) {
     const size = await fields.nth(i).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
