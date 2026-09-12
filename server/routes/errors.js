@@ -6,6 +6,7 @@ import { isStamp } from '../files/pending.js';
 import {
   recordErrors, listErrors, errorPublic, MAX_ERRORS_PER_PROJECT,
 } from '../runtime.js';
+import { readShot, saveShot } from '../shots.js';
 import { requireProject, projectDirFor } from './helpers.js';
 
 // The studio end of the runtime error feed. A game running in the preview
@@ -55,5 +56,22 @@ export function errorRoutes(r) {
     // them, so the client has a single path for rendering them.
     ctx.broker.broadcast('game.errors', { project_slug: project.slug, errors });
     json(ctx.res, 200, { errors });
+  });
+
+  // A frame of the game, on the same road as its problems: the reporter draws
+  // it when the studio asks, the page forwards it here, and `look_at_game`
+  // hands it to a helper on the next fire (spec.md §8).
+  //
+  // Nothing is broadcast and nothing renders: one row, replaced. No SSE event
+  // either, because nothing on screen changes — the person who caused this is
+  // looking at the game already.
+  r.put('/api/projects/:slug/shot', async (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx, { files: true });
+    const body = await readJson(ctx.req);
+    const shot = readShot(body.data);
+    if (shot.error) throw new HttpError(400, shot.error);
+    saveShot(ctx.db, project.id, { ...shot, version: body.version });
+    json(ctx.res, 200, { bytes: shot.bytes.length });
   });
 }

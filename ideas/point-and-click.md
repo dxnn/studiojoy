@@ -43,12 +43,24 @@ picture letterboxes with `object-fit: contain`, and the hit test maps the
 click back into picture pixels through the img's rendered box. The same
 `?scene=` the visual novel honours, for *Try this scene*.
 
-## ⚠️ The constraint that makes the editor the point
+## ⚠️ The constraint that made the editor the point — half gone
 
-Helpers cannot see pictures (spec/ §14). A spot is four numbers about a
-picture, and nobody types those — so without an editor this template is
-worked example scenes and a helper guessing. The editor is not a nicety here;
-it is the only authoring surface that can exist.
+Written when helpers could not see pictures at all. They can since 2026-09-12:
+`look_at` shows any picture in the game and `look_at_game` the game running
+(spec/ §8, §14). So the flat claim below is no longer true, and what is left
+of it needs weighing before this gets built.
+
+What still holds: a spot is four numbers about a picture, and *nobody types
+those* — not a kid, and not a helper that can see the hall but cannot measure
+it in pixels. Seeing a picture is not the same as knowing where in it the door
+is, and a helper that guesses `at: [412, 208, 96, 140]` from a look is
+guessing more confidently, not more correctly. The editor is still the
+authoring surface.
+
+What has changed: a helper can now *check* — look at the scene with its spots
+drawn on it and say the door's box is over the window. That is a reviewer the
+design never had, and it may be worth building the editor to render spots into
+a picture a helper can be handed.
 
 ## The editor: `Adventure`
 

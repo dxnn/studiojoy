@@ -2,8 +2,9 @@
 //
 // A reporter inside the game posts problems to the studio (see reporter.js),
 // the studio stores them here, and the next fire hands them to the helpers as
-// text. That round trip is the only way an agent ever learns its game is
-// broken — it cannot be shown a screenshot (spec.md §14).
+// text. An agent can be shown a picture of the game now (server/shots.js), but
+// a picture says what it looked like rather than what it said, and a stack
+// trace does not photograph: this is still where a break is diagnosed.
 //
 // Every row carries the commit it happened on. A fix moves HEAD, so errors
 // from the broken version stop being current the moment it is replaced, and

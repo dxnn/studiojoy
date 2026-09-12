@@ -9,6 +9,7 @@ import {
   S, api, say, render, composerBox, canTalk, showMode, prefs, frozen,
 } from './main.js';
 import { liveMapFor, pendingMapFor, applyMessage } from './stream.js';
+import { keepShot } from './telemetry.js';
 
 /* Being called by name ----------------------------------------------------- */
 
@@ -370,6 +371,10 @@ async function post(slug, chatId, localId, text) {
   const map = pendingMapFor(slug, chatId);
   map.set(localId, { body: text, status: 'sending' });
   render();
+  // A frame of the game first, if one is on screen: "it looks wrong" is about
+  // what they can see, and this is the moment they can see it (spec/ §8).
+  // Half a second at the outside, behind a bubble that is already painted.
+  await keepShot(slug);
   const res = await api('POST', `/api/projects/${slug}/messages`, {
     body: text,
     chat_id: chatId,

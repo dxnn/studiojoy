@@ -575,6 +575,28 @@ the broken version's problems retire themselves and no commit path has to
 remember to clear them. Rows for other commits are deleted the next time
 anything is reported for that project.
 
+### `project_shots`
+
+| column | type | notes |
+|---|---|---|
+| `project_id` | INTEGER PK → projects | one row per game, replaced rather than added to |
+| `mime` | TEXT NOT NULL | `image/jpeg`, `image/png` or `image/webp` — checked, never taken from the frame's word |
+| `bytes` | BLOB NOT NULL | the picture, ≤ `MAX_SHOT_BYTES` |
+| `version` | TEXT NOT NULL | the commit the frame was drawn from, cleaned like the reporter's own mark |
+| `at` | TEXT NOT NULL | when it was taken |
+
+The last frame of the game somebody was watching, taken when they sent a
+message and handed to a helper by `look_at_game` (§8). A **shot** is like a
+score: it happens while somebody plays, it commits nothing, it enters no
+version and it restarts no preview. ⚠️ A row and not a file for exactly that
+reason — a file would be a commit, a preview reload and a line in history.
+
+One per project and no history: the only question it answers is *what does it
+look like now*, and yesterday's frame answers nothing. ⚠️ It is in the
+database, so `npm run backup` carries it; at 30–80 KB a game that is
+affordable, and it is the reason the reporter scales to 768px rather than
+sending what the canvas measures.
+
 ### `scores`
 
 | column | type | notes |

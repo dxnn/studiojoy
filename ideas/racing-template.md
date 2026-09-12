@@ -18,10 +18,13 @@ what only it can see: the whole structure at once (ideas/templates.md, "What
 the visual novel added"). For a quiz that was answers wired to endings; for a
 story it was scenes nothing leads to. For a racer it is **the track**: a
 closed loop that has to actually close, be wide enough to drive, and not
-cross itself. A helper cannot see a picture (spec/ §14), so a track drawn as
-coordinates is exactly the kind of thing a person authors and a helper only
-tunes — the same constraint that shaped the adventure's spots, resolved the
-same way: the studio draws, the config holds numbers.
+cross itself. ⚠️ This paragraph used to go on: *a helper cannot see a picture,
+so a track is what a person authors and a helper only tunes*. That stopped
+being true on 2026-09-12 (`look_at`, `look_at_game`, spec/ §8). A helper can
+now see the track it drew and say whether the loop closes — which weakens the
+argument for the editor without killing it, since a kid remixing a track by
+dragging is still the point. Re-read before building, the way
+ideas/point-and-click.md wants re-reading.
 
 ## The heart: `config/track.js`
 

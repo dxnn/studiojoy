@@ -522,10 +522,12 @@ no row anywhere.
 
 ### Runtime error feed
 
-An agent cannot be shown its game. DeepSeek rejects every image content
-shape (§14), so this isn't a matter of producing a screenshot — it couldn't
-be sent. Everything an agent learns about the running game therefore
-arrives as text, and this is the channel.
+Most of what an agent learns about its running game arrives as text, and
+this is the channel. It was, until 2026-09-12, *all* of it: DeepSeek rejected
+every image content shape, so a screenshot could not have been sent even if
+we had had one. V4.1 takes pictures, and the **shot** below rides this same
+road — but a picture says what the game looked like, not what it said, and a
+stack trace does not photograph. The two are complements, not replacements.
 
 The **reporter** is a small script that runs inside the game — not a file in
 the working tree, not a tag in the game's markup. The games listener serves
@@ -617,6 +619,7 @@ iterations.
 | `patch_file` | `path, old_text, new_text` | exact replace; errors unless `old_text` occurs exactly once |
 | `read_file` | `path` | a file the byte cap dropped, or one at an older commit |
 | `look_at` | `path` | the picture itself: PNG, JPEG, GIF, WebP |
+| `look_at_game` | — | the last frame of the running game somebody was watching |
 | `delete_file` | `path` | remove; recoverable from git |
 
 Every tool validates its path per §4 and returns an error string to the
@@ -645,6 +648,41 @@ Refusals are sentences a helper can act on: an SVG or a `.js` is answered
 with *read_file gives you all of it*, a `.wav` with what can be looked at, a
 missing file and a bad path with what they are. Nothing reaches the API that
 the API would reject, because a rejection there is a dead turn.
+
+### The shot: seeing the game run
+
+`look_at_game` is the other half, and the one that closes the debugging loop —
+*"the ship is stuck in the wall"* is about what somebody can see, and until
+now the only thing an agent had was the code and the error feed.
+
+The road is the reporter's (§7). The studio asks the preview frame for a
+frame; the reporter draws the biggest canvas into a 768px JPEG and posts it
+back; the page PUTs it to `/api/projects/:slug/shot`; one row per project
+(`project_shots`), replaced, never a file and never a commit — a **shot** is
+like a score.
+
+⚠️ **It is taken when somebody sends a message**, and at no other time. That
+makes the picture the one they were looking at as they typed, which is the
+whole value of it, and it means nothing is captured while a game is merely
+being played. The client waits at most 500 ms for it, behind a message bubble
+that is already painted.
+
+Three limits, each said plainly to the agent rather than hidden:
+
+- ⚠️ **The preview runs in a person's browser, not on the server.** There is a
+  picture only if somebody has the game open. A server-side capture would mean
+  a headless browser, which is a runtime dependency this studio does not take.
+- ⚠️ **Canvas only.** A game built out of DOM — every visual novel — has
+  nothing to photograph without a library. It says so rather than sending
+  something misleading.
+- ⚠️ A WebGL canvas made without `preserveDrawingBuffer` reads back blank
+  once its frame has been presented, and nothing can tell that from a game
+  that really is black.
+
+⚠️ The bytes arrive from inside a frame running LLM-written game code on
+another origin, so nothing about them is believed: the data URI's claimed type
+is checked against the three the API will look at, the base64 is decoded
+server-side, and the result is capped at `MAX_SHOT_BYTES` (`server/shots.js`).
 
 Bounded loop: at most 24 assistant turns, 40 tool calls, and
 `LOOP_GROWTH_BYTES` of appended messages per fire, ending with a `'system'`

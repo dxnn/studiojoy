@@ -499,6 +499,44 @@ test('look_at refuses what the API would refuse, with a reason', async (t) => {
   for (const r of results) assert.equal(typeof r, 'string', 'a refusal is a sentence');
 });
 
+// The debugging loop: the frame somebody was watching when they typed, taken
+// by the reporter inside the preview and stored as one row (spec/ §8).
+test('look_at_game shows the last frame, or says there is none', async (t) => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  const observed = [];
+  // Two fires, each one look and one word: the turn counter runs across both.
+  const llm = createFakeLlm((opts, turn) => {
+    observed.push(opts.messages.filter((m) => m.role === 'tool').map((m) => m.content));
+    if (turn % 2 === 0) return calls([{ name: 'look_at_game', input: {} }]);
+    return says(turn === 1 ? 'Nothing to see.' : 'I see it.');
+  });
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  // Nobody watching: the honest answer, and a sentence rather than a fault.
+  await send(app, 'does it look right?');
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.body === 'Nothing to see.',
+  );
+  const none = observed.at(-1).at(-1);
+  assert.equal(typeof none, 'string');
+  assert.match(none, /nobody has the game open/);
+
+  await app.client.json('PUT', '/api/projects/tank/shot', {
+    body: { data: `data:image/jpeg;base64,${jpeg.toString('base64')}`, version: 'abc' },
+  });
+  await send(app, 'now?');
+  await stream.waitFor(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null && e.data.body === 'I see it.',
+  );
+
+  const shown = observed.at(-1).at(-1);
+  assert.ok(Array.isArray(shown), 'the game is content parts, not a sentence');
+  assert.match(shown[0].text, /^the game as it looked \d+ seconds ago$/);
+  assert.equal(shown[1].image_url.url, `data:image/jpeg;base64,${jpeg.toString('base64')}`);
+});
+
 // The growth limit stands for context, and a picture is at most 1,024 tokens
 // of it however many kilobytes of base64 it is (§14). Counted by its bytes, a
 // second look would end the fire.
@@ -625,6 +663,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // ⚠️ A capability an agent is not told about may as well not exist, and
   // seeing is the newest one (spec/ §14).
   assert.match(system, /You can see\. look_at shows you any \.png/);
+  assert.match(system, /look_at_game shows you the game itself/);
 
   // The studio asks for many small files, a config/ directory, and the three
   // project documents.

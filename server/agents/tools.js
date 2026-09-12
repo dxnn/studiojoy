@@ -101,6 +101,17 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'look_at_game',
+      description:
+        'Look at the game as it is running: the last frame the person you are '
+        + 'talking to was watching. Use it when they say something looks wrong, '
+        + 'or before and after changing anything about how the game looks.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'delete_file',
       description: 'Delete a file. Recoverable from version history.',
       parameters: {
@@ -119,7 +130,7 @@ const TOOL_DEFINITIONS = [
 // A person's saves still waiting for their commit land before any write here
 // (files/pending.js): a helper's bytes must never ride into history under a
 // person's name, nor a person's under a helper's.
-export function createToolset({ dir, mutex, slug, pending = null }) {
+export function createToolset({ dir, mutex, slug, pending = null, shot = null }) {
   // path -> {action, bytes}. The orchestrator commits these once per turn.
   const changes = new Map();
   const settlePending = () => (pending ? pending.settleLocked(slug) : null);
@@ -263,6 +274,26 @@ export function createToolset({ dir, mutex, slug, pending = null }) {
     ];
   }
 
+  // The game as somebody was watching it (server/shots.js). ⚠️ It arrives
+  // from a person's own browser, so there is one only while somebody has the
+  // preview open — which is the honest answer to give when there is not.
+  async function lookAtGame() {
+    const latest = shot?.();
+    if (!latest) {
+      return 'nobody has the game open at the moment, so there is no picture of it. '
+        + 'Ask them to open the preview and play for a second, then look again.';
+    }
+    const age = Math.round((Date.now() - Date.parse(latest.at)) / 1000);
+    // ⚠️ Buffer.from, not the row's own value: node:sqlite hands a BLOB back
+    // as a Uint8Array, whose toString ignores its argument and joins the
+    // bytes with commas — a data URI that looks right and is not.
+    const base64 = Buffer.from(latest.bytes).toString('base64');
+    return [
+      { type: 'text', text: `the game as it looked ${age} seconds ago` },
+      { type: 'image_url', image_url: { url: `data:${latest.mime};base64,${base64}` } },
+    ];
+  }
+
   async function deleteFile({ path: p }) {
     const target = resolveForWrite(p);
     if (target.error) return target.error;
@@ -280,6 +311,7 @@ export function createToolset({ dir, mutex, slug, pending = null }) {
     patch_file: patchFile,
     read_file: readFile,
     look_at: lookAt,
+    look_at_game: lookAtGame,
     delete_file: deleteFile,
   };
 

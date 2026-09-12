@@ -155,6 +155,18 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_runtime_errors_project
      ON runtime_errors (project_id, commit_sha)`,
 
+  // The last frame of the game somebody was looking at, one per project,
+  // replaced rather than kept: what `look_at_game` shows a helper (spec.md
+  // §8). A row and not a file, for the same reason a score is one — a shot
+  // commits nothing, restarts no preview and enters no history.
+  `CREATE TABLE IF NOT EXISTS project_shots (
+    project_id INTEGER PRIMARY KEY REFERENCES projects,
+    mime TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    version TEXT NOT NULL,
+    at TEXT NOT NULL
+  )`,
+
   // What the public posted from inside a running game — the games origin's
   // one write (spec.md §6). Pruned to the best rows per project on every
   // insert, so the table is bounded by construction.

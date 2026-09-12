@@ -1006,6 +1006,14 @@ document.body.append(previewFrame);
 let previewSlot = null;
 let previewSrc = '';
 
+// The live preview's window, for the one thing anybody outside here needs of
+// it: asking the game inside for a frame (telemetry.js). Null while the
+// preview is folded away or unloaded, which is the same as saying nobody is
+// watching the game.
+export const previewWindow = () => (
+  previewSrc && previewSrc !== 'about:blank' ? previewFrame.contentWindow : null
+);
+
 // Only an address that changed is set, so only a nonce bump — a commit — or
 // a different game reloads the frame.
 function showPreview(url) {

@@ -6,6 +6,7 @@ import { LIBRARY_DIR, LIBRARY_MANIFEST } from '../files/paths.js';
 import { commitPaths, currentSha } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
 import { hasErrors, listErrors } from '../runtime.js';
+import { latestShot } from '../shots.js';
 import {
   tokensCharged, tokensForChars, DEFAULT_MAX_TOKENS, HIT_DIVISOR, OUTPUT_WEIGHT,
 } from '../llm/deepseek.js';
@@ -236,6 +237,14 @@ function studioPreamble({
       'look at one whose contents do not matter to what you are doing; every look costs, and the name is',
       'usually enough. An .svg is text — read_file it instead, and you get the shapes rather than a picture',
       'of them.',
+      '',
+      'look_at_game shows you the game itself: the last frame the person you are talking to was watching,',
+      'taken when they sent their message. Use it the moment somebody says something looks wrong — "the',
+      'ship is stuck", "it\'s all black", "the score is off the edge" — because what they can see and what',
+      'the code says are different things, and this is the only way to have both. Worth looking again after',
+      'a change to how the game looks, once they have played it. Two things it cannot do: a game drawn with',
+      'HTML instead of a canvas has no picture to take, and there is none at all unless somebody has the',
+      'preview open — it says so plainly either way, and neither is a fault to fix.',
       '',
       'config/ is the part a person tunes without reading code, so it has rules of its own:',
       '- ⚠️ Every number and every word the game uses lives here and nowhere else — speeds, sizes, counts,',
@@ -1450,7 +1459,9 @@ export function createOrchestrator({
   async function openFire(fire) {
     const { row, agent, dir, context, emit } = fire;
     const toolset = agent.file_tools && dir !== null
-      ? createToolset({ dir, mutex, slug: row.slug, pending })
+      ? createToolset({
+        dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
+      })
       : null;
     const outcome = await runLoop({
       agent, system: context.system, messages: context.messages, toolset,
@@ -1604,7 +1615,9 @@ export function createOrchestrator({
       return;
     }
 
-    const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
+    const toolset = createToolset({
+      dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
+    });
     let messages = extended(fire, GO_AHEAD);
     let outcome = await runLoop({
       agent, system: context.system, messages, toolset, masked: fire.exchange?.masked,
@@ -1825,7 +1838,9 @@ export function createOrchestrator({
       announcePlan(fire, current);
       emit('agent.stream.start');
       state.live = true;
-      const toolset = createToolset({ dir, mutex, slug: row.slug, pending });
+      const toolset = createToolset({
+        dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
+      });
       const turn = pieceTurn({
         request: current.request, pieces: current.pieces, index: i,
         summary: current.summary, assumptions: current.assumptions,

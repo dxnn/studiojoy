@@ -8,6 +8,13 @@ deliberately deferred.
 - ! re-measure §14's cliff and the 6 K prefix rule on V4.1 — the *thinking
   level*, the *thinking cap* and every `none` *piece* rest on tables taken on
   a model that no longer exists (ideas/flash.md, "What to re-measure")
+- watch what helpers do with `look_at` and `look_at_game` now they can see
+  (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
+  only on send is the right moment, and whether "nobody has the game open"
+  comes back often enough to be worth a second trigger
+- a *shot* of a game drawn in HTML rather than on a canvas — every visual
+  novel has none, so the one template a kid is most likely to be looking at
+  is the one a helper cannot see. Wants an answer that is not a library
 - the plan card's synopsis — one no-tools call over the pieces' headlines —
   and sub-pieces when a piece outruns its budget, one level deep
   (ideas/planner.md, second chapter, step 6)

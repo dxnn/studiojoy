@@ -1,5 +1,16 @@
 # DeepSeek V4.1 Flash
 
+**Built, 2026-09-12.** All three stages landed the day this was written, and
+Pro was dropped outright rather than kept behind a picker — which deleted most
+of stage 2's complexity with it, since the *absent on a Pro agent* gate had
+nothing left to gate. What is written below as a plan is kept as the reasoning;
+where it and the code differ, the code is right. The one thing the plan got
+wrong: it called the picture of a running game a *look*, and GLOSSARY already
+owns that word for a game's four colours. It is a **shot**.
+
+Still open: re-measuring §14's cliff and the 6 K prefix rule on V4.1, which is
+the remaining TODO line and the thing most likely to change a decision.
+
 DeepSeek shipped V4.1 Flash on 2026-09-10. Measured here on 2026-09-12
 against the live API (`tmp/probe-v41.mjs`, `tmp/probe-v41-cache.mjs`,
 `tmp/probe-v41-where.mjs`), because spec/ §14 is measured and every number
@@ -173,24 +184,28 @@ editor, Upload, or Add from the studio already.
 
 ## Stage 3 — a helper can see the game running
 
-The prize, and the speculative one. Do not start it until stage 2 has been
-used for a while.
+Built the same day, against this plan's advice to wait. It worked.
 
-The shape: the *wrapper* (`_studio.html`) is same-origin with the game, so it
-can read the game's canvas. On request it captures a frame, posts it to the
-studio tab the way the *reporter* posts errors and *moments*, and the studio
-holds it for the next fire to attach through a second tool.
+The shape as built: the *reporter* draws the biggest canvas into a 768px JPEG
+when the studio asks; the studio asks at one moment, when somebody sends a
+message, so the picture is the one they were looking at as they typed; the
+page PUTs it to `/api/projects/:slug/shot`; one row per project, replaced;
+`look_at_game` hands it over. Everything the plan listed as a thing to settle
+stood, and each is said to the agent rather than hidden: no preview open means
+no picture, a DOM game has no canvas to photograph, and a shot commits
+nothing.
 
-Three things to settle before it is worth costing:
+⚠️ Driven in a real browser end to end on 2026-09-12, which is the only check
+that could have been conclusive: a game drawing a yellow box on pink, a
+message sent, a 1,608-byte JPEG in `project_shots`, and the builder answering
+*"Pink (#d81b60) and yellow (#ffd600)"* with the receipt showing
+`the game as it looked 3 seconds ago` and `[picture: 2 KB, not kept]` where the
+bytes rode.
 
-- ⚠️ **The preview runs in a person's browser, not on the server.** A helper
-  can only see the game if somebody has it open. A server-side headless
-  capture would mean Chromium as a runtime dependency, which this studio does
-  not have and should not take.
-- ⚠️ A run commits nothing (spec/ §12). A screenshot is not a file and must
-  not become one — it is transient, like a score.
-- A tainted canvas returns nothing. Assets are same-origin so it should not
-  bite, and a WebGL game without `preserveDrawingBuffer` would.
+One thing the plan did not foresee: `node:sqlite` hands a BLOB back as a
+`Uint8Array`, whose `toString('base64')` ignores its argument and joins the
+bytes with commas. The data URI looked right in every test that compared its
+prefix.
 
 ## What to re-measure, in order
 

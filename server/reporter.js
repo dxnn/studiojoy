@@ -1,9 +1,12 @@
 // The reporter: the script that lets the studio see a game break.
 //
-// DeepSeek cannot be shown a picture (spec.md §14), so everything an agent
-// learns about its running game has to arrive as text. This is where that text
-// comes from: uncaught errors, failed resource loads and console.error calls,
-// posted to the studio window and fed back into the next fire's context.
+// Most of what an agent learns about its running game arrives as text —
+// uncaught errors, failed resource loads and console.error calls, posted to
+// the studio window and fed back into the next fire's context. Since
+// 2026-09-12 one thing arrives as a picture: on the studio's ask, a frame of
+// the game's canvas, which is what `look_at_game` hands a helper (spec.md §8,
+// §14). The studio asks when somebody sends a message, so the frame is the
+// one they were looking at when they typed.
 //
 // It is never a file in a working tree and never a tag in a game's markup. The
 // games listener serves the project's own index.html with this script injected
@@ -123,6 +126,58 @@ const REPORTER_JS = `(function () {
       }, '*');
     } catch (err) { /* nothing is listening; the game carries on */ }
   }
+
+  // A frame of the game, when the studio asks for one. Only ever on request:
+  // nothing is captured while somebody is just playing.
+  //
+  // ⚠️ The biggest canvas and nothing else. A game built out of DOM — every
+  // visual novel — has none, and there is no way to photograph a page without
+  // a library, which this studio does not take. It says so rather than
+  // sending something misleading.
+  //
+  // ⚠️ A WebGL canvas made without preserveDrawingBuffer reads back blank
+  // once its frame has been presented. Nothing here can tell that from a game
+  // that really is black, so it is not guarded against; it is written down.
+  function shoot() {
+    try {
+      var all = document.getElementsByTagName('canvas');
+      var best = null;
+      for (var i = 0; i < all.length; i++) {
+        var c = all[i];
+        if (!c.width || !c.height) continue;
+        if (!best || c.width * c.height > best.width * best.height) best = c;
+      }
+      if (!best) return null;
+      // Small enough to post and to bill — a picture costs at most ~1,024
+      // tokens whatever its size, and everything above this is bytes nobody
+      // reads.
+      var side = Math.max(best.width, best.height);
+      var scale = side > 768 ? 768 / side : 1;
+      var out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(best.width * scale));
+      out.height = Math.max(1, Math.round(best.height * scale));
+      out.getContext('2d').drawImage(best, 0, 0, out.width, out.height);
+      // JPEG: a game screen photographs like a photograph, and a PNG of one
+      // is several times the bytes for nothing a helper can see.
+      return out.toDataURL('image/jpeg', 0.7);
+    } catch (err) {
+      // A tainted canvas, or no 2d context to draw into.
+      return null;
+    }
+  }
+
+  window.addEventListener('message', function (event) {
+    try {
+      // Only the window this one is framed in. A game is public, so its
+      // picture gives nothing away that opening it would not — this is about
+      // not answering noise.
+      if (event.source !== window.parent) return;
+      if (!event.data || event.data.gamestudio !== 'shoot') return;
+      window.parent.postMessage({
+        gamestudio: 'shot', slug: slug, version: version, data: shoot()
+      }, '*');
+    } catch (err) { /* never break the game */ }
+  });
 
   window.addEventListener('moment', function (event) {
     try {

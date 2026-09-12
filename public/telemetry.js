@@ -8,7 +8,7 @@
 // moment would restart the game and make it say the same thing again.
 
 import { h } from './dom.js';
-import { S, api } from './main.js';
+import { S, api, previewWindow } from './main.js';
 
 /* Problems the game reported --------------------------------------------- */
 
@@ -86,11 +86,74 @@ async function flushErrors() {
   await api('POST', `/api/projects/${slug}/errors`, { version, errors });
 }
 
+/* A frame of the game ------------------------------------------------------ */
+
+// What a helper is shown when somebody says the game looks wrong (spec/ §8,
+// `look_at_game`). The reporter draws it inside the frame; this asks for it
+// and puts it on the server.
+//
+// ⚠️ Asked for at one moment only — a message being sent — so the picture is
+// the one the person was looking at as they typed. Nothing is captured while
+// somebody is simply playing.
+const SHOT_WAIT_MS = 500;
+let waitingForShot = null;
+
+// Resolves with a data URI, or null: no preview open, a game with no canvas,
+// a frame that has not finished loading. None of those is worth telling
+// anybody about — the tool says plainly that there is no picture.
+export function grabShot(slug) {
+  const origin = gamesOrigin();
+  const frame = previewWindow();
+  if (!origin || !frame || slug !== S.slug) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const done = (data) => {
+      if (waitingForShot !== done) return;
+      waitingForShot = null;
+      clearTimeout(timer);
+      resolve(data);
+    };
+    const timer = setTimeout(() => done(null), SHOT_WAIT_MS);
+    waitingForShot = done;
+    try {
+      frame.postMessage({ gamestudio: 'shoot' }, origin);
+    } catch {
+      done(null);
+    }
+  });
+}
+
+// Take one and store it, if there is one to take. Awaited before a message is
+// sent, so the fire it starts can see it; the optimistic bubble is already on
+// screen, so the half-second ceiling is invisible.
+export async function keepShot(slug) {
+  const shot = await grabShot(slug);
+  if (!shot) return;
+  // A look is nobody's emergency: a failure here must never stop the message
+  // it rode in front of.
+  try {
+    await api('PUT', `/api/projects/${slug}/shot`, { data: shot.data, version: shot.version });
+  } catch {
+    // The message is the thing that matters.
+  }
+}
+
 window.addEventListener('message', (event) => {
   const origin = gamesOrigin();
   if (!origin || event.origin !== origin) return;
   const data = event.data;
   if (!data || data.slug !== S.slug) return;
+  if (data.gamestudio === 'shot') {
+    // Only ever the one asked for. `data` is a string from inside the frame;
+    // the server is what decides whether it is a picture.
+    if (waitingForShot) {
+      waitingForShot(
+        typeof data.data === 'string'
+          ? { data: data.data, version: String(data.version ?? '') }
+          : null,
+      );
+    }
+    return;
+  }
   if (data.gamestudio === 'moment') {
     noteMoments(data.moments);
     return;

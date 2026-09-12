@@ -18,7 +18,11 @@ events, limits, auth, accepted tradeoffs, invariants. Read it before any
 non-trivial change.
 
 - **§14** is DeepSeek's API behaviour as *measured*, not assumed. Don't
-  re-guess it.
+  re-guess it. ⚠️ But do check its dates: DeepSeek retired V4-Flash on
+  2026-09-10 and the studio ran on its replacement for two days without
+  noticing, because the old name still answers. Everything in §14 dated before
+  then describes a model that no longer exists, and one of those findings —
+  *images are not supported* — had already reversed.
 - **§17** is the client: what a render destroys, the URL as the view, and the
   traps behind each.
 
@@ -313,7 +317,9 @@ specified:
   `assets/` as a live listing at `_assets` (§6, §7). The catalog says how
   *you* are doing on each card, and wears each game's icon and hero. The preview reloads itself
   on every write — and on nothing else: the frame lives outside the rendered
-  tree (§17) — and reports its own errors and moments back.
+  tree (§17) — and reports its own errors and moments back, and a **shot**:
+  a frame of its canvas, drawn when somebody sends a message, which is what
+  `look_at_game` hands a helper (§3, §8).
 - Both the studio and the front page install as PWAs — a manifest and a
   service worker each, neither caching anything (§7). The studio's worker has
   one other job: showing a **notification** and handling a press on one, since
