@@ -100,9 +100,13 @@ Seven things are missing outright:
    fill is the span between the outline's own ends on each row — so the switch
    cannot move an edge. The ellipse is Bresenham's bounding-box form, which is
    the one that gets odd and even diameters both right.
-3. **Pixel-perfect freehand.** Where three pixels in a row make an L, drop the
-   middle one. About fifteen lines, applied as the stroke closes, and testable
-   without a screen like everything else in `pixel-editor.js`.
+3. **Pixel-perfect freehand.** Built 2026-09-12, but *not* as the stroke
+   closes: closing means un-drawing pixels already in the step, and a stroke
+   that crosses itself makes that the wrong answer. The stroke is stamped one
+   pixel behind the pointer instead, because whether a pixel is a corner
+   cannot be asked until the one after it arrives. `isCorner` is the rule and
+   is three lines; the lag is the other dozen. One pixel across only, with no
+   switch.
 4. **Crop and resize.** Built 2026-09-07 as **Make pixel art**, and the same
    day made **Modify image** (spec/ §6): a crop, a box-average shrink and a
    posterize to the game's palette as three sections behind one dialog with a

@@ -210,7 +210,10 @@ export function stamp(picture, x, y, rgba, size = 1) {
 
 // Bresenham, because a pointer moving quickly reports a handful of positions
 // across the whole canvas and a game sprite drawn in dots is not a drawing.
-export function drawLine(picture, x0, y0, x1, y1, rgba, size = 1) {
+// Handed out as points rather than only drawn, because a pixel-perfect stroke
+// has to look at three of them at a time.
+export function linePoints(x0, y0, x1, y1) {
+  const points = [];
   let x = x0;
   let y = y0;
   const dx = Math.abs(x1 - x0);
@@ -218,15 +221,34 @@ export function drawLine(picture, x0, y0, x1, y1, rgba, size = 1) {
   const stepX = x0 < x1 ? 1 : -1;
   const stepY = y0 < y1 ? 1 : -1;
   let error = dx + dy;
-  let changed = 0;
   for (;;) {
-    changed += stamp(picture, x, y, rgba, size);
-    if (x === x1 && y === y1) return changed;
+    points.push([x, y]);
+    if (x === x1 && y === y1) return points;
     const doubled = 2 * error;
     if (doubled >= dy) { error += dy; x += stepX; }
     if (doubled <= dx) { error += dx; y += stepY; }
   }
 }
+
+export function drawLine(picture, x0, y0, x1, y1, rgba, size = 1) {
+  let changed = 0;
+  for (const [x, y] of linePoints(x0, y0, x1, y1)) changed += stamp(picture, x, y, rgba, size);
+  return changed;
+}
+
+// Three pixels in a row making an L: the middle one is a corner the hand did
+// not mean, and taking it out leaves a clean diagonal step. True when the
+// outer two are diagonal neighbours and the middle is one of the two elbows
+// between them — which is the whole of pixel-perfect freehand.
+//
+// ⚠️ It can only be asked once the pixel *after* the middle one has arrived,
+// which is why a stroke drawing this way is stamped one pixel behind the
+// pointer rather than filtered afterwards. Filtering afterwards would mean
+// un-drawing pixels already in the step, and a stroke that crosses itself
+// makes that the wrong answer.
+export const isCorner = (a, b, c) => Math.abs(c[0] - a[0]) === 1
+  && Math.abs(c[1] - a[1]) === 1
+  && ((b[0] === a[0] && b[1] === c[1]) || (b[0] === c[0] && b[1] === a[1]));
 
 // The three shapes a hand cannot draw square by square. Each one is dragged
 // out from where the pointer went down to where it is now, so both ends are

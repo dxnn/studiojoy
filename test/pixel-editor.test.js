@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import {
   PALETTE, PALETTE_COLUMNS, GREYS, RAINBOW, FUN, isColour,
   SIZES, BRUSHES, MAX_SIDE, MAX_DRAWN, UNDO_BYTES, CLEAR,
-  blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, drawRect, drawEllipse, floodFill,
+  blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, linePoints, isCorner,
+  drawRect, drawEllipse, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
@@ -70,6 +71,53 @@ test('a line that goes nowhere is one pixel', () => {
   const picture = blankPicture(5, 5);
   assert.equal(drawLine(picture, 2, 3, 2, 3, RED), 1);
   assert.deepEqual(marks(picture), ['2,3']);
+});
+
+// Pixel-perfect: the client stamps a stroke one pixel behind the pointer and
+// drops the middle of any three that make an L. The rule itself is isCorner,
+// and running a whole path through it here is the same arithmetic the editor
+// does — without a pointer.
+const perfect = (path) => {
+  const kept = [];
+  let held = null;
+  for (const point of path) {
+    if (!held) { held = point; continue; }
+    if (kept.length && isCorner(kept[kept.length - 1], held, point)) { held = point; continue; }
+    kept.push(held);
+    held = point;
+  }
+  if (held) kept.push(held);
+  return kept.map((p) => p.join(','));
+};
+
+test('the middle of three pixels making an L is a corner, and a straight run is not', () => {
+  // Right then down: the elbow at (1,0) is between two diagonal neighbours.
+  assert.equal(isCorner([0, 0], [1, 0], [1, 1]), true);
+  assert.equal(isCorner([0, 0], [0, 1], [1, 1]), true, 'the other elbow');
+  // Three in a line, and a run that is already diagonal, bend nothing.
+  assert.equal(isCorner([0, 0], [1, 0], [2, 0]), false);
+  assert.equal(isCorner([0, 0], [1, 1], [2, 2]), false);
+  // Two pixels apart is a gap, not a corner — nothing to drop.
+  assert.equal(isCorner([0, 0], [1, 0], [2, 1]), false);
+});
+
+test('a hand-drawn staircase loses its corners and keeps its ends', () => {
+  const path = [[0, 0], [1, 0], [1, 1], [2, 1], [2, 2], [3, 2]];
+  assert.deepEqual(perfect(path), ['0,0', '1,1', '2,2', '3,2']);
+});
+
+test('pixel-perfect never drops a pixel a straight line needs', () => {
+  const straight = linePoints(0, 0, 6, 0).map((p) => p.join(','));
+  assert.deepEqual(perfect(linePoints(0, 0, 6, 0)), straight);
+  const diagonal = linePoints(0, 0, 5, 5).map((p) => p.join(','));
+  assert.deepEqual(perfect(linePoints(0, 0, 5, 5)), diagonal);
+});
+
+test('a line hands out the same pixels it draws', () => {
+  const points = linePoints(1, 1, 5, 3);
+  const picture = blankPicture(8, 8);
+  drawLine(picture, 1, 1, 5, 3, RED);
+  assert.deepEqual(marks(picture).sort(), points.map((p) => p.join(',')).sort());
 });
 
 test('a rectangle is its four sides, and dragging it backwards is the same one', () => {

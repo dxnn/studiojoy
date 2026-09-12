@@ -7,7 +7,8 @@
 import { h, iconButton } from './dom.js';
 import {
   PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
-  blankPicture, pictureFrom, pixelAt, drawLine, drawRect, drawEllipse, floodFill,
+  blankPicture, pictureFrom, pixelAt, stamp, drawLine, linePoints, isCorner,
+  drawRect, drawEllipse, floodFill,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isColour,
@@ -547,6 +548,33 @@ export function renderDrawing() {
 
   const shaping = () => SHAPES[S.drawPrefs.tool] ?? null;
 
+  // A freehand stroke is stamped one pixel behind the pointer, because whether
+  // a pixel is a corner cannot be asked until the one after it arrives (see
+  // isCorner). `held` is the pixel waiting to be stamped and `laid` the last
+  // one that was; the lag is one pixel of movement, which nobody sees.
+  //
+  // Pixel-perfect only applies at one pixel across: wider than that the
+  // doubling it removes is inside the brush and invisible, and dropping a
+  // corner would thin the stroke instead. The machinery runs either way and
+  // only the question is skipped, so there is one stroke path, not two.
+  let held = null;
+  let laid = null;
+  const strokeTo = (to) => {
+    for (const point of linePoints(held[0], held[1], to[0], to[1]).slice(1)) {
+      if (laid && S.drawPrefs.brush === 1 && isCorner(laid, held, point)) { held = point; continue; }
+      stamp(picture, held[0], held[1], colour(), S.drawPrefs.brush);
+      laid = held;
+      held = point;
+    }
+  };
+  // What the stroke still owes when the pointer lifts: the pixel it was
+  // holding back. A tap that never moved is only ever this.
+  const strokeEnd = () => {
+    if (held) stamp(picture, held[0], held[1], colour(), S.drawPrefs.brush);
+    held = null;
+    laid = null;
+  };
+
   // One call draws a shape, and where it lands is the only difference between
   // seeing it and keeping it. ⚠️ spotOf answers in the picture's own
   // coordinates while the preview canvas holds one frame of a strip, so the
@@ -605,7 +633,7 @@ export function renderDrawing() {
     if (fingers.size === 2) {
       event.preventDefault();
       if (anchor) { anchor = null; clearPreview(); }
-      if (last) { last = null; closed(); }
+      if (last) { last = null; strokeEnd(); closed(); }
       const [mx, my] = middle();
       panned = { mx, my, left: media.scrollLeft, top: media.scrollTop };
       return;
@@ -650,8 +678,10 @@ export function renderDrawing() {
       render();
       return;
     }
-    drawLine(picture, x, y, x, y, colour(), S.drawPrefs.brush);
-    touched();
+    // Held rather than stamped: the first pixel of a stroke is as much a
+    // candidate for being a corner as any other.
+    held = [x, y];
+    laid = null;
   });
 
   canvas.addEventListener('pointermove', (event) => {
@@ -673,7 +703,7 @@ export function renderDrawing() {
     if (!spot) return;
     const [x, y] = spot;
     if (last[0] === x && last[1] === y) return;
-    drawLine(picture, last[0], last[1], x, y, colour(), S.drawPrefs.brush);
+    strokeTo(spot);
     last = [x, y];
     touched();
   });
@@ -707,6 +737,7 @@ export function renderDrawing() {
     }
     if (!last) return;
     last = null;
+    strokeEnd();
     closed();
     render();
   };

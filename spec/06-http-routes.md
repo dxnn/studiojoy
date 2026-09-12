@@ -270,7 +270,7 @@ exactly the size it arrived. Pixels are RGBA, as a canvas keeps them, so an
 uploaded picture loses nothing on open. The tools live in
 `public/pixel-editor.js`, arithmetic over bytes for the same reason the sound
 editor's are; the canvas, pointer and `toBlob` stay in `public/drawing.js`.
-Eleven choices worth naming:
+Twelve choices worth naming:
 
 - **What it draws is smaller than what it opens.** `MAX_DRAWN` is 256 and
   `MAX_SIDE` is 1024: a picture made here is at most 256 a side — and at most
@@ -333,6 +333,20 @@ Eleven choices worth naming:
   bigger — which is the whole of panning. ⚠️ Sizing by `width: 100%` and a
   capped height is what squashes: a canvas has an intrinsic size, so that
   draws a 16-square sprite at 16 by 7. Both sides in pixels is exact.
+
+- **A freehand stroke is stamped one pixel behind the pointer**, so that
+  **pixel-perfect** can drop the corners a hand did not mean: where three
+  pixels in a row make an L, the middle one goes and a clean diagonal step is
+  left (`isCorner` in `pixel-editor.js`). ⚠️ The question cannot be asked
+  until the pixel *after* the middle one arrives, which is why the stroke lags
+  rather than being filtered afterwards — filtering afterwards means
+  un-drawing pixels already in the step, and a stroke that crosses itself
+  makes that the wrong answer. The lag is one pixel of movement and a tap that
+  never moves is only ever the held pixel, flushed when the pointer lifts.
+  It applies **at one pixel across only**, with no switch: wider than that the
+  doubling is inside the brush and invisible, and dropping a corner would thin
+  the stroke. The lag runs either way, so there is one stroke path rather than
+  two. A deliberate square corner is what Rectangle is for.
 
 - **A shape is dragged out and exists nowhere until it lands.** Line,
   Rectangle and Ellipse (`SHAPES` in `drawing.js`, `drawRect` and
