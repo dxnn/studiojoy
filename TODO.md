@@ -15,10 +15,6 @@ deliberately deferred.
   (a PWA in the app switcher may not be `visible`), and whether the shared
   `tag` really does collapse rung 1's notification and the push into one on
   a hidden tab rather than showing two
-- ! paste the rewritten Buildermate Steve and Architect Alice descriptions into
-  the Crew tab on the studio machine (ideas/agent-descriptions.md) — a
-  description is a database row, so it does not ride the deploy the way the
-  preamble half of this change does
 - try a two-helper game (a builder plus a critic) and see whether the
   bot-to-bot dampening makes the second one useless in practice
 - ask a helper to move flip-for-what onto the input module, the way space-racer
@@ -96,14 +92,13 @@ deliberately deferred.
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
-- ! input v6 / screens v14 are swept onto the studio machine (2026-09-11);
-  what the sweep cannot do is the phone. Re-try the five touch complaints on
-  a real device (text selection and feel were never checkable headless), then
-  hold it sideways, swipe up once, and check Safari's toolbars go — that is
-  what 14 is for, and it is untested on a device. Try all three `Screens.fit`
-  games while you are there: asteriskoids, vroooooooom and redwolf-radness,
-  the three that were cut off sideways (spec/ §4 — the other 17 size their
-  canvas to the window and need nothing)
+- input v6 / screens v14 are swept onto the studio machine, and screens 14's
+  own job is confirmed: iOS Safari's toolbars go on a sideways swipe up
+  (2026-09-11). What is left is the five touch complaints on a real device —
+  text selection and feel were never checkable headless — across all three
+  `Screens.fit` games: asteriskoids, vroooooooom and redwolf-radness, the
+  three that were cut off sideways (spec/ §4 — the other 17 size their canvas
+  to the window and need nothing)
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
   in its code, so a rename in a form is a silent code break. It wants either a
@@ -115,15 +110,12 @@ deliberately deferred.
   vocabulary a hand-editor wants (ideas/control-schemes.md, "Picking one")
 - ! the pixel editor's three bands, then zoom and pan: the canvas gets about
   190px of an 820px window and the controls under it get 200, and there is no
-  zoom at all, so a 256 picture is drawn at 1:1 (ideas/pixel-editor.md, 1–2)
+  zoom at all, so a 256 picture is drawn at 1:1 (ideas/pixel-editor.md, 1–2).
+  A finger draws well already (checked on a phone 2026-09-11), so this is
+  about room and detail, not about reaching a pixel
 - pixel-perfect strokes, then line, rectangle and ellipse
   (ideas/pixel-editor.md, 4)
 - selection and move, then mirror, flip and rotate (ideas/pixel-editor.md, 5–6)
-- draw on the real phone now the pane fits: a finger is not a pointer, so how
-  big a sprite has to be before a 1-pixel brush is usable, and whether a stroke
-  that starts off the canvas is a scroll, are both things headless cannot say.
-  ⚠️ Try dotpict's answer first — drag anywhere to move a crosshair, tap to
-  paint — rather than assuming a finger can hit a pixel (ideas/pixel-editor.md)
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first
@@ -146,9 +138,6 @@ deliberately deferred.
   holds the streamed text already; a reload today shows only what arrives
   after it (spec/ §9). The other half: a tab that reconnects refetches only
   the file tree, so a live row whose fire ended while it was away never clears
-- ! watch the first real fires on the new `low` default and see whether the
-  games come out as good — the measurement scored whether files got written,
-  not whether they were any good (spec/ §14, the caveat)
 - ! keep watching real plans in production. The first ones read well
   (2026-09-11), which settles the card and leaves the numbers: whether the
   pieces the sizing cuts are the right size, whether `none` pieces come out
