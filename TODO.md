@@ -112,7 +112,14 @@ deliberately deferred.
   (2026-09-11); a pinch changing the zoom about its own centre was left out to
   keep that change small, and wants the scroll maths pan does not
   (ideas/pixel-editor.md, 1)
-- selection and move, then mirror, flip and rotate (ideas/pixel-editor.md, 5–6)
+- selection and move, then mirror, then flip, rotate and nudge
+  (ideas/pixel-editor.md, 5–7). Everything through `setPixel`, so each is one
+  undoable gesture for free, the way `pasteFrame` already is
+- a grid over the pixel editor above about 8× zoom, with an optional every-8
+  guide (ideas/pixel-editor.md, 8)
+- replace a colour everywhere in a picture — the palette already edits in
+  place, and this is the picture half of the same idea
+  (ideas/pixel-editor.md, 9)
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first
