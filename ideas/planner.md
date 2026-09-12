@@ -381,10 +381,10 @@ fires that land at a new depth today, which the receipts can count first.
   rest nests under that piece as **sub-pieces**, one level and no deeper.
   Pause, resume and drop read the nested list flattened; the card shows
   sub-pieces appearing under their piece.
-- **Pro.** `deepseek-v4-pro` exists, its behaviour against tools is unmeasured
-  (the cliff was measured on Flash), a model switch is a cold cache and its
-  miss is three times Flash's. Escalate one piece on its second failure, if a
-  probe says it earns it; nothing before the probe.
+- ~~**Pro.**~~ Dropped 2026-09-12, unprobed. `deepseek-v4-pro` is now 4.4×
+  Flash on a miss with a cache of its own, and ⚠️ it cannot see a picture —
+  it drops one and answers anyway (spec/ §14). A harder second opinion that is
+  dearer, colder and blinder is not an escalation. There is one model.
 
 ## The draft card
 
@@ -452,6 +452,7 @@ before it).
    browser check is `test/ui/plan-card.ui.js`, written and not yet run).
 8. `SPEC.md` on a first Build — "first" being a game with no `SPEC.md`, so
    a template's stands (done 2026-09-07).
-9. The Pro probe, and escalation only if it earns it.
+9. ~~The Pro probe, and escalation only if it earns it.~~ Dropped 2026-09-12
+   with the model itself.
 10. spec/ §3, §6, §8, §9 and GLOSSARY.md ride the commit that finishes each
     step; `npm test` green at every one.

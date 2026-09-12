@@ -467,7 +467,7 @@ never scaffolded.
 
 ### Reasoning traces
 
-Both models emit `reasoning_content` — a **reasoning trace** — alongside the
+The model emits `reasoning_content` — a **reasoning trace** — alongside the
 reply unless the agent's **thinking level** is `none`. It streams as its own
 `agent.stream.reasoning` event, rendered dimmed and collapsible, stuck to the
 newest thought: the block is a few lines tall and a trace runs to hundreds,
@@ -606,9 +606,10 @@ do that by writing a file, so this adds reach, not a new capability.
 
 ### Tools
 
-Offered whenever `file_tools = 1`. No model gating is needed — both DeepSeek
-models support function calling, including parallel calls in a single turn
-(§14), so an agent can write several files at once and cut loop iterations.
+Offered whenever `file_tools = 1`. No model gating is needed — there is one
+model and it supports function calling, including parallel calls in a single
+turn (§14), so an agent can write several files at once and cut loop
+iterations.
 
 | tool | args | behaviour |
 |---|---|---|
@@ -728,14 +729,16 @@ three times there too, so the lines visibly sum to the note.
 
 ```
 prompt_cache_miss_tokens
-  + ceil(prompt_cache_hit_tokens / 30)
-  + 3 × completion_tokens
+  + ceil(prompt_cache_hit_tokens / 50)
+  + 4 × completion_tokens
 ```
 
-The weights are DeepSeek's own price list, read 2026-09-06 (§14): a cache
-hit is a thirty-first of a miss on both models and output is three times a
-miss, in the peak and the off-peak window alike. Until then a hit counted a
-tenth and output counted one, which overcharged remembered tokens threefold
+The weights are DeepSeek's own price list, read 2026-09-10 (§14): a cache
+hit is a fiftieth of a miss and output is four times a miss, in the peak and
+the off-peak window alike. V4.1 moved both — the retired V4-Flash's hit was a
+thirty-first and its output three times — and the direction is that the cache
+got cheaper while thinking got relatively dearer. Before either, a hit counted
+a tenth and output counted one, which overcharged remembered tokens threefold
 and undercharged thinking threefold — and thinking is output. Note that
 `prompt_tokens` already includes the cached ones, so summing it with the hit
 count would double-charge — the miss/hit split is the correct input (§14).

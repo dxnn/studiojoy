@@ -261,7 +261,6 @@ export async function attachAgent(agent) {
   S.project.agents.push({
     agent_id: agent.id,
     name: agent.name,
-    model: agent.model,
     thinking: agent.thinking,
     file_tools: agent.file_tools,
     chatty: true,
@@ -354,7 +353,7 @@ export function syncAttached() {
   const byId = new Map(S.agents.map((a) => [a.id, a]));
   S.project.agents = S.project.agents
     .filter((a) => byId.has(a.agent_id))
-    .map((a) => ({ ...a, name: byId.get(a.agent_id).name, model: byId.get(a.agent_id).model }))
+    .map((a) => ({ ...a, name: byId.get(a.agent_id).name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

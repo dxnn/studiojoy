@@ -10,7 +10,13 @@
 //   {type:'tool_use_failed', id, name, reason}
 //   {type:'end', text, finish_reason, usage}
 
-export const MODEL_IDS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+// One model, and no choice anywhere above this line. `GET /v1/models` offers
+// `deepseek-v4-pro` as well, at 4.4× the price of a missed token and with no
+// eyes — it drops a picture and answers anyway (spec/ §14) — so the studio
+// does not send it anything. `deepseek-v4-flash` still resolves as a
+// compatibility alias for this same model and is deliberately not used: the
+// alias has no published end date.
+export const MODEL = 'deepseek-flash';
 
 // How hard a helper thinks before it answers, worst to best for getting work
 // done. Three rather than the old on/off because the middle one is where the
@@ -47,7 +53,7 @@ export const THINKING_CAP_CHARS = 35_000;
 // This is the whole ceiling, not a cost guard set below it, because
 // completion_tokens counts the reasoning trace as well as the reply and the
 // tool call arguments. Measured on "make me a tank game" against
-// deepseek-v4-flash: 25,004 of 32,768 tokens went to reasoning, the fifth
+// the retired deepseek-v4-flash: 25,004 of 32,768 went to reasoning, the fifth
 // write_file was cut off mid-arguments, and the game was committed with a
 // missing file. The same prompt at 65,536 spent 38,590 on reasoning and
 // finished all eight files cleanly. A lower cap mostly rations thinking and
@@ -116,12 +122,13 @@ export class LlmError extends Error {
   }
 }
 
-// The price list's weights, read 2026-09-06 (spec.md §14): a cache hit is a
-// thirty-first of a miss on both models and output is three times a miss, in
-// the peak and the off-peak window alike. Output includes the reasoning
-// trace, which is what makes thinking the dearest thing a turn does.
-export const HIT_DIVISOR = 30;
-export const OUTPUT_WEIGHT = 3;
+// The price list's weights, read 2026-09-10 (spec.md §14): on this model a
+// cache hit is a fiftieth of a miss and output is four times a miss, in the
+// peak and the off-peak window alike. Output includes the reasoning trace,
+// which is what makes thinking the dearest thing a turn does — and V4.1 made
+// it dearer still relative to input, where the old model's output was three.
+export const HIT_DIVISOR = 50;
+export const OUTPUT_WEIGHT = 4;
 
 // Sum the tokens a turn actually cost, in miss-priced tokens. prompt_tokens is
 // the total of hits and misses, so adding it to the hit count would charge
@@ -181,7 +188,6 @@ export function createDeepSeek({
   // an unknown parameter is ignored silently, so a caller that relied on it
   // alone would fail open the day it stopped being one. Parse defensively.
   async function complete({
-    model = MODEL_IDS[0],
     system = null,
     messages,
     thinking = 'none',
@@ -189,7 +195,7 @@ export function createDeepSeek({
     responseFormat = null,
   }) {
     const body = {
-      model,
+      model: MODEL,
       messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
       stream: false,
       max_tokens: Math.min(maxTokens, MAX_OUTPUT_TOKENS),
@@ -239,7 +245,6 @@ export function createDeepSeek({
     complete,
 
     async *stream({
-      model = MODEL_IDS[0],
       system = null,
       messages,
       tools = null,
@@ -248,7 +253,7 @@ export function createDeepSeek({
       maxTokens = DEFAULT_MAX_TOKENS,
     }) {
       const body = {
-        model,
+        model: MODEL,
         messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
         stream: true,
         // Without this the final chunk carries no usage and the budget can't
@@ -257,7 +262,7 @@ export function createDeepSeek({
         max_tokens: Math.min(maxTokens, MAX_OUTPUT_TOKENS),
       };
       if (tools && tools.length > 0) body.tools = tools;
-      // Reasoning is on by default on both canonical models, so 'full' sends
+      // Reasoning is on by default, so 'full' sends
       // nothing at all and the other two name themselves. Unknown parameters
       // are silently ignored by the API, so a typo here would fail open
       // rather than error.

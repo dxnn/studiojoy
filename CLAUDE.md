@@ -246,7 +246,7 @@ walk into, each paid for once already.
 
 The studio is used by kids. That shapes the interface, not the engineering:
 every technical affordance is present (file tree, versions, diffs, reasoning
-traces, model choice), but user-facing strings are plain language and
+traces, thinking levels), but user-facing strings are plain language and
 destructive actions confirm first. The UI says **helper** where the code says
 **agent**, **editor** where the code says `author`, and **Speak/See/Hear/
 Touch/Taste/Recall/Smell** where the code says `chat`/`pics`/`hear`/

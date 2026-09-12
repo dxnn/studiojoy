@@ -110,7 +110,7 @@ There is no route that deletes a chat.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/agents` | — | every agent people made — never the *builder*, which is in every game's `Building` already and goes nowhere else |
-| POST | `/api/agents` | `{name, description, model?, thinking?, file_tools?}` | create |
+| POST | `/api/agents` | `{name, description, thinking?, file_tools?}` | create. A `model` from an old tab is ignored, never honoured |
 | PATCH | `/api/agents/:id` | any of the above | update; 403 for the builder |
 | DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects; 403 for the builder |
 | POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat; 409 for `Humans only`, for the builder's room, and for the builder itself |

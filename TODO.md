@@ -3,11 +3,17 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
+- drop `agents.model` once the one-model change has stuck in production; it
+  is written and never read, kept only so a rollback lands on its feet
+- ! re-measure §14's cliff and the 6 K prefix rule on V4.1 — the *thinking
+  level*, the *thinking cap* and every `none` *piece* rest on tables taken on
+  a model that no longer exists (ideas/flash.md, "What to re-measure")
+- let a helper look at a picture: one tool, the picture as a `role: 'tool'`
+  result. ⚠️ `deepseek-v4-pro` drops an image and answers anyway, so the tool
+  is absent on a Pro agent rather than blind (ideas/flash.md, stage 2)
 - the plan card's synopsis — one no-tools call over the pieces' headlines —
   and sub-pieces when a piece outruns its budget, one level deep
   (ideas/planner.md, second chapter, step 6)
-- probe `deepseek-v4-pro` against tools at `none` before any escalation
-  (ideas/planner.md, second chapter, step 9)
 
 - now a real push has landed (2026-09-11, installed PWA on a phone), check the
   two things only a real one shows:
@@ -164,8 +170,6 @@ deliberately deferred.
   `ctl-shape${' manner'}` — 6 of 13, then 47 hits of which most were noise).
   A test that cries wolf gets ignored, so it wants the `${…}` handling right
   before it goes in
-- drop `agents.reasoning` once the thinking level has stuck in production; it
-  is written and never read, kept only so a rollback lands on its feet
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec/ §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate

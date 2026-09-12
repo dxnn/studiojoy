@@ -68,14 +68,14 @@ test('a sentence comes back as lines in the story\'s own keys', async (t) => {
   assert.equal(asked.tools, undefined);
   assert.equal(asked.maxTokens, 1024);
 
-  // Billed like a fire, to whoever pressed. 300 miss + 60 out at three.
+  // Billed like a fire, to whoever pressed. 300 miss + 60 out at four.
   const spent = app.db
     .prepare('SELECT tokens FROM user_tokens WHERE user_id = ?').get(user.id);
-  assert.equal(spent.tokens, 480);
-  assert.equal(res.body.tokens, 480);
+  assert.equal(spent.tokens, 540);
+  assert.equal(res.body.tokens, 540);
   assert.equal(
     app.db.prepare('SELECT tokens_used_today AS n FROM studio_state WHERE id = 1').get().n,
-    480,
+    540,
   );
 
   // ⚠️ Not a fire: nothing said, nothing kept.
@@ -214,7 +214,7 @@ test('a picture comes back as an SVG with the size its kind wants', async (t) =>
 
   assert.equal(
     app.db.prepare('SELECT tokens FROM user_tokens WHERE user_id = ?').get(user.id).tokens,
-    320,
+    360,
   );
 });
 

@@ -1606,9 +1606,6 @@ export function dialogFor(d) {
       rows: '5',
       placeholder: 'You design fun levels. Keep things simple and playable.',
     });
-    const model = h('select', {},
-      h('option', { value: 'deepseek-v4-flash', text: 'Flash — quick' }),
-      h('option', { value: 'deepseek-v4-pro', text: 'Pro — slower, better at hard things' }));
     // Three, not a checkbox: "a lot" is the setting that spends the whole
     // reply thinking and hands back nothing, so it is offered last and named
     // for what it costs rather than for what it sounds like (spec.md §14).
@@ -1620,7 +1617,6 @@ export function dialogFor(d) {
     if (editing) {
       name.value = d.agent.name;
       description.value = d.agent.description;
-      model.value = d.agent.model;
       thinking.value = d.agent.thinking;
       fileTools.checked = d.agent.file_tools;
     }
@@ -1628,7 +1624,6 @@ export function dialogFor(d) {
     return wrap(editing ? `Change ${d.agent.name}` : 'New helper',
       h('label', { text: 'Name (this is what you @ to call them)' }), name,
       h('label', { text: 'What should they be like?' }), description,
-      h('label', { text: 'Brain' }), model,
       h('label', { text: 'How much to think first' }), thinking,
       h('label', { class: 'row' }, fileTools, ' Allowed to change files'),
       err,
@@ -1647,7 +1642,6 @@ export function dialogFor(d) {
             const body = {
               name: name.value.trim(),
               description: description.value.trim(),
-              model: model.value,
               thinking: thinking.value,
               file_tools: fileTools.checked,
             };

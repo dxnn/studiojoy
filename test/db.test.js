@@ -144,7 +144,7 @@ test('agent defaults match the verified DeepSeek model set', () => {
     `INSERT INTO agents (name, description, created_by, created_at) VALUES ('A', 'd', 1, ?)`,
   ).run(new Date().toISOString());
   const row = db.prepare('SELECT * FROM agents WHERE id = 1').get();
-  assert.equal(row.model, 'deepseek-v4-flash');
+  assert.equal(row.model, 'deepseek-flash');
   // 'low' rather than the old boolean's "on": at full effort an ambitious
   // request writes nothing at all (spec.md §14).
   assert.equal(row.thinking, 'low');

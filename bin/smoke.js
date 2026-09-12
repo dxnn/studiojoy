@@ -5,7 +5,7 @@
 //
 // In the development sandbox all egress goes through a CONNECT proxy and DNS
 // does not resolve, which is why the npm script passes --use-env-proxy.
-import { createDeepSeek, tokensCharged, MODEL_IDS } from '../server/llm/deepseek.js';
+import { createDeepSeek, tokensCharged, MODEL } from '../server/llm/deepseek.js';
 
 const apiKey = process.env.DEEPSEEK_API_KEY;
 if (!apiKey) {
@@ -33,7 +33,7 @@ async function drain(opts) {
   return seen;
 }
 
-console.log(`models: ${MODEL_IDS.join(', ')}\n`);
+console.log(`model: ${MODEL}\n`);
 
 // 1. Plain streaming with thinking left at 'full', which sends no
 //    reasoning_effort at all and gets the API's own default.
@@ -131,16 +131,6 @@ console.log(`models: ${MODEL_IDS.join(', ')}\n`);
   });
   check('parallel tool calls arrive', seen.tools.length >= 2,
     seen.tools.map((c) => c.input?.path).join(', '));
-}
-
-// 5. The pro model answers the same shape.
-{
-  const seen = await drain({
-    model: 'deepseek-v4-pro',
-    messages: [{ role: 'user', content: 'Reply with exactly: ok' }],
-    maxTokens: 64,
-  });
-  check('deepseek-v4-pro streams', seen.text.trim().length > 0, JSON.stringify(seen.text));
 }
 
 console.log(failures === 0 ? '\nall live checks passed' : `\n${failures} live check(s) failed`);

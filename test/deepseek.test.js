@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createDeepSeek, tokensCharged, tokensForChars, LlmError, MODEL_IDS,
+  createDeepSeek, tokensCharged, tokensForChars, LlmError, MODEL,
   DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS, PROGRESS_STEP,
 } from '../server/llm/deepseek.js';
 
@@ -277,7 +277,6 @@ test('the request body matches what the API expects', async () => {
   const fetchImpl = fakeFetch([finalChunk()]);
   const client = createDeepSeek({ apiKey: 'secret-key', fetchImpl });
   await collect(client, {
-    model: 'deepseek-v4-pro',
     system: 'You edit game files.',
     tools: [{ type: 'function', function: { name: 'write_file' } }],
   });
@@ -285,7 +284,8 @@ test('the request body matches what the API expects', async () => {
   const { url, init, body } = fetchImpl.calls[0];
   assert.match(url, /\/chat\/completions$/);
   assert.equal(init.headers.Authorization, 'Bearer secret-key');
-  assert.equal(body.model, 'deepseek-v4-pro');
+  // The model is the client's, not the caller's: there is nothing to choose.
+  assert.equal(body.model, MODEL);
   assert.equal(body.stream, true);
   // Without include_usage the final chunk carries no usage and the budget
   // cannot be charged.
@@ -387,31 +387,31 @@ test('a client without a key is a programming error', () => {
 
 // prompt_tokens is hits plus misses, so charging it alongside the hit count
 // would bill cached tokens twice. The weights are the price list's (§14): a
-// hit a thirtieth, output three times a miss.
+// hit a fiftieth, output four times a miss.
 test('tokensCharged weighs hits and output as the price list does', () => {
   assert.equal(tokensCharged({
     prompt_tokens: 4018,
     prompt_cache_hit_tokens: 3968,
     prompt_cache_miss_tokens: 50,
     completion_tokens: 1,
-  }), 50 + Math.ceil(3968 / 30) + 3);
+  }), 50 + Math.ceil(3968 / 50) + 4);
 
-  // A cold prompt: everything is a miss, and the output counts three times.
+  // A cold prompt: everything is a miss, and the output counts four times.
   assert.equal(tokensCharged({
     prompt_tokens: 322,
     prompt_cache_hit_tokens: 0,
     prompt_cache_miss_tokens: 322,
     completion_tokens: 67,
-  }), 322 + 67 * 3);
+  }), 322 + 67 * 4);
 
   // If the split is ever absent, fall back to the total rather than zero.
-  assert.equal(tokensCharged({ prompt_tokens: 100, completion_tokens: 5 }), 115);
+  assert.equal(tokensCharged({ prompt_tokens: 100, completion_tokens: 5 }), 120);
   assert.equal(tokensCharged(null), 0);
   assert.equal(tokensCharged({}), 0);
 });
 
-test('the canonical model ids are the two verified ones', () => {
-  assert.deepEqual(MODEL_IDS, ['deepseek-v4-flash', 'deepseek-v4-pro']);
+test('there is one model and it is the verified one', () => {
+  assert.equal(MODEL, 'deepseek-flash');
 });
 
 // A fetch whose body arrives on a clock, for the idle guard. Mirrors the one
@@ -502,7 +502,7 @@ test('complete asks for one whole answer and hands back its text and usage', asy
 
   assert.equal(answer.text, '{"lines": []}');
   assert.equal(answer.finish_reason, 'stop');
-  assert.equal(tokensCharged(answer.usage), 200 + 40 * 3);
+  assert.equal(tokensCharged(answer.usage), 200 + 40 * 4);
 
   const { body } = fetchImpl.calls[0];
   assert.equal(body.stream, false);

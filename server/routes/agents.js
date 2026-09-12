@@ -2,39 +2,23 @@ import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
-import { MODEL_IDS, THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
+import { MODEL, THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
 import { requireProject, requireString, optionalBool } from './helpers.js';
 import { requireChat, assertBotsAllowed, MAX_AGENTS_PER_CHAT } from '../chats.js';
 
 const MAX_AGENT_NAME = 100;
 const MAX_DESCRIPTION = 8 * 1024;
 
-// The canonical model ids, verified against /v1/models (spec.md §14) and
-// defined next to the client that talks to them. The deepseek-chat and
-// deepseek-reasoner aliases are deliberately not offered: they are
-// undocumented, both resolve to flash, and differ only in reasoning, which is
-// a separate column here.
-const MODELS = new Set(MODEL_IDS);
-
 function agentPublic(row) {
   return {
     id: row.id,
     name: row.name,
     description: row.description,
-    model: row.model,
     thinking: row.thinking,
     file_tools: row.file_tools === 1,
     created_by: row.created_by,
     created_at: row.created_at,
   };
-}
-
-function requireModel(value) {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string' || !MODELS.has(value)) {
-    throw new HttpError(400, `model must be one of ${[...MODELS].join(', ')}`);
-  }
-  return value;
 }
 
 function requireThinking(value) {
@@ -85,7 +69,6 @@ export function agentRoutes(r) {
     const description = requireString(body.description, 'description', {
       max: MAX_DESCRIPTION, allowEmpty: true,
     });
-    const model = requireModel(body.model) ?? 'deepseek-v4-flash';
     const thinking = requireThinking(body.thinking) ?? DEFAULT_THINKING;
     const fileTools = optionalBool(body.file_tools, 'file_tools') ?? true;
 
@@ -101,7 +84,7 @@ export function agentRoutes(r) {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        name, description, model, thinking, fileTools ? 1 : 0,
+        name, description, MODEL, thinking, fileTools ? 1 : 0,
         user.id, new Date().toISOString(),
       );
     json(ctx.res, 201, agentPublic(liveAgent(ctx.db, info.lastInsertRowid)));
@@ -121,7 +104,6 @@ export function agentRoutes(r) {
         : requireString(body.description, 'description', {
           max: MAX_DESCRIPTION, allowEmpty: true,
         }),
-      model: requireModel(body.model) ?? agent.model,
       thinking: requireThinking(body.thinking) ?? agent.thinking,
       file_tools: optionalBool(body.file_tools, 'file_tools') ?? agent.file_tools === 1,
     };
@@ -136,11 +118,11 @@ export function agentRoutes(r) {
     ctx.db
       .prepare(
         `UPDATE agents
-            SET name = ?, description = ?, model = ?, thinking = ?, file_tools = ?
+            SET name = ?, description = ?, thinking = ?, file_tools = ?
           WHERE id = ?`,
       )
       .run(
-        next.name, next.description, next.model, next.thinking,
+        next.name, next.description, next.thinking,
         next.file_tools ? 1 : 0, agent.id,
       );
     json(ctx.res, 200, agentPublic(liveAgent(ctx.db, agent.id)));

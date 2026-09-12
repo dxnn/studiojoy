@@ -1070,7 +1070,6 @@ export function createOrchestrator({
       }
       try {
         const stream = llm.stream({
-          model: agent.model,
           system,
           messages,
           tools: toolset ? toolset.definitions : null,
@@ -1459,7 +1458,6 @@ export function createOrchestrator({
     fire.exchange = null;
     try {
       const answer = await llm.complete({
-        model: agent.model,
         system: context.system,
         messages,
         thinking: 'none',
@@ -1827,7 +1825,7 @@ export function createOrchestrator({
       .prepare(
         `SELECT ca.id, ca.chat_id, ca.agent_id, ca.response_pending,
                 c.project_id, c.name AS chat_name,
-                a.name AS agent_name, a.description, a.model, a.thinking,
+                a.name AS agent_name, a.description, a.thinking,
                 a.file_tools, a.deleted, a.builtin,
                 c.builder,
                 p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on, p.stage
@@ -1912,7 +1910,6 @@ export function createOrchestrator({
         id: row.agent_id,
         name: row.agent_name,
         description: row.description,
-        model: row.model,
         thinking: row.thinking,
         file_tools: row.file_tools === 1,
       };

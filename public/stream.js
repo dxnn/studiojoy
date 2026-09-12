@@ -260,7 +260,6 @@ export function applyMessage(data) {
     S.project.agents.push({
       agent_id: called.id,
       name: called.name,
-      model: known?.model,
       reasoning: known?.reasoning,
       file_tools: known?.file_tools,
       // Called for one thing, not signed up to answer everything.

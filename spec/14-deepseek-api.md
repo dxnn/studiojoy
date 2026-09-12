@@ -3,21 +3,33 @@
 Measured against the live API on 2026-08-12, not assumed. Every finding below
 replaced a guess, and three of the original five guesses were wrong.
 
+⚠️ **Everything below dated before 2026-09-10 was measured on
+`deepseek-v4-flash`, which DeepSeek retired that day.** The studio ran on V4.1
+for two days before anybody noticed, because the old name still answers. The
+tables that have not been re-taken — the cliff, the sizing, the piece shapes,
+the 6 K prefix rule — are kept because they are the only numbers there are,
+not because they are known to still hold. Re-measuring the first two is a TODO
+line; see ideas/flash.md.
+
 ### Models
 
-`GET /v1/models` returns exactly two: **`deepseek-v4-flash`** and
-**`deepseek-v4-pro`**. A bad model id is rejected with a message naming those
-two, so they are the canonical set.
+`GET /v1/models` returned, 2026-09-12, exactly two: **`deepseek-flash`**
+(V4.1) and **`deepseek-v4-pro`**.
 
-The familiar `deepseek-chat` and `deepseek-reasoner` names still resolve, but
-they are undocumented compatibility aliases, both served by
-`deepseek-v4-flash`. They differ only in reasoning: `deepseek-chat` returns no
-trace, `deepseek-reasoner` does. This app uses the canonical ids and controls
-reasoning explicitly instead.
+**The studio sends `deepseek-flash` and nothing else** (`llm/deepseek.js`,
+one `MODEL` constant, no column read, no picker). Pro is 4.4× a missed token
+and 3.3× an output token, and ⚠️ it has no eyes — see Images — so the one
+thing it could have been kept for, a harder second opinion, it now does worse.
+
+`deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` still resolve, routed
+to V4.1 by DeepSeek's own compatibility shim with no published end date, and
+are deliberately not used. `deepseek-chat` and `deepseek-reasoner` are older
+aliases of the same kind, differing only in whether a trace comes back; this
+app controls reasoning explicitly instead.
 
 ### Reasoning
 
-Reasoning is **on by default** on both canonical models.
+Reasoning is **on by default**.
 `reasoning_effort: 'none'` turns it off; `thinking: {type: 'disabled'}` also
 works. Unrecognised parameters are silently ignored rather than rejected
 (`enable_thinking: false` had no effect), so parameter support cannot be
@@ -237,23 +249,33 @@ is for (§8).
 
 ### Prices
 
-Read from the price page on 2026-09-06
+Read from the price page on 2026-09-10
 (`api-docs.deepseek.com/quick_start/pricing/`), per million tokens:
 
 | model | miss, peak | hit, peak | output, peak | hit : miss | output : miss |
 | --- | --- | --- | --- | --- | --- |
-| `deepseek-v4-flash` | $0.44 | $0.014 | $1.32 | 1 : 31 | 3 : 1 |
+| **`deepseek-flash`** | **$0.30** | **$0.006** | **$1.20** | **1 : 50** | **4 : 1** |
 | `deepseek-v4-pro` | $1.32 | $0.044 | $3.96 | 1 : 30 | 3 : 1 |
+| `deepseek-v4-flash`, retired | $0.44 | $0.014 | $1.32 | 1 : 31 | 3 : 1 |
 
 Peak is 01:00–04:00 and 06:00–10:00 UTC on weekdays; every other hour is
-off-peak at exactly half, in every column, so the two ratios hold around the
-clock. §8's budget formula weighs a hit at a thirtieth and output at three.
-Two things follow. Output includes the reasoning trace, so thinking is the
-dearest thing a turn does: one `low` trace of 6,886 tokens costs what 21 K
-missed or 650 K remembered tokens cost, which is why a piece runs at `none`
-and the file block is the second-order lever. And Pro is three times Flash on
-every column, with a cache of its own — a KV cache is one model's — so a
-turn handed to it starts cold.
+off-peak at exactly half, in every column, so the ratios hold around the
+clock. §8's budget formula weighs a hit at a **fiftieth** and output at
+**four** — this model's shape, and no longer a shape the two models share.
+
+Three things follow. Output includes the reasoning trace, so thinking is the
+dearest thing a turn does, and V4.1 made it dearer against input rather than
+cheaper: one `low` trace of 6,886 tokens costs what 27 K missed or 1.4 M
+remembered tokens cost, which is why a piece runs at `none` and the file block
+is the second-order lever. The cache fell to a fiftieth, so carrying the whole
+tree is close to free and the miss is nearly the whole of a fire's input bill.
+And Pro is now 4.4× on a miss, with a cache of its own — a KV cache is one
+model's — so a turn handed to it would start cold as well as dear. That, and
+its blindness, is why nothing is handed to it.
+
+Priced end to end on arm B of the piece-shape table below (397 K hit, 20.2 K
+miss, 14.0 K output, three pieces): **3.29¢ on the retired model, 2.52¢ on
+this one**, at peak, and half that off-peak.
 
 ### Usage and caching
 

@@ -2,12 +2,14 @@
 //
 // A reserved `agents` row (`builtin = 1`) rather than one somebody made in the
 // Crew tab: nobody edits it, nobody deletes it, it is not offered for putting
-// in a chat, and its description, model and thinking are the code's — written
+// in a chat, and its description and thinking are the code's — written
 // onto the row on every open, so a studio that upgrades gets the new words.
 // It lives in one room per game, `Building`, which takes no other helper the
 // way `Humans only` takes none (chats.js, assertBotsAllowed). What it does
 // there that an ordinary helper does not — the sizing call, one fire per
 // piece — is the orchestrator's (spec.md §8, ideas/planner.md).
+
+import { MODEL } from './llm/deepseek.js';
 
 export const BUILDER_NAME = 'Builder';
 export const BUILDER_CHAT = 'Building';
@@ -29,7 +31,6 @@ export const BUILDER_DESCRIPTION = [
   'and find the simpler version of a big idea that keeps the fun.',
 ].join('\n');
 
-export const BUILDER_MODEL = 'deepseek-v4-flash';
 // For a small ask, a little thinking: no plan thought for it first. A piece
 // runs at 'none' whatever this says (spec.md §14).
 export const BUILDER_THINKING = 'low';
@@ -47,7 +48,7 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
   if (existing) {
     db.prepare(
       'UPDATE agents SET description = ?, model = ?, thinking = ?, file_tools = 1 WHERE id = ?',
-    ).run(BUILDER_DESCRIPTION, BUILDER_MODEL, BUILDER_THINKING, existing.id);
+    ).run(BUILDER_DESCRIPTION, MODEL, BUILDER_THINKING, existing.id);
     return builderAgent(db);
   }
   const someone = db.prepare('SELECT MIN(id) AS id FROM users').get()?.id ?? null;
@@ -60,7 +61,7 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
     `INSERT INTO agents
        (name, description, model, thinking, file_tools, builtin, created_by, created_at)
      VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
-  ).run(BUILDER_NAME, BUILDER_DESCRIPTION, BUILDER_MODEL, BUILDER_THINKING, someone, now);
+  ).run(BUILDER_NAME, BUILDER_DESCRIPTION, MODEL, BUILDER_THINKING, someone, now);
   return builderAgent(db);
 }
 

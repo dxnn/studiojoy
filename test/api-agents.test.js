@@ -16,7 +16,9 @@ test('an agent is created with the verified model defaults', async (t) => {
   const res = await makeAgent(app, { name: 'Level Designer', description: 'You design levels.' });
   assert.equal(res.status, 201);
   assert.equal(res.body.name, 'Level Designer');
-  assert.equal(res.body.model, 'deepseek-v4-flash');
+  // There is one model and it is nobody's to choose, so it is not in the
+  // payload at all (spec/ §14).
+  assert.equal(res.body.model, undefined);
   // 'low', not 'full': at full effort an ambitious request spends the whole
   // allowance thinking and writes nothing (spec.md §14).
   assert.equal(res.body.thinking, 'low');
@@ -37,18 +39,18 @@ test('thinking takes the three levels and nothing else', async (t) => {
   }
 });
 
-test('both canonical models are accepted and nothing else is', async (t) => {
+test('a model sent by an old client is ignored, never honoured', async (t) => {
   const app = await studio(t);
-  for (const model of ['deepseek-v4-flash', 'deepseek-v4-pro']) {
-    const res = await makeAgent(app, { name: `A ${model}`, description: 'd', model });
-    assert.equal(res.status, 201, model);
-    assert.equal(res.body.model, model);
-  }
-  // The legacy aliases are deliberately not offered (spec.md §14).
-  for (const model of ['deepseek-chat', 'deepseek-reasoner', 'gpt-4', '', 5]) {
-    const res = await makeAgent(app, { name: `B ${model}`, description: 'd', model });
-    assert.equal(res.status, 400, String(model));
-    assert.match(res.body.error, /deepseek-v4-flash/);
+  // The field is gone from the interface and from the payload, and a client
+  // that still sends one — an open tab from before the change, or anybody
+  // with curl — must not be able to put the studio on a different model.
+  const sent = ['deepseek-v4-pro', 'deepseek-chat', 'gpt-4', '', 5];
+  for (const [i, model] of sent.entries()) {
+    const res = await makeAgent(app, { name: `Helper ${i}`, description: 'd', model });
+    assert.equal(res.status, 201, String(model));
+    assert.equal(res.body.model, undefined);
+    const row = app.db.prepare('SELECT model FROM agents WHERE id = ?').get(res.body.id);
+    assert.equal(row.model, 'deepseek-flash', String(model));
   }
 });
 
@@ -56,11 +58,10 @@ test('a critic can be created with file_tools off', async (t) => {
   const app = await studio(t);
   const res = await makeAgent(app, {
     name: 'Critic', description: 'You critique, you do not edit.', file_tools: false,
-    thinking: 'full', model: 'deepseek-v4-pro',
+    thinking: 'full',
   });
   assert.equal(res.body.file_tools, false);
   assert.equal(res.body.thinking, 'full');
-  assert.equal(res.body.model, 'deepseek-v4-pro');
 });
 
 test('an empty description is allowed but a name is not', async (t) => {
@@ -114,7 +115,7 @@ test('patching updates only what was sent', async (t) => {
   assert.equal(res.status, 200);
   assert.equal(res.body.description, 'second');
   assert.equal(res.body.name, 'Designer', 'unsent fields are untouched');
-  assert.equal(res.body.model, 'deepseek-v4-flash');
+  assert.equal(res.body.thinking, 'low');
 
   // Renaming onto a live name is a conflict; renaming to itself is fine.
   await makeAgent(app, { name: 'Other', description: 'd' });
