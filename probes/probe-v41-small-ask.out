@@ -1,0 +1,41 @@
+deepseek-flash, space-racer's tree, small asks — the builder's own 'low' path
+max_tokens 16384, at most 8 turns, idle guard 120s
+
+— “make the ship turn a bit faster”
+turn/none             2 turns   1 calls ( 0 read)   1 files changed  reasoning     0  out   194    3s  finished on its own
+   traces:  0 0
+   changed: config/play.js
+   parse:   ok
+   said:    “Turn speed goes from 0.025 to 0.034 — about a third quicker, noticeably snappier through the corners without feeling twitchy. That's the base ship; th”
+
+turn/low              2 turns   1 calls ( 0 read)   1 files changed  reasoning   106  out   285    3s  finished on its own
+   traces:  99 7
+   changed: config/play.js
+   parse:   ok
+   said:    “Bumped `TURN_SPEED` in config/play.js from 0.025 to 0.031 — a bit quicker steering without making it twitchy. The GOLD SHIP prize still adds +0.015 on”
+
+— “it doesn't work when I hold both arrow keys”
+broken/none           5 turns   9 calls ( 3 read)   3 files changed  reasoning     0  out  4264   23s  finished on its own
+   traces:  0 0 0 0 0
+   changed: js/game.js  SPEC.md  BRIEF.md
+   parse:   ok
+   said:    “Fixed. **Cause:** `Input.axis("left", "right")` is `held(right) - held(left)`, so with both arrow keys down it returned `1 - 1 = 0` and the ship stopp”
+
+broken/low            4 turns   6 calls ( 2 read)   2 files changed  reasoning  4042  out  5103   28s  finished on its own
+   traces:  163 3867 12 0
+   changed: js/game.js  SPEC.md
+   parse:   ok
+   said:    “Fixed in `js/game.js`: - Added `noteTurnKeys()` / `steerValue()` — the last-pressed turn key wins while both are held, so rolling from ← onto → now st”
+
+— “the rivals are too easy to beat”
+rivals/none           8 turns  25 calls (15 read)   5 files changed  reasoning     0  out  4151   23s  ran out of turns
+   traces:  0 0 0 0 0 0 0 0
+   changed: config/play.js  config/world.js  config/words.js  js/game.js  config/achievements.js
+   parse:   ok
+
+rivals/low            6 turns  10 calls ( 1 read)   5 files changed  reasoning  4590  out  7783   38s  finished on its own
+   traces:  4263 51 5 146 125 0
+   changed: config/play.js  config/world.js  js/game.js  SPEC.md  TODO.md
+   parse:   ok
+   said:    “**What was wrong:** rivals moved at a fixed `racerBase` fraction of the track *per frame*, a number that ignores screen size and track length. On LONG”
+

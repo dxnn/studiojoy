@@ -501,22 +501,30 @@ produces content or a tool call, since a trace interleaved with real output
 is a turn that's working.
 
 ⚠️ **The cap is the rule that nothing above ~10 K tokens of trace is worth
-waiting for, and on V4.1 that ceiling is now far above anything healthy.** It
-was sized against V4-Flash, where `'low'` really did produce 1,597 and 6,886
-tokens and the cap sat just over them, so it mostly caught a helper left on
-`'full'`. On V4.1 (§14) a first turn thinks 8–105 tokens at every setting and
-the busiest turn of a whole game built end to end thought 2,055 — ~7,200
-characters, which the cap is 4.9× above. There is nothing between ~2 K tokens
-and the ceiling: a trace is either working or it has run away.
+waiting for, and it stays at 35,000 characters.** It was sized against
+V4-Flash, where `'low'` really did produce 1,597 and 6,886 tokens and the cap
+sat just over them, so it mostly caught a helper left on `'full'`. On V4.1
+(§14) a first turn thinks 8–105 tokens at every setting, but the **largest
+healthy trace measured is 4,263 tokens — ~14,900 characters**, on the first
+turn of a vague ask, and it is the trace that did the most good of any
+measured. The cap is 2.4× that.
 
-So the cap now fires late rather than wrongly. It still catches every runaway
-seen — those spend their entire allowance, and at `MAX_OUTPUT_TOKENS` that is
-~229,000 characters, so 35,000 stops one about a seventh of the way in. What
-it costs is the waiting: ~43 s of silence before the retry, where a cap at
-12,000 characters (~3,400 tokens, 1.7× the largest healthy trace measured)
-would cost ~15 s and still clear every working turn on record. ⚠️ Not changed:
-that headroom is sized from **one** eight-turn run, which is one run's idea of
-how much a busy turn thinks. It wants more runs before the constant moves.
+⚠️ **Lowering it to 12,000 was proposed on 2026-09-13 and is wrong.** That
+looked like 1.7× headroom against a largest-healthy-trace of 2,055, a figure
+taken from one eight-turn run; the small-ask runs later that day found 4,042
+and 4,263, so a 12,000-character cap would have cut the one trace that earned
+its keep. The general shape of the error is worth keeping: the biggest traces
+are not on the biggest asks, they are on the **vaguest**, and a whole-game
+build is the wrong place to look for them.
+
+What the cap costs is waiting — ~43 s of silence before the retry — and it
+still catches every runaway seen, since those spend the whole allowance and at
+`MAX_OUTPUT_TOKENS` that is ~229,000 characters. ⚠️ It also fires more often
+than it used to: both whole-game `'low'` runs in §14 spent their first turn on
+a ~14 K-token runaway, so on an ambitious open request a capped first turn is
+the common case rather than the rare one, and `'low'` there amounts to `'none'`
+plus the detour. The builder does not meet that case — it sizes first, and a
+big ask becomes pieces at `'none'`.
 
 ⚠️ **`max_tokens` is not the dial to turn here, and lowering it is worse than
 leaving it.** The trace is generated before the reply and the tool calls, so a

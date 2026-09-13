@@ -235,10 +235,14 @@ from turn 2 on**. Its traces by turn were 0, 751, 527, 711, 816, 749, 2,055
 and 1,407 tokens — so `'low'` does think, just not on the turn that starts
 from nothing. One run, quality unscored, the same caveat the arms above carry.
 
-⚠️ **The largest healthy trace seen all day is 2,055 tokens, ~7,200
-characters** — that turn 7, eight patches across five files; everything else
-is under 900. `THINKING_CAP_CHARS` is 35,000, which is 4.9× it. §8 sizes the
-cap against this row.
+⚠️ **The largest healthy trace is 4,263 tokens, ~14,900 characters** — the
+first turn of a vague ask, in the next section. It was recorded as 2,055 for
+a few hours on the strength of this run alone, and the number matters: a cap
+at 12,000 characters looked generous against 2,055 and would have cut the
+single most useful trace measured all day. `THINKING_CAP_CHARS` is 35,000,
+which is 2.4× the real figure rather than 4.9× the wrong one. A *healthy*
+trace here means one on a turn that ended on `tool_calls` or `stop`; a turn
+that ended on `length` had run away, whatever it emitted on the way out.
 
 **A false alarm worth recording.** In the cliff and ladder probes every
 non-`none` run that acted opened with `read_file` on files that could not
@@ -251,7 +255,77 @@ is not measuring the studio.
 that afternoon: one `'low'` one-turn run and one loop turn, no bytes and no
 completion for over eight minutes each, both cancelled by hand. Neither probe
 carries an idle guard and the studio does (§8) — which is the argument for it,
-though a rate cannot be read off two events.
+though a rate cannot be read off two events. The probes written after them do
+carry one, at 120 s.
+
+#### ⚠️ Is the thinking worth anything? `none` against `low`
+
+The question every table above dodges. §14 has scored *whether tool calls came
+out* since 2026-08-12 and never *whether the result was any good*, and on V4.1
+a first turn thinks 8–105 tokens at every setting — so the obvious reading is
+that the thinking level has stopped earning its place. Measured 2026-09-13
+(`probes/probe-v41-none-vs-low.mjs`, `probes/probe-v41-small-ask.mjs`), which
+score two things the older probes could not: every `.js` written is put through
+`node --check`, and the tree is kept so the game can be **opened in a browser**.
+
+**A whole game, empty tree, at most 10 turns:**
+
+| arm | turns | calls | files | bytes | reasoning | wall | ended | in a browser |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `none` #1 | 10 | 17 | 15 | 58,603 | **0** | 81 s | out of turns | **runs clean** |
+| `none` #2 | 10 | 30 | 19 | 86,466 | **0** | 122 s | out of turns | **runs clean** |
+| `low` #1 | 8 | 20 | 17 | 54,381 | 18,766 | 142 s | finished | ⚠️ **throws every frame** |
+| `low` #2 | 10 | 27 | 17 | 55,282 | 20,665 | 157 s | out of turns | runs clean |
+
+⚠️ **Both `low` arms spent their first turn on a runaway** — 14,169 and 14,717
+reasoning tokens, both ending on `length`. In the studio the *thinking cap*
+fires at ~10 K tokens and retries with thinking off, so **production `low` on
+an ambitious open request is `none` plus a ~43-second detour**. And `low` #1
+is the one broken game of the four: `node --check` passed every file, and
+`drawWalls` reads `game.grid[r][c]` outside the grid on the first frame. Bytes
+and a parse are not a game — that failure is only visible in a browser.
+`none` #2's defect is cosmetic by comparison: HTML entities (`&mdash;`) in
+strings drawn to a canvas, which render literally.
+
+**A small ask on space-racer's tree — the fire the studio actually runs at
+`low`** (`BUILDER_THINKING`, §8), which the whole-game arms above are *not*:
+
+| ask | arm | turns | calls (reads) | files changed | reasoning | ended |
+| --- | --- | --- | --- | --- | --- | --- |
+| "make the ship turn a bit faster" | `none` | 2 | 1 (0) | 1 | 0 | finished |
+| | `low` | 2 | 1 (0) | 1 | 106 | finished |
+| "it doesn't work when I hold both arrow keys" | `none` | 5 | 9 (3) | 3 | 0 | finished |
+| | `low` | 4 | 6 (2) | 2 | 4,042 | finished |
+| **"the rivals are too easy to beat"** | `none` | 8 | 25 (**15**) | 5 | 0 | ⚠️ **out of turns** |
+| | `low` | 6 | 10 (1) | 5 | 4,590 | finished |
+
+Three readings, and the third is the one that decides it.
+
+**On a concrete ask the thinking buys nothing.** Both arms changed the same
+one file, `config/play.js`, by the same kind of amount, and explained it as
+well. `low` spent 106 tokens to arrive where `none` already was.
+
+**On a bug report both are right, and `low` is more thorough.** `none` named
+the cause exactly — `Input.axis` is `held(right) - held(left)`, so both keys
+down gives `1 - 1 = 0` — and fixed it. `low` spent 4,042 tokens and wrote the
+last-key-wins fix instead, which is the better answer to the same bug.
+
+**⚠️ On a vague ask `low` finishes and `none` does not.** `none` read fifteen
+times, touched five files, ran out of turns, and — worst of it — wandered into
+`config/achievements.js` and added four achievement rules nobody asked for.
+That file is **shape-locked**: a stray key there costs somebody their editor
+(§6, §12). `low` thought once, for 4,263 tokens, then spent one read and nine
+writes on the three files the change needed plus SPEC.md and TODO.md.
+
+So the thinking level keeps its place, now for a measured reason rather than
+an inherited one: **thinking is worth nothing on a small concrete ask, worth
+less than nothing on a big open one — the cap cancels it — and worth having on
+a vague one**, which is the ask a kid actually makes. That is also exactly the
+shape the builder already has: it sizes every message first, a big ask becomes
+pieces that run at `none` (§8), and what is left on `low` is the small or
+vague ask, which is where this table says `low` wins.
+
+⚠️ Two runs an arm, one run per ask. Direction, not a rate.
 
 ### ⚠️ The size of the ask is the lever
 

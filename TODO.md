@@ -9,11 +9,13 @@ deliberately deferred.
   **piece-shape** arms still describe the retired model, and the cliff rates
   the decisions now rest on have 7 runs at `low` and 4 at `none` where they
   want 8 each (spec/ §14, "The cliff on V4.1")
-- lower `THINKING_CAP_CHARS` from 35,000 to ~12,000 once those rates are in.
-  On V4.1 the cap fires at ~43 s and the largest healthy trace measured is
-  2,055 tokens, so it stops a runaway about a seventh of the way in rather
-  than promptly. ⚠️ The headroom is sized from one eight-turn run, which is
-  the part that wants more evidence (spec/ §8, §14)
+- watch what the *thinking cap* costs in production now it fires on most
+  ambitious open requests: both whole-game `low` runs spent turn 1 on a ~14 K
+  runaway, so a person asking for a big thing waits ~43 s for a capped turn
+  before the retry starts. The fix is not a lower cap — 12,000 was proposed
+  and withdrawn the same day, it would have cut the best trace measured — it
+  is whether an open request outside `Building` should be sized the way the
+  builder sizes one (spec/ §8, §14)
 - watch what helpers do with `look_at` and `look_at_game` now they can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"

@@ -1,0 +1,66 @@
+deepseek-flash, preamble + empty tree, file tools served, "Build me a tank game. Two players, split screen, destructible walls, power-ups."
+max_tokens 16384 a turn, at most 10 turns, idle guard 120s, trees kept under tmp/loop-trees/
+
+   turn 1: reasoning     0  out  1471  calls  2  cache   0%    6s  tool_calls
+   turn 2: reasoning     0  out  2403  calls  4  cache  90%   11s  tool_calls
+   turn 3: reasoning     0  out  1305  calls  2  cache  97%    5s  tool_calls
+   turn 4: reasoning     0  out  2816  calls  1  cache  97%   10s  tool_calls
+   turn 5: reasoning     0  out  1684  calls  2  cache  97%    6s  tool_calls
+   turn 6: reasoning     0  out  2123  calls  1  cache  98%    8s  tool_calls
+   turn 7: reasoning     0  out  3317  calls  1  cache  99%   13s  tool_calls
+   turn 8: reasoning     0  out  1557  calls  1  cache  99%    5s  tool_calls
+   turn 9: reasoning     0  out  3330  calls  1  cache  99%   13s  tool_calls
+   turn 10: reasoning     0  out  1001  calls  2  cache  99%    4s  tool_calls
+none #1      10 turns  17 calls  15 files   58603 bytes  reasoning     0  out  21007   81s  ran out of turns
+   traces: 0 0 0 0 0 0 0 0 0 0
+   files:  config/tuning.js  config/words.js  BRIEF.md  SPEC.md  index.html  css/style.css  js/util.js  js/input.js  js/arena.js  js/entities.js  js/pickups.js  js/physics.js  js/render.js  js/hud.js  js/game.js
+   parse:  every .js parses
+   tree:   tmp/loop-trees/none-1
+
+   turn 1: reasoning     0  out  3400  calls  5  cache   0%   16s  tool_calls
+   turn 2: reasoning     0  out  4750  calls  6  cache  96%   15s  tool_calls
+   turn 3: reasoning     0  out  5143  calls  3  cache  98%   17s  tool_calls
+   turn 4: reasoning     0  out  4790  calls  1  cache  98%   16s  tool_calls
+   turn 5: reasoning     0  out  4976  calls  2  cache  99%   16s  tool_calls
+   turn 6: reasoning     0  out  5476  calls  2  cache  99%   23s  tool_calls
+   turn 7: reasoning     0  out  1068  calls  3  cache  99%    4s  tool_calls
+   turn 8: reasoning     0  out    96  calls  2  cache  99%    2s  tool_calls
+   turn 9: reasoning     0  out  1004  calls  3  cache  84%    4s  tool_calls
+   turn 10: reasoning     0  out  1887  calls  3  cache 100%    7s  tool_calls
+none #2      10 turns  30 calls  19 files   86466 bytes  reasoning     0  out  32590  122s  ran out of turns
+   traces: 0 0 0 0 0 0 0 0 0 0
+   files:  config/settings.js  config/text.js  BRIEF.md  SPEC.md  TODO.md  index.html  css/style.css  js/config.js  js/util.js  js/input.js  js/sound.js  js/map.js  js/particles.js  js/powerups.js  js/tank.js  js/render.js  js/hud.js  js/state.js  js/main.js
+   parse:  every .js parses
+   tree:   tmp/loop-trees/none-2
+
+   turn 1: reasoning 14169  out 16384  calls  4  cache   0%   65s  length
+   turn 2: reasoning     8  out  2876  calls  4  cache  98%   10s  tool_calls
+   turn 3: reasoning    15  out  2375  calls  4  cache  99%    8s  tool_calls
+   turn 4: reasoning   138  out  2935  calls  2  cache  99%    9s  tool_calls
+   turn 5: reasoning   391  out  6059  calls  2  cache  99%   18s  tool_calls
+   turn 6: reasoning  2590  out  3944  calls  3  cache  99%   19s  tool_calls
+   turn 7: reasoning   967  out  1237  calls  1  cache  98%    7s  tool_calls
+   turn 8: reasoning   488  out   929  calls  0  cache 100%    5s  stop
+   said: “Built Tank Duel as a small multi-file project. Everything is written; a quick summary: **Files** - `index.html` — markup + script tags only.…”
+low #1        8 turns  20 calls  17 files   54381 bytes  reasoning 18766  out  36739  142s  finished on its own
+   traces: 14169 8 15 138 391 2590 967 488
+   files:  index.html  css/style.css  config/settings.js  config/text.js  js/utils.js  js/world.js  js/levels.js  js/input.js  js/sound.js  js/entities.js  js/state.js  js/game.js  js/render.js  js/main.js  BRIEF.md  SPEC.md  TODO.md
+   parse:  every .js parses
+   tree:   tmp/loop-trees/low-1
+
+   turn 1: reasoning 14717  out 16384  calls  4  cache   0%   64s  length
+   turn 2: reasoning    12  out  2136  calls  3  cache  97%    7s  tool_calls
+   turn 3: reasoning    17  out  3779  calls  4  cache  99%   11s  tool_calls
+   turn 4: reasoning    40  out  6362  calls  2  cache  99%   17s  tool_calls
+   turn 5: reasoning   106  out  3392  calls  3  cache  99%   10s  tool_calls
+   turn 6: reasoning  3509  out  4168  calls  3  cache 100%   19s  tool_calls
+   turn 7: reasoning   321  out  2291  calls  3  cache 100%   11s  tool_calls
+   turn 8: reasoning   295  out   348  calls  1  cache  99%    3s  tool_calls
+   turn 9: reasoning  1386  out  2717  calls  3  cache  87%   10s  tool_calls
+   turn 10: reasoning   262  out   303  calls  1  cache 100%    3s  tool_calls
+low #2       10 turns  27 calls  17 files   55282 bytes  reasoning 20665  out  41880  157s  ran out of turns
+   traces: 14717 12 17 40 106 3509 321 295 1386 262
+   files:  index.html  css/style.css  config/settings.js  config/strings.js  js/util.js  js/sound.js  js/arena.js  js/tank.js  js/bullet.js  js/powerup.js  js/input.js  js/render.js  js/game.js  js/main.js  BRIEF.md  SPEC.md  TODO.md
+   parse:  every .js parses
+   tree:   tmp/loop-trees/low-2
+

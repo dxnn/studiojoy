@@ -58,11 +58,12 @@ export const tokensForChars = (chars) => Math.ceil(
 //
 // ⚠️ V4.1 moved both numbers under it (spec/ §8, §14). Reasoning streams at
 // ~233 tokens/s, so 35,000 characters is ~43 seconds, not ~90, and the
-// allowance it guards is ~4.7 silent minutes, not nine. And the traces it sits
-// above are far smaller: 8–105 tokens on a first turn, 2,055 on the busiest
-// turn of a game built end to end. 12,000 characters would still clear every
-// working turn on record and cost ~15 seconds instead of ~43 — left alone
-// because that headroom is sized from one eight-turn run.
+// allowance it guards is ~4.7 silent minutes, not nine. The number itself
+// stays: a first turn thinks 8–105 tokens at every setting, but the largest
+// *healthy* trace measured is 4,263 (~14,900 characters), on a vague ask —
+// so the 12,000 briefly proposed on 2026-09-13 would have cut the one trace
+// that did any good. The biggest traces come from the vaguest asks, not the
+// biggest ones.
 export const THINKING_CAP_CHARS = 35_000;
 
 // The model's ceiling is 65536, and omitting max_tokens uses all of it.
