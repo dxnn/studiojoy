@@ -90,7 +90,10 @@ and a capped trace or a begun note riding ahead of it costs its own tokens
 and nothing more. It answers `{"size":"reply"}` — a
 question or a remark — or `{"size":"pieces","pieces":[{title, files,
 what}]}`: one piece for one change, two to six for more, each finishable in
-one sitting. An answer that won't parse, or an upstream that won't answer, is
+one sitting. A one-piece answer also carries **`"clear"`** — whether the
+request said *what* to change rather than only how the game should feel — and
+that, not a setting made in advance, is what decides how hard the one piece
+thinks (above). An answer that won't parse, or an upstream that won't answer, is
 a reply — the plain fire, its cap intact — charged to the asker like the fire
 it precedes. Until 2026-09-06 the words were `small` and `big`, and a plan of
 one collapsed into small; `parseSizing` still reads them.
@@ -141,8 +144,9 @@ whose note is its fire's alone. As a piece lands the card's body is rewritten fr
 **headline**, the closing paragraph of its reply — because the body is what
 the thread shows for the plan and what history replays; the piece turn asks
 for that paragraph, and `plan.update` (§9) carries the same shape. A plan of
-one runs at once at the builder's own level, since no plan thought for it; a
-plan of two or more waits as a draft (below) and its pieces run at `none`.
+one runs at once — at `none` when the sizing called the request **clear**,
+otherwise at the builder's own level, since no plan thought for it; a plan of
+two or more waits as a draft (below) and its pieces run at `none`.
 Then one fire per **piece**, in order:
 
 - The sizing's **own system prompt**, byte for byte — the files as they were
@@ -161,7 +165,12 @@ Then one fire per **piece**, in order:
   depth on every piece.
 - Thinking `none` in a plan of two or more: 8–9 s and a short note every
   time, against 8–37 s at `low` (§14) — a piece is where the plan already did
-  the thinking. A plan of one at the builder's own level.
+  the thinking. A plan of one at the builder's own level, or at `none` when
+  the sizing said `"clear": true` — the request named a value, a thing, a name
+  or a symptom, so there is nothing to work out and the thinking was measured
+  changing the same file by the same amount for 106 extra tokens (§14). The
+  key is absent on about three one-piece answers in ten, and absent means the
+  level: it only ever turns thinking **down**.
 - Its own message row behind the card, commit (`Builder: piece i of N —
   title`), receipt, and `plan.update` (§9) as it starts — the piece marked
   `running` *before* its stream's start event, so the card's line is where

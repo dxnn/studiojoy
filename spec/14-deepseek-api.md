@@ -327,6 +327,50 @@ vague ask, which is where this table says `low` wins.
 
 ⚠️ Two runs an arm, one run per ask. Direction, not a rate.
 
+#### Can the sizing call judge it? The `clear` key
+
+If the thinking wants deciding by the *ask* rather than by the person in
+advance, the sizing call is where it belongs: it already carries the fire's
+whole system prompt, already answers in JSON, and costs almost nothing because
+its output is short and its prompt is the fire's — every request below hit
+**98%**. A second classifier call would be a second full prompt; one more key
+on this one is near-free. Measured 2026-09-13,
+`probes/probe-v41-clear.mjs`, three runs an ask, arm A today's rules and arm B
+the same plus the key.
+
+| | arm A | arm B |
+| --- | --- | --- |
+| size agreement with the author's labels | 20/24 | 19/24 |
+| `clear` agreement, where it answered | — | **8/8** |
+
+**It judges well and answers unreliably.** Every `clear` it gave agreed,
+including the one that matters — `"the rivals are too easy to beat"` came back
+`false`. But it left the key off about three one-piece answers in ten. So the
+key is built to be optional: absent means the level, which is what happened
+before it existed.
+
+**No degradation the size of this sample could see.** 20/24 against 19/24 is
+one row, and the rows moved in both directions — `"make the rocks blue"` went
+from three-for-three to one, `"the rivals are too easy"` went the other way.
+⚠️ Three runs an ask cannot rule out a small loss; what it rules out is a
+large one.
+
+⚠️ **Two things arm A found that matter more than the key**, both in the rules
+as they ship today:
+
+- **A bug report sizes as a *reply* two times in three.** `"it doesn't work
+  when I hold both arrow keys"` came back `reply, reply` and one piece, in
+  both arms. A child reporting a broken game is answered with words instead of
+  a fix. Nothing in the rules tells the sizing that a symptom is work.
+- **A vague ask rarely reaches the one-piece path at all.** `"the rivals are
+  too easy to beat"` sized as a plan of two or more in two runs of three, and
+  `"it feels a bit boring"` and `"the controls feel wrong"` were replies in
+  every run. So in `Building` vagueness is already routed to the **draft** and
+  its assumptions, or to an answer in words. ⚠️ Which means the `none`-versus-
+  `low` result above — `low` finishing where `none` ran out of turns — is
+  about a fire with **no sizing in front of it**: an open room, where the
+  a-priori level still rules and this whole mechanism does not reach.
+
 ### ⚠️ The size of the ask is the lever
 
 Measured 2026-09-03 (`probes/probe-sizing.mjs`, `probes/probe-step.mjs`,

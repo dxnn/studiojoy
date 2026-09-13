@@ -1687,7 +1687,7 @@ export function createOrchestrator({
   // the transcript and a checklist on screen — then the pieces. `begun` is a
   // plan for the rest of something a small fire started on.
   async function runPlan(fire, {
-    request, pieces, summary = '', assumptions = [], begun = false,
+    request, pieces, summary = '', assumptions = [], begun = false, clear = null,
   }) {
     const { row, project, chat, agent, emit, state, snapshot } = fire;
     const now = new Date().toISOString();
@@ -1716,7 +1716,11 @@ export function createOrchestrator({
     emit('agent.stream.end', { message_id: messageId });
     state.live = false;
     if (status === 'draft') return;
-    await runPieces(fire, planFor(db, messageId));
+    // `clear` rides the call rather than the plan row: only a plan of one
+    // runs straight away, and a draft's pieces are at `none` whatever the
+    // sizing said. A resumed plan has no sizing of its own to carry, and
+    // falls back to the level.
+    await runPieces(fire, planFor(db, messageId), clear);
   }
 
   // Build it, pressed (spec.md §8): the plan is this fire, charged to whoever
@@ -1806,7 +1810,7 @@ export function createOrchestrator({
   // piece that hit a limit still counts as done: what it wrote is on disk and
   // the next piece builds on it. The preamble names the small budget; a piece
   // runs under the room's, and stopping early on the smaller number is fine.
-  async function runPieces(fire, plan) {
+  async function runPieces(fire, plan, clear = null) {
     const {
       row, project, chat, agent, dir, asker, emit, state, context,
     } = fire;
@@ -1814,7 +1818,14 @@ export function createOrchestrator({
     // A plan of one is the common case, and no plan thought for it: it runs
     // at the builder's own level. The pieces of a bigger plan run at `none`,
     // where the plan already did the thinking (§14).
-    const thinking = n === 1 ? agent.thinking : 'none';
+    //
+    // Unless the sizing called the request **clear** — it named a value, a
+    // thing, a name or a symptom — in which case there is nothing to work out
+    // and the thinking is measurably worth nothing: `none` and `low` changed
+    // the same one file by the same amount, `low` spending 106 tokens to get
+    // there (§14). `clear: false`, or a sizing that left the key off, keeps
+    // the level, so this only ever turns thinking *down* and never up.
+    const thinking = n === 1 && clear !== true ? agent.thinking : 'none';
     let current = setPlanStatus(db, plan.message_id, 'running');
     announcePlan(fire, current);
     for (let i = 0; i < n; i += 1) {

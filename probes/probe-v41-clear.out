@@ -1,0 +1,35 @@
+
+=== Arm A — today's rules ===
+
+fun?         size reply reply reply  want reply   5 out avg, cache 98%
+what         size reply reply reply  want reply   5 out avg, cache 98%
+turn         size one one one        want one     75 out avg, cache 98%
+title        size one one one        want one     67 out avg, cache 98%
+rocks        size one one one        want one     82 out avg, cache 98%
+bothkeys     size one reply reply    want one     38 out avg, cache 98%
+rivals       size many many one      want one     376 out avg, cache 98%
+boring       size reply reply reply  —            5 out avg, cache 98%
+controls     size reply reply reply  —            5 out avg, cache 98%
+splitscreen  size many many many     want many    502 out avg, cache 98%
+
+=== Arm B — plus "clear" ===
+
+fun?         size reply reply reply  want reply   clear ···  5 out avg, cache 98%
+what         size reply reply reply  want reply   clear ···  5 out avg, cache 98%
+turn         size one one one        want one     clear YYY want Y  73 out avg, cache 98%
+title        size one one one        want one     clear YY· want Y  78 out avg, cache 98%
+rocks        size one reply many     want one     clear YY· want Y  83 out avg, cache 98%
+bothkeys     size one reply reply    want one     clear ··· want Y  33 out avg, cache 98%
+rivals       size many one one       want one     clear ··n want n  183 out avg, cache 98%
+boring       size reply reply many   —            clear ··· want n  187 out avg, cache 98%
+controls     size reply reply reply  —            clear ··· want n  5 out avg, cache 98%
+splitscreen  size many many many     want many    clear ···  387 out avg, cache 98%
+
+— C2: does the second question spoil the first? —
+  arm A size agreement: 20/24
+  arm B size agreement: 19/24
+
+— C1: can it judge vagueness? —
+  arm B clear agreement: 8/8, and 13 answers left the key off
+
+(deepseek-flash; the clear labels are the author's, stated at the top of this file.)

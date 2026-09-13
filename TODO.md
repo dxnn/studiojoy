@@ -9,6 +9,15 @@ deliberately deferred.
   **piece-shape** arms still describe the retired model, and the cliff rates
   the decisions now rest on have 7 runs at `low` and 4 at `none` where they
   want 8 each (spec/ §14, "The cliff on V4.1")
+- ⚠️ a bug report sizes as a *reply* two times in three: "it doesn't work when
+  I hold both arrow keys" came back as words rather than a fix in both arms of
+  probes/probe-v41-clear.mjs. Nothing in `sizingRules()` says a symptom is
+  work. A kid reporting a broken game is the commonest ask there is, so this
+  is worth more than the `clear` key it was found beside (spec/ §14)
+- extend the sizing past `Building`, so an open room's helper stops needing a
+  *thinking level* chosen in advance. That is where the `none`-versus-`low`
+  measurement actually applies — inside `Building` a vague ask already becomes
+  a draft or a reply, so `clear` reaches less than it looks (spec/ §8, §14)
 - watch what the *thinking cap* costs in production now it fires on most
   ambitious open requests: both whole-game `low` runs spent turn 1 on a ~14 K
   runaway, so a person asking for a big thing waits ~43 s for a capped turn

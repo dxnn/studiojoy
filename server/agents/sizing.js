@@ -47,6 +47,12 @@ export function sizingRules() {
     'it is separate.',
     'If it says a helper has already begun — its notes are above — size what is left, not the whole: one',
     'piece if one more go finishes it, more otherwise.',
+    // ⚠️ Last, and byte-for-byte where probes/probe-v41-clear.mjs measured it.
+    // Moving it changes what was measured (§14).
+    'On a one-piece answer add "clear": true when the request says what to change — a value, a thing, a',
+    'name, or a symptom somebody can point at. "clear": false when it says only how the game should feel',
+    'or how it should turn out, and what to change still has to be worked out. Leave it off a reply and',
+    'off a plan of two or more.',
   ].join('\n');
 }
 
@@ -94,6 +100,12 @@ export function parseSizing(text) {
   return {
     size: 'pieces',
     pieces,
+    // Whether the request said what to change. Only a one-piece answer
+    // carries it, and it is `null` when the answer left it off — which it
+    // does on about three one-piece answers in ten (§14). Null means "not
+    // said", and every reader falls back to what it did before rather than
+    // guessing, so the key is never load-bearing.
+    clear: typeof obj.clear === 'boolean' ? obj.clear : null,
     summary: clip(String(obj.summary ?? '').trim(), MAX_SUMMARY),
     assumptions: cleanAssumptions(obj.assumptions),
   };

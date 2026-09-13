@@ -358,6 +358,34 @@ test('one change is a plan of one piece, run at once behind its card', async (t)
   assert.equal((await app.client.json('GET', '/api/messages/999999')).status, 404);
 });
 
+// The sizing decides how hard the one piece thinks, rather than the person
+// deciding a-priori (spec.md §8, §14): a request that names what to change has
+// nothing to work out, and `none` and `low` were measured writing the same
+// change to the same file. The key only ever turns thinking down — `false`, or
+// a sizing that left it off, keeps the builder's own level.
+for (const [label, clear, want] of [
+  ['clear', true, 'none'],
+  ['not clear', false, 'low'],
+  ['unsaid', undefined, 'low'],
+]) {
+  test(`a one-piece ask sized ${label} runs its piece at ${want}`, async (t) => {
+    const pieces = [{ title: 'Faster tanks', files: ['config/play.js'], what: 'Raise the speed.' }];
+    const llm = createFakeLlm([
+      calls([write('config/play.js', 'const TANK_SPEED = 200;')], { text: 'Turning it up.' }),
+      says('Done.'),
+    ], [sized(clear === undefined
+      ? { size: 'pieces', pieces }
+      : { size: 'pieces', pieces, clear })]);
+    const { app, chatId } = await studio(t, { llm });
+    const stream = await openStream(app.client);
+    t.after(() => stream.close());
+
+    await send(app, chatId, 'make the tanks a bit faster');
+    await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'done');
+    assert.equal(llm.calls[0].thinking, want);
+  });
+}
+
 test('a big ask becomes a plan card and one fire per piece', async (t) => {
   const llm = createFakeLlm([
     calls([write('index.html', '<h1>Tank</h1>'), write('css/style.css', 'body{}')]),
