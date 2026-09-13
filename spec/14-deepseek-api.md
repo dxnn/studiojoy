@@ -371,6 +371,51 @@ as they ship today:
   about a fire with **no sizing in front of it**: an open room, where the
   a-priori level still rules and this whole mechanism does not reach.
 
+#### The symptom rule, and the tiny judge
+
+Both of the above were acted on the same day and re-measured together
+(`probes/probe-v41-symptom.mjs`, three runs an ask, twelve asks — the ten
+above plus two more symptoms, because a rule written to catch one row is
+exactly the kind that fits only that row).
+
+**The symptom rule helps and does not finish the job.** Two lines went into
+`sizingRules()` saying that something being broken is not a remark. Size
+agreement over the whole list went to **28/30**, and on the eight asks
+common to both runs it went from 20/24 to 23/24:
+
+| ask | before | after |
+| --- | --- | --- |
+| "it doesn't work when I hold both arrow keys" | 1/3 | 2/3 |
+| "my ship gets stuck on the edge of the track" | — | 2/3 |
+| "the score stays at 0 even when I finish a lap" | — | 3/3 |
+| "the rivals are too easy to beat" | 1/3 | 3/3, and `clear: false` every time |
+
+⚠️ **A bug report still comes back as words about one time in three.** Seven
+of nine symptom runs sized as work, against roughly three of nine before.
+Better, not fixed, and three runs an ask is not the sample to tune prompt
+wording against — that way lies fitting the noise.
+
+**A tiny judge beats the key it rides beside.** The other half of the same
+run asked whether a *standalone* call could make the `clear` judgement with
+no tree and no preamble — the message, a definition, nothing else — because
+an open room has no sizing call to ride and giving it one would want the
+sizing rules in every preamble and a `[studio]` trigger landing on a child's
+message in a room that never mentions sizing.
+
+| | the `clear` key on a full sizing | a tiny standalone call |
+| --- | --- | --- |
+| agreed with the labels | 13/14 | **26/27** |
+| answered at all | about two-thirds of the time | **every time** |
+| prompt | the fire's whole system prompt, ~98% cached | **119 tokens, a whole miss** |
+| cost | rides a call already being made | **$0.0000355** |
+
+The two agreed with each other 12/14. So the tiny one is not merely adequate,
+it is the more reliable of the two: one job, one answer, and it never forgets
+to give it. ⚠️ It also answers `false` for a plain question — `"do you think
+the game is fun?"` — which is not wrong so much as meaningless, and is why
+every caller treats anything but `true` as "keep the level" rather than as a
+judgement about the request.
+
 ### ⚠️ The size of the ask is the lever
 
 Measured 2026-09-03 (`probes/probe-sizing.mjs`, `probes/probe-step.mjs`,

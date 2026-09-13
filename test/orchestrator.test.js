@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setup, signIn, openStream, putInChat, workChat } from './helpers.js';
 import {
-  createFakeLlm, createFailingLlm, says, calls, truncated, thinksOnly,
+  createFakeLlm, createFailingLlm, says, calls, answers, truncated, thinksOnly,
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { budgetState } from '../server/budget.js';
@@ -216,7 +216,8 @@ test('a reply leaves a receipt, and the newest reply holds the prompt', async (t
   assert.equal(b.transcript.messages, 1);
   assert.equal(b.loop.turns, 2);
   assert.equal(b.loop.tool_calls, 1);
-  assert.equal(b.requests.length, 2, 'one usage entry per request');
+  // The judge that set the thinking level (spec.md §8), then the loop's two.
+  assert.equal(b.requests.length, 3, 'one usage entry per request');
   // The receipt's arithmetic reaches the number under the bubble.
   const charged = b.requests
     .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 50) + u.out * 4, 0);
@@ -1144,8 +1145,45 @@ test('the studio budget stops a fire before the API is called', async (t) => {
   assert.equal(llm.calls.length, 0, 'no request is made when the budget is gone');
 });
 
+// An open room has no sizing call to ride, so one tiny judge goes ahead of the
+// fire and takes the thinking level from the ask rather than from a setting
+// made before anyone knew what would be asked (spec.md §8, §14). It only ever
+// turns thinking down: `clear` means the request named what to change, and
+// anything else — including an answer that will not parse — keeps the level.
+for (const [label, answer, want] of [
+  ['clear', '{"clear":true}', 'none'],
+  ['not clear', '{"clear":false}', 'low'],
+  ['unreadable', 'I think it is clear!', 'low'],
+]) {
+  test(`an open room sized ${label} fires at ${want}`, async (t) => {
+    const llm = createFakeLlm([says('Done.')], [answers(answer)]);
+    const { app } = await studio(t, { llm });
+    const stream = await openStream(app.client);
+    t.after(() => stream.close());
+
+    await send(app, 'make the ship turn a bit faster');
+    await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+    assert.equal(llm.calls[0].thinking, want);
+  });
+}
+
+// ⚠️ A helper that cannot change a file is having a conversation, and its
+// thinking is all its answer is made of — so there is nothing to judge and the
+// call is not made at all.
+test('a helper with no file tools is never judged', async (t) => {
+  const llm = createFakeLlm([says('I would start with movement.')]);
+  const { app } = await studio(t, { llm, agent: { file_tools: false } });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make the ship turn a bit faster');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(llm.asked.length, 0, 'no judge call was made');
+  assert.equal(llm.calls[0].thinking, 'low', 'the level it was set to');
+});
+
 test('a reply charges the budget with the cache discount applied', async (t) => {
-  const llm = createFakeLlm([says('Charged.', { tokens: 40 })]);
+  const llm = createFakeLlm([says('Charged.', { tokens: 40 })], [answers('{"clear":false}')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1154,8 +1192,10 @@ test('a reply charges the budget with the cache discount applied', async (t) => 
   await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
 
   const state = budgetState(app.db);
-  // 100 prompt tokens, all misses, plus 40 completion at four times a miss.
-  assert.equal(state.used, 100 + 40 * 4);
+  // The judge ahead of the fire (spec.md §8), at the fake's complete defaults
+  // of 200 + 40×4; then the fire: 100 prompt tokens, all misses, plus 40
+  // completion at four times a miss.
+  assert.equal(state.used, (200 + 40 * 4) + (100 + 40 * 4));
 });
 
 // The same number the budget was charged, kept on the reply that spent it, so
@@ -1166,7 +1206,7 @@ test('what a reply cost is recorded on the reply', async (t) => {
     calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
       { tokens: 25 }),
     says('Built it.', { tokens: 40 }),
-  ]);
+  ], [answers('{"clear":false}')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1176,9 +1216,10 @@ test('what a reply cost is recorded on the reply', async (t) => {
     (e) => e.event === 'message.new' && e.data.agent_id !== null,
   );
 
-  // Both turns of the one fire, output at four: (100 + 25×4) + (100 + 40×4).
-  assert.equal(reply.data.tokens, 460);
-  assert.equal(budgetState(app.db).used, 460);
+  // The judge ahead of it (200 + 40×4), then both turns of the one fire,
+  // output at four: (100 + 25×4) + (100 + 40×4).
+  assert.equal(reply.data.tokens, 360 + 460);
+  assert.equal(budgetState(app.db).used, 360 + 460);
 
   // Nothing a person or the studio wrote costs anything.
   const posted = await app.client.json('GET', `/api/projects/tank/messages?chat=${app.chatId}`);

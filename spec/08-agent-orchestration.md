@@ -65,6 +65,30 @@ than a wall that grows. A stream that dies mid-turn leaves the dying turn's
 words as the reply. A closing request for a synopsis was considered and
 declined: ~10 K tokens a fire for a note the model already writes.
 
+**How hard a fire thinks is taken from the ask, not from a setting.** Ahead of
+every open room's fire goes one tiny call — the wording of the last thing a
+person said, a definition of **clear**, no tree and no preamble, its own prefix
+at **119 tokens** (§14). `clear` means the request named *what* to change: a
+value, a thing, a name, or a symptom somebody can point at. A clear request has
+nothing to work out, so the fire runs at `none`; anything else keeps the
+agent's *thinking level*.
+
+⚠️ It only ever turns thinking **down**. `none` and `low` were measured writing
+the same change to the same file for a concrete ask, so turning it down is
+free; but every level above `none` can run away (§14), and somebody who chose
+`none` chose predictability — so an answer of `false`, an answer that will not
+parse, an upstream that will not answer, and an agent already on `none` all
+leave the level exactly where it was. The last of those skips the call.
+
+⚠️ It is not asked of a helper with **no file tools**: `clear` is a question
+about what to change, and a helper that changes nothing is having a
+conversation, where the thinking is all the answer is made of. The judge's
+usage is the first row of the reply's receipt and its tokens are in the number
+under the bubble, because a request somebody paid for is shown.
+
+The *builder*'s room does the same judgement for nothing, as the `clear` key on
+a sizing call it was making anyway (below).
+
 ### The builder's room: sizing and pieces
 
 Everything above is any room's. `Building` — the *builder*'s room, every

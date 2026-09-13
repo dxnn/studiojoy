@@ -29,6 +29,12 @@ export function sizingRules() {
     'SIZING',
     'When a [studio] message asks you to size the request, answer with JSON only — no prose, no code fence:',
     '{"size":"reply"} when it is a question or a remark, which wants an answer rather than work.',
+    // ⚠️ Without this line a bug report sized as a *reply* two times in three
+    // — a child saying the game is broken was answered with words instead of
+    // a fix (§14, probes/probe-v41-clear.mjs). "a bug" was already named as
+    // one-piece work below; the reply rule was catching it first.
+    'Something being broken is not a remark: a report that the game does the wrong thing is work, even',
+    'when it names no file and asks for nothing.',
     '{"size":"pieces","pieces":[{"title":"…","files":["…"],"what":"…"}]} when it changes the game. One',
     'piece when it is one change a helper can make in one go — a value, a line, a bug, one file. Two to',
     `${MAX_PIECES} when it is more than that: each a job one helper can finish in one sitting — a few files at`,
@@ -72,6 +78,39 @@ export function sizingTrigger({ paused = null, begun = false } = {}) {
     lines.push('A helper has already begun on this — its notes are above. Size what is left, not the whole.');
   }
   return lines.join('\n');
+}
+
+// ⚠️ The open-room judge. The builder gets the same judgement free, as the
+// `clear` key on a sizing call it was making anyway; a room with no sizing has
+// no call to ride, and giving it a full-prompt one would want the sizing rules
+// in every preamble and a `[studio]` trigger landing on a child's message in a
+// room that never mentions sizing. So: one tiny call of its own instead — the
+// message, a definition, no tree, no preamble, its own prefix.
+//
+// Measured 2026-09-13 (probes/probe-v41-symptom.mjs, §14): **119 prompt
+// tokens** a call, a whole miss every time and disturbing no other prefix, so
+// $0.0000355 — and it agreed with the labels 26 times in 27 and answered every
+// single time, where the full-prompt key answers about two-thirds of the time.
+// The wording is the probe's, byte for byte.
+export const CLEAR_JUDGE = [
+  'Somebody is building a browser game and has sent a message about it.',
+  'Answer with JSON only: {"clear": true} when the message says what to change — a value, a thing, a',
+  'name, or a symptom somebody can point at. {"clear": false} when it says only how the game should',
+  'feel or how it should turn out, and what to change still has to be worked out.',
+].join('\n');
+export const CLEAR_MAX_TOKENS = 32;
+
+// True, false, or null for "it did not say" — and null is never guessed at:
+// every caller falls back to the level the agent was already on.
+export function parseClear(text) {
+  try {
+    const obj = JSON.parse(String(text ?? '').trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, ''));
+    return typeof obj?.clear === 'boolean' ? obj.clear : null;
+  } catch {
+    return null;
+  }
 }
 
 // Defensive on purpose: response_format is a belt, and a fence, a sentence

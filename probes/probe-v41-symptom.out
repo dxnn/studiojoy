@@ -1,0 +1,23 @@
+deepseek-flash
+
+S1 — the symptom rule, whole list re-run     |  S2 — the tiny standalone judge
+
+fun?         reply reply reply   want reply full ···  tiny nnn
+what         reply reply reply   want reply full ···  tiny nnn
+turn         one one one         want one   full Y·Y  tiny YYY  want Y
+title        one one one         want one   full YYY  tiny YYY  want Y
+rocks        one one one         want one   full YYY  tiny YYY  want Y
+bothkeys     one one reply       want one   full ···  tiny YYY  want Y
+stuck        one one reply       want one   full n··  tiny YYY  want Y
+noscore      one one one         want one   full ·YY  tiny YYY  want Y
+rivals       one one one         want one   full nnn  tiny nnY  want n
+boring       reply reply reply              full ···  tiny nnn  want n
+controls     reply reply reply              full ···  tiny nnn  want n
+splitscreen  many many many      want many  full ···  tiny YYY
+
+S1  size agreement 28/30  (was 20/24 before the symptom rule, over ten of these twelve asks)
+    full-prompt clear agreement 13/14
+
+S2  tiny clear agreement 26/27
+    tiny agrees with full 12/14
+    tiny prompt 119 tokens a call — a whole miss, at $0.30/M that is $0.0000355

@@ -24,6 +24,7 @@ import {
 import {
   sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
   notesForPlanner, begunNote, SIZING_MAX_TOKENS, CONFIRM_TRIGGER, resizeTrigger, specText,
+  CLEAR_JUDGE, CLEAR_MAX_TOKENS, parseClear,
 } from './sizing.js';
 import { arcFor } from '../../public/arc.js';
 
@@ -1455,6 +1456,75 @@ export function createOrchestrator({
     }
   }
 
+  // The words of the last thing a person said, whatever else rode with it: a
+  // picture makes `content` an array of parts (§14), and only the text of it
+  // is any use to a judge that is only reading the wording.
+  function lastAsk(messages) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role !== 'user') continue;
+      const text = Array.isArray(m.content)
+        ? m.content.filter((p) => p?.type === 'text').map((p) => p.text).join('\n')
+        : String(m.content ?? '');
+      if (text.trim()) return text.trim();
+    }
+    return '';
+  }
+
+  // How hard this fire thinks, decided by the **ask** rather than by a setting
+  // somebody made before anyone knew what would be asked (spec.md §8, §14).
+  // One tiny call — the wording, nothing else, its own prefix, 119 tokens.
+  //
+  // ⚠️ It only ever turns thinking **down**. A request that names what to
+  // change has nothing to work out and `none` was measured writing the same
+  // change to the same file as `low`; but a person who chose `none` chose
+  // predictability and the cliff is real at every other setting, so nothing
+  // here ever turns it up. An answer that will not parse, an upstream that
+  // will not answer, and an agent already on `none` all keep the level, and
+  // the last of those skips the call entirely.
+  // Returns the level, what asking cost, and the usage row, because §8 has two
+  // rules to keep here: the number recorded on a reply is the number the
+  // budget was charged, and the receipt's requests add up to that number. A
+  // judge that charged without a row would break the second, and one that
+  // neither charged nor showed would hide a real request from the person
+  // paying for it.
+  async function judgeThinking(fire, toolset) {
+    const { agent, context } = fire;
+    const keep = { thinking: agent.thinking, charged: 0, usage: null };
+    if (agent.thinking === 'none') return keep;
+    // ⚠️ And only where there is something to change. `clear` asks whether the
+    // request named *what to change*, which is not a question about a helper
+    // that cannot change anything — a chat-only helper is having a
+    // conversation, and its thinking is all its answer is made of.
+    if (!toolset) return keep;
+    const ask = lastAsk(context.messages);
+    if (!ask) return keep;
+    try {
+      const answer = await llm.complete({
+        system: CLEAR_JUDGE,
+        messages: [{ role: 'user', content: ask }],
+        thinking: 'none',
+        maxTokens: CLEAR_MAX_TOKENS,
+        responseFormat: 'json_object',
+      });
+      // ⚠️ Not charged here. The builder's sizing charges itself because its
+      // cost belongs to no loop, but this rides `outcome.charged`, which
+      // persistReply puts through consumeBudget and chargeUser once. Charging
+      // in both places bills the judge twice.
+      return {
+        thinking: parseClear(answer.text) === true ? 'none' : agent.thinking,
+        charged: tokensCharged(answer.usage),
+        usage: {
+          hit: answer.usage?.prompt_cache_hit_tokens ?? 0,
+          miss: answer.usage?.prompt_cache_miss_tokens ?? answer.usage?.prompt_tokens ?? 0,
+          out: answer.usage?.completion_tokens ?? 0,
+        },
+      };
+    } catch {
+      return keep;
+    }
+  }
+
   // The fire every room but the builder's gets: one loop, one reply.
   async function openFire(fire) {
     const { row, agent, dir, context, emit } = fire;
@@ -1463,10 +1533,16 @@ export function createOrchestrator({
         dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
       })
       : null;
+    const judged = await judgeThinking(fire, toolset);
     const outcome = await runLoop({
       agent, system: context.system, messages: context.messages, toolset,
-      thinking: agent.thinking, emit,
+      thinking: judged.thinking, emit,
     });
+    if (judged.usage) {
+      // First, because it was: the judge is asked before the fire is made.
+      outcome.requests.unshift(judged.usage);
+      outcome.charged += judged.charged;
+    }
     const kept = await persistReply({
       ...fire, toolset, outcome, subject: firstLine(outcome.reply) || 'update files',
     });
