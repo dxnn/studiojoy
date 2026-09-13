@@ -8,9 +8,9 @@ replaced a guess, and three of the original five guesses were wrong.
 for two days before anybody noticed, because the old name still answers.
 
 Re-taken on V4.1 on 2026-09-13, both with the preamble, tools and request the
-old tables used, so the rows compare: **the cliff** (`tmp/probe-v41-cliff.mjs`,
-`tmp/probe-v41-ladder.mjs`, `tmp/probe-v41-loop.mjs`) and **the 6 K prefix
-rule** (`tmp/probe-v41-prefix.mjs`, run twice). One changed shape and the
+old tables used, so the rows compare: **the cliff** (`probes/probe-v41-cliff.mjs`,
+`probes/probe-v41-ladder.mjs`, `probes/probe-v41-loop.mjs`) and **the 6 K prefix
+rule** (`probes/probe-v41-prefix.mjs`, run twice). One changed shape and the
 other went away; both sections say so where they sit.
 
 ⚠️ Still describing a retired model, and still the only numbers there are:
@@ -22,14 +22,18 @@ of them imports `sizingAsk`, which the builder's second chapter replaced with
 `sizingRules` and `sizingTrigger` on 2026-09-06. `probe-v41-prefix.mjs` was
 written to depend on nothing that moves.
 
-**Running them.** Every probe on this page lives in `tmp/`, which is
-**gitignored** — the numbers here are the record, the scripts are not kept —
-and each carries a header saying what it asks and why. Its output sits beside
-it as `.out`. The 2026-09-13 four run as
+**Running them.** Every probe on this page lives in **`probes/`**, tracked,
+each carrying a header saying what it asks and why, with its output beside it
+as `.out`. They lived in gitignored `tmp/` until 2026-09-13, so this page cited
+scripts nobody but the machine that ran them had; probes older than that date
+still name their original `tmp/` path in their own header, and the invocation
+below is the current one. ⚠️ The **key** did not move: it stays at
+`tmp/deepseek.key` or in `$DEEPSEEK_API_KEY`, and `probes/` must never hold
+one. The 2026-09-13 four run as
 
 ```sh
 env PROBE_MODEL=deepseek-flash NODE_OPTIONS=--use-env-proxy \
-  node tmp/probe-v41-<name>.mjs > tmp/probe-v41-<name>.out 2>&1
+  node probes/probe-v41-<name>.mjs > probes/probe-v41-<name>.out 2>&1
 ```
 
 reading the key from `$DEEPSEEK_API_KEY` or `tmp/deepseek.key`;
@@ -37,7 +41,7 @@ reading the key from `$DEEPSEEK_API_KEY` or `tmp/deepseek.key`;
 them is in `npm test`, which never touches the network. `probe-v41-ladder.mjs`
 also takes `PROBE_RUNGS` and `PROBE_REPS`, `probe-v41-loop.mjs` takes
 `PROBE_TURNS` and `PROBE_MAX`. ⚠️ Three of the four take their model id from
-`tmp/probe-lib.mjs`, whose default was the **retired** `deepseek-v4-flash`
+`probes/probe-lib.mjs`, whose default was the **retired** `deepseek-v4-flash`
 until 2026-09-13: a probe run without `PROBE_MODEL` before that date measured
 V4.1 through the old alias while printing the old name in its own header.
 
@@ -74,8 +78,8 @@ three-way **thinking level** (`full`, `low`, `none`).
 In streaming, `delta.reasoning_content` arrives interleaved and ahead of
 `delta.content`. `completion_tokens_details.reasoning_tokens` reports the cost.
 
-Re-measured on a *heavy* prompt on 2026-08-31 (`tmp/probe-keepalive.mjs`,
-`tmp/probe-thinking.mjs`), because the trivial-prompt numbers above turned out
+Re-measured on a *heavy* prompt on 2026-08-31 (`probes/probe-keepalive.mjs`,
+`probes/probe-thinking.mjs`), because the trivial-prompt numbers above turned out
 to describe noise rather than the case that matters:
 
 - **The stream carries no comment frames.** Zero non-`data:` lines in a
@@ -122,7 +126,7 @@ decision on this page still points at it.
 The measurement this studio most needed and did not have. The studio's own
 preamble, its file tools, and one ambitious open request — *"Build me a tank
 game. Two players, split screen, destructible walls, power-ups."* — against
-`deepseek-v4-flash` (`tmp/probe-do-more.mjs`, `tmp/probe-tools-effort.mjs`,
+`deepseek-v4-flash` (`probes/probe-do-more.mjs`, `probes/probe-tools-effort.mjs`,
 2026-08-31):
 
 | effort | `max_tokens` | runs | reasoning / output | tool calls | first call at | wall |
@@ -175,9 +179,9 @@ to show the direction, not enough to size it.
 #### The cliff on V4.1
 
 Re-taken 2026-09-13 on `deepseek-flash`: same preamble, same three tools, same
-request, held byte-identically in `tmp/probe-lib.mjs` so the rows compare.
-`tmp/probe-v41-cliff.mjs` re-runs the arms above, `tmp/probe-v41-ladder.mjs`
-puts every `reasoning_effort` value against them, and `tmp/probe-v41-loop.mjs`
+request, held byte-identically in `probes/probe-lib.mjs` so the rows compare.
+`probes/probe-v41-cliff.mjs` re-runs the arms above, `probes/probe-v41-ladder.mjs`
+puts every `reasoning_effort` value against them, and `probes/probe-v41-loop.mjs`
 serves the tool loop rather than stopping at the first turn.
 
 ⚠️ **The trace no longer expands to fill whatever it is given. It is either
@@ -216,7 +220,7 @@ and the one-in-seven at `'low'` is no better founded.
 6,886 tokens of trace on V4-Flash and 8–105 here. What it does still buy only
 appears once the loop is closed.
 
-**The loop, served.** `tmp/probe-v41-loop.mjs` answers the calls instead of
+**The loop, served.** `probes/probe-v41-loop.mjs` answers the calls instead of
 stopping at the first turn, with the ambient file block present — an empty
 tree, as production always has one — `max_tokens` 16,384 a turn, at most 8:
 
@@ -251,8 +255,8 @@ though a rate cannot be read off two events.
 
 ### ⚠️ The size of the ask is the lever
 
-Measured 2026-09-03 (`tmp/probe-sizing.mjs`, `tmp/probe-step.mjs`,
-`tmp/probe-trace-handoff.mjs`, `tmp/probe-handoff-json.mjs`; outputs beside
+Measured 2026-09-03 (`probes/probe-sizing.mjs`, `probes/probe-step.mjs`,
+`probes/probe-trace-handoff.mjs`, `probes/probe-handoff-json.mjs`; outputs beside
 them) with the same preamble, tools and request as the cliff table above, so
 the rows compare. The design they led to is ideas/planner.md.
 
@@ -324,7 +328,7 @@ response omits `tool_calls` entirely rather than returning partial JSON. The
 streaming path still needs the unparseable-buffer guard, because fragments are
 delivered before the cut.
 
-`tool_choice: 'none'` is **accepted** (2026-09-03, `tmp/probe-tools-cache.mjs`):
+`tool_choice: 'none'` is **accepted** (2026-09-03, `probes/probe-tools-cache.mjs`):
 the model answers in prose with no call, and the prompt shrinks by the tools'
 455 tokens — the same as sending no tools, which is simpler and what the
 sizing call does.
@@ -355,7 +359,7 @@ sizing call does.
 ### Images
 
 **Supported, on `deepseek-flash` only.** Re-measured 2026-09-12
-(`tmp/probe-v41*.mjs`) because V4.1 reversed the finding this section carried
+(`probes/probe-v41*.mjs`) because V4.1 reversed the finding this section carried
 for a month — that both content-part shapes were rejected by the deserializer
 before the model was reached, and that no model id could lift it.
 
@@ -462,7 +466,7 @@ Partial prefixes are served only back to a **branch point**: a depth at which
 an earlier request already diverged. A request that diverges at a *new* depth
 reports zero hits however long its shared prefix is — and that miss is what
 creates the branch the requests after it hit on. Measured in
-`tmp/probe-order.mjs` (2026-08-23): the first edit of a file deep in a
+`probes/probe-order.mjs` (2026-08-23): the first edit of a file deep in a
 10 K-token system prompt scored 0%, the second 42%, the third and fourth 94%,
 in 64-token blocks; a pure extension of a previous request (history appended,
 nothing changed) always scored ~100%. Spacing the requests 20 s apart measured
@@ -472,7 +476,7 @@ after an edit, it is every fire after that one, provided the divergence depth
 holds still.
 
 **The tools array does not sit ahead of the system prompt.** Measured
-2026-09-03 (`tmp/probe-tools-cache.mjs`): space-racer's tree in the system
+2026-09-03 (`probes/probe-tools-cache.mjs`): space-racer's tree in the system
 prompt, ~12.3 K tokens, a transcript growing one exchange a round. A request
 with no tools and the with-tools request straight after it, same round, hit
 95% on the first round and 99–100% every round after, against 99% for the
@@ -481,7 +485,7 @@ that misses.
 
 ⚠️ **What that did and did not show**, resolved 2026-09-06 by DeepSeek's own
 caching guide (`api-docs.deepseek.com/guides/kv_cache/`), a production
-receipt and eight probes (`tmp/probe-extension*.mjs`, outputs beside them).
+receipt and eight probes (`probes/probe-extension*.mjs`, outputs beside them).
 The guide's rule: a request hits only when it **fully matches a cache prefix
 unit**; units are persisted at request boundaries, when a common prefix is
 detected across requests, and at fixed intervals in a long input; a
@@ -533,7 +537,7 @@ once; whether a short assistant turn between it and the trigger rescues that
 is unmeasured.
 
 **⚠️ The 6 K rule on V4.1: gone.** Re-measured 2026-09-13 on `deepseek-flash`
-(`tmp/probe-v41-prefix.mjs`, run **twice** — nine last-message lengths each on
+(`probes/probe-v41-prefix.mjs`, run **twice** — nine last-message lengths each on
 space-racer's 12.5 K prompt, two more on a padded 61 K one). What the request
 that extends it hits:
 
@@ -588,7 +592,7 @@ Within one tool-call chain, the model's own output — the **reasoning trace
 included** — is re-attached server-side to the next request's prompt and
 billed as input, even though the client never sends it back: a continuation's
 prompt grows by the previous request's `completion_tokens`, not by the bytes
-the client appended (measured in `tmp/probe-reasoning-replay.mjs`,
+the client appended (measured in `probes/probe-reasoning-replay.mjs`,
 2026-08-28, and visible in any multi-request receipt). It **accumulates** —
 every earlier round's trace stays in the prompt until the chain closes — and
 rides the prefix cache at the hit price, so a long fire pays a thirtieth of an

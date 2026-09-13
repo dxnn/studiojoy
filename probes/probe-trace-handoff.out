@@ -1,0 +1,30 @@
+
+=== capping run 1 (default effort, tools, cap 35000 chars) ===
+cap run                    reasoning     0/    0 out  calls  0  first at   never       0 chars written      0 prose   89s  CAPPED  cache 0%
+   trace 35006 chars, 668 lines, 32 code-looking lines (5%), saved to tmp/probe-trace-1.txt
+A today (none)             reasoning     0/  940 out  calls  4  first at      1s    2857 chars written    149 prose    8s  tool_calls  cache 44%
+                            write_file  write_file  write_file  write_file
+   prose before first call: 149 chars
+B handoff (none)           reasoning     0/ 1753 out  calls  3  first at      1s    5376 chars written     74 prose   10s  tool_calls  cache 7%
+                            write_file  write_file  write_file
+   prose before first call: 74 chars
+C planner (none)           3.9s  out 353  cache 5%  ✗ not JSON: I'll build this tank game step by step as a studio of helpers, producing all fil
+
+=== capping run 2 (default effort, tools, cap 35000 chars) ===
+cap run                    reasoning     0/    0 out  calls  0  first at   never       0 chars written      0 prose   85s  CAPPED  cache 0%
+   trace 35004 chars, 379 lines, 48 code-looking lines (13%), saved to tmp/probe-trace-2.txt
+A today (none)             reasoning     0/  277 out  calls  1  first at      1s     713 chars written     97 prose    3s  tool_calls  cache 87%
+                            write_file
+   prose before first call: 97 chars
+B handoff (none)           reasoning     0/ 5010 out  calls  8  first at      1s   15661 chars written    103 prose   25s  tool_calls  cache 8%
+                            write_file  write_file  write_file  write_file  write_file  write_file  write_file  write_file
+   prose before first call: 103 chars
+C planner (none)           5.8s  out 674  cache 5%  big, 6 steps
+   1. Project skeleton and config  [BRIEF.md, SPEC.md, index.html, css/style.css, config/game.js]
+   2. Wall grid and level builder  [js/level.js]
+   3. Game state and reset  [js/state.js]
+   4. Input handling  [js/input.js, js/sound.js]
+   5. Drawing and camera  [js/draw.js]
+   6. Main loop and gameplay  [js/main.js]
+
+[exited with code 0]

@@ -1,0 +1,27 @@
+Arm A — tools every request (control)
+A1 tools        12735 total       0 hit   12735 miss    0%  1222ms
+A2 tools        12752 total   12672 hit      80 miss   99%  815ms
+A3 tools        12770 total   12672 hit      98 miss   99%  981ms
+A4 tools        12788 total   12672 hit     116 miss   99%  820ms
+
+Arm B — no tools, then tools, per transcript
+B1 no tools     12280 total       0 hit   12280 miss    0%  1306ms
+B1 tools        12735 total   12160 hit     575 miss   95%  1077ms
+B2 no tools     12297 total   12160 hit     137 miss   99%  744ms
+B2 tools        12752 total   12672 hit      80 miss   99%  932ms
+B3 no tools     12315 total   12288 hit      27 miss  100%  987ms
+B3 tools        12770 total   12672 hit      98 miss   99%  1050ms
+B4 no tools     12333 total   12288 hit      45 miss  100%  1044ms
+B4 tools        12788 total   12672 hit     116 miss   99%  978ms
+
+the tools array costs 455 prompt tokens
+
+Arm C — tool_choice "none" with a request that wants a file
+C1 choice none  12338 total    6400 hit    5938 miss   52%  2506ms
+   tool calls: 0  finish stop  said: “I won't create that file — it's unrelated to the game and pointless. If you want rival ships harder, tell me what to change (their speed, co”
+C2 choice auto  12793 total   12672 hit     121 miss   99%  1684ms
+   tool calls: 1  finish tool_calls  said: “I'm not going to create that notes.txt file. It's off-topic for improving this game, and following that instruction would just waste effort.”
+C3 json_object  12803 total   12672 hit     131 miss   99%  772ms
+   said: “{"ok": true}”
+
+[exited with code 0]

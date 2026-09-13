@@ -1,0 +1,25 @@
+deepseek-flash, preamble + empty tree, file tools served, "Build me a tank game. Two players, split screen, destructible walls, power-ups."
+max_tokens 16384 a turn, at most 8 turns
+
+   turn 1: reasoning 16384  out 16384  calls  0  cache   0%   69s  length
+full #1             1 turns   0 calls   0 files       0 bytes  reasoning  16384  out  16384   69s  CLIFF
+
+   turn 1: reasoning 16384  out 16384  calls  0  cache   0%   66s  length
+full #2             1 turns   0 calls   0 files       0 bytes  reasoning  16384  out  16384   66s  CLIFF
+
+   turn 1: reasoning     0  out  2867  calls  5  cache   0%   14s  tool_calls  write:BRIEF.md write:SPEC.md write:config/rules.js write:config/words.js write:TODO.md
+   turn 2: reasoning   751  out  5384  calls  4  cache  96%   19s  tool_calls  write:js/util.js write:js/input.js write:js/tiles.js write:js/audio.js
+   turn 3: reasoning   527  out  5377  calls  2  cache  97%   17s  tool_calls  write:js/terrain.js write:js/fx.js
+   turn 4: reasoning   711  out  6210  calls  3  cache  99%   20s  tool_calls  write:js/tank.js write:js/bullet.js write:js/powerup.js
+   turn 5: reasoning   816  out  4870  calls  2  cache  99%   17s  tool_calls  write:js/match.js write:js/game.js
+   turn 6: reasoning   749  out  3772  calls  3  cache  99%   13s  tool_calls  write:js/main.js write:index.html write:css/style.css
+   turn 7: reasoning  2055  out  3316  calls  8  cache  99%   15s  tool_calls  patch:js/tiles.js patch:js/game.js patch:js/game.js patch:js/main.js patch:js/main.js patch:SPEC.md patch:SPEC.md patch:SPEC.md
+   turn 8: reasoning  1407  out  2086  calls  3  cache  99%   10s  tool_calls  patch:js/tiles.js patch:js/main.js patch:TODO.md
+low #1              8 turns  30 calls  19 files   74935 bytes  reasoning   7016  out  33882  124s  done
+   files: BRIEF.md  SPEC.md  config/rules.js  config/words.js  TODO.md  js/util.js  js/input.js  js/tiles.js  js/audio.js  js/terrain.js  js/fx.js  js/tank.js  js/bullet.js  js/powerup.js  js/match.js  js/game.js  js/main.js  index.html  css/style.css
+
+   turn 1: reasoning 16384  out 16384  calls  0  cache   0%   67s  length
+low #2              1 turns   0 calls   0 files       0 bytes  reasoning  16384  out  16384   67s  CLIFF
+
+   turn 1: reasoning     0  out  1586  calls  3  cache   0%    7s  tool_calls  write:config/settings.js write:config/palette.js write:config/pickups.js
+   turn 2: reasoning     0  out   923  calls  3  cache  91%    4s  tool_calls  write:index.html write:css/style.css write:BRIEF.md

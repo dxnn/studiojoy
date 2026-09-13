@@ -1,0 +1,28 @@
+deepseek-flash, preamble + file tools, "Build me a tank game. Two players, split screen, destructible walls, power-ups."
+max_tokens 8192, one turn, 2 runs a rung
+
+none #1          reasoning     0/ 1612 out  calls  2 ( 2 write)  first at     1s    5910 chars    9s  tool_calls
+                  write write
+none #2          reasoning     0/ 2264 out  calls  4 ( 4 write)  first at     1s    7559 chars   10s  tool_calls
+                  write write write write
+minimal #1       reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length
+minimal #2       reasoning    10/   90 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+low #1           reasoning   105/  175 out  calls  2 ( 0 write)  first at     2s      42 chars    2s  tool_calls
+                  read read
+low #2           reasoning    77/  205 out  calls  4 ( 0 write)  first at     1s      80 chars    1s  tool_calls
+                  read read read read
+medium #1        reasoning     8/   87 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+medium #2        reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   35s  length
+high #1          reasoning    10/   91 out  calls  2 ( 0 write)  first at     2s      42 chars    2s  tool_calls
+                  read read
+high #2          reasoning     9/   91 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+max #1           reasoning    19/   89 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+max #2           reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   40s  length
+default #1       reasoning     8/   78 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+default #2       reasoning    60/  188 out  calls  4 ( 0 write)  first at     1s      80 chars    2s  tool_calls
+                  read read read read

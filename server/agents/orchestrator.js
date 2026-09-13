@@ -44,7 +44,7 @@ import { arcFor } from '../../public/arc.js';
 // first fire after an edit still pays in full; the point of this order is
 // that a session editing the same files keeps the divergence depth still,
 // and those fires measured 94% cached against 0% with the tree in front
-// (spec.md §8, tmp/probe-order.mjs).
+// (spec.md §8, probes/probe-order.mjs).
 const AMBIENT_BYTES = 400 * 1024;
 const HISTORY_BYTES = 200 * 1024;
 const MAX_HISTORY_MESSAGES = 200;

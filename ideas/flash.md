@@ -18,8 +18,8 @@ faster, which re-times the thinking cap and the silence it guards. Tables and
 probe names in spec/ §14; what is left is at the foot of this file.
 
 DeepSeek shipped V4.1 Flash on 2026-09-10. Measured here on 2026-09-12
-against the live API (`tmp/probe-v41.mjs`, `tmp/probe-v41-cache.mjs`,
-`tmp/probe-v41-where.mjs`), because spec/ §14 is measured and every number
+against the live API (`probes/probe-v41.mjs`, `probes/probe-v41-cache.mjs`,
+`probes/probe-v41-where.mjs`), because spec/ §14 is measured and every number
 in it was taken on a model that no longer exists.
 
 ## What actually changed
@@ -218,18 +218,18 @@ prefix.
 Everything in §14's Flash tables describes V4-Flash. The two that change
 decisions:
 
-1. ~~**The cliff**~~ — **done 2026-09-13** (`tmp/probe-v41-cliff.mjs`,
-   `tmp/probe-v41-ladder.mjs`, `tmp/probe-v41-loop.mjs`). Yes, and more often:
+1. ~~**The cliff**~~ — **done 2026-09-13** (`probes/probe-v41-cliff.mjs`,
+   `probes/probe-v41-ladder.mjs`, `probes/probe-v41-loop.mjs`). Yes, and more often:
    5 of 10 runs at the default. But it is bimodal now — nothing between ~105
    tokens and the ceiling at any setting — and `'low'` no longer thinks on a
    first turn at all, only on later ones. `'low'` stays the default; the
    thinking cap keeps its number for now and is over-sized by ~5×.
 2. ~~**The 6 K prefix rule**~~ — **gone, 2026-09-13**
-   (`tmp/probe-v41-prefix.mjs`, two runs). An extension hits 89–96% behind a
+   (`probes/probe-v41-prefix.mjs`, two runs). An extension hits 89–96% behind a
    last message of any length from 32 to 1,024 tokens, and 98–99% on a 61 K
    prompt. The builder's second chapter keeps its shape as the cheapest
    arrangement rather than the only affordable one.
-   ⚠️ The old `tmp/probe-extension-*.mjs` cannot be re-run: every one imports
+   ⚠️ The old `probes/probe-extension-*.mjs` cannot be re-run: every one imports
    `sizingAsk`, replaced by `sizingRules`/`sizingTrigger` on 2026-09-06.
    `probe-v41-prefix.mjs` depends on nothing that moves.
 

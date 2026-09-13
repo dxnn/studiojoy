@@ -1,0 +1,21 @@
+I1 — the sizing ask at six max_tokens, then the extension
+I1 max=64 sizing               total  12507  hit      0  miss  12507    0%  out     5  stop
+I1 max=64 ext                  total  12977  hit   6528  miss   6449   50%  out    64  length
+I1 max=300 sizing              total  12507  hit      0  miss  12507    0%  out     5  stop
+I1 max=300 ext                 total  12977  hit   6528  miss   6449   50%  out    64  length
+I1 max=600 sizing              total  12507  hit      0  miss  12507    0%  out     5  stop
+I1 max=600 ext                 total  12977  hit   6528  miss   6449   50%  out    64  length
+I1 max=900 sizing              total  12507  hit      0  miss  12507    0%  out     5  stop
+I1 max=900 ext                 total  12977  hit   6528  miss   6449   50%  out    64  length
+I1 max=1200 sizing             total  12508  hit      0  miss  12508    0%  out     5  stop
+I1 max=1200 ext                total  12978  hit   6528  miss   6450   50%  out    64  length
+I1 max=2400 sizing             total  12508  hit      0  miss  12508    0%  out     5  stop
+I1 max=2400 ext                total  12978  hit   6528  miss   6450   50%  out    64  length
+I1 max=4800 sizing             total  12508  hit      0  miss  12508    0%  out     5  stop
+I1 max=4800 ext                total  12978  hit   6528  miss   6450   50%  out    64  length
+
+I2 — the paragraph ask at a big max_tokens, then the extension
+I2 max=1200 first              total  12326  hit      0  miss  12326    0%  out    31  stop
+I2 max=1200 ext                total  12822  hit  12288  miss    534   96%  out    64  length
+I2 max=2400 first              total  12326  hit      0  miss  12326    0%  out    35  stop
+I2 max=2400 ext                total  12826  hit  12288  miss    538   96%  out    64  length

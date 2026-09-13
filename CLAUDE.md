@@ -32,6 +32,12 @@ non-trivial change.
 `GLOSSARY.md` is the naming authority. `TODO.md` is the build order. `ideas/`
 holds plans and sketches. Completed work is git history, not this file.
 
+`probes/` holds the one-off scripts §14 is made of, tracked since 2026-09-13 —
+they lived in gitignored `tmp/` before that, so the spec cited files nobody
+else had. They are not in `npm test` and they cost money to run. ⚠️ Never a
+key in there: `tmp/deepseek.key` or `$DEEPSEEK_API_KEY`, and `probes/*.key` is
+ignored as a second lock.
+
 ## Commands
 
 - `npm test` — the full suite. `node:test` against `:memory:` SQLite, a temp

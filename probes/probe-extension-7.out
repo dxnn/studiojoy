@@ -1,0 +1,25 @@
+J1 — a prose last message of eight lengths, then the extension
+J1 ~32 first                   total  12371  hit      0  miss  12371    0%  out    40  stop
+J1 ~32 ext                     total  12876  hit  12288  miss    588   95%  out    64  length
+J1 ~64 first                   total  12396  hit      0  miss  12396    0%  out    24  stop
+J1 ~64 ext                     total  12885  hit  12288  miss    597   95%  out    64  length
+J1 ~128 first                  total  12446  hit      0  miss  12446    0%  out    39  stop
+J1 ~128 ext                    total  12950  hit   6528  miss   6422   50%  out    64  length
+J1 ~192 first                  total  12496  hit      0  miss  12496    0%  out    42  stop
+J1 ~192 ext                    total  13003  hit   6528  miss   6475   50%  out    64  length
+J1 ~256 first                  total  12546  hit      0  miss  12546    0%  out    58  stop
+J1 ~256 ext                    total  13069  hit   6528  miss   6541   50%  out    64  length
+J1 ~384 first                  total  12646  hit      0  miss  12646    0%  out    40  stop
+J1 ~384 ext                    total  13151  hit   6528  miss   6623   50%  out    64  length
+J1 ~512 first                  total  12746  hit      0  miss  12746    0%  out    44  stop
+J1 ~512 ext                    total  13255  hit   6528  miss   6727   49%  out    64  length
+J1 ~1024 first                 total  13147  hit      0  miss  13147    0%  out    51  stop
+J1 ~1024 ext                   total  13663  hit   6528  miss   7135   48%  out    64  length
+
+J2 — a short last message that is only JSON shapes
+J2 json shapes first           total  12340  hit      0  miss  12340    0%  out     5  stop
+J2 json shapes ext             total  12810  hit  12288  miss    522   96%  out    64  length
+
+J3 — the sizing ask with the shapes in words, same length
+J3 worded ask first            total  12494  hit      0  miss  12494    0%  out    35  stop
+J3 worded ask ext              total  12994  hit   6528  miss   6466   50%  out    64  length

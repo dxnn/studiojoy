@@ -1,0 +1,28 @@
+F1 — sizing, extension, extension on the extension
+F1 sizing #1             total  12507  hit      0  miss  12507    0%  out     5    1.2s
+F1 ext 1 #1              total  12977  hit   6528  miss   6449   50%  out    64    1.3s
+F1 ext 2 #1              total  13010  hit  12928  miss     82   99%  out    64    1.1s
+F1 ext 3 #1              total  13025  hit  12928  miss     97   99%  out     3    1.0s
+F1 sizing #2             total  12507  hit      0  miss  12507    0%  out     5    1.1s
+F1 ext 1 #2              total  12977  hit   6528  miss   6449   50%  out    64    1.2s
+F1 ext 2 #2              total  12992  hit  12928  miss     64  100%  out    64    1.2s
+F1 ext 3 #2              total  13028  hit  12928  miss    100   99%  out    64    1.5s
+
+F2 — the extension against prompts of five sizes
+F2 ~3000 sizing          total   6474  hit      0  miss   6474    0%  out     5    0.7s
+F2 ~3000 ext             total   6944  hit    384  miss   6560    6%  out    64    1.7s
+F2 ~6000 sizing          total  12313  hit      0  miss  12313    0%  out     5    1.0s
+F2 ~6000 ext             total  12783  hit   6272  miss   6511   49%  out    58    1.2s
+F2 ~12000 sizing         total  18152  hit      0  miss  18152    0%  out     5    1.2s
+F2 ~12000 ext            total  18622  hit  12160  miss   6462   65%  out    64    1.7s
+F2 ~24000 sizing         total  29830  hit      0  miss  29830    0%  out     5    1.7s
+F2 ~24000 ext            total  30300  hit  23808  miss   6492   79%  out    57    1.4s
+F2 ~48000 sizing         total  59025  hit      0  miss  59025    0%  out     5    2.7s
+F2 ~48000 ext            total  59495  hit  52992  miss   6503   89%  out    46    1.3s
+
+F3 — the extension after a first request with a paragraph out
+F3 paragraph #1          total  12329  hit      0  miss  12329    0%  out   173    2.5s
+F3 ext #1                total  12967  hit  12288  miss    679   95%  out    64    1.4s
+F3 paragraph #2          total  12329  hit      0  miss  12329    0%  out   187    2.3s
+F3 ext #2                total  12981  hit  12288  miss    693   95%  out    64    1.3s
+exit 0

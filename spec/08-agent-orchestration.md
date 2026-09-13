@@ -325,7 +325,7 @@ loop were the two places one fire could grow without limit.
 
 Prompt caching is why the file block is in the system prompt and not on the
 last user message, where it used to be. Measured against the live API with a
-62 KB project (`tmp/probe-cache.mjs`), on 24.5 K-token prompts:
+62 KB project (`probes/probe-cache.mjs`), on 24.5 K-token prompts:
 
 | case | cache hit |
 |---|---|
@@ -341,7 +341,7 @@ short to register. In the system prompt, the prefix a second fire matches on
 includes the files.
 
 A file changing is subtler, measured separately against the real space-racer
-tree (`tmp/probe-order.mjs`, 10 K-token prompts). The cache serves a partial
+tree (`probes/probe-order.mjs`, 10 K-token prompts). The cache serves a partial
 prefix only back to a **branch point** — a depth where an earlier request
 already diverged (§14) — so the *first* edit at a given depth is a full miss
 under any ordering. But a working session edits the same files fire after

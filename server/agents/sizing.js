@@ -1,6 +1,6 @@
 // The sizing call, and the words around a plan (spec.md §8, §14; the
-// measurements are tmp/probe-sizing.mjs, tmp/probe-trace-handoff.mjs and
-// tmp/probe-extension*.mjs).
+// measurements are probes/probe-sizing.mjs, probes/probe-trace-handoff.mjs and
+// probes/probe-extension*.mjs).
 //
 // One call ahead of a fire in the builder's room: the fire's own system prompt,
 // no tools, thinking off, and a JSON answer — `small`, or `big` with the

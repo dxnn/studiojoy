@@ -2,7 +2,7 @@
 
 Built 2026-09-03 (445c3df, 565b9a9); spec/ §8 is now the record and this
 is the reasoning behind it. Decided the same day after four probes against the live
-API (`tmp/probe-lib.mjs` and the four `tmp/probe-*.mjs` beside it); the
+API (`probes/probe-lib.mjs` and the four `probes/probe-*.mjs` beside it); the
 numbers below are theirs and spec/ §14 carries their tables. *Sizing*,
 *builder*, and `Building` as the builder's room were agreed the same day and
 are in GLOSSARY.md. "Step" below is a plain word: the glossary already has
@@ -284,7 +284,7 @@ missing. The caching guide's rule (§14) explains the first: any fresh prefix
 misses. It does not explain the second, and neither did this chapter's first
 answer — keep the sizing exchange in the fire's transcript and put the next
 message on top — which measured **the same 50%** as today's shape
-(`tmp/probe-extension.mjs`, arm D). Eight probes later (§14) the rule is
+(`probes/probe-extension.mjs`, arm D). Eight probes later (§14) the rule is
 this: **the last user message of a request decides how much of it the next
 request can reuse.** Under ~110 tokens, the next request reuses everything
 to the end of the system prompt; over ~160, it loses a constant ~6,000 tokens
@@ -299,7 +299,7 @@ system prompt — cached with the rest and byte-identical for the fire — and
 the last user message carries `[studio] Size this request.` Then the fire
 *is* the sizing's transcript, the JSON answer as the assistant turn and one
 more user turn on top: a go-ahead for a small ask, the piece turn for a
-piece. Measured (`tmp/probe-extension-8.mjs`): the sizing still answers,
+piece. Measured (`probes/probe-extension-8.mjs`): the sizing still answers,
 small and big alike; the fire hits 96%; each piece, carrying the plan and its
 own ~600-token turn, hits 91–93%, the miss being its own turn. A kid's message
 long enough to trip the rule on its own still costs the 6 K once — rare, and
@@ -328,7 +328,7 @@ much bigger than the diff. Today's narrowed block diverges just after the
 description on every piece — preamble hits from piece 2, files always miss —
 and the piece sees only its own files.
 
-**Measured** (`tmp/probe-extension.mjs`, table in §14): the same three-piece
+**Measured** (`probes/probe-extension.mjs`, table in §14): the same three-piece
 plan on space-racer's 12.5 K-token tree, three ways, real tool loops. The
 narrowed block's first request missed whole on every piece (0%, 0%, 5%) — it
 diverges just after the description each time. The block rebuilt from disk
@@ -433,7 +433,7 @@ before it).
 ## Build order
 
 1. The budget formula on the price list's weights (done 2026-09-06).
-2. **Probe** (done 2026-09-06, `tmp/probe-extension*.mjs`, §14): the plan
+2. **Probe** (done 2026-09-06, `probes/probe-extension*.mjs`, §14): the plan
    three ways, the small ask two ways, and then six more to find the rule —
    the last user message's length — and to measure the fix.
 3. **The short trigger and the extension** (done 2026-09-06): the sizing

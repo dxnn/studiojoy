@@ -1,0 +1,38 @@
+H1 — natural stops of four lengths, then the extension
+H1 one sentence first          total  12325  hit      0  miss  12325    0%  out    43  stop
+H1 one sentence ext            total  12833  hit  12288  miss    545   96%  out    64  length
+H1 two sentences first         total  12324  hit      0  miss  12324    0%  out    62  stop
+H1 two sentences ext           total  12851  hit  12288  miss    563   96%  out    64  length
+H1 ~60 words first             total  12327  hit      0  miss  12327    0%  out    90  stop
+H1 ~60 words ext               total  12882  hit  12288  miss    594   95%  out    64  length
+H1 ~100 words first            total  12327  hit      0  miss  12327    0%  out   131  stop
+H1 ~100 words ext              total  12923  hit  12288  miss    635   95%  out    64  length
+
+H2 — the small ask, json_object, the small answer carrying why and files
+H2 today sizing #1             total  12567  hit      0  miss  12567    0%  out    36  stop
+   → {"size":"small","why":"This is a single tuning value change in config/play.js that makes the ship turn faster.","files":["config/play.js"]}
+H2 today fire #1               total  12759  hit   6528  miss   6231   51%  out    64  length
+H2 extension sizing #1         total  12567  hit      0  miss  12567    0%  out    31  stop
+   → {"size":"small","why":"This is a single tuning change to one constant in the config file.","files":["config/play.js"]}
+H2 extension fire #1           total  13042  hit   6528  miss   6514   50%  out    64  length
+H2 today sizing #2             total  12567  hit      0  miss  12567    0%  out    33  stop
+   → {"size":"small","why":"This is a single tuning change to the turn speed value in the config file.","files":["config/play.js"]}
+H2 today fire #2               total  12759  hit   6528  miss   6231   51%  out    64  length
+H2 extension sizing #2         total  12567  hit      0  miss  12567    0%  out    29  stop
+   → {"size":"small","why":"It's a single tuning value change in the play config.","files":["config/play.js"]}
+H2 extension fire #2           total  13040  hit   6528  miss   6512   50%  out    64  length
+
+H3 — the big ask, json_object, the plan replayed exact and canonical, then piece 1
+H3 exact sizing #1             total  12529  hit      0  miss  12529    0%  out   280  stop
+   plan 4 pieces, answer 1241 chars, replay 1241 chars, ends "touched.\"}]}"
+H3 exact piece 1 #1            total  13435  hit   6528  miss   6907   49%  out    64  length
+H3 canonical sizing #1         total  12529  hit      0  miss  12529    0%  out   384  stop
+   plan 4 pieces, answer 1649 chars, replay 1648 chars, ends "layers.\"} ]}"
+H3 canonical piece 1 #1        total  13565  hit   6528  miss   7037   48%  out    64  length
+H3 exact sizing #2             total  12529  hit      0  miss  12529    0%  out   286  stop
+   plan 4 pieces, answer 1165 chars, replay 1165 chars, ends "players.\"}]}"
+H3 exact piece 1 #2            total  13465  hit   6528  miss   6937   48%  out    64  length
+H3 canonical sizing #2         total  12529  hit      0  miss  12529    0%  out   334  stop
+   plan 4 pieces, answer 1412 chars, replay 1412 chars, ends "er mode.\"}]}"
+H3 canonical piece 1 #2        total  13525  hit   6528  miss   6997   48%  out    64  length
+exit 0

@@ -1,0 +1,40 @@
+deepseek-flash — the 6 K prefix rule, re-taken
+
+L1 — space-racer's prompt, nine last-message lengths
+L1 ~  32 first             total  12372  hit      0  miss  12372    0%  out   39
+L1 ~  32 ext               total  12866  hit  12288  miss    578   96%  out   64
+L1 ~  86 first             total  12397  hit      0  miss  12397    0%  out   44
+L1 ~  86 ext               total  12896  hit  12288  miss    608   95%  out   64
+L1 ~ 111 first             total  12422  hit      0  miss  12422    0%  out   48
+L1 ~ 111 ext               total  12925  hit  12160  miss    765   94%  out   64
+L1 ~ 128 first             total  12447  hit      0  miss  12447    0%  out   29
+L1 ~ 128 ext               total  12931  hit  12160  miss    771   94%  out   64
+L1 ~ 145 first             total  12447  hit      0  miss  12447    0%  out   44
+L1 ~ 145 ext               total  12946  hit  12160  miss    786   94%  out   64
+L1 ~ 161 first             total  12472  hit      0  miss  12472    0%  out   39
+L1 ~ 161 ext               total  12966  hit  12160  miss    806   94%  out   64
+L1 ~ 261 first             total  12547  hit      0  miss  12547    0%  out   32
+L1 ~ 261 ext               total  13034  hit  12160  miss    874   93%  out   64
+L1 ~ 512 first             total  12747  hit      0  miss  12747    0%  out   37
+L1 ~ 512 ext               total  13239  hit  12160  miss   1079   92%  out   64
+L1 ~1024 first             total  13148  hit      0  miss  13148    0%  out   36
+L1 ~1024 ext               total  13639  hit  12160  miss   1479   89%  out   64
+
+  tokens on last message → tokens of prompt not reused by the extension
+  ~  32  prompt  12866  not reused    578
+  ~  86  prompt  12896  not reused    608
+  ~ 111  prompt  12925  not reused    765
+  ~ 128  prompt  12931  not reused    771
+  ~ 145  prompt  12946  not reused    786
+  ~ 161  prompt  12966  not reused    806
+  ~ 261  prompt  13034  not reused    874
+  ~ 512  prompt  13239  not reused   1079
+  ~1024  prompt  13639  not reused   1479
+
+L2 — the same pair on a padded prompt
+L2 ~  86 first             total  60858  hit      0  miss  60858    0%  out   38
+L2 ~  86 ext               total  61351  hit  60544  miss    807   99%  out   64
+  ~undefined  prompt  61351  not reused    807
+L2 ~ 512 first             total  61208  hit      0  miss  61208    0%  out   32
+L2 ~ 512 ext               total  61695  hit  60544  miss   1151   98%  out   64
+  ~undefined  prompt  61695  not reused   1151

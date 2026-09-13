@@ -1,0 +1,6 @@
+deepseek-v4-flash, max_tokens 16384, tools present, "build me a tank game"
+
+A: preamble #1         reasoning 16384  before 1st call   never  at      -  calls  0  131s  length
+A: preamble #2         reasoning 16384  before 1st call   never  at      -  calls  0  130s  length
+B: + think-on-disk #1  reasoning 16384  before 1st call   never  at      -  calls  0  114s  length
+B: + think-on-disk #2  reasoning 16384  before 1st call   never  at      -  calls  0  118s  length

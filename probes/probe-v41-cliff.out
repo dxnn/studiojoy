@@ -1,0 +1,19 @@
+deepseek-flash, studio preamble, file tools, "build me a tank game"
+
+default, 8192 #1         reasoning  8192/ 8192 out  calls  0  first at   never       0 chars written   34s  length
+default, 8192 #2         reasoning    14/   93 out  calls  2  first at      1s      39 chars written    1s  tool_calls
+                          read_file  read_file
+default, 8192 #3         reasoning     0/   85 out  calls  2  first at      1s      39 chars written    1s  tool_calls
+                          read_file  read_file
+default, 16384 #1        reasoning    48/  157 out  calls  3  first at      2s      61 chars written    2s  tool_calls
+                          read_file  read_file  read_file
+default, 16384 #2        reasoning 16384/16384 out  calls  0  first at   never       0 chars written   68s  length
+default, 16384 #3        reasoning 16384/16384 out  calls  0  first at   never       0 chars written   71s  length
+'low', 8192 #1           reasoning    10/   78 out  calls  2  first at      1s      33 chars written    1s  tool_calls
+                          read_file  read_file
+'low', 8192 #2           reasoning    46/  116 out  calls  2  first at      2s      42 chars written    2s  tool_calls
+                          read_file  read_file
+'none', 8192 #1          reasoning     0/ 4061 out  calls  8  first at      1s   13381 chars written   19s  tool_calls
+                          write_file  write_file  write_file  write_file  write_file  write_file  write_file  write_file
+'none', 8192 #2          reasoning     0/ 1778 out  calls  3  first at      1s    5669 chars written   10s  tool_calls
+                          write_file  write_file  write_file

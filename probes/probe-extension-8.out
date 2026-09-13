@@ -1,0 +1,25 @@
+K1 — the small ask, rules in the system prompt, short trigger
+K1 sizing #1                   total  12540  hit      0  miss  12540    0%  out     5  stop
+   → {"size":"small"}
+K1 extension fire #1           total  12989  hit  12416  miss    573   96%  out    64  length
+K1 sizing #2                   total  12540  hit      0  miss  12540    0%  out     5  stop
+   → {"size":"small"}
+K1 extension fire #2           total  12989  hit  12416  miss    573   96%  out    64  length
+
+K2 — the big ask the same way, then piece 1 and piece 2
+K2 sizing #1                   total  12540  hit      0  miss  12540    0%  out   220  stop
+   plan 3 pieces: Split-screen rendering and camera · Two-player input and controls · Two-player menus and results
+K2 piece 1 #1                  total  13390  hit  12416  miss    974   93%  out    64  length
+K2 piece 2 #1                  total  13395  hit  12416  miss    979   93%  out    64  length
+K2 sizing #2                   total  12540  hit      0  miss  12540    0%  out   334  stop
+   plan 4 pieces: Add player2 state & controls split · Split-screen rendering · Two-player race logic & win condition · Menu & input scoping fix
+K2 piece 1 #2                  total  13574  hit  12416  miss   1158   91%  out    64  length
+K2 piece 2 #2                  total  13551  hit  12416  miss   1135   92%  out    64  length
+
+K3 — a long kid message as its own turn, the trigger as the turn after it
+K3 sizing #1                   total  12757  hit      0  miss  12757    0%  out     5  stop
+   → {"size":"small"}
+K3 extension fire #1           total  13206  hit   6656  miss   6550   50%  out    64  length
+K3 sizing #2                   total  12757  hit      0  miss  12757    0%  out     5  stop
+   → {"size":"small"}
+K3 extension fire #2           total  13206  hit   6656  miss   6550   50%  out    64  length

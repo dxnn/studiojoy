@@ -1,0 +1,9 @@
+deepseek-flash, preamble + file tools, "Build me a tank game. Two players, split screen, destructible walls, power-ups."
+max_tokens 8192, one turn, 8 runs a rung
+
+low #1           reasoning     9/   79 out  calls  2 ( 0 write)  first at     1s      42 chars    1s  tool_calls
+                  read read
+low #2           reasoning     8/   76 out  calls  2 ( 0 write)  first at     1s      33 chars    1s  tool_calls
+                  read read
+low #3           reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length
+low #4           reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   35s  length
