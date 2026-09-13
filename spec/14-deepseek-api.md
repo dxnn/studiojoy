@@ -5,11 +5,41 @@ replaced a guess, and three of the original five guesses were wrong.
 
 ⚠️ **Everything below dated before 2026-09-10 was measured on
 `deepseek-v4-flash`, which DeepSeek retired that day.** The studio ran on V4.1
-for two days before anybody noticed, because the old name still answers. The
-tables that have not been re-taken — the cliff, the sizing, the piece shapes,
-the 6 K prefix rule — are kept because they are the only numbers there are,
-not because they are known to still hold. Re-measuring the first two is a TODO
-line; see ideas/flash.md.
+for two days before anybody noticed, because the old name still answers.
+
+Re-taken on V4.1 on 2026-09-13, both with the preamble, tools and request the
+old tables used, so the rows compare: **the cliff** (`tmp/probe-v41-cliff.mjs`,
+`tmp/probe-v41-ladder.mjs`, `tmp/probe-v41-loop.mjs`) and **the 6 K prefix
+rule** (`tmp/probe-v41-prefix.mjs`, run twice). One changed shape and the
+other went away; both sections say so where they sit.
+
+⚠️ Still describing a retired model, and still the only numbers there are:
+**the sizing table** and **the piece-shape arms**. Read them as direction, not
+as measurement.
+
+⚠️ The `probe-extension-*.mjs` family cannot be re-run as written — every one
+of them imports `sizingAsk`, which the builder's second chapter replaced with
+`sizingRules` and `sizingTrigger` on 2026-09-06. `probe-v41-prefix.mjs` was
+written to depend on nothing that moves.
+
+**Running them.** Every probe on this page lives in `tmp/`, which is
+**gitignored** — the numbers here are the record, the scripts are not kept —
+and each carries a header saying what it asks and why. Its output sits beside
+it as `.out`. The 2026-09-13 four run as
+
+```sh
+env PROBE_MODEL=deepseek-flash NODE_OPTIONS=--use-env-proxy \
+  node tmp/probe-v41-<name>.mjs > tmp/probe-v41-<name>.out 2>&1
+```
+
+reading the key from `$DEEPSEEK_API_KEY` or `tmp/deepseek.key`;
+`--use-env-proxy` is this sandbox's requirement, not the API's, and none of
+them is in `npm test`, which never touches the network. `probe-v41-ladder.mjs`
+also takes `PROBE_RUNGS` and `PROBE_REPS`, `probe-v41-loop.mjs` takes
+`PROBE_TURNS` and `PROBE_MAX`. ⚠️ Three of the four take their model id from
+`tmp/probe-lib.mjs`, whose default was the **retired** `deepseek-v4-flash`
+until 2026-09-13: a probe run without `PROBE_MODEL` before that date measured
+V4.1 through the old alias while printing the old name in its own header.
 
 ### Models
 
@@ -56,6 +86,13 @@ to describe noise rather than the case that matters:
   65,536 ceiling that is **~12 minutes and ~20 MB** for one turn's trace, all
   of which the studio re-broadcasts to every connected tab, one frame per
   delta (§9).
+
+  ⚠️ **V4.1 reasons ~2.6× faster: ~233 tokens/s** (nine readings on
+  2026-09-13, 205–248, across all three of that day's probes — tight enough to
+  rely on). Every wall-clock figure on this page that was taken at ~90 tokens/s
+  is that much too long. The two that matter: the 65,536 ceiling is **~4.7
+  silent minutes**, not nine to twelve, and the *thinking cap* — 35,000
+  characters, near 10 K tokens — fires at **~43 seconds**, not ~90.
 - **The whole allowance can go to the trace.** 4096 of 4096 completion tokens
   were reasoning, no content, no tool call, `finish_reason: 'length'`. So a
   helper that "thought too long and did nothing" has not timed out and has not
@@ -75,6 +112,12 @@ to describe noise rather than the case that matters:
   can be concluded either way from that.
 
 ### ⚠️ Thinking against tools: the cliff
+
+⚠️ **The cliff survives on V4.1 and is worse, but it is a different shape and
+the numbers below are not its numbers.** Read *The cliff on V4.1* at the end
+of this section before acting on anything in it; what follows first is the
+V4-Flash measurement the studio was built on, kept because every design
+decision on this page still points at it.
 
 The measurement this studio most needed and did not have. The studio's own
 preamble, its file tools, and one ambitious open request — *"Build me a tank
@@ -128,6 +171,83 @@ out, not on whether the game was any good. `'none'` wrote the fewest bytes of
 the three that acted, and how much prose each wrote was not measured. `'low'`
 has two runs behind it and `'none'` one, against nine at the default — enough
 to show the direction, not enough to size it.
+
+#### The cliff on V4.1
+
+Re-taken 2026-09-13 on `deepseek-flash`: same preamble, same three tools, same
+request, held byte-identically in `tmp/probe-lib.mjs` so the rows compare.
+`tmp/probe-v41-cliff.mjs` re-runs the arms above, `tmp/probe-v41-ladder.mjs`
+puts every `reasoning_effort` value against them, and `tmp/probe-v41-loop.mjs`
+serves the tool loop rather than stopping at the first turn.
+
+⚠️ **The trace no longer expands to fill whatever it is given. It is either
+almost nothing or all of it.** Every one-turn run of the day:
+
+| setting | runs | ran away | trace when it did not |
+| --- | --- | --- | --- |
+| default — what `full` sends | 10 | **5** | 0–60 |
+| `'minimal'` | 2 | 1 | 10 |
+| `'low'` | 7 | 1 | 8–105 |
+| `'medium'` | 2 | 1 | 8 |
+| `'high'` | 2 | 0 | 9–10 |
+| `'max'` | 2 | 1 | 19 |
+| `'none'` | 4 | **0** | 0, and it writes files |
+
+A runaway spends every token of its allowance on the trace — 8192 of 8192,
+16384 of 16384 — and produces no file, no word and no call, exactly as before.
+What changed is everything around it: **nothing between ~105 tokens and the
+ceiling was seen at any setting**, where V4-Flash's default climbed steadily
+into its budget. Three things follow.
+
+**The default is now the worst setting on this page, by a wide margin.** One
+run in nine produced nothing on V4-Flash; one in two does here. It is still a
+person's choice (§6) and the *thinking cap* still catches it — sooner, at
+~43 s rather than ~90.
+
+**⚠️ There is no ladder, and the tool case now says so too.** The reasoning
+section above hedged: no ladder on a trivial prompt, but the *ends* mattered
+once tools were in play. With tools in play all six named rungs behave alike —
+a trace of 8–105 tokens, or a runaway. `'max'` is accepted and is not more
+thinking. The only distinction left is `'none'` against everything else. ⚠️
+`'minimal'`, `'medium'` and `'max'` carry two runs each: direction, not a rate,
+and the one-in-seven at `'low'` is no better founded.
+
+**`'low'` no longer buys thinking on a first turn.** It produced 1,597 and
+6,886 tokens of trace on V4-Flash and 8–105 here. What it does still buy only
+appears once the loop is closed.
+
+**The loop, served.** `tmp/probe-v41-loop.mjs` answers the calls instead of
+stopping at the first turn, with the ambient file block present — an empty
+tree, as production always has one — `max_tokens` 16,384 a turn, at most 8:
+
+| effort | result |
+| --- | --- |
+| default ×2 | ran away on turn 1 both times, 66 s and 69 s, nothing produced |
+| `'low'` | **19 files, 74,935 bytes**, 8 turns, 30 calls, 7,016 reasoning, 33,882 output, 124 s |
+
+The `'low'` run wrote BRIEF, SPEC, TODO and `config/` first, then one `js/`
+file per part of the game, then patched its own work; **cache hit was 96–99%
+from turn 2 on**. Its traces by turn were 0, 751, 527, 711, 816, 749, 2,055
+and 1,407 tokens — so `'low'` does think, just not on the turn that starts
+from nothing. One run, quality unscored, the same caveat the arms above carry.
+
+⚠️ **The largest healthy trace seen all day is 2,055 tokens, ~7,200
+characters** — that turn 7, eight patches across five files; everything else
+is under 900. `THINKING_CAP_CHARS` is 35,000, which is 4.9× it. §8 sizes the
+cap against this row.
+
+**A false alarm worth recording.** In the cliff and ladder probes every
+non-`none` run that acted opened with `read_file` on files that could not
+exist, where V4-Flash's opened with `write_file`. That is those two probes
+having no ambient file block, not a habit of V4.1's — with an empty-tree block
+present, `'low'` writes on its first turn. ⚠️ A probe without the file block
+is not measuring the studio.
+
+**Two streams went silent and never returned**, out of roughly sixty requests
+that afternoon: one `'low'` one-turn run and one loop turn, no bytes and no
+completion for over eight minutes each, both cancelled by hand. Neither probe
+carries an idle guard and the studio does (§8) — which is the argument for it,
+though a rate cannot be read off two events.
 
 ### ⚠️ The size of the ask is the lever
 
@@ -309,9 +429,12 @@ clock. §8's budget formula weighs a hit at a **fiftieth** and output at
 
 Three things follow. Output includes the reasoning trace, so thinking is the
 dearest thing a turn does, and V4.1 made it dearer against input rather than
-cheaper: one `low` trace of 6,886 tokens costs what 27 K missed or 1.4 M
-remembered tokens cost, which is why a piece runs at `none` and the file block
-is the second-order lever. The cache fell to a fiftieth, so carrying the whole
+cheaper: a 6,886-token trace costs what 27 K missed or 1.4 M remembered tokens
+cost, which is why a piece runs at `none` and the file block is the
+second-order lever. ⚠️ 6,886 was one V4-Flash `'low'` trace; on V4.1 `'low'`
+thinks 8–105 tokens on a first turn and 500–2,100 on a later one (the cliff
+section), so that arithmetic now describes a **runaway** rather than a working
+turn — and a runaway is what the *thinking cap* is for. The cache fell to a fiftieth, so carrying the whole
 tree is close to free and the miss is nearly the whole of a fire's input bill.
 And Pro is now 4.4× on a miss, with a cache of its own — a KV cache is one
 model's — so a turn handed to it would start cold as well as dear. That, and
@@ -369,7 +492,11 @@ state, which is the one that was costing the builder's room half its prompt
 on every reply. The cache lasts "hours to days" once idle.
 
 **⚠️ The last user message decides how much of a request the next one can
-reuse.** Measured on space-racer's 12.5 K-token prompt: a first request, then
+reuse — on V4-Flash. ⚠️ Not on V4.1: re-measured 2026-09-13, the rule is
+gone** (*The 6 K rule on V4.1*, below). What follows is the V4-Flash finding,
+kept because the builder's second chapter was designed around it.
+
+Measured on space-racer's 12.5 K-token prompt: a first request, then
 a second carrying the first's messages, its answer as the assistant turn and
 one more user turn on top.
 
@@ -404,6 +531,40 @@ the plan and its own ~600-token turn on top, hits 91–93%, the miss being its
 own turn. A kid's message long enough to trip the rule still costs the 6 K
 once; whether a short assistant turn between it and the trigger rescues that
 is unmeasured.
+
+**⚠️ The 6 K rule on V4.1: gone.** Re-measured 2026-09-13 on `deepseek-flash`
+(`tmp/probe-v41-prefix.mjs`, run **twice** — nine last-message lengths each on
+space-racer's 12.5 K prompt, two more on a padded 61 K one). What the request
+that extends it hits:
+
+| tokens on the last user message | V4-Flash | run 1 | run 2 |
+| --- | --- | --- | --- |
+| 32 | 96% | 96% | 96% |
+| 86 | 95% | 95% | 95% |
+| 111 | 95% | 94% | 94% |
+| 128 | — | 94% | 94% |
+| 145 | — | 94% | 94% |
+| **161** | **48–50%** | **94%** | **94%** |
+| 261 | 48–50% | 93% | 93% |
+| 512 | 48–50% | 92% | 92% |
+| 1024 | 48–50% | 89% | 89% |
+
+On the 61 K prompt, where a constant 6,000-token loss would read as ~90%: 99%
+behind an 86-token message and 98% behind a 512-token one.
+
+What a request now fails to reuse is **the last message plus the turn appended
+to it, and nothing else** — 578 tokens behind a 32-token message, rising to
+1,479 behind a 1,024-token one, the two runs within a few tokens of each other
+at every length. The only step left is one **128-token** block, the cache's
+own granularity, appearing between 86 and 111 tokens and never growing after.
+
+⚠️ What this changes and what it does not. The builder's shape — the sizing
+rules in the system prompt, `[studio] Size this request.` on the last message
+— is **kept**: still the cheapest arrangement, and it costs nothing. It is no
+longer *forced*. Three claims that rested on the rule are void: a kid's long
+message does not cost 6 K, a capped trace or a begun note riding ahead of the
+trigger does not cost 6 K once, and the unmeasured question about a short
+assistant turn rescuing it has nothing left to rescue (§8).
 
 **Three shapes for a piece's fire**, same plan, same tree, real tool loops
 writing into their own copies, thinking off (`probe-extension.mjs`; the plan

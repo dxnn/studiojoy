@@ -22,7 +22,10 @@ non-trivial change.
   2026-09-10 and the studio ran on its replacement for two days without
   noticing, because the old name still answers. Everything in §14 dated before
   then describes a model that no longer exists, and one of those findings —
-  *images are not supported* — had already reversed.
+  *images are not supported* — had already reversed. Two more were re-taken on
+  2026-09-13: the **cliff**, which survives in a worse and different shape, and
+  the **6 K prefix rule**, which is gone. The **sizing** table and the
+  **piece-shape** arms still describe the retired model.
 - **§17** is the client: what a render destroys, the URL as the view, and the
   traps behind each.
 
@@ -139,7 +142,9 @@ walk into, each paid for once already.
   no rename, and the builder itself goes nowhere else (spec/ §3, §8).
 - ⚠️ The **sizing** ask rides the last user message *after* everything else on
   it. Ahead of an attachment it was swamped, and anywhere but the last message
-  it would break the cache prefix the fire shares with it (spec/ §8, §14).
+  it would break the cache prefix the fire shares with it (spec/ §8, §14). The
+  *shortness* of that last message is no longer part of the invariant: V4.1
+  dropped the ~6,000-token penalty a long one used to cost (§14, 2026-09-13).
 - ⚠️ The preamble in `orchestrator.js` names every capability and
   `orchestrator.test.js` asserts each name — a capability an agent is not told
   about may as well not exist. It names them by the **code's** words, which
@@ -430,9 +435,11 @@ Open questions:
   Built: the sizing rules stand in the builder's preamble behind a short
   trigger, every fire in `Building` is the sizing's transcript plus one turn,
   and a piece runs on the sizing's own block with fresh copies on its turn —
-  because ⚠️ a last user message over ~160 tokens costs the next request
-  ~6,000 tokens of prefix, and the sizing ask was 250 (§14). The first
-  production receipt should read ~96% where it read 50%. Also built: the plan
+  because ⚠️ a last user message over ~160 tokens cost the next request
+  ~6,000 tokens of prefix on V4-Flash, and the sizing ask was 250 (§14). The
+  first production receipt should read ~96% where it read 50%. ⚠️ That penalty
+  does not exist on V4.1 (§14, 2026-09-13): the shape is kept because it is
+  still the cheapest, not because it is forced. Also built: the plan
   as the one reply, piece rows behind the card, a plan of one for any change,
   and a plan of two or more waiting as a **draft** the person can change —
   summary, **assumptions**, pieces — behind one **Build it**, which writes

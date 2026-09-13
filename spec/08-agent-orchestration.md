@@ -79,11 +79,15 @@ to do about a paused plan or a begun one — stand in the room's preamble under
 `SIZING`, cached with the rest; the last user message carries only the
 **trigger**, `[studio] Size this request.`, after everything else on it,
 with a paused plan's pieces still to do under it when there are any. ⚠️
-Short on purpose: measured (§14), a last user message over ~160 tokens
-leaves the request after it the system prompt less ~6,000 tokens, and the
-~250-token ask that rode there until 2026-09-06 cost every fire in this room
-half its prompt. A capped trace or a begun note still rides ahead of the
-trigger, long, and costs the 6 K once. It answers `{"size":"reply"}` — a
+Short on purpose, though no longer forced: measured on V4-Flash (§14), a
+last user message over ~160 tokens left the request after it the system
+prompt less ~6,000 tokens, and the ~250-token ask that rode there until
+2026-09-06 cost every fire in this room half its prompt. ⚠️ Re-measured on
+V4.1 on 2026-09-13, that penalty is **gone** — an extension hits 89–96%
+behind a last message of any length from 32 to 1,024 tokens — so the short
+trigger is now the cheapest arrangement rather than the only affordable one,
+and a capped trace or a begun note riding ahead of it costs its own tokens
+and nothing more. It answers `{"size":"reply"}` — a
 question or a remark — or `{"size":"pieces","pieces":[{title, files,
 what}]}`: one piece for one change, two to six for more, each finishable in
 one sitting. An answer that won't parse, or an upstream that won't answer, is
@@ -482,7 +486,8 @@ stands still on the screen.
 Thinking is bounded twice. The level (§14) decides how hard it thinks at
 all, and the **thinking cap** stops a turn whose trace runs past
 `THINKING_CAP_CHARS` (35,000 — near 10 K tokens at 3.5 characters each,
-about 90 seconds at the rate measured in §14) with nothing else produced:
+about **43 seconds** at V4.1's ~233 tokens/s, and about 90 at the ~90
+tokens/s the number was first sized against) with nothing else produced:
 the stream closes, the same turn is asked again with thinking off **and the
 trace in hand** — a `[studio]` note on the user turn saying what it had
 worked out so far — and a `'system'` banner says so. Measured (§14): the
@@ -495,8 +500,23 @@ which point the whole allowance is spent, and it's off once the turn
 produces content or a tool call, since a trace interleaved with real output
 is a turn that's working.
 
-The cap sits above the traces `'low'` actually produces (1,597 and 6,886
-tokens in §14's runs), so it mostly catches a helper left on `'full'`.
+⚠️ **The cap is the rule that nothing above ~10 K tokens of trace is worth
+waiting for, and on V4.1 that ceiling is now far above anything healthy.** It
+was sized against V4-Flash, where `'low'` really did produce 1,597 and 6,886
+tokens and the cap sat just over them, so it mostly caught a helper left on
+`'full'`. On V4.1 (§14) a first turn thinks 8–105 tokens at every setting and
+the busiest turn of a whole game built end to end thought 2,055 — ~7,200
+characters, which the cap is 4.9× above. There is nothing between ~2 K tokens
+and the ceiling: a trace is either working or it has run away.
+
+So the cap now fires late rather than wrongly. It still catches every runaway
+seen — those spend their entire allowance, and at `MAX_OUTPUT_TOKENS` that is
+~229,000 characters, so 35,000 stops one about a seventh of the way in. What
+it costs is the waiting: ~43 s of silence before the retry, where a cap at
+12,000 characters (~3,400 tokens, 1.7× the largest healthy trace measured)
+would cost ~15 s and still clear every working turn on record. ⚠️ Not changed:
+that headroom is sized from **one** eight-turn run, which is one run's idea of
+how much a busy turn thinks. It wants more runs before the constant moves.
 
 ⚠️ **`max_tokens` is not the dial to turn here, and lowering it is worse than
 leaving it.** The trace is generated before the reply and the tool calls, so a
@@ -807,9 +827,11 @@ count would double-charge — the miss/hit split is the correct input (§14).
 
 `completion_tokens` includes `completion_tokens_details.reasoning_tokens`; the
 trace is discarded but it was still billed, so it is still counted, at the
-output weight: a `low` trace of 6,886 tokens shows as the 21 K new tokens it
-costs. The per-person allowance defaults (§10) were sized under the old
-weights and want re-measuring.
+output weight: a trace of 6,886 tokens shows as the 21 K new tokens it
+costs. ⚠️ 6,886 was a V4-Flash `'low'` trace; on V4.1 (§14) that size of
+trace is a runaway rather than a working turn, so it is what a *capped* fire
+bills, not a typical one. The per-person allowance defaults (§10) were sized
+under the old weights and want re-measuring.
 
 If `budget_reset_at` has passed, the counter resets to 0 and the timestamp
 advances to the next UTC midnight. Over budget: a `'system'` banner per failed

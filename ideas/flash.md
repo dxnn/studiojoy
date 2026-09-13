@@ -8,8 +8,14 @@ where it and the code differ, the code is right. The one thing the plan got
 wrong: it called the picture of a running game a *look*, and GLOSSARY already
 owns that word for a game's four colours. It is a **shot**.
 
-Still open: re-measuring §14's cliff and the 6 K prefix rule on V4.1, which is
-the remaining TODO line and the thing most likely to change a decision.
+**Re-measured, 2026-09-13.** Both of the things below that were left open have
+been taken on V4.1, and both moved. The cliff **survives and is worse** — one
+run in two at the default rather than one in nine — but it stopped being a
+slope and became a switch: a trace is either under ~105 tokens or the whole
+allowance, at every setting except `none`, with no ladder between DeepSeek's
+own rungs. The 6 K prefix rule is **gone**. Reasoning also streams ~2.6×
+faster, which re-times the thinking cap and the silence it guards. Tables and
+probe names in spec/ §14; what is left is at the foot of this file.
 
 DeepSeek shipped V4.1 Flash on 2026-09-10. Measured here on 2026-09-12
 against the live API (`tmp/probe-v41.mjs`, `tmp/probe-v41-cache.mjs`,
@@ -212,12 +218,20 @@ prefix.
 Everything in §14's Flash tables describes V4-Flash. The two that change
 decisions:
 
-1. **The cliff** (`tmp/probe-do-more.mjs`, `tmp/probe-tools-effort.mjs`) —
-   does V4.1 at the default effort still think through its whole allowance
-   and write nothing? The *thinking level*, the *thinking cap*, and the whole
-   reason a *piece* runs at `none` rest on this one table.
-2. **The 6 K prefix rule** (`tmp/probe-extension-*.mjs`) — the builder's
-   entire second chapter is shaped around it.
+1. ~~**The cliff**~~ — **done 2026-09-13** (`tmp/probe-v41-cliff.mjs`,
+   `tmp/probe-v41-ladder.mjs`, `tmp/probe-v41-loop.mjs`). Yes, and more often:
+   5 of 10 runs at the default. But it is bimodal now — nothing between ~105
+   tokens and the ceiling at any setting — and `'low'` no longer thinks on a
+   first turn at all, only on later ones. `'low'` stays the default; the
+   thinking cap keeps its number for now and is over-sized by ~5×.
+2. ~~**The 6 K prefix rule**~~ — **gone, 2026-09-13**
+   (`tmp/probe-v41-prefix.mjs`, two runs). An extension hits 89–96% behind a
+   last message of any length from 32 to 1,024 tokens, and 98–99% on a 61 K
+   prompt. The builder's second chapter keeps its shape as the cheapest
+   arrangement rather than the only affordable one.
+   ⚠️ The old `tmp/probe-extension-*.mjs` cannot be re-run: every one imports
+   `sizingAsk`, replaced by `sizingRules`/`sizingTrigger` on 2026-09-06.
+   `probe-v41-prefix.mjs` depends on nothing that moves.
 
 Then, less urgently: the sizing table, the piece-shape arms, and the output
 ceiling. And the standing TODO line — probe Pro against tools at `none` —

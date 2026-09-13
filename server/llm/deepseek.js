@@ -26,6 +26,15 @@ export const MODEL = 'deepseek-flash';
 //   full — no reasoning_effort sent, which is the API's own default
 //   low  — reasoning_effort: 'low'
 //   none — reasoning_effort: 'none', no trace at all
+//
+// ⚠️ Re-measured on V4.1, 2026-09-13 (spec/ §14). The three still rank in this
+// order and 'low' is still the right default, but not for the reasons above:
+// the default writes nothing in one run of *two* now rather than one of nine;
+// 'low' thinks 8–105 tokens on a first turn rather than 1,597–6,886; and
+// DeepSeek's own middle rungs — minimal, medium, high, max — are
+// indistinguishable from each other and from 'low', each able to run away too.
+// What 'low' still buys is the rest of a fire: 500–2,100 tokens a turn while
+// building a whole game across eight turns.
 export const THINKING_LEVELS = ['full', 'low', 'none'];
 export const DEFAULT_THINKING = 'low';
 
@@ -46,6 +55,14 @@ export const tokensForChars = (chars) => Math.ceil(
 // nine-minute silence, not a working limit, and what it mostly catches is a
 // helper left on 'full'. It applies only until the turn produces something
 // else, since a trace interleaved with real output is a turn that is working.
+//
+// ⚠️ V4.1 moved both numbers under it (spec/ §8, §14). Reasoning streams at
+// ~233 tokens/s, so 35,000 characters is ~43 seconds, not ~90, and the
+// allowance it guards is ~4.7 silent minutes, not nine. And the traces it sits
+// above are far smaller: 8–105 tokens on a first turn, 2,055 on the busiest
+// turn of a game built end to end. 12,000 characters would still clear every
+// working turn on record and cost ~15 seconds instead of ~43 — left alone
+// because that headroom is sized from one eight-turn run.
 export const THINKING_CAP_CHARS = 35_000;
 
 // The model's ceiling is 65536, and omitting max_tokens uses all of it.

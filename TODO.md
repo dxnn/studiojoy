@@ -5,9 +5,15 @@ deliberately deferred.
 
 - drop `agents.model` once the one-model change has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
-- ! re-measure §14's cliff and the 6 K prefix rule on V4.1 — the *thinking
-  level*, the *thinking cap* and every `none` *piece* rest on tables taken on
-  a model that no longer exists (ideas/flash.md, "What to re-measure")
+- ! finish §14's V4.1 re-measurement: the **sizing** table and the
+  **piece-shape** arms still describe the retired model, and the cliff rates
+  the decisions now rest on have 7 runs at `low` and 4 at `none` where they
+  want 8 each (spec/ §14, "The cliff on V4.1")
+- lower `THINKING_CAP_CHARS` from 35,000 to ~12,000 once those rates are in.
+  On V4.1 the cap fires at ~43 s and the largest healthy trace measured is
+  2,055 tokens, so it stops a runaway about a seventh of the way in rather
+  than promptly. ⚠️ The headroom is sized from one eight-turn run, which is
+  the part that wants more evidence (spec/ §8, §14)
 - watch what helpers do with `look_at` and `look_at_game` now they can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"
