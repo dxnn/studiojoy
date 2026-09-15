@@ -5,10 +5,12 @@ deliberately deferred.
 
 - drop `agents.model` once the one-model change has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
-- ! a plan's titles came back in Chinese once in five sizings of the tank
-  ask (spec/ §14, 2026-09-15) — a kid would get a card they cannot read. Wants
-  a line in `sizingRules()` naming the person's language, measured before and
-  after at more reps than five; ⚠️ one in five is a rate, not an anecdote
+- ! a plan comes back with its titles in Chinese about one time in twenty on
+  a big ask (spec/ §14, 2026-09-15: 1 in 35 as shipped) — a kid would get a
+  card they cannot read. ⚠️ A line in `sizingRules()` naming the person's
+  language was measured and made it worse (4 in 42), so the fix is not words:
+  a check on the answer's script against the request's, and one re-ask,
+  measured at forty a side or more
 - ⚠️ a bug report still sizes as a *reply* about one time in three. The
   symptom rule took it from roughly 3-in-9 to 7-in-9 (spec/ §14), which is
   better and not fixed; a kid reporting a broken game is the commonest ask

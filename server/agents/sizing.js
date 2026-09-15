@@ -41,6 +41,12 @@ export function sizingRules() {
     'most — and each leaving the game runnable. "title" under 8 words; "what" is one or two sentences for',
     'the helper who will do that piece, saying what it makes and what it must not touch. Order the pieces',
     'so each builds on the last. Never name a file under studio/: that is the studio\'s and cannot be written.',
+    // ⚠️ No line about language here, on purpose. A plan comes back with its
+    // titles in Chinese now and then (§14, 2026-09-15: 1 in 35 on these
+    // rules), and a line saying to write in the person's language was tried
+    // and measured: 4 in 42 *with* it. Naming the language primes the switch
+    // rather than preventing it. The fix, if one is wanted, is a check on the
+    // answer's script and one re-ask (TODO.md), not words in here.
     'Every piece that brings numbers or words into the game names the config/ file they go in among its',
     'files — config/play.js, look.js, words.js or world.js — so no constant is ever written into js/.',
     'With two or more pieces add "summary": one paragraph in the person\'s own words saying what the game',
@@ -118,6 +124,43 @@ export function parseClear(text) {
 // size it", which the caller treats as a reply — the plain fire, the cap
 // behind it. `small` and `big` are the words the rules used until 2026-09-06
 // and a model may still reach for them.
+// The first complete JSON object in a text, by counting braces outside
+// strings: where it ends, or -1 when it never closes.
+function objectEnd(raw) {
+  let depth = 0;
+  let inString = false;
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (inString) {
+      if (ch === '\\') i += 1;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// ⚠️ Measured 2026-09-15 (§14, probes/probe-v41-language.mjs): about one
+// sizing in eight of a whole-game ask closes its object right after the
+// pieces and then carries on — `…}]},"summary":"…","assumptions":[…]}` —
+// which JSON.parse refuses whole, and an unparseable sizing is a plain fire
+// at the builder's level on the one ask where that runs away. Two repairs,
+// in order: take the early `}` out and read the whole thing, which keeps the
+// summary and the assumptions; failing that, read the first object alone.
+function salvage(raw) {
+  const end = objectEnd(raw);
+  if (end < 0 || end === raw.length - 1) return null;
+  const rest = raw.slice(end + 1).trim();
+  if (rest.startsWith(',')) {
+    try { return JSON.parse(raw.slice(0, end) + rest); } catch { /* the first object alone, below */ }
+  }
+  try { return JSON.parse(raw.slice(0, end + 1)); } catch { return null; }
+}
+
 export function parseSizing(text) {
   const raw = String(text ?? '').trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -126,7 +169,8 @@ export function parseSizing(text) {
   try {
     obj = JSON.parse(raw);
   } catch {
-    return null;
+    obj = salvage(raw);
+    if (obj === null) return null;
   }
   if (!obj || typeof obj !== 'object') return null;
   const size = { small: 'reply', big: 'pieces' }[obj.size] ?? obj.size;

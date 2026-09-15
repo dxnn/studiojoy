@@ -1,0 +1,38 @@
+deepseek-flash, the builder's rules as they stand in server/agents/sizing.js, response_format json_object
+the rules DO name a language
+
+tank # 1  english       2.7s  Core game shell and loop · Split screen and terrain · Power-ups and sound
+tank # 2  english       3.1s  Game shell and split screen · Tanks that drive and aim · Shooting and destructible walls · Power-ups and win c
+tank # 3  english       3.2s  Tank game skeleton and grid · Two players, controls and split screen · Bullets and destructible walls · Power-
+tank # 4  unparseable  finish stop  out 592  “{"size":"pieces","pieces":[{"title":"Game shell and split screen","files":["inde…”
+tank # 5  english       4.0s  Game shell, screens, and two tanks · Destructible walls · Power-ups on the battlefield · Sound and polish
+tank # 6  unparseable  finish stop  out 377  “{"size":"pieces","pieces":[{"title":"Game shell and split screen","files":["inde…”
+tank # 7  english       3.6s  Page shell and split screen · Game loop and state · Shooting and shells · Destructible walls · Power-ups · Win
+tank # 8  english       4.0s  Tank skeleton and split screen · Walls and destructible tiles · Shells and wall destruction · Power-ups · Roun
+tank # 9  unparseable  finish stop  out 791  “{"size":"pieces","pieces":[{"title":"Run the game: page, loop, two tanks","files…”
+tank #10  english       3.9s  Game shell and split screen · Tanks drive and shoot · Destructible walls · Power-ups · Rounds, scoring and sou
+tank #11  english       4.8s  Skeleton, config and game loop · Tanks, movement and shooting · Destructible brick walls · Power-ups · Split-s
+tank #12  english       3.5s  Game shell and split screen · Tanks, input and movement · Bullets and destructible walls · Power-ups and round
+tank #13  english       4.0s  Page shell, files and config · Arena, walls and destructible blocks · Two tanks and local controls · Shells an
+tank #14  english       2.5s  Base game loop and split screen · Destructible walls · Power-ups · HUD, score and rounds · Sound and polish
+tank #15  english       3.5s  Scaffold, board and split screen · Two tanks moving and shooting · Power-ups and winning
+tank #16  english       3.9s  Game shell and split screen · Tanks that move and shoot · Destructible walls and levels · Power-ups · Sound an
+tank #17  english       4.3s  Project skeleton and config · Split screen and tanks driving · Walls and destructible bricks · Shooting and hi
+tank #18  ⚠️ NOT ENGLISH   2.5s  骨架与双人分屏移动 · 子弹与可破坏砖墙 · 道具与胜负
+tank #19  unparseable  finish stop  out 640  “{"size":"pieces","pieces":[{"title":"Game shell and screens","files":["index.htm…”
+tank #20  english       4.0s  Scaffold and fixed views · Terrain and destructible walls · Tanks, driving and aiming · Bullets and damage · P
+tank: not English 1 of 20, unparseable 4
+
+split # 1  english       3.7s  Two-player race rules and configs · Shared racing logic for two ships · Split-screen drawing · Starting and fi
+split # 2  english       3.4s  Two-player race rules and words · Give each racer its own ship and state · Split-screen drawing · Two-player c
+split # 3  ⚠️ NOT ENGLISH   3.0s  两个玩家，一台键盘 · 上下分屏 · 两条赛道，各跑各的 · 双人成绩屏和奖励
+split # 4  english       3.6s  Add the split-screen view and player two ship · Drive player two from the second controls · Two-player laps, p
+split # 5  ⚠️ NOT ENGLISH   3.5s  输入与分流玩家一的状态 · 玩家二上赛道与两艘飞船 · 第二辆车的操控与屏幕提示 · 分屏显示 · 双人比赛结算界面
+split # 6  english       2.3s  Player 2 config and words · Two-player race state and input · Split-screen view · Two-player finish, HUD and r
+split # 7  english       2.5s  Two-player config and controls · Split-screen render and camera · Race player 2 in the update step · Duel star
+split # 8  english       2.5s  Two-player race state · Split-screen drawing · Per-player input and HUD · Two-player screens and words
+split # 9  english       3.2s  Two-player race state and rules · Split-screen camera and drawing · Two-player results and words · Player 2 to
+split #10  english       2.8s  Two-player settings and words · Second player on the track · Split-screen drawing · Two-player results and men
+split: not English 2 of 10
+
+altogether: not English 3 of 30

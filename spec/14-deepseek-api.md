@@ -497,8 +497,40 @@ assumptions read as a draft card should, one of them an invention (a
 for. ⚠️ **One plan in five came back with its titles in Chinese**
 (核心骨架与分屏 — "core skeleton and split screen"), its files and shape
 otherwise right. Nothing in the rules names a language, and a kid would get a
-card they cannot read. One in five is a rate worth a line in the rules and a
-re-measure at more reps — not a wording tuned against it (TODO.md).
+card they cannot read.
+
+**The language line, measured and withdrawn** (`probes/probe-v41-language.mjs`,
+the same day): thirty sizings a side — the tank ask twenty times, the
+split-screen ask ten — once on the rules as shipped and once with one more
+line, *write every title, what, summary and assumption in the language the
+person wrote their message in*:
+
+| rules | not in English |
+| --- | --- |
+| as shipped (`-1.out`, with the five above) | 1 of 35 |
+| with the language line (`-line.out`, `-2.out`) | **4 of 42** |
+
+⚠️ The line did not help and may have hurt: naming the language reads as
+priming the switch rather than preventing it. It was taken out the same day,
+`test/sizing.test.js` holds the door shut against putting it back, and the
+rules carry a comment saying why. Forty a side cannot separate 3% from 10%,
+but it can rule out "the line fixes it". The fix, if the rate is worth one,
+is deterministic: a check on the answer's script against the request's, and
+one re-ask (TODO.md).
+
+**And a second thing the same run found, which matters more.** ⚠️ **Seven of
+fifty-two tank sizings would not parse** — none of the twenty split-screen
+ones — and every one had the same shape: a complete object closed right
+after `pieces`, `…}]}`, with `,"summary":"…","assumptions":[…]}` written on
+after it as though it had not closed. `response_format` json_object did not
+stop it; `finish_reason` was `stop`. In production an unparseable sizing was
+a plain fire at the builder's level — on the one ask where `low` runs away
+fifteen times in sixteen (above) — so about one whole-game request in eight
+was taking the ~43 s detour for a reason nothing reported. `parseSizing` now
+repairs it by taking the early `}` out and reading the whole, keeping the
+summary and the assumptions, or failing that reads the first object alone;
+`probes/probe-v41-language-unparseable.json` is the real answer, kept, and
+`test/sizing.test.js` reads it.
 
 **A step thinks in proportion to the step.** The same request as one step of
 a six-step plan, plan shown, "do only this step, then one line":

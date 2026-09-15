@@ -1,0 +1,38 @@
+deepseek-flash, the builder's rules as they stand in server/agents/sizing.js, response_format json_object
+the rules do not name a language
+
+tank # 1  english       4.0s  Scaffold and shared game core · Tanks, shells and rounds · Power-ups · Sound and polish
+tank # 2  english       3.7s  Scaffold pages and rendering · Tanks, input, movement · Destructible terrain · Power-ups and rounds · Sound an
+tank # 3  english       4.4s  Scaffold and project files · Arena, tiles and destructible walls · Tanks, firing and shells · Split screen and
+tank # 4  english       4.0s  Scaffold page, loop and state · Split screen arena and tanks · Shooting and destructible walls · Power-ups · H
+tank # 5  english       3.8s  Project skeleton and arena · Two tanks and split-screen input · Shells, bounces and brick destruction · Power-
+tank # 6  unparseable
+tank # 7  english       3.9s  Split-screen tank shell game · Input, movement and shooting · Health, wins and round flow · Power-ups and soun
+tank # 8  english       2.7s  Scaffold, shell and split screen · Tanks move and shoot · Destructible brick walls · Power-ups · Rounds, score
+tank # 9  unparseable
+tank #10  english       4.4s  Game shell and split screen · Walls that can be destroyed · Bullets and shooting · Power-ups · Rounds, score a
+tank #11  english       2.3s  Game skeleton and split screen · Tanks, bullets, walls · Destructible walls and match flow · Power-ups and sou
+tank #12  english       4.3s  Scaffold split-screen tank shell · Grid world and destructible walls · Driving, aiming and shells · Damage and
+tank #13  english       4.0s  Project skeleton and config · Grid, walls and drawing · Tanks and shells · Damage, lives and rounds · Power-up
+tank #14  english       3.5s  Game shell and split-screen canvas · Tanks, input and movement · Shooting and destructible walls · Power-ups a
+tank #15  english       4.1s  Project skeleton and config · Tanks, input and split drawing · Walls and bullets · Power-ups and rounds · Soun
+tank #16  english       4.0s  Page, styles and config · Arena, drawing and levels · Driving, keys and firing · Broken walls and power-ups · 
+tank #17  english       3.6s  Scaffold page and game loop · Tanks, input and movement · Shooting and shells · Destructible walls · Power-ups
+tank #18  english       4.1s  Skeleton, loop and split screen · Arena walls and tank collision · Shooting and wall destruction · Power-ups a
+tank #19  english       3.2s  Game shell and split screen · Destructible wall grid · Bullets and block breaking · Power-ups · Rounds, score 
+tank #20  english       3.9s  Core game shell and split screen · Destructible walls · Power-ups · Rounds, scoring and sound
+tank: not English 0 of 20, unparseable 2
+
+split # 1  english       5.5s  Give the second player a ship · Split-screen cameras and drawing · Two players in the race logic · Join and re
+split # 2  english       2.8s  Second ship and shared race state · Split-screen camera · Two-player results and wording · Track cards and men
+split # 3  english       3.5s  Split screen and player two · Player two controls and words · Two-player race flow and result · Two-player tog
+split # 4  english       2.2s  Second player and split screen · Two-player title, HUD and result
+split # 5  english       3.5s  Split-screen render and second ship · Both ships race, crash and place
+split # 6  english       2.9s  Second player and split screen · Two-player HUD and results
+split # 7  english       2.6s  Split-screen camera and player two · Two-player placing and prizes · Player two HUD and labels
+split # 8  english       2.4s  Player 2 flies their own ship · Split the screen in two · Two-player results and track flow
+split # 9  english       2.9s  Split screen, two ships · Player 2 controls and rival · Two-player result screen · Two-player HUD and hint
+split #10  english       3.5s  Add player 2 (shared view) · Split the screen in two
+split: not English 0 of 10
+
+altogether: not English 0 of 30

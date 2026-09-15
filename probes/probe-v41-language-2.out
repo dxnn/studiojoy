@@ -1,0 +1,20 @@
+deepseek-flash, the builder's rules as they stand in server/agents/sizing.js, response_format json_object
+the rules DO name a language
+
+tank # 1  english       5.1s  Project skeleton and index.html · Tanks and split-screen · Bullets and hits · Destructible walls and a level ·
+tank # 2  english       3.7s  Playable game shell and arena · Two tanks, split screen, input · Shooting and destructible walls · Power-ups a
+tank # 3  english       3.8s  Tank game skeleton on screen · Tanks move and shoot · Destructible walls · Power-ups on the map · Scoreboard, 
+tank # 4  english       4.3s  Tank game skeleton and screens · Terrain and tank movement · Shooting and destructible walls · Power-ups and w
+tank # 5  english       3.7s  Tank game skeleton on screen · Two players, keys and bullets · Split screen two players · Destructible walls ·
+tank # 6  english       2.7s  Project map and core shell · Tanks and movement · Bullets, walls and destruction · Power-ups and scoring · Sou
+tank # 7  english       4.4s  Skeleton, screens and config · Arena walls and shells · Explosions break the walls · Power-ups · Rounds, score
+tank # 8  english       2.0s  Game shell and split screen · Terrain, bullets, destruction · Power-ups and scoring · Sound and polish
+tank # 9  english       3.8s  Shell of the game · Two tanks you can drive · Shooting and hits · Destructible walls · Power-ups · Rounds, sou
+tank #10  unparseable  finish stop  out 607  Unexpected non-whitespace character after JSON at position 1605 (line 1 column 1606)  → tmp/unparseable-tank-10.json
+tank #11  english       3.3s  Tank game skeleton and split screen · Bullets and destructible walls · Rounds, score and power-ups
+tank #12  ⚠️ NOT ENGLISH   3.6s  游戏骨架与双人分屏 · 坦克移动与射击 · 可破坏的地图 · 道具系统 · 命中、生命与胜负
+tank: not English 1 of 12, unparseable 1
+
+split: not English 0 of 0
+
+altogether: not English 1 of 12
