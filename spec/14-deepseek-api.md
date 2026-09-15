@@ -13,14 +13,18 @@ old tables used, so the rows compare: **the cliff** (`probes/probe-v41-cliff.mjs
 rule** (`probes/probe-v41-prefix.mjs`, run twice). One changed shape and the
 other went away; both sections say so where they sit.
 
-⚠️ Still describing a retired model, and still the only numbers there are:
-**the sizing table** and **the piece-shape arms**. Read them as direction, not
-as measurement.
+Re-taken again on V4.1 on 2026-09-15, in the shape the studio sends today:
+**the sizing table** (`probes/probe-v41-sizing.mjs`), **the piece-shape arms**
+(`probes/probe-v41-pieces.mjs`) and **the cliff's rate**, sixteen runs a rung
+at `low` and `none` (`probes/probe-v41-rate.mjs`, run twice). Each sits under
+the V4-Flash table it replaces, so nothing on this page is the retired model's
+alone any more; the old tables stay as the shape the studio was designed on.
 
 ⚠️ The `probe-extension-*.mjs` family cannot be re-run as written — every one
 of them imports `sizingAsk`, which the builder's second chapter replaced with
 `sizingRules` and `sizingTrigger` on 2026-09-06. `probe-v41-prefix.mjs` was
-written to depend on nothing that moves.
+written to depend on nothing that moves, and `probe-v41-pieces.mjs` is that
+family's re-take on `sizingRules` and `sizingTrigger`.
 
 **Running them.** Every probe on this page lives in **`probes/`**, tracked,
 each carrying a header saying what it asks and why, with its output beside it
@@ -29,7 +33,7 @@ scripts nobody but the machine that ran them had; probes older than that date
 still name their original `tmp/` path in their own header, and the invocation
 below is the current one. ⚠️ The **key** did not move: it stays at
 `tmp/deepseek.key` or in `$DEEPSEEK_API_KEY`, and `probes/` must never hold
-one. The 2026-09-13 four run as
+one. The 2026-09-13 four and the 2026-09-15 three run as
 
 ```sh
 env PROBE_MODEL=deepseek-flash NODE_OPTIONS=--use-env-proxy \
@@ -258,6 +262,38 @@ carries an idle guard and the studio does (§8) — which is the argument for it
 though a rate cannot be read off two events. The probes written after them do
 carry one, at 120 s.
 
+#### The cliff's rate, sixteen a rung
+
+The table above pooled 7 runs at `low` and 4 at `none` from three probes of
+two shapes, and ⚠️ two of the three had no ambient file block — which this
+page already said is not measuring the studio. Re-taken 2026-09-15
+(`probes/probe-v41-rate.mjs`, run twice: `probe-v41-rate-1.out` and
+`probe-v41-rate.out`), one shape and the studio's — the preamble, the
+empty-tree block, the three tools, one turn from a cold prefix, `max_tokens`
+8192 — eight runs a rung, twice:
+
+| setting | runs | ran away | healthy traces |
+| --- | --- | --- | --- |
+| `'low'` | 16 | **15** | 4,086 |
+| `'none'` | 16 | **0** | 0 ×16, and every one wrote 3–7 files in 9–14 s |
+
+⚠️ **With the block present, `low` on an ambitious open ask from an empty
+tree runs away nearly every time.** The one-in-seven above was the no-block
+probes' `read read` turn — a first act of reading files that cannot exist,
+over in a second, a degenerate turn and not a first turn of building. The two
+`low` arms in the next section that both ran away on turn 1 were the rule,
+not the exception. Three things follow. The `'low'` row of the V4.1 cliff
+table above is void. Production `low` on a whole-game ask is `none` plus a
+~35–43 s detour to the *thinking cap* almost every time — the number the
+TODO line about the cap's cost was waiting for, and the argument for sizing
+an open request outside `Building` the way the builder sizes one. And the
+first run's own verdict column is wrong on its first row: a turn that ended
+on `length` having squeezed two writes out at 33 s was counted healthy, and
+by this page's definition it is a runaway; the source was corrected before
+the second run, and the rate above counts it as one. `none` is not a coin
+flip the other way: sixteen of sixteen acted, none thought, and the 8192
+allowance was never near.
+
 #### ⚠️ Is the thinking worth anything? `none` against `low`
 
 The question every table above dodges. §14 has scored *whether tool calls came
@@ -438,6 +474,31 @@ Every plan was in a sensible order with sensible files. `response_format:
 {type: 'json_object'}` is **accepted** and returned valid JSON (two runs, and
 a JSON one-liner at 99% cache) — the parameter §6's fill treated as
 unmeasured. The prompt's own ask stays as the braces.
+
+**Re-taken on V4.1, 2026-09-15** (`probes/probe-v41-sizing.mjs`), in the
+studio's own shape: the rules in the system prompt, `[studio] Size this
+request.` on the last message, `response_format` json_object, and the answers
+`reply` and `pieces`. Same asks, so the rows compare:
+
+| ask | answer | wall | out tokens |
+| --- | --- | --- | --- |
+| the tank game, empty tree ×5 | pieces: 6, 6, 4, 4, 5 | 2.2–5.7 s | 337–887 |
+| "make the ship turn a bit faster", space-racer's tree ×3 | one piece | 1.2–1.8 s | 63–131 |
+| "add a second player with split screen" ×3 | 3, 3, 2 pieces | 2.3–4.5 s | 289–722 |
+| "it doesn't work" ×2 | **one piece** | 1.5–1.6 s | 107–117 |
+| "do you think the game is fun?" ×2 | reply | 0.6–1.0 s | 5 |
+
+The plans are shorter — 4–6 pieces where V4-Flash gave 7–8 — every one in a
+sensible order and none naming `studio/`, and the vague "it doesn't work" is
+work now rather than `small`, which is the symptom rule at work. Behind a
+warm prefix the call hit 85–98%. The first tank plan's summary and its five
+assumptions read as a draft card should, one of them an invention (a
+"distraction button") which is exactly what the editable assumptions are
+for. ⚠️ **One plan in five came back with its titles in Chinese**
+(核心骨架与分屏 — "core skeleton and split screen"), its files and shape
+otherwise right. Nothing in the rules names a language, and a kid would get a
+card they cannot read. One in five is a rate worth a line in the rules and a
+re-measure at more reps — not a wording tuned against it (TODO.md).
 
 **A step thinks in proportion to the step.** The same request as one step of
 a six-step plan, plan shown, "do only this step, then one line":
@@ -750,6 +811,30 @@ rebuilt block diverges wherever the last piece's writes moved a file, a new
 depth every time; the frozen block diverges only at the transcript, where the
 branch point from the piece before already sits. B also wrote the fewest
 output tokens and touched every file the plan named — one run, unscored.
+
+**Re-taken on V4.1, 2026-09-15** (`probes/probe-v41-pieces.mjs`): the same
+three arms on the words the studio sends today — the sizing's rules in the
+system prompt and its short trigger — and arm B's transcript laid down as
+production lays it on *Build it*: the request, the draft card as the builder's
+reply, the Build press and its `{"ok":true}`, then each piece's turn with
+fresh copies on top. One plan of three pieces, eight requests a piece,
+thinking off:
+
+| arm | first-request hit per piece | requests | hit | miss | out | miss-equivalents |
+| --- | --- | --- | --- | --- | --- | --- |
+| A — narrowed block, one turn | 0% 6% 10% | 24 | 387 K | 48.2 K | 18.3 K | 129.2 K |
+| B — frozen and extended (production) | **92% 66% 94%** | 24 | 488 K | 31.9 K | 11.5 K | **87.5 K** |
+| C — whole block rebuilt per piece | 0% 11% 45% | 24 | 419 K | 58.4 K | 11.4 K | 112.2 K |
+
+⚠️ Weighed at this model's prices — a hit a fiftieth of a miss, output four —
+so the equivalents do not compare with the V4-Flash table's, which weighed a
+thirtieth and three; the hit rates do. B is still the cheapest shape, by a
+quarter over C and a third over A, and its first piece now opens at **92%**
+where the old ask's 6 K rule held it to 49%: the frozen block is kept on its
+own merits, not the rule's. Its middle piece's 66% is the fresh copy of a
+large `js/game.js` riding the piece turn — the miss is the turn itself, as
+designed. Every arm ran every piece to the eight-request cap, so what this
+measured is the cache and not the finish; quality unscored, as before.
 
 Within one tool-call chain, the model's own output — the **reasoning trace
 included** — is re-attached server-side to the next request's prompt and

@@ -1,0 +1,121 @@
+deepseek-flash — "add a second player with split screen" on space-racer, one plan, three shapes
+
+sizing #1  total  13072  hit      0  miss  13072    0%  out   324    2.9s
+plan: 3 pieces
+  1. Split-screen camera and drawing — js/game.js
+  2. Player 2 ships, laps and results — js/game.js, config/play.js
+  3. Menu, words and layout for two players — config/words.js, config/play.js, config/look.js, css/style.css, index.html, js/menu.js
+
+Build it (arm B's confirm)  total  13178  hit  12928  miss    250   98%  out     5    0.9s  → {"ok":true}
+
+--- Arm A ---
+A piece 1/3  Split-screen camera and drawing  [js/game.js]
+   r1  total  11628  hit      0  miss  11628    0%  out   156    1.2s
+   r2  total  13892  hit  11776  miss   2116   85%  out  7714   22.0s
+   r3  total  21624  hit  21376  miss    248   99%  out   568    2.6s
+   r4  total  22224  hit  22016  miss    208   99%  out   295    1.7s
+   r5  total  22551  hit  22400  miss    151   99%  out   221    1.4s
+   r6  total  22790  hit  22656  miss    134   99%  out   171    1.4s
+   r7  total  22979  hit  22784  miss    195   99%  out   111    1.8s
+   r8  total  23121  hit  22912  miss    209   99%  out    60    1.4s
+   wrote js/game.js, config/play.js, config/look.js  patch fails 1  33.4s
+   note: Let me check the two spots that matter — the lap check and the end-of-ra
+A piece 2/3  Player 2 ships, laps and results  [js/game.js, config/play.js]
+   r1  total  13787  hit    768  miss  13019    6%  out   104    1.8s
+   r2  total  15272  hit  13824  miss   1448   91%  out   315    2.1s
+   r3  total  16053  hit  15488  miss    565   96%  out  1269    4.8s
+   r4  total  17340  hit  17152  miss    188   99%  out   783    3.1s
+   r5  total  18155  hit  17920  miss    235   99%  out  1003    4.0s
+   r6  total  19176  hit  18944  miss    232   99%  out   661    3.0s
+   r7  total  19882  hit  19712  miss    170   99%  out   340    2.3s
+   r8  total  20254  hit  20096  miss    158   99%  out   541    2.3s
+   wrote config/play.js, js/game.js  patch fails 1  23.4s
+   note: Now `applyPrize`/`newShip` call sites: the prize applies to a named ship
+A piece 3/3  Menu, words and layout for two players  [config/words.js, config/play.js, config/look.js, css/style.css, index.html, js/menu.js]
+   r1  total   7441  hit    768  miss   6673   10%  out    88    1.2s
+   r2  total  16884  hit   7424  miss   9460   44%  out    92    1.6s
+   r3  total  17022  hit  16768  miss    254   99%  out    40    1.2s
+   r4  total  17087  hit  16896  miss    191   99%  out   797    3.7s
+   r5  total  17930  hit  17792  miss    138   99%  out   544    2.4s
+   r6  total  18520  hit  18304  miss    216   99%  out   652    2.8s
+   r7  total  19218  hit  19072  miss    146   99%  out   700    2.9s
+   r8  total  19964  hit  19712  miss    252   99%  out  1089    3.9s
+   wrote config/words.js, config/play.js, js/game.js  patch fails 0  19.6s
+   note: Now the countdown word colours, the player labels on each half, hover on
+
+--- Arm B ---
+B piece 1/3  Split-screen camera and drawing  [js/game.js]
+   r1  total  13874  hit  12800  miss   1074   92%  out   101    1.3s
+   r2  total  19826  hit  13952  miss   5874   70%  out    80    1.3s
+   r3  total  19931  hit  19712  miss    219   99%  out   315    2.2s
+   r4  total  20264  hit  20096  miss    168   99%  out   233    2.0s
+   r5  total  20515  hit  20352  miss    163   99%  out   338    2.3s
+   r6  total  20871  hit  20736  miss    135   99%  out   486    2.4s
+   r7  total  21375  hit  21120  miss    255   99%  out  1287    4.5s
+   r8  total  22680  hit  22528  miss    152   99%  out  2005    6.0s
+   wrote config/play.js, js/game.js  patch fails 0  22.0s
+   note: Now the rock-drift / rival / crash block, which still refers to the old 
+B piece 2/3  Player 2 ships, laps and results  [js/game.js, config/play.js]
+   r1  total  20562  hit  13568  miss   6994   66%  out    66    1.4s
+   r2  total  20653  hit  20480  miss    173   99%  out    40    1.4s
+   r3  total  20718  hit  20480  miss    238   99%  out    98    1.4s
+   r4  total  21190  hit  20736  miss    454   98%  out   526    2.5s
+   r5  total  21748  hit  21504  miss    244   99%  out   510    2.5s
+   r6  total  22290  hit  22144  miss    146   99%  out   326    2.2s
+   r7  total  22648  hit  22400  miss    248   99%  out   261    2.0s
+   r8  total  22927  hit  22784  miss    143   99%  out   834    3.5s
+   wrote js/game.js, config/play.js  patch fails 0  16.9s
+   note: Now add the new constants to the config and fix `init()`.
+B piece 3/3  Menu, words and layout for two players  [config/words.js, config/play.js, config/look.js, css/style.css, index.html, js/menu.js]
+   r1  total  14438  hit  13568  miss    870   94%  out    71    1.2s
+   r2  total  21411  hit  14464  miss   6947   68%  out    96    1.8s
+   r3  total  21553  hit  21376  miss    177   99%  out   810    3.8s
+   r4  total  22409  hit  22272  miss    137   99%  out   605    2.9s
+   r5  total  23074  hit  22912  miss    162   99%  out   287    2.1s
+   r6  total  23407  hit  23168  miss    239   99%  out    65    1.2s
+   r7  total  29977  hit  23424  miss   6553   78%  out  1624    6.6s
+   r8  total  31633  hit  31488  miss    145  100%  out   405    2.4s
+   wrote config/play.js, config/words.js, config/look.js, js/game.js  patch fails 0  22.0s
+   note: Now the title-screen two-player toggle and the result screen's two-playe
+
+--- Arm C ---
+C piece 1/3  Split-screen camera and drawing  [js/game.js]
+   r1  total  13741  hit      0  miss  13741    0%  out   104    1.3s
+   r2  total  13891  hit  13696  miss    195   99%  out   558    3.1s
+   r3  total  14481  hit  14336  miss    145   99%  out   391    2.2s
+   r4  total  14904  hit  14720  miss    184   99%  out    96    1.6s
+   r5  total  15018  hit  14848  miss    170   99%  out   100    1.2s
+   r6  total  15136  hit  14976  miss    160   99%  out    56    1.2s
+   r7  total  21202  hit  15104  miss   6098   71%  out   323    2.0s
+   r8  total  21543  hit  21376  miss    167   99%  out  3351   10.1s
+   wrote config/look.js, config/play.js, js/game.js  patch fails 0  22.8s
+   note: Now the per-player driving, crash and HUD code. Let me replace the whole
+C piece 2/3  Player 2 ships, laps and results  [js/game.js, config/play.js]
+   r1  total  14459  hit   1536  miss  12923   11%  out    86    1.4s
+   r2  total  21194  hit  14464  miss   6730   68%  out   404    3.1s
+   r3  total  21616  hit  21376  miss    240   99%  out   460    2.4s
+   r4  total  22094  hit  21888  miss    206   99%  out   519    2.7s
+   r5  total  22631  hit  22400  miss    231   99%  out   482    2.3s
+   r6  total  23131  hit  22912  miss    219   99%  out   227    1.6s
+   r7  total  23376  hit  23168  miss    208   99%  out   255    1.8s
+   r8  total  23649  hit  23424  miss    225   99%  out   225    1.7s
+   wrote config/play.js, js/game.js  patch fails 0  17.0s
+   note: Now the lap counter, reward score and win check inside `driveShip`:
+C piece 3/3  Menu, words and layout for two players  [config/words.js, config/play.js, config/look.js, css/style.css, index.html, js/menu.js]
+   r1  total  14948  hit   6656  miss   8292   45%  out    85    1.5s
+   r2  total  21715  hit  14976  miss   6739   69%  out    56    1.2s
+   r3  total  21796  hit  21632  miss    164   99%  out    39    1.3s
+   r4  total  21855  hit  21632  miss    223   99%  out   746    3.7s
+   r5  total  22619  hit  22400  miss    219   99%  out    40    1.3s
+   r6  total  23159  hit  22656  miss    503   98%  out   987    4.9s
+   r7  total  24164  hit  23936  miss    228   99%  out   410    2.1s
+   r8  total  24592  hit  24448  miss    144   99%  out  1372    5.0s
+   wrote config/play.js, config/words.js, config/look.js, css/style.css  patch fails 0  21.0s
+   note: Now the split colours in `config/look.js`, and the CSS for the split lin
+
+Summary — per arm, over every piece
+arm  first-request hit% per piece      requests   hit tokens  miss tokens   out   miss-equiv (hit/50 + out×4)  patch fails  files  wall
+A    0% 6% 10%                              24       386560        48234  18314      129222                              2      8  76.4s
+B    92% 66% 94%                            24       488064        31910  11469       87548                              0      8  60.9s
+C    0% 11% 45%                             24       418560        58354  11372      112214                              0      9  60.7s
+trees under /tmp/claude-501/probe-pieces/2026-09-15T18-58-18-634Z

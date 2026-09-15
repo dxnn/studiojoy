@@ -24,8 +24,10 @@ non-trivial change.
   then describes a model that no longer exists, and one of those findings —
   *images are not supported* — had already reversed. Two more were re-taken on
   2026-09-13: the **cliff**, which survives in a worse and different shape, and
-  the **6 K prefix rule**, which is gone. The **sizing** table and the
-  **piece-shape** arms still describe the retired model.
+  the **6 K prefix rule**, which is gone. On 2026-09-15 the **sizing** table,
+  the **piece-shape** arms and the cliff's **rate** followed — `low` on a
+  whole-game ask runs away 15 times in 16 — so every table on that page now
+  has a V4.1 row under it.
 - **§17** is the client: what a render destroys, the URL as the view, and the
   traps behind each.
 
@@ -360,9 +362,14 @@ specified:
   (`Screens.fit`) as well as its words: a game that sizes its own canvas on
   the window's width alone comes off the bottom of a sideways phone, which
   two of them did.
-- Two templates carry their own editors, so a game can be made with no helper
-  at all: the quiz, and the visual novel with a guide that builds a story by
-  asking one question at a time (§4).
+- Four templates carry their own editors, so a game can be made with no
+  helper at all: the quiz; the visual novel, with a guide that builds a story
+  by asking one question at a time; the **point-and-click adventure**
+  (Scenes), whose spots are boxes dragged on the picture and whose guide asks
+  the same way; and the **racing game** (Track), whose track is points dragged
+  on a canvas with explicit Save (§6, built 2026-09-15). ⚠️ The last two are
+  server-tested and model-tested and **no browser has shown either yet** — the
+  box-drag, the handle-drag and both at 390px are the first thing to look at.
 - **Microhelpers**: the guide's *Fill it in for me* and *Make one for me* —
   one request, one answer, nothing kept, through the same two token walls a
   reply goes through and billed to whoever pressed. No message row anywhere

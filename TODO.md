@@ -5,19 +5,20 @@ deliberately deferred.
 
 - drop `agents.model` once the one-model change has stuck in production; it
   is written and never read, kept only so a rollback lands on its feet
-- ! finish §14's V4.1 re-measurement: the **sizing** table and the
-  **piece-shape** arms still describe the retired model, and the cliff rates
-  the decisions now rest on have 7 runs at `low` and 4 at `none` where they
-  want 8 each (spec/ §14, "The cliff on V4.1")
+- ! a plan's titles came back in Chinese once in five sizings of the tank
+  ask (spec/ §14, 2026-09-15) — a kid would get a card they cannot read. Wants
+  a line in `sizingRules()` naming the person's language, measured before and
+  after at more reps than five; ⚠️ one in five is a rate, not an anecdote
 - ⚠️ a bug report still sizes as a *reply* about one time in three. The
   symptom rule took it from roughly 3-in-9 to 7-in-9 (spec/ §14), which is
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
 - watch what the *thinking cap* costs in production now it fires on most
-  ambitious open requests: both whole-game `low` runs spent turn 1 on a ~14 K
-  runaway, so a person asking for a big thing waits ~43 s for a capped turn
-  before the retry starts. The fix is not a lower cap — 12,000 was proposed
+  ambitious open requests: measured 2026-09-15, a whole-game ask at `low` from
+  an empty tree ran away on 15 first turns in 16 (spec/ §14, "The cliff's
+  rate"), so a person asking for a big thing waits ~43 s for a capped turn
+  before the retry starts nearly every time. The fix is not a lower cap — 12,000 was proposed
   and withdrawn the same day, it would have cut the best trace measured — it
   is whether an open request outside `Building` should be sized the way the
   builder sizes one (spec/ §8, §14)

@@ -1,0 +1,80 @@
+deepseek-flash, the builder's own rules and trigger, response_format json_object
+
+tank game, empty tree
+tank #1                      5.7s  out  887  cache   0%  stop  6 pieces
+                            1. Scaffold, config and shared state  [index.html, css/style.css, config/play.js, config/look.js, config/words.js, config/world.js, js/state.js, js/main.js]
+                            2. Arena, walls and destructible tiles  [js/levels.js, js/world.js, config/world.js]
+                            3. Tank movement and aiming  [js/tanks.js, js/input.js, config/play.js]
+                            4. Shells, explosions and damage  [js/shells.js, config/play.js]
+                            5. Power-ups  [js/powerups.js, config/play.js, config/words.js]
+                            6. Split screen, rounds, HUD and sound  [js/render.js, js/sound.js, js/rounds.js, config/look.js, config/words.js]
+tank #2                      4.2s  out  695  cache  85%  stop  6 pieces
+                            1. Game shell and split screen  [index.html, css/style.css, js/main.js, config/look.js, config/play.js]
+                            2. Tank movement and collision  [js/input.js, js/tank.js, config/play.js]
+                            3. Destructible walls  [js/walls.js, config/world.js, js/tank.js]
+                            4. Shooting and wall damage  [js/bullets.js, config/play.js, js/walls.js]
+                            5. Power-ups  [js/powerups.js, config/world.js, config/words.js]
+                            6. Health, rounds and scoring  [js/state.js, js/hud.js, config/play.js, config/words.js, index.html, css/style.css]
+tank #3                      3.7s  out  546  cache  85%  stop  4 pieces
+                            1. 核心骨架与分屏  [index.html, css/style.css, config/play.js, js/state.js, js/input.js, js/render.js, js/main.js]
+                            2. 炮弹与墙体破坏  [config/world.js, js/levels.js, js/bullets.js, js/walls.js]
+                            3. 道具与回合胜负  [config/play.js, js/powerups.js, js/rounds.js]
+                            4. 音效与打磨  [config/words.js, js/sound.js, js/hud.js]
+tank #4                      2.2s  out  337  cache  85%  stop  4 pieces
+                            1. Shell, screens and terrain  [index.html, css/style.css, config/world.js, config/look.js, js/main.js, js/state.js, js/terrain.js, js/draw.js]
+                            2. Two players move and shoot  [config/play.js, js/input.js, js/tanks.js, js/bullets.js]
+                            3. Hits, power-ups and winning  [config/play.js, config/words.js, js/powerups.js, js/round.js, js/hud.js, js/main.js]
+                            4. Sound and finishing touches  [config/words.js, js/sound.js, js/main.js, css/style.css]
+tank #5                      3.3s  out  521  cache  85%  stop  5 pieces
+                            1. Game shell and split screen  [index.html, css/style.css, js/main.js, js/screen.js, config/look.js]
+                            2. Maps and destructible walls  [js/level.js, js/world.js, config/world.js]
+                            3. Tanks and bullets  [js/tank.js, js/bullet.js, js/input.js, config/play.js]
+                            4. Power-ups and score  [js/powerup.js, js/score.js, config/words.js]
+                            5. Sound and polish  [js/sound.js, js/hud.js, css/style.css, config/words.js]
+
+space-racer, real tree
+small: turn faster #1        1.8s  out  131  cache   0%  stop  one piece
+small: turn faster #2        1.5s  out   91  cache  98%  stop  one piece
+small: turn faster #3        1.2s  out   63  cache  98%  stop  one piece
+big: split screen #1         4.5s  out  722  cache  98%  stop  3 pieces
+                            1. Split-screen rendering and two ships  [js/game.js, js/track.js, js/menu.js, config/play.js]
+                            2. Race rules and result for two players  [js/game.js, config/play.js, config/words.js]
+                            3. Two-player HUD and title screen wiring  [index.html, js/game.js, js/menu.js, config/words.js, config/controls.js]
+big: split screen #2         2.3s  out  289  cache  98%  stop  3 pieces
+                            1. Two-player race state and controls  [config/play.js, config/words.js, js/game.js]
+                            2. Split-screen camera and drawing  [js/game.js, config/look.js]
+                            3. Winner, prizes and per-player track unlock  [js/game.js, config/world.js, js/menu.js]
+big: split screen #3         3.1s  out  406  cache  98%  stop  2 pieces
+                            1. Split screen and second player  [js/game.js, js/track.js, config/play.js]
+                            2. Two-player countdown, crashes and result  [js/game.js, config/words.js]
+vague: doesn't work #1       1.6s  out  107  cache  98%  stop  one piece
+vague: doesn't work #2       1.5s  out  117  cache  98%  stop  one piece
+chat: is it good? #1         1.0s  out    5  cache  98%  stop  reply
+chat: is it good? #2         0.6s  out    5  cache  98%  stop  reply
+
+the first tank plan, in full — what the draft card would show:
+  summary: A two-player split-screen tank game in the browser: each player drives a tank on their own half of the screen, shoots shells that blow holes in destructible walls, and picks up power-ups that change how their tank shoots or moves. Player one uses WASD and Space, player two uses the arrow keys and Enter; whoever knocks out the other tank wins the round.
+  assumptions: 
+    - Both players see the same arena from two camera views side by side, split down the middle vertically.
+    - Players hide their tanks from each other by pressing a 'distraction' button that blacks out the opponent's view for a moment.
+    - Tanks move in eight directions and have a rotating turret aimed with a separate pair of keys.
+    - Each tank has three hit points per round; last tank standing wins the round, first to three rounds wins the match.
+    - Shells bounce off the arena border once before dying, so trick shots are possible.
+  1. Scaffold, config and shared state
+     files: index.html, css/style.css, config/play.js, config/look.js, config/words.js, config/world.js, js/state.js, js/main.js
+     Create the empty project skeleton: index.html holding only markup with links to css and scripts, the four config files with plain commented values (arena size, tank speed, shell speed, health, power-up durations, colors, all on-screen words), and js/state.js defining the game state object plus a js/main.js that runs a fixed-timestep loop and draws an empty arena. Leave input, levels and drawing o…
+  2. Arena, walls and destructible tiles
+     files: js/levels.js, js/world.js, config/world.js
+     Make js/levels.js generate the arena from a small tile grid in config/world.js, and js/world.js draw and collide against it. Damage must be per tile: a shell hitting a wall destroys the tiles at the blast point, and tanks cannot drive through standing tiles.
+  3. Tank movement and aiming
+     files: js/tanks.js, js/input.js, config/play.js
+     Give each tank eight-direction movement with wall and arena-edge collision, plus a turret barrel aimed by its own keys. Player one uses W A S D to move and F T G H (or Space) to aim and fire; player two uses the arrow keys and the number pad. Read all keys from js/input.js. Tanks must not shoot or move in this piece beyond driving and aiming.
+  4. Shells, explosions and damage
+     files: js/shells.js, config/play.js
+     Fire shells from the turret tip that travel, bounce once off the arena border, destroy tiles on impact, and damage a tank that they hit. Track hit points in js/state.js and mark a tank destroyed at zero. Keep score and round wins in state; no power-ups yet.
+  5. Power-ups
+     files: js/powerups.js, config/play.js, config/words.js
+     Spawn pickups at random open tiles on a timer: extra shell speed, a faster reload, three-shot spread, and a shield that absorbs one hit. Each lasts a fixed number of seconds from config/play.js, is announced on that player's half in the words from config/words.js, and is drawn as a distinct icon. Do not change movement or wall damage here.
+  6. Split screen, rounds, HUD and sound
+     files: js/render.js, js/sound.js, js/rounds.js, config/look.js, config/words.js
+     Draw the arena twice into two clipped viewports with a divider, one centred on each tank, with a small colour dot pointing to the opponent when they are off screen. Add the HUD (hit points, round wins, power-up timer), round and match transitions with the win text from config/words.js, a restart key, and simple WebAudio blips for firing, exploding and picking up an item. Remove the debug full-are…

@@ -1,0 +1,35 @@
+deepseek-flash, preamble + empty-tree block + file tools, "Build me a tank game. Two players, split screen, destructible walls, power-ups."
+max_tokens 8192, one turn, 8 runs a rung, idle guard 120s
+
+low #1     reasoning  4086/ 5926 out  calls  4 ( 4 write)  first at    19s    5708 chars   25s  tool_calls  healthy
+            write write write write
+low #2     reasoning  7736/ 8192 out  calls  1 ( 1 write)  first at    36s    1372 chars   37s  length  RUNAWAY
+            write
+low #3     reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length  RUNAWAY
+low #4     reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length  RUNAWAY
+low #5     reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   35s  length  RUNAWAY
+low #6     reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length  RUNAWAY
+low #7     reasoning  8192/ 8192 out  calls  0 ( 0 write)  first at  never       0 chars   36s  length  RUNAWAY
+low #8     reasoning  7718/ 8192 out  calls  1 ( 1 write)  first at    34s    1804 chars   36s  length  RUNAWAY
+            write
+
+none #1    reasoning     0/ 1349 out  calls  2 ( 2 write)  first at     1s    4276 chars    6s  tool_calls  healthy
+            write write
+none #2    reasoning     0/ 2936 out  calls  5 ( 5 write)  first at     1s    9426 chars   12s  tool_calls  healthy
+            write write write write write
+none #3    reasoning     0/ 3640 out  calls  5 ( 5 write)  first at     1s   12576 chars   16s  tool_calls  healthy
+            write write write write write
+none #4    reasoning     0/ 1637 out  calls  2 ( 2 write)  first at     1s    5991 chars    9s  tool_calls  healthy
+            write write
+none #5    reasoning     0/  487 out  calls  2 ( 2 write)  first at     1s    1614 chars    3s  tool_calls  healthy
+            write write
+none #6    reasoning     0/ 2516 out  calls  5 ( 5 write)  first at     1s    8169 chars   11s  tool_calls  healthy
+            write write write write write
+none #7    reasoning     0/ 4604 out  calls  5 ( 5 write)  first at     1s   15926 chars   20s  tool_calls  healthy
+            write write write write write
+none #8    reasoning     0/ 2309 out  calls  5 ( 5 write)  first at     1s    7775 chars   10s  tool_calls  healthy
+            write write write write write
+
+Summary — one turn from a cold prefix, the studio's shape
+low      8 runs  ran away 7  stalled 0  healthy traces: 4086
+none     8 runs  ran away 0  stalled 0  healthy traces: 0 0 0 0 0 0 0 0
