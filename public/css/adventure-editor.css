@@ -1,0 +1,83 @@
+/* The adventure editor ------------------------------------------------------
+   The story editor's three regions (story-editor.css) with a different stage:
+   the scene's picture with its spots drawn on as boxes, which are dragged
+   out, moved and resized by pointer. The strip and the rows are the story's
+   classes, on purpose — one look for the two editors that share a shape. */
+.adv-stage {
+  position: relative;
+  flex: 0 0 40%;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--look-deep);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+/* Sized by adventure-form.js to the biggest box of the picture's shape that
+   fits, so the picture fills it exactly and a box's percentages are the
+   picture's own pixels. */
+.adv-frame { position: relative; flex: 0 0 auto; }
+.adv-frame .picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.adv-spots {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+/* A spot as a box in the game's own colour, its label in the corner. The
+   selected one is filled a little more and its label is brighter. */
+.adv-box {
+  position: absolute;
+  border: 2px solid color-mix(in oklab, var(--look-primary) 85%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 18%, transparent);
+  border-radius: 3px;
+  cursor: move;
+  overflow: visible;
+}
+.adv-box.on {
+  background: color-mix(in oklab, var(--look-primary) 34%, transparent);
+  border-color: #fff;
+  z-index: 1;
+}
+.adv-box.new { border-style: dashed; cursor: crosshair; pointer-events: none; }
+.adv-box .adv-tag {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  max-width: calc(100% + 4px);
+  padding: 1px 5px;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: #fff;
+  background: color-mix(in oklab, var(--look-primary) 70%, var(--look-deep));
+  border-radius: 3px 0 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.adv-box.on .adv-tag { background: color-mix(in oklab, var(--look-primary) 90%, #fff); color: var(--look-deep); }
+/* The corner grip, a thumb's size on a touchscreen. */
+.adv-box .grip {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid color-mix(in oklab, var(--look-primary) 85%, transparent);
+  cursor: nwse-resize;
+}
+@media (pointer: coarse) {
+  .adv-box .grip { width: 22px; height: 22px; right: -11px; bottom: -11px; }
+}
+/* The rows: a spot's glyph, its number, what it does. */
+.adventure-editor .step .label { flex: 0 0 3.6rem; }
+.adventure-editor .step .sub label.row { gap: 4px; font-size: 12.5px; color: var(--muted); }

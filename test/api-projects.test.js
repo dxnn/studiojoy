@@ -239,6 +239,43 @@ test('a game born from the visual novel template holds its starter tree', async 
   assert.deepEqual(parsed.decls.map((d) => d.name), ['CAST', 'SCENES']);
 });
 
+// The adventure: the same shape as the visual novel, empty and pictureless at
+// birth, with the pointer as its control.
+test('a game born from the adventure template holds its starter tree', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  const res = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Key Hunt', template: 'adventure' },
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.type, 'adventure');
+
+  const dir = path.join(app.gamesDir, 'key-hunt');
+  const templateRoot = path.join(publicDir, 'game-templates', 'adventure');
+  for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css',
+    'config/look.js', 'config/scenes.js', 'config/words.js', 'js/adventure.js']) {
+    assert.deepEqual(
+      fs.readFileSync(path.join(dir, f)),
+      fs.readFileSync(path.join(templateRoot, f)),
+      `${f} is copied whole`,
+    );
+  }
+  assert.equal(fs.existsSync(path.join(dir, 'assets')), false, 'no art in the tree');
+  // The pointer is the control, so nothing is drawn over the picture.
+  assert.match(fs.readFileSync(path.join(dir, 'config/controls.js'), 'utf8'), /const SCHEME = "none";/);
+
+  const commits = await logCommits(dir);
+  assert.equal(commits.length, 3);
+  assert.equal(commits[0].subject, 'start from the adventure template');
+
+  const parsed = parseConfigFile(fs.readFileSync(path.join(dir, 'config/scenes.js'), 'utf8'));
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['SCENES']);
+});
+
 // A game from before the type column is marked '' by the migration and asked
 // once: its type is read off its tree — the template whose heart it holds —
 // and the answer written back, null included. So a helper writing a story file

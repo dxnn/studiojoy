@@ -159,7 +159,7 @@ gate — both DeepSeek models support function calling (§14). An agent with
 | `slug` | TEXT UNIQUE NOT NULL | `[a-z0-9-]{1,40}`; the directory name under `GAMES_DIR` **and** the public URL path |
 | `name` | TEXT NOT NULL | ≤ 200 chars |
 | `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
-| `type` | TEXT | the game's **type**, a template's key (`visual-novel`, `quiz`): which *editors* the centre pane offers and how helpers are briefed (§6, §8). Null is a free-form game |
+| `type` | TEXT | the game's **type**, a template's key (`visual-novel`, `quiz`, `arcade`, `adventure`): which *editors* the centre pane offers and how helpers are briefed (§6, §8). Null is a free-form game |
 | `archived` | INTEGER NOT NULL DEFAULT 0 | |
 | `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
 | `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |

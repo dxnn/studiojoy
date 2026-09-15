@@ -80,7 +80,10 @@ test('the standard set lists files that exist, and the example uses only those',
     assert.ok(LANDS[entry.file.split('/')[0]], `${entry.file} has somewhere to land`);
   }
   const listed = new Set(ART.art.map((a) => a.file));
-  for (const used of ART.examples.mila.uses) assert.ok(listed.has(used), used);
+  // Every example — the story's and the adventure's — uses only what is listed.
+  for (const example of Object.values(ART.examples)) {
+    for (const used of example.uses) assert.ok(listed.has(used), used);
+  }
 });
 
 test('edits round-trip, quotes, about and all', () => {

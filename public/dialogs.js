@@ -28,6 +28,7 @@ import { loadStudio, studioChange } from './people.js';
 import { clearScores } from './scoreboard.js';
 import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
+import { ADVENTURE_FILE, discardAdventure, saveAdventure } from './adventure-form.js';
 import { renderShelfDialog, artCredit, asPng } from './story-guide.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { discardAchievements, saveAchievements } from './achievements-form.js';
@@ -1581,6 +1582,21 @@ export function dialogFor(d) {
         h('button', {
           class: 'filled', text: 'Keep mine',
           onclick: async () => { close(); await saveStory({ force: true }); },
+        })));
+  }
+
+  // And for the adventure editor.
+  if (d.kind === 'adventure-conflict') {
+    return wrap('The adventure changed while you were editing',
+      h('p', { text: `A helper saved ${ADVENTURE_FILE} after you started. Which adventure do you want to keep?` }),
+      h('div', { class: 'actions' },
+        h('button', {
+          class: 'quiet', text: 'Keep theirs',
+          onclick: async () => { close(); await discardAdventure(); },
+        }),
+        h('button', {
+          class: 'filled', text: 'Keep mine',
+          onclick: async () => { close(); await saveAdventure({ force: true }); },
         })));
   }
 

@@ -190,6 +190,42 @@ export const ARCS = {
     PLAYED,
     OUT,
   ],
+  adventure: [
+    stamp(
+      'somewhere', 'Somewhere to stand',
+      'A place to start, with a picture, and one thing in it to click on.',
+      'An adventure is a place before it is a puzzle.',
+      [
+        { text: 'a place in assets/images/', test: (f) => has(f.files, under('assets/images')) },
+        { text: 'the scenes in config/scenes.js', test: (f) => has(f.files, is('config/scenes.js')) },
+      ],
+      [ask('The first scene', 'Describe the first scene in one sentence, and what there is to click on in it: ')],
+    ),
+    stamp(
+      'locked', 'Something is locked',
+      'A door that will not open until you have found the thing that opens it.',
+      'A puzzle is a question the room asks and an answer the room hides.',
+      [{ text: 'a thing in assets/sprites/', test: (f) => has(f.files, under('assets/sprites')) }],
+      [ask('A key', 'Add a thing to pick up in one scene, and a door in another that only opens once it is carried.')],
+    ),
+    stamp(
+      'ends', 'It ends',
+      'A way through to the last scene, however long it takes.',
+      'A player who cannot tell whether they are done will stop anyway.',
+      [],
+      [ask('An ending', 'Give the adventure a last scene the player can reach, with nothing left to click on.')],
+    ),
+    LOOKS,
+    stamp(
+      'answers', 'Everything answers',
+      'Click anywhere and something is said — the room is never silent.',
+      'The worst answer in an adventure is nothing; the second worst is "Nothing happens."',
+      [{ text: 'a sound in assets/sounds/', test: (f) => has(f.files, under('assets/sounds')) }],
+      [ask('More to say', 'Add a spot that says something for every big thing in every picture.')],
+    ),
+    PLAYED,
+    OUT,
+  ],
 };
 
 // A type's arc. A game with no type takes the arcade's with "What is it?" in

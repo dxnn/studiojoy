@@ -103,15 +103,19 @@ test('a portrait says who it is and what mood, and nothing else does', () => {
   }
 });
 
-test('every example is a story the guide can put in, using art the set lists', () => {
+test('every example is a story or an adventure a guide can put in, using art the set lists', () => {
   const listed = new Set(index.art.map((a) => a.file));
   const examples = Object.entries(index.examples ?? {});
   assert.ok(examples.length > 0, 'there is at least one example');
   for (const [key, example] of examples) {
-    for (const field of ['title', 'what', 'story']) {
+    for (const field of ['title', 'what']) {
       assert.equal(typeof example[field], 'string', `${key}: ${field}`);
     }
-    assert.ok(fs.existsSync(new URL(example.story, DIR)), `${key}: ${example.story} is on disk`);
+    // A story names its story file, an adventure its scenes file: one each.
+    const file = example.story ?? example.scenes;
+    assert.equal(typeof file, 'string', `${key}: story or scenes`);
+    assert.ok(!(example.story && example.scenes), `${key}: one kind, not two`);
+    assert.ok(fs.existsSync(new URL(file, DIR)), `${key}: ${file} is on disk`);
     assert.ok(Array.isArray(example.uses) && example.uses.length > 0, `${key}: uses art`);
     for (const file of example.uses) {
       // Listed as well as present: the guide copies an example's files by

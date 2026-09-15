@@ -8,6 +8,7 @@ import {
 import { dropArtIndex } from './story-guide.js';
 import { applyReactionDelta } from './chat.js';
 import { STORY_FILE, storyChanged, dropStageImages } from './story-form.js';
+import { ADVENTURE_FILE, adventureChanged } from './adventure-form.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { achievementsChanged } from './achievements-form.js';
 import { stickToBottom } from './chats.js';
@@ -429,6 +430,7 @@ function onEvent(name, data) {
         tree.then(loadReservedImages).then(render);
       }
       if (hasEditor('story') && data.paths.includes(STORY_FILE)) tree.then(storyChanged);
+      if (hasEditor('adventure') && data.paths.includes(ADVENTURE_FILE)) tree.then(adventureChanged);
       if (S.achievements && data.paths.includes(ACHIEVEMENTS_FILE)) tree.then(achievementsChanged);
       dropStageImages(data.paths);
       // A helper changing the game's colours retints the studio. Not while

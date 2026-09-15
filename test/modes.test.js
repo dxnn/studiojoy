@@ -35,7 +35,9 @@ test('⚠️ the ids are the code\'s own words, whatever the pills say', () => {
 test('a type\'s editors sit after the chat, keeping their plain names', () => {
   assert.deepEqual(labelsOf(game('visual-novel')).slice(0, 2), ['Speak', 'Write']);
   assert.deepEqual(labelsOf(game('quiz')).slice(0, 2), ['Speak', 'Questions']);
+  assert.deepEqual(labelsOf(game('adventure')).slice(0, 2), ['Speak', 'Scenes']);
   assert.deepEqual(idsOf(game('visual-novel')).slice(0, 2), ['chat', 'story']);
+  assert.deepEqual(idsOf(game('adventure')).slice(0, 2), ['chat', 'adventure']);
   assert.equal(editorsFor(null).length, 0, 'a free-form game brings none');
 });
 

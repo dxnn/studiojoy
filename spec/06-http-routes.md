@@ -709,7 +709,8 @@ the rest are Share.
 
 **Pics and Hear are the game's files by kind, not by folder.** Pics is
 cards: for a visual novel, **Characters** (one per *cast* member, first
-mood) over **Places** (backgrounds, with scene counts); for every game,
+mood) over **Places** (backgrounds, with scene counts); for an *adventure*,
+**Places** then **Things** (the pictures its spots pick up); for every game,
 **Sprites** (first frame), **Pictures**, the three *reserved images* under
 **Studio dressing**, and **Other pictures** last, so nothing the tree holds
 is missing. ⚠️ A card pressed **once** opens full width in the *pixel
@@ -940,10 +941,11 @@ libraries, neither input nor sprites.
 
 ⚠️ It came before the point-and-click adventure on purpose: the two share
 scenes and switches, but an adventure's spots are rectangles on a picture and
-agents cannot see pictures (§14) — a visual novel has no coordinates
-anywhere, so nothing about it is blocked on eyes. Building it first also
-settled the vocabulary the adventure inherits, `set`/`need` rather than the
-sketch's `flip`.
+agents could not see pictures then (§14; they can since 2026-09-12, and still
+cannot measure one) — a visual novel has no coordinates anywhere, so nothing
+about it was blocked on eyes. Building it first also settled the vocabulary
+the adventure inherits, `set`/`need` rather than the sketch's `flip`. The
+adventure itself is at the end of this section.
 
 A visual novel is the first **game type** (§3), edited in the **story
 editor** — an *editor* in the centre pane, with TyranoBuilder's three regions
@@ -1372,6 +1374,68 @@ by every later render rather than rebuilt — a background render (a helper's
 commit landing, the banner timer firing) used to replace the form and wipe
 what was being typed into it. Focus and caret are snapshotted across a render
 for a dialog's controls the same way as for the composer.
+
+#### The point-and-click adventure
+
+The **adventure** is the fourth template (`public/game-templates/adventure/`,
+key `adventure`, built 2026-09-15 from ideas/point-and-click.md). Its heart
+is `config/scenes.js`, `SCENES` alone: each **scene** a `picture`, an
+optional `about`, and its **spots** — a box on the picture,
+`at: [x, y, width, height]` in the picture's own pixels, and exactly one of
+`go` (to a scene), `say` (a line, or a list read one at a time) or `take`
+(an **item**, which may `say` as it goes). Any spot may `need` a *switch*,
+`set` one, and play a `sound`; a take is gone once taken unless `keep: true`,
+and taking an item sets a switch of the item's own name, so a locked door
+`need`s the key by name. A click lands on the first spot, top to bottom,
+whose box holds the point and whose need is met — two spots on one box with
+different needs are a door locked and then not — or on nothing, and the box
+says *Nothing happens.* What the player carries is a strip in the top corner:
+`assets/sprites/<item>.png`, or the word until there is one. A scene with no
+spots is the end, the visual novel's rule reused rather than a key added. DOM
+like the story: the picture is an `<img>` drawn to fit, and `js/adventure.js`
+lays its spots layer over exactly the drawn part of it, so a click's place in
+the layer is a place in the picture's pixels on any screen. It fixes the null
+*control scheme* — the pointer is the control and a touchscreen needs nothing
+drawn — and the pad-driven cursor stays a TODO line of the input library's.
+Ships empty and pictureless; the **example**, *The Key and the Cake*
+(`story-art/examples/key-adventure.js`, `examples.key` in the set's index),
+is four scenes on the standard set's porch, hall, kitchen and dawn sky, with
+a plain *stand-in* drawn for each of its two items when it is put in.
+
+The **adventure editor** (`public/adventure-editor.js` the model,
+`public/adventure-form.js` the interface, the **Scenes** mode) is the story
+editor's three regions with the stage doing more. The strip: every scene
+with its problems and its tail (*3 spots* / *the end*), then the **Things** —
+the items, each saying whether it has a picture. The **stage** is the scene's
+picture with every spot drawn on it as a box in the game's primary colour,
+sized by the editor to the biggest box of the picture's shape that fits so
+the picture fills it exactly and a box's percentages are the picture's own
+pixels; **dragging a box on the picture makes a spot**, dragging a box's
+middle moves it, its corner grip resizes it, and a tap on one opens its row.
+Under it one row per spot — *goes to* / *says* / *picks up*, then its target,
+its words or its item, then *only if*, *remembers* and a sound — and the
+scene's problems; the bar carries the whisper, *Show the text* and *Try this
+scene*. The rail holds the scene's name, ways in, note and picture (with
+*Pick a picture…* to the shelf and the picture's size), an item's picture
+with *Draw one* / *Pick a thing…*, or the title screen's two lines. It saves
+itself like the story's, regenerates the file (byte-identical on an untouched
+save), parks unsaved edits per game, and has its own conflict dialog. ⚠️ The
+checks read the whole graph and what the editor has learned of the pictures'
+sizes: a scene nothing leads to, a `go` to a scene that is gone, a switch
+nothing sets, an item with no picture (said by the path it wants), a sound
+not in the game, a spot under an earlier one asking for the same thing (the
+first wins every time, so it can never be clicked — different needs are the
+locked door and fine), and **a spot off the edge of its picture**, the one a
+picture replaced by a smaller one causes. Its guide asks where the adventure
+starts, what that looks like (the shelf, Draw it, Upload one, a plain card —
+no *Make one for me*, which is the story's), what is there to click on
+(answered on the stage, or *The adventure ends here*), then every scene a
+spot leads to but nobody has made, then a picture for each item. Pics shows
+an adventure's **Places** then its **Things**. ⚠️ Helpers are told what a
+spot is and **never to write or change an `at`** (§8): a helper can look at
+a picture and cannot measure it, and a box guessed from a look is
+confidently wrong, so it adds a spot with any other change and asks the
+person to drag its box into place.
 
 ### Games origin (`GAMES_PORT`)
 

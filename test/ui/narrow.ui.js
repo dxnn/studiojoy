@@ -21,7 +21,9 @@ import { openStudio, pageFor } from './browser.js';
 const EVERY_GAME = ['chat', 'pics', 'hear', 'controls', 'code', 'versions', 'share'];
 
 // What each template adds in front of those.
-const TYPED = { 'visual-novel': ['story'], quiz: ['quiz'], arcade: [] };
+const TYPED = {
+  'visual-novel': ['story'], quiz: ['quiz'], arcade: [], adventure: ['adventure'],
+};
 
 // The document's own width against the viewport's, and — only if it has
 // overflowed — what is sticking out, because otherwise a failure is a riddle.

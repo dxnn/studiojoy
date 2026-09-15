@@ -19,6 +19,12 @@
       "what": "Scenes, people talking, and choices that lead somewhere else. Write it in the story editor: no code needed.",
       "heart": "config/story.js",
       "scheme": "none"
+    },
+    "adventure": {
+      "title": "A point-and-click adventure",
+      "what": "Pictures with things to click on: doors, keys, people. Draw a box on the picture to make one — no code needed.",
+      "heart": "config/scenes.js",
+      "scheme": "none"
     }
   }
 }

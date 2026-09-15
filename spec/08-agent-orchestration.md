@@ -273,7 +273,10 @@ what prompt caching pays for (below):
    a section for the game's *type* when it has one — a visual
    novel is told what `config/story.js` is, that the person writes it in the
    "story editor" tab beside the chat, and that a picture is asked for by the
-   name the story gives it — and a note that games run on a separate origin so
+   name the story gives it; an *adventure* is told what a *spot* is and ⚠️
+   never to write or change one's `at`, because a helper can look at a
+   picture and cannot measure it, so the box is the person's to drag in the
+   "adventure editor" — and a note that games run on a separate origin so
    absolute URLs back to the studio will not resolve. Fixed per project rather
    than per fire, so it caches like the rest.
 2. `BRIEF.md`'s content, if the file exists, cut to `BRIEF_BYTES` with a note

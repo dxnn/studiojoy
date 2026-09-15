@@ -95,9 +95,10 @@ test('a template that fixes its scheme names a real one', () => {
     if (t.scheme === undefined) continue;
     assert.ok(schemes[t.scheme], `${key} fixes a scheme that exists`);
   }
-  // Both templates that ship are made of buttons, so both fix the null
+  // The templates that are pressed rather than steered fix the null
   // controller: a quiz drawing an analog stick over its answers was the bug
-  // that made the picker worth building.
+  // that made the picker worth building, and an adventure is the pointer.
   assert.equal(templates.quiz.scheme, 'none');
   assert.equal(templates['visual-novel'].scheme, 'none');
+  assert.equal(templates.adventure.scheme, 'none');
 });

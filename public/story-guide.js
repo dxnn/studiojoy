@@ -137,7 +137,9 @@ const look = () => ({
   deep: S.look.deep ?? '#191033',
 });
 
-function plainCard({ width, height, label, face }) {
+// Shared with the adventure editor's guide, which stands in a place or a
+// thing the same way.
+export function plainCard({ width, height, label, face }) {
   const colours = look();
   const canvas = document.createElement('canvas');
   canvas.width = width;

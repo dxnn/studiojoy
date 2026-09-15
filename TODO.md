@@ -49,10 +49,6 @@ deliberately deferred.
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, with a map editor over `config/world.js`
   where one fits (ideas/templates.md)
-- ! the point-and-click adventure template and its editor — ⚠️ re-read
-  ideas/point-and-click.md before building it. Its reason for making the spot
-  picker the editor rather than a follow-up was that a helper cannot see a
-  picture, and since 2026-09-12 one can (`look_at`, spec/ §8)
 - ! the racing template: laps against rivals, and a track editor you draw
   with a finger over `config/track.js` (ideas/racing-template.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks

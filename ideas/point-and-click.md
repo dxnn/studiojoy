@@ -1,5 +1,14 @@
 # The point-and-click adventure: scenes with spots on them
 
+Built 2026-09-15; spec/ §6 ("Game templates") is now the record and this is
+the reasoning behind it. Three things settled differently from below: the
+editor's pill says **Scenes**; a scene with **no spots is the end**, the
+visual novel's own rule rather than a new key; and the template fixes the
+null *control scheme* rather than shipping `SCHEME = "point-and-click"`, since
+the pad-driven cursor is its own TODO line. A helper is told never to write a
+spot's `at`, which is the "reviewer, not author" answer to the half-gone
+constraint below.
+
 (Dann, 2026-09-01: "New template: point and click". The sketch in
 ideas/templates.md dates from before the visual novel; this is that sketch
 brought up to what the story editor settled.)

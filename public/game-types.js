@@ -22,6 +22,7 @@
 
 import { renderStoryEditor } from './story-form.js';
 import { renderQuizEditor } from './quiz-form.js';
+import { renderAdventureEditor } from './adventure-form.js';
 
 export const GAME_TYPES = {
   'visual-novel': {
@@ -38,6 +39,14 @@ export const GAME_TYPES = {
       label: 'Questions',
       what: 'Every question, its answers and the endings — no code needed',
       render: renderQuizEditor,
+    }],
+  },
+  adventure: {
+    editors: [{
+      id: 'adventure',
+      label: 'Scenes',
+      what: 'Every scene and the spots on its picture — draw a box to make one, no code needed',
+      render: renderAdventureEditor,
     }],
   },
 };

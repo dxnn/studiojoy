@@ -377,6 +377,23 @@ function studioPreamble({
       'for words or for art has a button for it, and neither one needs you.',
     );
   }
+  if (project.type === 'adventure') {
+    lines.push(
+      '',
+      'This game is a point-and-click adventure. The whole adventure is config/scenes.js — SCENES, each a',
+      'picture and its spots: a box on the picture, at: [x, y, width, height] in the picture\'s own pixels,',
+      'doing one thing when clicked (go to a scene, say a line or a list of lines, or take a thing the',
+      'player then carries), with need and set for switches and sound for a noise — and the person makes it',
+      'in the "adventure editor" — Scenes, in the row of modes over this chat — which draws every spot as a',
+      'box on the picture. ⚠️ Never write or change an "at": you can look at a picture but you cannot',
+      'measure it, and a box guessed from a look is confidently wrong. Add a spot with any other change to',
+      'it and ask the person to drag its box into place in the studio; leave the boxes they drew alone.',
+      'A scene\'s picture is its path under assets/images/; a thing\'s picture is assets/sprites/<thing>.png,',
+      'shown among what the player carries, and the word until there is one. A scene with no spots is the',
+      'end. js/adventure.js is how the adventure is played and css/style.css how it looks; a request about',
+      'what happens is config/scenes.js alone.',
+    );
+  }
   // Where the game is on its arc (public/arc.js, spec.md §6), so a helper's
   // suggestions fit the stamp the person is working towards and it can say
   // when a request belongs to a later one. One line, changing only when a

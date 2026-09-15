@@ -23,6 +23,10 @@ import {
   loadStory, parkStory, saveStory, dropStageImages, selectScene,
   renderStoryInspector,
 } from './story-form.js';
+import {
+  loadAdventure, parkAdventure, saveAdventure, dropAdventureSizes, selectAdventureScene,
+  renderAdventureInspector,
+} from './adventure-form.js';
 import { editorsFor, modesFor } from './game-types.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
@@ -107,6 +111,9 @@ export const S = {
   // dirty, scene, step, person}, {grown: reason} when the file will not read
   // as a story, or null (story-form.js).
   story: null,
+  // The adventure editor's, the same shape: {text, etag, model, dirty, scene,
+  // spot, item, title}, {grown: reason}, or null (adventure-form.js).
+  adventure: null,
   // The achievements editor's state once Share has been opened: {text, etag, model,
   // dirty}, {grown: reason} when the file will not read as achievements, or
   // null (achievements-form.js).
@@ -275,8 +282,10 @@ export const EDITOR_AREA = 'editor-area';
 export const SIDE_SEARCH = 'side-find';
 // The story editor's fields are every one of these too: a helper's reply
 // landing behind the editor renders, and the line being typed must not lose
-// its caret to it. They carry ids starting story-.
-const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH || Boolean(id?.startsWith('story-'));
+// its caret to it. They carry ids starting story-; the adventure editor's,
+// adventure-.
+const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH
+  || Boolean(id?.startsWith('story-')) || Boolean(id?.startsWith('adventure-'));
 
 function focusSnapshot() {
   const el = document.activeElement;
@@ -493,7 +502,10 @@ export const editorShowing = () => editorsFor(S.project?.type).find((e) => e.id 
 export function showMode(id) {
   const mode = modeOf(id) ?? 'chat';
   if (S.slug && S.mode !== mode) {
-    (S.story?.dirty ? saveStory() : Promise.resolve()).then(() => commitNow());
+    Promise.all([
+      S.story?.dirty ? saveStory() : null,
+      S.adventure?.dirty ? saveAdventure() : null,
+    ]).then(() => commitNow());
   }
   S.mode = mode;
   S.menu = null;
@@ -603,6 +615,10 @@ function urlNow() {
       const first = S.story?.model?.scenes[0]?.key;
       if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
     }
+    if (S.mode === 'adventure') {
+      const first = S.adventure?.model?.scenes[0]?.key;
+      if (S.adventure?.scene && S.adventure.scene !== first) q.set('scene', S.adventure.scene);
+    }
     if (['code', 'pics', 'hear'].includes(S.mode) && S.open) q.set('file', S.open.path);
     if (S.mode === 'versions') {
       if (S.historyPath) q.set('file', S.historyPath);
@@ -691,6 +707,9 @@ async function applyView({
   // story was loaded, parked edits and their place included.
   if (want === 'story' && scene !== undefined) {
     selectScene(scene ?? S.story?.model?.scenes[0]?.key);
+  }
+  if (want === 'adventure' && scene !== undefined) {
+    selectAdventureScene(scene ?? S.adventure?.model?.scenes[0]?.key);
   }
   if (isChat()) return;
   const path = file ?? null;
@@ -821,6 +840,8 @@ export async function openProject(slug, { view = null } = {}) {
   // put back on return while the file is still the one they were made on.
   if (S.story?.dirty) await saveStory();
   parkStory();
+  if (S.adventure?.dirty) await saveAdventure();
+  parkAdventure();
   parkAchievements();
 
   // Colours changed in the editor belong to the game being left, so they go in
@@ -833,9 +854,11 @@ export async function openProject(slug, { view = null } = {}) {
   S.mode = 'chat';
   S.menu = null;
   S.story = null;
+  S.adventure = null;
   S.achievements = null;
   S.tryScene = null;
   dropStageImages();
+  dropAdventureSizes();
 
   if (!slug) {
     S.slug = null;
@@ -935,6 +958,7 @@ export async function openProject(slug, { view = null } = {}) {
     // And the story, when this game has the editor for it — before applyView,
     // so ?edit= and ?scene= have something to land on.
     if (hasEditor('story')) await loadStory();
+    if (hasEditor('adventure')) await loadAdventure();
     render();
   }
   // A game remembered on Share has to fetch what Share shows now. Waiting for
@@ -1219,6 +1243,7 @@ function renderRail() {
 // editor.
 function renderInspector() {
   if (editorShowing()?.id === 'story') return renderStoryInspector();
+  if (editorShowing()?.id === 'adventure') return renderAdventureInspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
   return renderGameSummary();
 }
@@ -1453,5 +1478,6 @@ window.addEventListener('pagehide', () => {
     }
   }
   if (S.story?.dirty) saveStory({ keepalive: true });
+  if (S.adventure?.dirty) saveAdventure({ keepalive: true });
   commitNow(S.slug, { keepalive: true });
 });

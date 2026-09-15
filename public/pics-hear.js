@@ -7,6 +7,7 @@ import {
   SPRITE_DIR, IMAGE_DIR, SOUND_DIR, MUSIC_DIR, pickToUpload,
 } from './upload.js';
 import { pictureInto, playButton, renderPersonInspector } from './story-form.js';
+import { itemsOf, itemPath } from './adventure-editor.js';
 import {
   S, frozen, sizeText, render, hasEditor,
 } from './main.js';
@@ -126,10 +127,27 @@ export function renderPicsMode() {
       });
     })));
   }
+  // An adventure shows its Places the same way, then the Things a spot can
+  // pick up — each the picture the game shows among what the player carries.
+  const adventure = hasEditor('adventure') ? S.adventure?.model : null;
+  if (adventure) {
+    const scenesUsing = (p) => adventure.scenes.filter((s) => s.picture === p).length;
+    parts.push(...section('Places', pictures.filter((f) => inDir(f, IMAGE_DIR)).map((f) => {
+      const n = scenesUsing(take(f).path);
+      return pictureCard({
+        path: f.path, name: baseName(f.path), sub: n ? `in ${plural(n, 'scene')}` : 'not in a scene yet',
+      });
+    })));
+    const things = itemsOf(adventure).map(itemPath).filter((p) => covered.has(p) || pictures.some((f) => f.path === p));
+    parts.push(...section('Things', things.map((p) => {
+      const f = pictures.find((x) => x.path === p);
+      return pictureCard({ path: take(f).path, name: baseName(p), sub: 'picked up in the game' });
+    })));
+  }
   parts.push(...section('Sprites', pictures
     .filter((f) => inDir(f, SPRITE_DIR) && !covered.has(f.path))
     .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: sizeText(f.size), strip: true }))));
-  if (!story) {
+  if (!story && !adventure) {
     parts.push(...section('Pictures', pictures.filter((f) => inDir(f, IMAGE_DIR))
       .map((f) => pictureCard({ path: take(f).path, name: baseName(f.path), sub: sizeText(f.size) }))));
   }

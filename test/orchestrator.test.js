@@ -800,6 +800,30 @@ test('a visual novel tells its helpers what the story file is', async (t) => {
   assert.match(system, /\{ sound: "page" \} between two spoken lines/);
 });
 
+// An adventure's helpers are told what a spot is and, above all, never to
+// write one's box: a helper can look at a picture but cannot measure it, so
+// the numbers come from the person dragging a box in the editor.
+test('an adventure tells its helpers what a spot is and not to type its box', async (t) => {
+  const llm = createFakeLlm([says('ok')]);
+  const { app } = await studio(t, { llm });
+  app.db.prepare("UPDATE projects SET type = 'adventure' WHERE slug = 'tank'").run();
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'add a key');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /This game is a point-and-click adventure/);
+  assert.match(system, /"adventure editor" — Scenes, in the row of modes over this chat/);
+  assert.match(system, /at: \[x, y, width, height\] in the picture's own pixels/);
+  assert.match(system, /Never write or change an "at"/);
+  assert.match(system, /assets\/sprites\/<thing>\.png/);
+  assert.match(system, /A scene with no spots is the\s+end/);
+  assert.match(system, /a request about\s+what happens is config\/scenes\.js alone/);
+  assert.ok(!system.includes('This game is a visual novel'), 'one type section, not two');
+});
+
 // The four asset folders, by name: a helper that has not been told about
 // assets/music/ has nowhere to put a track, and one that thinks a plain name
 // resolves there writes a path that never loads.

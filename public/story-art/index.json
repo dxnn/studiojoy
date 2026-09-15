@@ -57,6 +57,16 @@
         "portraits/mila-happy.png", "portraits/mila-worried.png", "portraits/cat-there.png",
         "sounds/page.wav"
       ]
+    },
+    "key": {
+      "title": "The Key and the Cake",
+      "what": "Four scenes, a locked door, a key, a cake, and a way out.",
+      "scenes": "examples/key-adventure.js",
+      "uses": [
+        "backgrounds/porch.png", "backgrounds/hall.png", "backgrounds/kitchen.png",
+        "backgrounds/dawn-sky.png"
+      ],
+      "items": ["key", "cake"]
     }
   }
 }
