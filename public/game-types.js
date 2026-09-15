@@ -23,6 +23,7 @@
 import { renderStoryEditor } from './story-form.js';
 import { renderQuizEditor } from './quiz-form.js';
 import { renderAdventureEditor } from './adventure-form.js';
+import { renderTrackEditor } from './track-form.js';
 
 export const GAME_TYPES = {
   'visual-novel': {
@@ -47,6 +48,14 @@ export const GAME_TYPES = {
       label: 'Scenes',
       what: 'Every scene and the spots on its picture — draw a box to make one, no code needed',
       render: renderAdventureEditor,
+    }],
+  },
+  racing: {
+    editors: [{
+      id: 'track',
+      label: 'Track',
+      what: 'The track, drawn by dragging its points, and what sits on the road — no code needed',
+      render: renderTrackEditor,
     }],
   },
 };

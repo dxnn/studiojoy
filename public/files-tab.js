@@ -14,6 +14,7 @@ import { isControlsPath, controlsModel } from './controls-editor.js';
 import { renderControlsForm } from './controls-form.js';
 import { isStoryPath } from './story-editor.js';
 import { isAdventurePath } from './adventure-editor.js';
+import { isTrackPath } from './track-editor.js';
 import { isAchievementsPath } from './achievements-editor.js';
 import {
   S, render, frozen, sizeText, more, EDITOR_AREA, showMode, hasEditor, encodePath,
@@ -309,6 +310,7 @@ export function renderOpenFile() {
     // second thing writing the same file.
     const inEditor = (isStoryPath(S.open.path) && hasEditor('story'))
       || (isAdventurePath(S.open.path) && hasEditor('adventure'))
+      || (isTrackPath(S.open.path) && hasEditor('track'))
       || isAchievementsPath(S.open.path);
     const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)

@@ -1437,6 +1437,70 @@ a picture and cannot measure it, and a box guessed from a look is
 confidently wrong, so it adds a spot with any other change and asks the
 person to drag its box into place.
 
+#### The racing game
+
+The **racing template** is the fifth (`public/game-templates/racing/`, key
+`racing`, "A racing game", built 2026-09-15 from ideas/racing-template.md):
+laps on a closed track against rivals, with the track the thing a kid most
+wants to change. Its heart is `config/track.js`: `TRACK` — `width`, the
+`points` the road passes through in order in the game's own 960 × 600
+world, closing back to the first on its own, and `start`, which point the
+start line sits at — and `THINGS`, what sits on the road, each a `kind`
+(`rock`, `boost`, `puddle`), an `at` and a `size`. The road is the closed
+polyline through the points stroked `width` wide, and **one distance test is
+the whole physics of "off the track"**: a car, or a thing, is on the road
+when it is within half the width of the nearest segment — the same test the
+editor's checks read, so the game and the editor agree. `config/play.js` is
+the feel (turn, thrust, drag, top and boost speed, the rivals' speed and
+wobble, what the grass, a rock, a pad and a puddle do, laps, the countdown,
+par and place points); `config/words.js` the words and the place names;
+`config/look.js` the four colours, the road's and the size. ⚠️ It is the one
+template that **ships its own `config/controls.js`** — `buttons`, with
+`left`/`right` as the big pair under one thumb and `GO` plus a latching
+`BOOST` under the other — because no seed says those words; the registry
+fixes the same scheme, the seed lands first and the template's copy lands
+over it, which is also what an explicit `scheme` on creation is overwritten
+by. `js/race.js` measures the road once (each segment's length and where it
+starts round the loop), draws it once to its own canvas, counts a lap when
+the car's progress wraps forwards past the start and uncounts one backwards,
+runs rivals down the centreline in lanes with a wobble and rubber-banding,
+and finishes on `Screens.title` with `post` and `board`: the score is ten
+points a second under `PAR` plus `PLACE_POINTS` a rival beaten, bigger being
+better on the board. Moments: `lap`, `bash`, `boost`, `finished` (the time),
+`place`, `score`; the shipped achievements are rules over them. Its four
+sounds — `engine` looped while GO is held, `bash`, `boost`, `lap` — are made
+by the studio's own sound maker so each opens in the sound editor; a car
+drawn at `assets/sprites/car.png` replaces the triangle. `test/racing-
+template.test.js` holds the shape: every studio call in its place, every
+verb the game asks for bound in its own controls file, every achievement
+over a moment it says, and the shipped track one the editor reads clean.
+
+The **track editor** (`public/track-editor.js` the model and geometry,
+`public/track-form.js` the interface, the **Track** mode) is the canvas: the
+game's world, drawn by the studio from the unsaved model — the road at its
+width, the start line, what is on it — with the **points as handles**, a
+thumb's size on screen whatever the canvas is scaled to. Drag a handle to
+move it; click on the road between two handles to add a point there, already
+in hand; drag a rock, a pad or a puddle to move it; Delete takes the selected
+one out, never below three points. The column beside it holds the width as a
+slider, how long the loop is, **On the road** — a row per thing and a button
+to drop each kind, landing on the road nearest the middle — and the checks;
+the rail holds the selected point's or thing's own numbers, *Start here*, and
+the way to take it out. ⚠️ **Explicit Save**, unlike the story's and the
+adventure's: a half-dragged track is a race nobody can finish, and Save is
+what puts the preview on the new road; *Try it* saves first. Regenerates the
+file (byte-identical on an untouched save), parks unsaved edits per game,
+`if-match` and a conflict dialog on 409. Its checks are what only the whole
+track can say: the road **crosses itself** (two non-neighbouring segments
+intersect, drawn in crimson where they do), a segment **shorter than the road
+is wide** (a kink), a thing **off the road** where no car can meet it, the
+start on a point that is gone, and — when `config/play.js` reads in the plain
+shape — a track so short a rival laps it before the countdown ends. Helpers
+are told the track is drawn and **never to type or change the points** (§8):
+a track written from numbers is a track nobody drove. The interface says
+**On the road** for what the file calls `THINGS`, because *thing* is already
+the interface's word for a picture a spot picks up or a sprite on the shelf.
+
 ### Games origin (`GAMES_PORT`)
 
 | method | path | effect |

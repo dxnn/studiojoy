@@ -394,6 +394,20 @@ function studioPreamble({
       'what happens is config/scenes.js alone.',
     );
   }
+  if (project.type === 'racing') {
+    lines.push(
+      '',
+      'This game is a racing game: laps around a closed track against rivals. The track is config/track.js',
+      '— TRACK, the points the road passes through in the game\'s own 960 by 600 world, how wide it is and',
+      'where the start line sits, and THINGS, the rocks, boost pads and puddles on it — and the person draws',
+      'it in the "track editor" — Track, in the row of modes over this chat — by dragging its points. ⚠️ Never',
+      'type or change the points: a track is drawn, and one you wrote from numbers is a track nobody drove.',
+      'Tune how it drives in config/play.js — turn, thrust, drag, top speed, the rivals, laps, the countdown,',
+      'what scores — which is where a request about the feel of the race goes. js/race.js is the race itself:',
+      'the road measured once, the car, the rivals, the things, laps and the finish; a car drawn at',
+      'assets/sprites/car.png replaces the triangle.',
+    );
+  }
   // Where the game is on its arc (public/arc.js, spec.md §6), so a helper's
   // suggestions fit the stamp the person is working towards and it can say
   // when a request belongs to a later one. One line, changing only when a

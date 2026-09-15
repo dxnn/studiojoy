@@ -824,6 +824,26 @@ test('an adventure tells its helpers what a spot is and not to type its box', as
   assert.ok(!system.includes('This game is a visual novel'), 'one type section, not two');
 });
 
+// A racing game's helpers are told the track is drawn and never to type its
+// points, and where the feel of the race lives.
+test('a racing game tells its helpers the track is drawn, not typed', async (t) => {
+  const llm = createFakeLlm([says('ok')]);
+  const { app } = await studio(t, { llm });
+  app.db.prepare("UPDATE projects SET type = 'racing' WHERE slug = 'tank'").run();
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, 'make the rivals faster');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  const { system } = llm.lastCall();
+  assert.match(system, /This game is a racing game/);
+  assert.match(system, /"track editor" — Track, in the row of modes over this chat/);
+  assert.match(system, /Never\s+type or change the points/);
+  assert.match(system, /config\/play\.js — turn, thrust, drag/);
+  assert.match(system, /assets\/sprites\/car\.png replaces the triangle/);
+});
+
 // The four asset folders, by name: a helper that has not been told about
 // assets/music/ has nowhere to put a track, and one that thinks a plain name
 // resolves there writes a path that never loads.

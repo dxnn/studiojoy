@@ -49,8 +49,6 @@ deliberately deferred.
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, with a map editor over `config/world.js`
   where one fits (ideas/templates.md)
-- ! the racing template: laps against rivals, and a track editor you draw
-  with a finger over `config/track.js` (ideas/racing-template.md)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The *height* complaint only — sideways is
   checked now and clean (`test/ui/narrow.ui.js`), so what is left is what a

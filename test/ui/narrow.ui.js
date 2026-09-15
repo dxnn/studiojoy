@@ -22,7 +22,7 @@ const EVERY_GAME = ['chat', 'pics', 'hear', 'controls', 'code', 'versions', 'sha
 
 // What each template adds in front of those.
 const TYPED = {
-  'visual-novel': ['story'], quiz: ['quiz'], arcade: [], adventure: ['adventure'],
+  'visual-novel': ['story'], quiz: ['quiz'], arcade: [], adventure: ['adventure'], racing: ['track'],
 };
 
 // The document's own width against the viewport's, and — only if it has

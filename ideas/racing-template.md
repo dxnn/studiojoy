@@ -1,5 +1,14 @@
 # The racing template: a track you can draw with your finger
 
+Built 2026-09-15; spec/ §6 ("Game templates") is now the record and this is
+the reasoning behind it. Three things settled differently from below: the
+editor's pill says **Track**; what the file calls `THINGS` the interface calls
+**On the road** and the glossary a *road thing*, because *thing* had become
+the adventure's word for an item; and the camera is fixed — the whole 960 ×
+600 world is on screen, which is also what the editor draws — rather than
+following the car. The template ships its own `config/controls.js`, as
+planned, so an explicit scheme on creation is overwritten by it.
+
 (Dann, 2026-09-01: "New template: racing game".) The fourth *game template*,
 after the quiz, the visual novel and — still queued — the move-and-collect and
 the point-and-click adventure (ideas/templates.md, ideas/point-and-click.md).

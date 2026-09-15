@@ -27,6 +27,7 @@ import {
   loadAdventure, parkAdventure, saveAdventure, dropAdventureSizes, selectAdventureScene,
   renderAdventureInspector,
 } from './adventure-form.js';
+import { loadTrack, parkTrack, renderTrackInspector } from './track-form.js';
 import { editorsFor, modesFor } from './game-types.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
@@ -114,6 +115,10 @@ export const S = {
   // The adventure editor's, the same shape: {text, etag, model, dirty, scene,
   // spot, item, title}, {grown: reason}, or null (adventure-form.js).
   adventure: null,
+  // The track editor's: {text, etag, model, play, dirty, selected}, {grown:
+  // reason}, or null (track-form.js). Explicit Save, so `dirty` is what the
+  // Save button reads.
+  track: null,
   // The achievements editor's state once Share has been opened: {text, etag, model,
   // dirty}, {grown: reason} when the file will not read as achievements, or
   // null (achievements-form.js).
@@ -285,7 +290,8 @@ export const SIDE_SEARCH = 'side-find';
 // its caret to it. They carry ids starting story-; the adventure editor's,
 // adventure-.
 const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH
-  || Boolean(id?.startsWith('story-')) || Boolean(id?.startsWith('adventure-'));
+  || Boolean(id?.startsWith('story-')) || Boolean(id?.startsWith('adventure-'))
+  || Boolean(id?.startsWith('track-'));
 
 function focusSnapshot() {
   const el = document.activeElement;
@@ -842,6 +848,8 @@ export async function openProject(slug, { view = null } = {}) {
   parkStory();
   if (S.adventure?.dirty) await saveAdventure();
   parkAdventure();
+  // The track saves on its own button, so what is unsaved is parked whole.
+  parkTrack();
   parkAchievements();
 
   // Colours changed in the editor belong to the game being left, so they go in
@@ -855,6 +863,7 @@ export async function openProject(slug, { view = null } = {}) {
   S.menu = null;
   S.story = null;
   S.adventure = null;
+  S.track = null;
   S.achievements = null;
   S.tryScene = null;
   dropStageImages();
@@ -959,6 +968,7 @@ export async function openProject(slug, { view = null } = {}) {
     // so ?edit= and ?scene= have something to land on.
     if (hasEditor('story')) await loadStory();
     if (hasEditor('adventure')) await loadAdventure();
+    if (hasEditor('track')) await loadTrack();
     render();
   }
   // A game remembered on Share has to fetch what Share shows now. Waiting for
@@ -1244,6 +1254,7 @@ function renderRail() {
 function renderInspector() {
   if (editorShowing()?.id === 'story') return renderStoryInspector();
   if (editorShowing()?.id === 'adventure') return renderAdventureInspector();
+  if (editorShowing()?.id === 'track') return renderTrackInspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
   return renderGameSummary();
 }

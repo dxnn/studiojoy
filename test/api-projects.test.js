@@ -276,6 +276,44 @@ test('a game born from the adventure template holds its starter tree', async (t)
   assert.deepEqual(parsed.decls.map((d) => d.name), ['SCENES']);
 });
 
+// The racing template: the one template that ships its own config/controls.js,
+// because its buttons are GO and BOOST, which no seed says. The seed the
+// scheme writes lands first and the template's copy lands over it.
+test('a game born from the racing template holds its starter tree, sounds and controls', async (t) => {
+  const publicDir = path.resolve(import.meta.dirname, '..', 'public');
+  const app = await setup({ publicDir });
+  t.after(() => app.close());
+  await signIn(app);
+
+  const res = await app.client.json('POST', '/api/projects', {
+    body: { name: 'Lap Attack', template: 'racing' },
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.type, 'racing');
+
+  const dir = path.join(app.gamesDir, 'lap-attack');
+  const templateRoot = path.join(publicDir, 'game-templates', 'racing');
+  for (const f of ['BRIEF.md', 'SPEC.md', 'index.html', 'css/style.css', 'js/race.js',
+    'config/look.js', 'config/track.js', 'config/play.js', 'config/words.js',
+    'config/controls.js', 'config/achievements.js', 'assets/sounds/engine.wav', 'assets/sounds/lap.wav']) {
+    assert.deepEqual(
+      fs.readFileSync(path.join(dir, f)),
+      fs.readFileSync(path.join(templateRoot, f)),
+      `${f} is copied whole`,
+    );
+  }
+  assert.match(fs.readFileSync(path.join(dir, 'config/controls.js'), 'utf8'), /const SCHEME = "buttons";/);
+  assert.match(fs.readFileSync(path.join(dir, 'config/controls.js'), 'utf8'), /toggle:BOOST/);
+
+  const commits = await logCommits(dir);
+  assert.equal(commits.length, 3);
+  assert.equal(commits[0].subject, 'start from the racing template');
+
+  const parsed = parseConfigFile(fs.readFileSync(path.join(dir, 'config/track.js'), 'utf8'));
+  assert.equal(parsed.ok, true, parsed.reason);
+  assert.deepEqual(parsed.decls.map((d) => d.name), ['TRACK', 'THINGS']);
+});
+
 // A game from before the type column is marked '' by the migration and asked
 // once: its type is read off its tree — the template whose heart it holds —
 // and the answer written back, null included. So a helper writing a story file
@@ -391,7 +429,7 @@ test('a template has to exist, and a chat cannot start from one', async (t) => {
   await signIn(app);
 
   const unknown = await app.client.json('POST', '/api/projects', {
-    body: { name: 'Nope', template: 'racing' },
+    body: { name: 'Nope', template: 'no-such-template' },
   });
   assert.equal(unknown.status, 400);
   assert.match(unknown.body.error, /no such template/);

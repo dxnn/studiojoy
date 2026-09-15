@@ -25,6 +25,12 @@
       "what": "Pictures with things to click on: doors, keys, people. Draw a box on the picture to make one — no code needed.",
       "heart": "config/scenes.js",
       "scheme": "none"
+    },
+    "racing": {
+      "title": "A racing game",
+      "what": "Laps around a track against rivals. Draw the track with your finger — no code needed.",
+      "heart": "config/track.js",
+      "scheme": "buttons"
     }
   }
 }

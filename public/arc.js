@@ -226,6 +226,45 @@ export const ARCS = {
     PLAYED,
     OUT,
   ],
+  racing: [
+    stamp(
+      'drives', 'It drives!',
+      'A car that turns and goes, on a road, before anything else.',
+      '“Find the fun first” — a car that feels good on an empty road is most of a racing game.',
+      [
+        { text: 'the numbers in config/play.js', test: (f) => has(f.files, is('config/play.js')) },
+        { text: 'the controls in config/controls.js', test: (f) => has(f.files, is('config/controls.js')) },
+      ],
+      [ask('The feel', 'Tune TURN, THRUST and DRAG in config/play.js until the car feels quick but not slippery.')],
+    ),
+    stamp(
+      'track', 'A track worth racing',
+      'A loop with a long straight, a tight bend and nothing that crosses itself.',
+      'A track is a rhythm: fast, slow, fast. Drive it ten times before you keep it.',
+      [{ text: 'the track in config/track.js', test: (f) => has(f.files, is('config/track.js')) }],
+      [ask('A better bend', 'Suggest one change to the track that would make the last bend more exciting.')],
+    ),
+    stamp(
+      'rivals', 'Rivals who race',
+      'Rivals you can beat on a good lap and lose to on a bad one.',
+      'An opponent who is always ahead is a wall; one who is always behind is furniture.',
+      [],
+      [ask('Fairer rivals', 'Tune RIVAL_SPEED and RIVAL_WOBBLE so a good driver wins about half the time.')],
+    ),
+    LOOKS,
+    stamp(
+      'feels', 'It feels good',
+      'Every bash, boost and lap answers back: a sound, a shake, a flash.',
+      'Juice: the same race with a sound on every hit feels twice as fast and drives exactly the same.',
+      [
+        { text: 'a sound in assets/sounds/', test: (f) => has(f.files, under('assets/sounds')) },
+        { text: 'a car in assets/sprites/', test: (f) => has(f.files, under('assets/sprites')) },
+      ],
+      [ask('A car', 'Draw a car at assets/sprites/car.png so the triangle has a face.')],
+    ),
+    PLAYED,
+    OUT,
+  ],
 };
 
 // A type's arc. A game with no type takes the arcade's with "What is it?" in

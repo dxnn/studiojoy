@@ -101,4 +101,7 @@ test('a template that fixes its scheme names a real one', () => {
   assert.equal(templates.quiz.scheme, 'none');
   assert.equal(templates['visual-novel'].scheme, 'none');
   assert.equal(templates.adventure.scheme, 'none');
+  // The two that are steered are buttons: a car wants left, right, GO.
+  assert.equal(templates.arcade.scheme, 'buttons');
+  assert.equal(templates.racing.scheme, 'buttons');
 });
