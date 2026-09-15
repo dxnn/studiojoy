@@ -120,6 +120,32 @@ test('a string is quoted so its own quotes cannot break the file', () => {
   );
 });
 
+// A helper writes a minus sign or an em dash as − often enough that a
+// kid's words file refused to open as a form over one. Four hex digits, or
+// it is refused like any other escape this cannot read.
+test('a \\u escape is the character it names', () => {
+  const out = parseConfigFile('const S = "a \\u2212 b \\u2014 c";\n');
+  assert.ok(out.ok, out.reason);
+  assert.equal(out.decls[0].node.value, 'a − b — c');
+  for (const bad of ['const S = "\\u12";', 'const S = "\\uzzzz";']) {
+    const refused = parseConfigFile(bad);
+    assert.equal(refused.ok, false);
+    assert.match(refused.reason, /four hex digits/);
+  }
+});
+
+// A tower's floors keyed by number, as a kid reads them. The key comes out
+// as the text it was written as, which is what the form labels the row with
+// and what a splice puts the value back under.
+test('a number is a key like any other', () => {
+  const out = parseConfigFile('const FLOORS = {\n  1: ["add"], // the first\n  2: ["sub", "add"],\n};\n');
+  assert.ok(out.ok, out.reason);
+  const { props } = out.decls[0].node;
+  assert.deepEqual(props.map((p) => p.key), ['1', '2']);
+  assert.deepEqual(out.decls[0].node.value, { 1: ['add'], 2: ['sub', 'add'] });
+  assert.equal(props[0].node.comment, 'the first');
+});
+
 // Refusing the whole file is deliberate: a form showing only the part it
 // understood would silently hide the rest.
 test('anything that is not a plain value refuses the whole file', () => {

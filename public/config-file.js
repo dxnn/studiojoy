@@ -112,6 +112,16 @@ export function parseConfigFile(text) {
     while (i < text.length && text[i] !== quote) {
       if (text[i] === '\n') refuse('a piece of text runs past the end of its line');
       if (text[i] === '\\') {
+        // − and the like: a helper writes a minus sign or an em dash
+        // this way often enough that a kid's words file refused to open as
+        // a form over one (2026-09-15). Four hex digits, or it is not one.
+        if (text[i + 1] === 'u') {
+          const hex = text.slice(i + 2, i + 6);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) refuse('\\u needs four hex digits after it');
+          out += String.fromCharCode(parseInt(hex, 16));
+          i += 6;
+          continue;
+        }
         const escapes = {
           n: '\n', t: '\t', r: '\r', '\\': '\\', "'": "'", '"': '"',
         };
@@ -166,7 +176,13 @@ export function parseConfigFile(text) {
         if (at('}')) { i += 1; break; }
         skip();
         const keyStart = i;
-        const key = (text[i] === '"' || text[i] === "'") ? string() : ident();
+        // A key is a name, a quoted string, or a number — `1: ["add"]` for
+        // a tower's floors is a plain value a kid can read, and two games
+        // refused to open as forms over one (2026-09-15).
+        NUMBER.lastIndex = i;
+        const numbered = /[0-9]/.test(text[i] ?? '') ? NUMBER.exec(text) : null;
+        let key;
+        if (numbered) { key = numbered[0]; i = NUMBER.lastIndex; } else key = (text[i] === '"' || text[i] === "'") ? string() : ident();
         eat(':');
         props.push({ key, node: value(keyStart) });
         if (at(',')) { i += 1; continue; }
