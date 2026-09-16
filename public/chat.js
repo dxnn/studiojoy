@@ -808,17 +808,20 @@ export function renderChatTabs(p) {
   // A chat project is one room: there are no pills to switch between. Who is
   // listening in it is the whole of this row there.
   const rooms = !isChat();
-  // Building is the Builder's room and takes no other helper (spec.md §8), so
-  // like Humans only it offers no + and no rename: it is furniture, and the
-  // words the studio uses for it.
-  const addHelper = !frozen() && S.chat.bots && !S.chat.builder;
+  // A person's helper goes in a chat project and nowhere in a game: every
+  // room there is the humans' or the Builder's, so the + is a chat project's
+  // alone (spec.md §3).
+  const addHelper = !frozen() && !rooms;
+  // The Building a game is born with is furniture — the words the studio uses
+  // for it, no rename — like Humans only; a builder room somebody added is
+  // named by them and renamed by them.
+  const born = rooms && S.chats.find((c) => c.builder)?.id === S.chat.id;
   if (!rooms && !addHelper && chips.length === 0) return null;
   return h('div', { class: 'chat-tabs' },
     rooms ? h('div', { class: 'pills' }, S.chats.map((c) => h('button', {
       class: `chat-tab${c.id === S.chat.id ? ' on' : ''}${c.bots ? '' : ' quiet-room'}`
         + `${marked(c) ? ' marked' : ''}`,
-      title: c.builder ? `${c.name} — the Builder answers here`
-        : c.bots ? `${c.name} — helpers can answer here` : `${c.name} — just the humans`,
+      title: c.builder ? `${c.name} — the Builder answers here` : `${c.name} — just the humans`,
       onclick: () => openChat(c.id),
     },
     c.name,
@@ -829,9 +832,10 @@ export function renderChatTabs(p) {
     // The mark on the game says somebody called you, or that something is
     // unread; this says in which conversation.
     readMark(c)))) : null,
-    // The chat you are in. Humans only keeps its name — it is furniture, and
-    // the words the studio uses for it — so it has nothing to offer and no ···.
-    rooms && S.chat.bots && !S.chat.builder && !frozen() ? more(`chat:${S.chat.id}`, [
+    // The chat you are in. Humans only and the born Building keep their names
+    // — furniture, and the words the studio uses for them — so they have
+    // nothing to offer and no ···.
+    rooms && S.chat.builder && !born && !frozen() ? more(`chat:${S.chat.id}`, [
       { text: 'Rename…', onPick: () => { S.dialog = { kind: 'rename-chat', chat: S.chat }; render(); } },
     ], { label: `More about ${S.chat.name}` }) : null,
     h('div', { class: 'spacer' }),

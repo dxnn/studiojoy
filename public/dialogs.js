@@ -1341,7 +1341,7 @@ export function dialogFor(d) {
     const name = h('input', { placeholder: 'Art, Music, Bug Hunt -- that kind of thing' });
     return wrap('Start a chat',
       h('label', { text: "What's it called?" }), name,
-      h('p', { class: 'hint muted', text: 'Every new chatroom is a new opportunity to be your best self' }),
+      h('p', { class: 'hint muted', text: 'The Builder comes along, so this is a place to build the next thing. Every new chatroom is a new opportunity to be your best self' }),
       h('div', { class: 'actions' }, cancel, h('button', {
         class: 'filled', text: 'Do it',
         onclick: async () => {
@@ -1680,10 +1680,11 @@ export function dialogFor(d) {
             close();
             await loadAgents();
             syncAttached();
-            // You almost always make a helper because you want it in the game
-            // you are looking at. Requiring a second "add to this game" click
-            // was the trap that made a new studio look broken.
-            if (!editing && S.slug && !S.project?.archived) await attachAgent(res.body);
+            // You almost always make a helper because you want it in the chat
+            // you are looking at. Requiring a second "add to this chat" click
+            // was the trap that made a new studio look broken. A game has no
+            // room for it — every room there is the Builder's or the humans'.
+            if (!editing && S.project?.kind === 'chat' && !S.project.archived) await attachAgent(res.body);
             render();
           },
         })));
