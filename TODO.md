@@ -3,27 +3,29 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- drop `agents.model` once the one-model change has stuck in production; it
-  is written and never read, kept only so a rollback lands on its feet
-- ! a plan comes back with its titles in Chinese about one time in twenty on
-  a big ask (spec/ §14, 2026-09-15: 1 in 35 as shipped) — a kid would get a
-  card they cannot read. ⚠️ A line in `sizingRules()` naming the person's
-  language was measured and made it worse (4 in 42), so the fix is not words:
-  a check on the answer's script against the request's, and one re-ask,
-  measured at forty a side or more
+- drop `agents.model`: written and never read since c3ff845 (2026-09-12),
+  and production has run every commit since, so the rollback it was kept for
+  would take ten other commits with it
+- ! check a plan's script against the request's and re-ask once, for the
+  plan in 35 that comes back with its titles in Chinese (spec/ §14,
+  2026-09-15) — a kid would get a card they cannot read. ⚠️ Not words: a
+  language line in `sizingRules()` measured 4 in 42 and was withdrawn.
+  Measure the re-ask on its own — the first answer faked in Chinese, forty
+  a side — since at 1 in 35 nothing else sees it
 - ⚠️ a bug report still sizes as a *reply* about one time in three. The
   symptom rule took it from roughly 3-in-9 to 7-in-9 (spec/ §14), which is
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
-- watch what the *thinking cap* costs in production now it fires on most
-  ambitious open requests: measured 2026-09-15, a whole-game ask at `low` from
-  an empty tree ran away on 15 first turns in 16 (spec/ §14, "The cliff's
-  rate"), so a person asking for a big thing waits ~43 s for a capped turn
-  before the retry starts nearly every time. The fix is not a lower cap — 12,000 was proposed
-  and withdrawn the same day, it would have cut the best trace measured — it
-  is whether an open request outside `Building` should be sized the way the
-  builder sizes one (spec/ §8, §14)
+- ask the tiny judge (`CLEAR_JUDGE`) what it makes of a whole-game ask — it
+  has only ever been measured on space-racer's small ones. The cap's cost
+  landed 2026-09-15: `low` on a whole-game ask from an empty tree runs away
+  15 in 16 and costs ~43 s before the retry (spec/ §14, "The cliff's rate").
+  Every room takes its thinking from the ask since 2026-09-13, so an open
+  room pays that only when the judge says `clear: false` to "make me a tank
+  game". If it does, the fix is sizing an open request the way `Building`
+  sizes one, not a lower cap — 12,000 was proposed and withdrawn the same
+  day, it would have cut the best trace measured (spec/ §8, §14)
 - watch what helpers do with `look_at` and `look_at_game` now they can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"
@@ -31,9 +33,14 @@ deliberately deferred.
 - a *shot* of a game drawn in HTML rather than on a canvas — every visual
   novel has none, so the one template a kid is most likely to be looking at
   is the one a helper cannot see. Wants an answer that is not a library
-- the plan card's synopsis — one no-tools call over the pieces' headlines —
-  and sub-pieces when a piece outruns its budget, one level deep
-  (ideas/planner.md, second chapter, step 6)
+- the plan card's synopsis: one no-tools call over the pieces' headlines when
+  a plan of two or more finishes, as the card's head (ideas/planner.md, step
+  6, the small half)
+- sub-pieces when a piece outruns its budget, one level deep. Today a piece
+  that hits a limit is marked done and the next builds on half a job
+  (`runPieces`, `onLimit: 'stop'`); a *small ask*'s overrun is already
+  re-sized as a plan of the rest (`planRest`), so this is the same for a
+  piece, nested (ideas/planner.md, step 6, the big half)
 
 - now a real push has landed (2026-09-11, installed PWA on a phone), check the
   two things only a real one shows:
