@@ -24,7 +24,7 @@ import {
 import {
   sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
   notesForPlanner, begunNote, SIZING_MAX_TOKENS, CONFIRM_TRIGGER, resizeTrigger, specText,
-  CLEAR_JUDGE, CLEAR_MAX_TOKENS, parseClear,
+  CLEAR_JUDGE, CLEAR_MAX_TOKENS, parseClear, inOtherScript, SCRIPT_TRIGGER,
 } from './sizing.js';
 import { arcFor } from '../../public/arc.js';
 
@@ -1620,7 +1620,7 @@ export function createOrchestrator({
     // One whole answer streams nothing, so the line under the name says what
     // is happening itself (spec.md §9): not a tool, but the one word for it.
     emit('agent.tool', { tool: 'size', path: null });
-    const messages = context.messages.map((m) => ({ ...m }));
+    let messages = context.messages.map((m) => ({ ...m }));
     // Build it adds its own turn: the newest message is the card, the
     // builder's own, and the trigger goes on as a user turn after it.
     if (messages[messages.length - 1]?.role !== 'user') messages.push({ role: 'user', content: '' });
@@ -1640,14 +1640,28 @@ export function createOrchestrator({
     ].filter(Boolean).join('\n\n');
     fire.exchange = null;
     try {
-      const answer = await llm.complete({
-        system: context.system,
-        messages,
-        thinking: 'none',
-        maxTokens: SIZING_MAX_TOKENS,
-        responseFormat: 'json_object',
-      });
-      const charged = tokensCharged(answer.usage);
+      const opts = {
+        system: context.system, thinking: 'none', maxTokens: SIZING_MAX_TOKENS, responseFormat: 'json_object',
+      };
+      let answer = await llm.complete({ ...opts, messages });
+      let charged = tokensCharged(answer.usage);
+      let sized = parseSizing(answer.text);
+      // ⚠️ A plan in a script the person did not write in is asked for once
+      // more, on the same transcript with the first answer left in it — the
+      // prefix is cached, so it costs the answer and little else. The rules
+      // cannot fix it (§14). Once: a second slip is shown, not looped on, and
+      // a re-ask that will not parse leaves the first answer standing.
+      if (inOtherScript(sized, lastAsk(context.messages))) {
+        const asked = [
+          ...messages,
+          { role: 'assistant', content: answer.text },
+          { role: 'user', content: SCRIPT_TRIGGER },
+        ];
+        const again = await llm.complete({ ...opts, messages: asked }).catch(() => null);
+        if (again) charged += tokensCharged(again.usage);
+        const resized = again ? parseSizing(again.text) : null;
+        if (resized) { messages = asked; answer = again; sized = resized; }
+      }
       consumeBudget(db, charged);
       chargeUser(db, asker?.id, charged);
       // Kept for the fire that follows: it extends this exchange (below). The
@@ -1655,7 +1669,7 @@ export function createOrchestrator({
       fire.exchange = {
         messages, answer: answer.text || '{"size":"small"}', masked: noted ? [noted] : [],
       };
-      return parseSizing(answer.text) ?? { size: 'small', resume: true };
+      return sized ?? { size: 'small', resume: true };
     } catch (err) {
       console.error('sizing failed', err);
       return { size: 'small', resume: true };

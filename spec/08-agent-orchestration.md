@@ -117,7 +117,14 @@ what}]}`: one piece for one change, two to six for more, each finishable in
 one sitting. A one-piece answer also carries **`"clear"`** — whether the
 request said *what* to change rather than only how the game should feel — and
 that, not a setting made in advance, is what decides how hard the one piece
-thinks (above). An answer that won't parse, or an upstream that won't answer, is
+thinks (above). ⚠️ A plan whose words are in a script the person did not
+write in — Chinese, once in 35 (§14) — is asked for **once more** on the same
+transcript, the first answer left standing as the assistant turn and
+`SCRIPT_TRIGGER` after it; the re-ask names no language, because a rule
+naming one was measured and made the slip commoner. It brings 39 in 40 back
+in the person's script with the plan unchanged; a re-ask that will not parse
+leaves the first answer standing, and a second slip is shown rather than
+looped on. An answer that won't parse, or an upstream that won't answer, is
 a reply — the plain fire, its cap intact — charged to the asker like the fire
 it precedes. Until 2026-09-06 the words were `small` and `big`, and a plan of
 one collapsed into small; `parseSizing` still reads them.

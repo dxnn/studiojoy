@@ -221,6 +221,28 @@ export function cleanAssumptions(list) {
 }
 export const cleanSummary = (text) => clip(String(text ?? '').trim(), MAX_SUMMARY);
 
+// ⚠️ A plan comes back with its words in Chinese now and then — files and
+// shape right, titles a kid cannot read — and the obvious fix, a line in the
+// rules naming the language, was measured and made it worse (§14,
+// 2026-09-15: 1 in 35 without it, 4 in 42 with). So the check is on the
+// answer rather than in the rules: any of a plan's words in a script the
+// request has none of, and one re-ask on the same transcript. The scripts
+// are the ones probes/probe-v41-language.mjs counted as "not English"; a
+// request written in one of them is answered in it, unchecked.
+const OTHER_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}]/u;
+export function inOtherScript(sized, request) {
+  if (sized?.size !== 'pieces' || OTHER_SCRIPT.test(request)) return false;
+  return [
+    ...sized.pieces.flatMap((p) => [p.title, p.what]),
+    sized.summary, ...sized.assumptions,
+  ].some((w) => OTHER_SCRIPT.test(w));
+}
+export const SCRIPT_TRIGGER = [
+  '[studio] That answer is written in a different script from the person\'s message. Answer again —',
+  'the same JSON, the same pieces — with every title, what, summary and assumption written the way',
+  'the person writes.',
+].join('\n');
+
 // The one user turn a piece's fire gets: the request, the plan, what the
 // earlier pieces left, and this piece alone. Measured (§14): at this scope a
 // fire thinks in proportion to the piece and writes only its files.

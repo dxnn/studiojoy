@@ -7,7 +7,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { parseSizing, parseClear, sizingRules } from '../server/agents/sizing.js';
+import {
+  parseSizing, parseClear, sizingRules, inOtherScript,
+} from '../server/agents/sizing.js';
 
 const PLAN = {
   size: 'pieces',
@@ -83,4 +85,25 @@ test('the clear key is read only when it is a boolean', () => {
 // primes the switch. This holds the door shut against the obvious fix.
 test('the rules do not name a language', () => {
   assert.ok(!/language/i.test(sizingRules()));
+});
+
+// The check that replaces that line: a plan's words in a script the request
+// has none of. The request's own script is never a slip.
+test('a plan in a script the request has none of is caught; the request\'s own is not', () => {
+  const chinese = {
+    ...PLAN,
+    pieces: [{ title: '游戏骨架与双人分屏', files: ['index.html'], what: '页面与分屏。' }],
+  };
+  assert.equal(inOtherScript(chinese, '[Dann] build me a tank game'), true);
+  assert.equal(inOtherScript(chinese, '[Dann] 给我做一个坦克游戏'), false);
+  assert.equal(inOtherScript(PLAN, '[Dann] build me a tank game'), false);
+  // One word is enough, wherever it sits.
+  assert.equal(inOtherScript({ ...PLAN, summary: '双人坦克游戏' }, 'tanks'), true);
+  assert.equal(inOtherScript({ ...PLAN, assumptions: ['Один клавиатура.'] }, 'tanks'), true);
+  // Accents, symbols and emoji are not another script.
+  const accented = { ...PLAN, pieces: [{ title: 'Café ☕ und Straße — ¡olé!', files: [], what: 'ok' }] };
+  assert.equal(inOtherScript(accented, 'tanks'), false);
+  // Nothing but a plan is checked.
+  assert.equal(inOtherScript({ size: 'reply', resume: true }, 'tanks'), false);
+  assert.equal(inOtherScript(null, 'tanks'), false);
 });

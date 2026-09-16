@@ -516,7 +516,7 @@ priming the switch rather than preventing it. It was taken out the same day,
 rules carry a comment saying why. Forty a side cannot separate 3% from 10%,
 but it can rule out "the line fixes it". The fix, if the rate is worth one,
 is deterministic: a check on the answer's script against the request's, and
-one re-ask (TODO.md).
+one re-ask — built and measured below.
 
 **And a second thing the same run found, which matters more.** ⚠️ **Seven of
 fifty-two tank sizings would not parse** — none of the twenty split-screen
@@ -531,6 +531,32 @@ repairs it by taking the early `}` out and reading the whole, keeping the
 summary and the assumptions, or failing that reads the first object alone;
 `probes/probe-v41-language-unparseable.json` is the real answer, kept, and
 `test/sizing.test.js` reads it.
+
+**The re-ask, measured** (`probes/probe-v41-script.mjs`, 2026-09-15). The
+check is `inOtherScript` in `server/agents/sizing.js`: any of a plan's words
+in a script the request has none of — the CJK, Cyrillic, Arabic and Hebrew
+the probe above counted — and the orchestrator asks once more on the same
+transcript, the Chinese answer left standing as the assistant turn and
+`SCRIPT_TRIGGER` after it, which names no language: *written in a different
+script from the person's message … the way the person writes*. At 1 in 35 a
+live run would see one case in an afternoon, so the probe measured the
+re-ask alone: the tank ask, tank #12's five Chinese titles with the rest put
+into Chinese by hand, then the trigger, forty times.
+
+| re-ask | of 40 |
+| --- | --- |
+| in the person's script, parsed, the same five pieces | **39** |
+| still Chinese | 1 |
+| unparseable | 0 |
+
+Every answer kept the plan's shape — five pieces, the same five jobs, the
+titles a translation of the Chinese ones — so the re-ask changes the words
+and not the plan. It rides the prefix at **87%**, ~3 s. One re-ask and no
+more: the slip is 1 in 35 and the re-ask misses 1 in 40, so a kid sees a card
+in Chinese about once in 1,400 plans, and a second slip is shown rather than
+looped on. A request written in one of those scripts is answered in it,
+unchecked, and a re-ask that will not parse leaves the first answer standing
+(`test/builder.test.js`).
 
 **A step thinks in proportion to the step.** The same request as one step of
 a six-step plan, plan shown, "do only this step, then one line":

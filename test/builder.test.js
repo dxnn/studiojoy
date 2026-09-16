@@ -16,6 +16,7 @@ import {
 } from './fake-llm.js';
 import { logCommits } from '../server/files/git.js';
 import { openDb, dropColumnIfPresent } from '../server/db.js';
+import { SCRIPT_TRIGGER } from '../server/agents/sizing.js';
 
 async function studio(t, { llm = null, ...opts } = {}) {
   const app = await setup({ llm, ...opts });
@@ -294,6 +295,69 @@ test('a sizing answer that will not parse is a small ask', async (t) => {
   await send(app, chatId, 'hello');
   const reply = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
   assert.equal(reply.data.body, 'Here you go.');
+});
+
+// ⚠️ A plan in Chinese about one time in 35 (spec.md §14): the rules cannot
+// fix it — a language line made it worse — so the answer is checked and the
+// same transcript asked once more, the first answer left standing in it.
+const CHINESE = {
+  size: 'pieces',
+  pieces: [
+    { title: '游戏骨架与双人分屏', files: ['index.html', 'css/style.css'], what: '页面与分屏。' },
+    { title: '坦克移动与射击', files: ['js/tank.js'], what: '两辆坦克与主循环。' },
+  ],
+  summary: '双人坦克游戏。',
+  assumptions: ['共用一个键盘。'],
+};
+const planCard = (stream) => stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+
+test('a plan in a script the person did not write in is asked for again, once', async (t) => {
+  const llm = createFakeLlm([], [
+    sized(CHINESE),
+    sized({ size: 'pieces', pieces: PIECES, summary: 'A tank game for two.', assumptions: ['One keyboard.'] }),
+  ]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  const card = await planCard(stream);
+  assert.deepEqual(card.data.plan.pieces.map((p) => p.title), ['The page', 'Tanks that drive']);
+  assert.equal(card.data.plan.summary, 'A tank game for two.');
+  assert.equal(llm.asked.length, 2, 'one re-ask');
+  // On the same transcript, so the prefix is the first call's: the answer
+  // stays as the assistant turn and the trigger follows it.
+  const [first, again] = llm.asked;
+  assert.equal(again.system, first.system);
+  assert.deepEqual(again.messages.slice(0, -2), first.messages);
+  const [answer, trigger] = again.messages.slice(-2);
+  assert.equal(answer.role, 'assistant');
+  assert.match(answer.content, /游戏骨架与双人分屏/);
+  assert.deepEqual(trigger, { role: 'user', content: SCRIPT_TRIGGER });
+});
+
+test('a person who writes in Chinese gets their plan in Chinese, unasked', async (t) => {
+  const llm = createFakeLlm([], [sized(CHINESE)]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, '给我做一个坦克游戏');
+  const card = await planCard(stream);
+  assert.equal(card.data.plan.pieces[0].title, '游戏骨架与双人分屏');
+  assert.equal(llm.asked.length, 1, 'no re-ask');
+});
+
+test('a re-ask that will not parse leaves the first answer standing', async (t) => {
+  const llm = createFakeLlm([], [sized(CHINESE), answers('Sorry, here it is in English:')]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  const card = await planCard(stream);
+  assert.equal(card.data.plan.pieces[0].title, '游戏骨架与双人分屏', 'a card a kid cannot read beats no card');
+  assert.equal(llm.asked.length, 2, 'asked once more, and not again');
 });
 
 // One change is a plan of one: no draft, no waiting, one fire at the builder's

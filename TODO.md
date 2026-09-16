@@ -3,12 +3,6 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- ! check a plan's script against the request's and re-ask once, for the
-  plan in 35 that comes back with its titles in Chinese (spec/ §14,
-  2026-09-15) — a kid would get a card they cannot read. ⚠️ Not words: a
-  language line in `sizingRules()` measured 4 in 42 and was withdrawn.
-  Measure the re-ask on its own — the first answer faked in Chinese, forty
-  a side — since at 1 in 35 nothing else sees it
 - ⚠️ a bug report still sizes as a *reply* about one time in three. The
   symptom rule took it from roughly 3-in-9 to 7-in-9 (spec/ §14), which is
   better and not fixed; a kid reporting a broken game is the commonest ask
