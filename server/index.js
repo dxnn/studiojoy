@@ -7,6 +7,7 @@ import { createGamesApp } from './games.js';
 import { createBroker } from './broker.js';
 import { createMutex } from './files/mutex.js';
 import { createPending } from './files/pending.js';
+import { reconcileTrees } from './files/reconcile.js';
 import { createDeepSeek, DEFAULT_BASE_URL } from './llm/deepseek.js';
 import { createOrchestrator } from './agents/orchestrator.js';
 import { DEFAULT_DAILY_TOKEN_BUDGET } from './budget.js';
@@ -90,6 +91,11 @@ const listenFailed = (label, envVar) => (err) => {
 };
 studio.on('error', listenFailed('studio', 'PORT'));
 games.on('error', listenFailed('games', 'GAMES_PORT'));
+
+// ⚠️ Before either listener binds, so nothing is writing while it runs: a tree
+// still dirty at this point is work the last run left behind, and no later
+// save, turn or sweep would ever name those paths (spec.md §5).
+await reconcileTrees({ gamesDir, mutex });
 
 // Both listeners bind every interface, so localhost is one way in rather than
 // the address — which is why the games line names a port, not a fixed URL.

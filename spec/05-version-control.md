@@ -27,6 +27,16 @@ One git repository per project, at the project directory root.
   *attribution* of one person's last 45 s, never the bytes: the tree still
   holds them, and the next commit to name those paths picks them up. A clean
   shutdown lands every window first.
+- ⚠️ Startup lands whatever a game's tree is still holding, before either
+  listener binds (`server/files/reconcile.js`). A clean shutdown settles every
+  window and a helper's turn commits its own, so a tree dirty at this point was
+  left by something that ran neither — a hard kill, or a commit that threw —
+  and nothing else would ever name those paths. One commit per game as
+  *Unbridled Joy*, subject `work left uncommitted when the studio stopped`:
+  the window that knew whose work it was went with the process, and an honest
+  name in Versions beats a guessed one. Ignored files stay out, since nothing
+  named these paths and `.gitignore` is the only word available on what
+  belongs. A game that cannot be landed is logged and the rest still are.
 - ⚠️ A commit names its own paths, so a path that exists in neither the working
   tree nor HEAD is dropped before `git add` rather than passed to it. One such
   name — a scratch file a helper wrote and removed inside its own turn — fails

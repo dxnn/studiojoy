@@ -215,6 +215,22 @@ export async function commitPaths(dir, paths, message, author) {
   return currentSha(dir);
 }
 
+// Everything the working tree holds, as one commit, with the paths it took.
+// Unlike commitPaths this names none: it is for work whose paths nobody
+// recorded, which is exactly what a tree still dirty at startup is (spec/ §5).
+//
+// `add -A` rather than `add -f -A`: a caller naming a path is the app asserting
+// the file belongs, and nothing here is named, so a .gitignore is the only
+// word available on what does.
+export async function commitEverything(dir, message, author) {
+  await git(dir, ['add', '-A']);
+  const staged = await git(dir, ['diff', '--cached', '--name-only']);
+  const paths = staged.toString('utf8').split('\n').filter(Boolean);
+  if (!paths.length) return null;
+  await git(dir, ['commit', '-q', '-m', message], { author });
+  return { sha: await currentSha(dir), paths };
+}
+
 export async function movePath(dir, from, to, message, author) {
   await fs.promises.mkdir(path.dirname(path.join(dir, to)), { recursive: true });
   await git(dir, ['mv', '--', from, to]);
