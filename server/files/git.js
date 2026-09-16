@@ -154,6 +154,44 @@ export async function currentSha(dir) {
   return (await git(dir, ['rev-parse', 'HEAD'])).toString('utf8').trim();
 }
 
+// The paths git can actually stage: the ones on disk, plus the ones that are
+// gone but known to HEAD, which stage as a deletion.
+//
+// ⚠️ Anything else matches nothing, and `git add` fails the *whole* pathspec
+// over a single one of them. A helper that writes a scratch file and removes
+// it before its turn ends leaves exactly that, and it used to take every other
+// write in the same turn down with it: the commit threw, the turn ended in the
+// outer catch, and the files sat in the working tree with nothing that would
+// ever pick them up — every commit here is scoped to its own paths, so no
+// later save, turn or sweep touches them (spec/ §5).
+async function stageable(dir, paths) {
+  const here = await Promise.all(paths.map(async (rel) => {
+    try {
+      await fs.promises.access(path.join(dir, rel));
+      return true;
+    } catch {
+      return false;
+    }
+  }));
+  const gone = paths.filter((_, i) => !here[i]);
+  if (gone.length === 0) return { keep: paths, dropped: [] };
+
+  // An unborn HEAD knows nothing and `ls-tree` throws rather than saying so,
+  // which is the first commit of a brand new game.
+  let tracked = new Set();
+  try {
+    const out = await git(dir, ['ls-tree', '-r', '--name-only', 'HEAD', '--', ...gone]);
+    tracked = new Set(out.toString('utf8').split('\n').filter(Boolean));
+  } catch {
+    tracked = new Set();
+  }
+
+  const dropped = gone.filter((rel) => !tracked.has(rel));
+  if (dropped.length === 0) return { keep: paths, dropped };
+  const lost = new Set(dropped);
+  return { keep: paths.filter((rel) => !lost.has(rel)), dropped };
+}
+
 // Stage the named paths and commit them as one commit. Returns the new sha,
 // or null when nothing actually changed — a write of identical bytes is a
 // no-op, not an error.
@@ -163,7 +201,14 @@ export async function currentSha(dir) {
 // they just asked for from being committed.
 export async function commitPaths(dir, paths, message, author) {
   if (!paths.length) return null;
-  await git(dir, ['add', '-f', '--', ...paths]);
+  const { keep, dropped } = await stageable(dir, paths);
+  if (dropped.length) {
+    console.warn(
+      `${path.basename(dir)}: ${dropped.length} path(s) vanished before the commit, skipped: ${dropped.join(', ')}`,
+    );
+  }
+  if (!keep.length) return null;
+  await git(dir, ['add', '-f', '--', ...keep]);
   const staged = await git(dir, ['diff', '--cached', '--name-only']);
   if (staged.toString('utf8').trim() === '') return null;
   await git(dir, ['commit', '-q', '-m', message], { author });

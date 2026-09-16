@@ -143,6 +143,29 @@ test('one commit can carry every file a turn wrote', async () => {
   assert.equal((await logCommits(dir)).length, 2, 'one turn is one commit');
 });
 
+// ⚠️ The one that cost a whole turn. A helper wrote eight files and a scratch
+// `js/draw.tmp`, removed the scratch before it finished, and `git add` failed
+// the entire pathspec over the one name that matched nothing — so the commit
+// threw, the turn ended in the outer catch, and all eight sat in the working
+// tree with nothing that would ever pick them up.
+test('a path that vanished before the commit does not take the turn with it', async () => {
+  const dir = await repo('git-vanished');
+  write(dir, 'index.html', '<h1>a</h1>');
+  write(dir, 'js/game.js', 'go()');
+  const sha = await commitPaths(
+    dir, ['index.html', 'js/game.js', 'js/draw.tmp'], 'Level Designer: rewrite', AGENT,
+  );
+  assert.ok(isSha(sha), 'the files that do exist still commit');
+  assert.deepEqual(await commitPathsTouched(dir, sha), ['index.html', 'js/game.js']);
+});
+
+test('a commit of nothing but vanished paths is null, not a throw', async () => {
+  const dir = await repo('git-vanished-only');
+  const sha = await commitPaths(dir, ['js/draw.tmp'], 'Level Designer: nothing', AGENT);
+  assert.equal(sha, null);
+  assert.equal((await logCommits(dir)).length, 1, 'no empty commit is made');
+});
+
 test('an ignored path still commits, because the app owns the tree', async () => {
   const dir = await repo('git-ignored');
   write(dir, '.gitignore', '*.js\n');
