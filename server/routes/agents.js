@@ -15,7 +15,6 @@ function agentPublic(row) {
     name: row.name,
     description: row.description,
     thinking: row.thinking,
-    file_tools: row.file_tools === 1,
     created_by: row.created_by,
     created_at: row.created_at,
   };
@@ -70,7 +69,6 @@ export function agentRoutes(r) {
       max: MAX_DESCRIPTION, allowEmpty: true,
     });
     const thinking = requireThinking(body.thinking) ?? DEFAULT_THINKING;
-    const fileTools = optionalBool(body.file_tools, 'file_tools') ?? true;
 
     const clash = ctx.db
       .prepare('SELECT 1 FROM agents WHERE name = ? AND deleted = 0')
@@ -80,13 +78,10 @@ export function agentRoutes(r) {
     const info = ctx.db
       .prepare(
         `INSERT INTO agents
-           (name, description, thinking, file_tools, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (name, description, thinking, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(
-        name, description, thinking, fileTools ? 1 : 0,
-        user.id, new Date().toISOString(),
-      );
+      .run(name, description, thinking, user.id, new Date().toISOString());
     json(ctx.res, 201, agentPublic(liveAgent(ctx.db, info.lastInsertRowid)));
   });
 
@@ -105,7 +100,6 @@ export function agentRoutes(r) {
           max: MAX_DESCRIPTION, allowEmpty: true,
         }),
       thinking: requireThinking(body.thinking) ?? agent.thinking,
-      file_tools: optionalBool(body.file_tools, 'file_tools') ?? agent.file_tools === 1,
     };
 
     if (next.name !== agent.name) {
@@ -118,13 +112,10 @@ export function agentRoutes(r) {
     ctx.db
       .prepare(
         `UPDATE agents
-            SET name = ?, description = ?, thinking = ?, file_tools = ?
+            SET name = ?, description = ?, thinking = ?
           WHERE id = ?`,
       )
-      .run(
-        next.name, next.description, next.thinking,
-        next.file_tools ? 1 : 0, agent.id,
-      );
+      .run(next.name, next.description, next.thinking, agent.id);
     json(ctx.res, 200, agentPublic(liveAgent(ctx.db, agent.id)));
   });
 
@@ -150,9 +141,10 @@ export function agentRoutes(r) {
     assertBotsAllowed(chat);
     const body = await readJson(ctx.req);
     const agent = liveAgent(ctx.db, body.agent_id);
-    // The other half of the builder's room: the builder goes nowhere else.
+    // The other half of a builder room: the builder is seated in every one of
+    // a game's rooms at birth and goes nowhere else.
     if (agent.builtin === 1) {
-      throw new HttpError(409, `${agent.name} only works in Building and cannot be put in another chat`);
+      throw new HttpError(409, `${agent.name} works in a game's own rooms and cannot be put in a chat`);
     }
     const chatty = optionalBool(body.chatty, 'chatty') ?? false;
 
@@ -203,6 +195,13 @@ export function agentRoutes(r) {
     // directly rather than through liveAgent.
     const agentId = Number(ctx.params.agent_id);
     if (!Number.isInteger(agentId)) throw new HttpError(404, 'no such agent');
+    // ⚠️ The builder's seat is the room's, not anybody's to take away: a
+    // builder room with nobody in it answers nothing (spec.md §3). Until
+    // 2026-09-15 this route did not look, and the builder could be taken out.
+    const row = ctx.db.prepare('SELECT name, builtin FROM agents WHERE id = ?').get(agentId);
+    if (row?.builtin === 1) {
+      throw new HttpError(409, `${row.name} is this room's own helper and cannot be taken out`);
+    }
     const changed = ctx.db
       .prepare('DELETE FROM chat_agents WHERE chat_id = ? AND agent_id = ?')
       .run(chat.id, agentId).changes;

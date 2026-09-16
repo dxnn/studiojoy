@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  setup, signIn, startGames, openStream, putInChat, workChat,
+  setup, signIn, startGames, openStream, putInChat, workChat, builderChat,
 } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 
@@ -144,7 +144,7 @@ test('an agent in a chat gets no file tools and no file block', async (t) => {
   const app = await studio(t, { llm });
   await makeChat(app);
   const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Pal', description: 'You are friendly.', file_tools: true },
+    body: { name: 'Pal', description: 'You are friendly.' },
   });
   const chatId = await workChat(app, 'random');
   await putInChat(app, 'random', agent.body.id, { chatty: true, chat_id: chatId });
@@ -188,15 +188,11 @@ test('a chat agent with no description sends no system prompt at all', async (t)
   assert.equal(llm.lastCall().system, '');
 });
 
-test('an agent in a game still gets its file tools', async (t) => {
+test('the builder in a game gets its file tools and the tree', async (t) => {
   const llm = createFakeLlm([says('On it.')]);
   const app = await studio(t, { llm });
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Bob', description: 'You build.', file_tools: true },
-  });
-  const chatId = await workChat(app, 'tank');
-  await putInChat(app, 'tank', agent.body.id, { chatty: true, chat_id: chatId });
+  const chatId = await builderChat(app, 'tank');
 
   const stream = await openStream(app.client);
   t.after(() => stream.close());

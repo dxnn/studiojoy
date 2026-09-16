@@ -262,8 +262,7 @@ export function applyMessage(data) {
     S.project.agents.push({
       agent_id: called.id,
       name: called.name,
-      reasoning: known?.reasoning,
-      file_tools: known?.file_tools,
+      thinking: known?.thinking,
       // Called for one thing, not signed up to answer everything.
       chatty: false,
       responding: false,

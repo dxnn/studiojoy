@@ -24,7 +24,7 @@ import {
 import {
   sizingRules, sizingTrigger, parseSizing, pieceTurn, planBody, headline, handoffNote,
   notesForPlanner, begunNote, SIZING_MAX_TOKENS, CONFIRM_TRIGGER, resizeTrigger, specText,
-  CLEAR_JUDGE, CLEAR_MAX_TOKENS, parseClear, inOtherScript, SCRIPT_TRIGGER,
+  inOtherScript, SCRIPT_TRIGGER,
 } from './sizing.js';
 import { arcFor } from '../../public/arc.js';
 
@@ -187,170 +187,163 @@ function shapeLines(held) {
 // working tree it does not have, and an agent in a chat is whatever its
 // description says it is, with nothing from the studio layered on top.
 function studioPreamble({
-  project, canEdit, maxAssistantTurns, maxToolCalls, libraryNotes = [], sizing = false,
+  project, maxAssistantTurns, maxToolCalls, libraryNotes = [], sizing = false,
 }) {
+  // Every helper that reads this can edit: a game's rooms are all the
+  // builder's (spec.md §3), and a chat project's helper gets no preamble.
   const lines = [
     `You are an agent in Unbridled Joy, a game studio, working with people on the browser game "${project.name}".`,
     'The project is a working tree of files. Every change is committed to git, so nothing is unrecoverable.',
     '',
     'Paths are project-relative and / separated: no leading slash, no "..", no ".git", at most 8 segments.',
+    '',
+    'You have file tools. Prefer patch_file over write_file when changing a file that already exists —',
+    'it is cheaper and cannot silently lose the parts you did not mean to touch.',
+    '',
+    'Build a game as many small files rather than one big page. index.html holds the markup and nothing',
+    'else; css/ holds the styles; js/ holds one file per part of the game — input, drawing, levels, sound,',
+    'state; config/ holds the numbers and the words. A few hundred lines each. One enormous index.html',
+    'cannot be patched cheaply and is the thing most likely to be cut off half-written.',
+    '',
+    'assets/ holds the pictures and sounds, in four folders: assets/sounds/ for short noises,',
+    'assets/music/ for whole tracks, assets/sprites/ for pictures that move — a film strip of square',
+    'frames — and assets/images/ for the ones that do not.',
+    'The sound and sprites libraries look up a plain name in assets/sounds/ and assets/sprites/, so',
+    'Sound.play("laser") plays assets/sounds/laser.wav and Sprites.draw(ctx, "hero", x, y) draws',
+    'assets/sprites/hero.png; anything in assets/images/ or assets/music/ is named by its whole path,',
+    'and Sound.loop("assets/music/theme.mp3", 0.4) is how a track plays behind a game — quieter than a',
+    'noise, because it is under everything else. write_file takes text, so you can neither make nor',
+    'change one of these files, but a person can, from the "Add a file" button above the file list. Ask',
+    'for what you need by name and say what it is for — "assets/sounds/laser.wav, the shooting noise" —',
+    'and say which of its choices makes it:',
+    '- "+ Draw a picture" draws a sprite or a backdrop square by square and saves a .png, up to 1024 a side.',
+    '- "+ Make a sound" makes a .wav from a row of sliders, and opens any sound made that way again.',
+    '- "+ Upload" puts any file from their own device into the game.',
+    'Writing the game to use a file that is not there yet is fine as long as you have asked for it in the',
+    'same reply. Pointing at one nobody has heard of is not: it just fails to load while the game runs.',
+    '',
+    'Three picture names at the root are the studio\'s own dressing rather than the game\'s: chat.png',
+    'tiles behind the conversation, hero.png backs the bar over it and the game\'s card on the public',
+    'front page, and icon.png marks the game in the sidebar. Person-made pictures like any other — ask',
+    'for them by those exact names at the root, never under assets/.',
+    '',
+    'One kind of picture you can make on your own: an .svg is text, so write_file and patch_file both work',
+    'on it. Worth it for a plain shape, an icon or a background; a sprite someone should be proud of is',
+    'still a person job.',
+    '',
+    'You can see. look_at shows you any .png, .jpg, .gif or .webp in the game — read_file cannot, and the',
+    'file list only names them. Look before you judge a picture: whether a sprite reads at the size it is',
+    'drawn, which way it faces, what its colours are, whether two of them belong in the same game. Do not',
+    'look at one whose contents do not matter to what you are doing; every look costs, and the name is',
+    'usually enough. An .svg is text — read_file it instead, and you get the shapes rather than a picture',
+    'of them.',
+    '',
+    'look_at_game shows you the game itself: the last frame the person you are talking to was watching,',
+    'taken when they sent their message. Use it the moment somebody says something looks wrong — "the',
+    'ship is stuck", "it\'s all black", "the score is off the edge" — because what they can see and what',
+    'the code says are different things, and this is the only way to have both. Worth looking again after',
+    'a change to how the game looks, once they have played it. Two things it cannot do: a game drawn with',
+    'HTML instead of a canvas has no picture to take, and there is none at all unless somebody has the',
+    'preview open — it says so plainly either way, and neither is a fault to fix.',
+    '',
+    'config/ is the part a person tunes without reading code, so it has rules of its own:',
+    '- ⚠️ Every number and every word the game uses lives here and nowhere else — speeds, sizes, counts,',
+    '  colours, timings, lives, scores, level data, every string the player sees. A js/ file reads them',
+    '  and never holds one: a constant in game code is a value nobody but you can change. Before a reply',
+    '  ends, anything typed as a literal into js/ has moved into config/ with its comment, and a new',
+    '  game gets its config files in its first piece, not later.',
+    '- One batch per file: config/play.js (movement, timings), config/world.js (levels or board data),',
+    '  config/look.js (colours, sizes), config/words.js (every string the player sees),',
+    '  config/controls.js (which button does what), config/achievements.js (what a player can earn).',
+    '- Plain values only, written as `const NAME = value;` — numbers, strings, true/false, and lists or',
+    '  groups of those. No logic, no maths, no function calls: the studio shows these files as a form of',
+    '  labelled fields, and it can only do that while every value is a plain one.',
+    '- A comment on every value, in words a ten-year-old can read. That comment is the point of the file.',
+    '- Change them whenever the game needs it — a new level, a new line, a rebalance — and keep the',
+    '  comments when you do. Use patch_file for a single value so the rest of the file stays untouched.',
+    '- ⚠️ Four of them open as an editor for the whole game rather than a list of fields, and only while',
+    '  they keep their exact shape: config/questions.js as the "quiz editor", config/story.js as the',
+    '  "story editor", config/achievements.js as the "achievements editor", the Achievements part of',
+    '  Share (each entry is id, name, how, icon, when), and config/controls.js as "Controls", where a',
+    '  person picks how the game is held and what each button does. Adding a key those do not know — a',
+    '  weight on an answer, a field on a scene, a second test on a rule, a list of bindings where a line',
+    '  of them belongs — costs the person the editor and drops them back to a form or to the code.',
+    '  Do not reshape one to add a feature unless you have been asked for that feature and told the trade;',
+    '  changing the words, adding questions, scenes or achievements, and everything else inside the shape',
+    '  is free.',
+    '',
+    'Say what happens as it happens: Moments.say("name", value) on the line where the game gains a level,',
+    'ends a run, settles a score or reaches an ending. A moment is just "this happened"; the studio watches',
+    'them while a game is played, and config/achievements.js is where moments become what a player earns —',
+    'each achievement a rule over one moment. Slug-shaped names, and a number, a short word or nothing for',
+    'the value.',
+    '',
+    `${LIBRARY_DIR}/ is the studio's library, copied into this game so it runs anywhere, and it is the one`,
+    'part of the tree you cannot write: your file tools refuse it. Read it, call it, and say so if it needs',
+    `to change. ${LIBRARY_MANIFEST} says which libraries this game has and at what version.`,
+    `Each one is a plain script and needs its tag in index.html — <script src="${LIBRARY_DIR}/input.js"></script>`,
+    "and so on for the others — before the game's own scripts, or its calls run against nothing. If you write",
+    'index.html, that is yours to get right.',
   ];
-  if (canEdit) {
-    lines.push(
-      '',
-      'You have file tools. Prefer patch_file over write_file when changing a file that already exists —',
-      'it is cheaper and cannot silently lose the parts you did not mean to touch.',
-      '',
-      'Build a game as many small files rather than one big page. index.html holds the markup and nothing',
-      'else; css/ holds the styles; js/ holds one file per part of the game — input, drawing, levels, sound,',
-      'state; config/ holds the numbers and the words. A few hundred lines each. One enormous index.html',
-      'cannot be patched cheaply and is the thing most likely to be cut off half-written.',
-      '',
-      'assets/ holds the pictures and sounds, in four folders: assets/sounds/ for short noises,',
-      'assets/music/ for whole tracks, assets/sprites/ for pictures that move — a film strip of square',
-      'frames — and assets/images/ for the ones that do not.',
-      'The sound and sprites libraries look up a plain name in assets/sounds/ and assets/sprites/, so',
-      'Sound.play("laser") plays assets/sounds/laser.wav and Sprites.draw(ctx, "hero", x, y) draws',
-      'assets/sprites/hero.png; anything in assets/images/ or assets/music/ is named by its whole path,',
-      'and Sound.loop("assets/music/theme.mp3", 0.4) is how a track plays behind a game — quieter than a',
-      'noise, because it is under everything else. write_file takes text, so you can neither make nor',
-      'change one of these files, but a person can, from the "Add a file" button above the file list. Ask',
-      'for what you need by name and say what it is for — "assets/sounds/laser.wav, the shooting noise" —',
-      'and say which of its choices makes it:',
-      '- "+ Draw a picture" draws a sprite or a backdrop square by square and saves a .png, up to 1024 a side.',
-      '- "+ Make a sound" makes a .wav from a row of sliders, and opens any sound made that way again.',
-      '- "+ Upload" puts any file from their own device into the game.',
-      'Writing the game to use a file that is not there yet is fine as long as you have asked for it in the',
-      'same reply. Pointing at one nobody has heard of is not: it just fails to load while the game runs.',
-      '',
-      'Three picture names at the root are the studio\'s own dressing rather than the game\'s: chat.png',
-      'tiles behind the conversation, hero.png backs the bar over it and the game\'s card on the public',
-      'front page, and icon.png marks the game in the sidebar. Person-made pictures like any other — ask',
-      'for them by those exact names at the root, never under assets/.',
-      '',
-      'One kind of picture you can make on your own: an .svg is text, so write_file and patch_file both work',
-      'on it. Worth it for a plain shape, an icon or a background; a sprite someone should be proud of is',
-      'still a person job.',
-      '',
-      'You can see. look_at shows you any .png, .jpg, .gif or .webp in the game — read_file cannot, and the',
-      'file list only names them. Look before you judge a picture: whether a sprite reads at the size it is',
-      'drawn, which way it faces, what its colours are, whether two of them belong in the same game. Do not',
-      'look at one whose contents do not matter to what you are doing; every look costs, and the name is',
-      'usually enough. An .svg is text — read_file it instead, and you get the shapes rather than a picture',
-      'of them.',
-      '',
-      'look_at_game shows you the game itself: the last frame the person you are talking to was watching,',
-      'taken when they sent their message. Use it the moment somebody says something looks wrong — "the',
-      'ship is stuck", "it\'s all black", "the score is off the edge" — because what they can see and what',
-      'the code says are different things, and this is the only way to have both. Worth looking again after',
-      'a change to how the game looks, once they have played it. Two things it cannot do: a game drawn with',
-      'HTML instead of a canvas has no picture to take, and there is none at all unless somebody has the',
-      'preview open — it says so plainly either way, and neither is a fault to fix.',
-      '',
-      'config/ is the part a person tunes without reading code, so it has rules of its own:',
-      '- ⚠️ Every number and every word the game uses lives here and nowhere else — speeds, sizes, counts,',
-      '  colours, timings, lives, scores, level data, every string the player sees. A js/ file reads them',
-      '  and never holds one: a constant in game code is a value nobody but you can change. Before a reply',
-      '  ends, anything typed as a literal into js/ has moved into config/ with its comment, and a new',
-      '  game gets its config files in its first piece, not later.',
-      '- One batch per file: config/play.js (movement, timings), config/world.js (levels or board data),',
-      '  config/look.js (colours, sizes), config/words.js (every string the player sees),',
-      '  config/controls.js (which button does what), config/achievements.js (what a player can earn).',
-      '- Plain values only, written as `const NAME = value;` — numbers, strings, true/false, and lists or',
-      '  groups of those. No logic, no maths, no function calls: the studio shows these files as a form of',
-      '  labelled fields, and it can only do that while every value is a plain one.',
-      '- A comment on every value, in words a ten-year-old can read. That comment is the point of the file.',
-      '- Change them whenever the game needs it — a new level, a new line, a rebalance — and keep the',
-      '  comments when you do. Use patch_file for a single value so the rest of the file stays untouched.',
-      '- ⚠️ Four of them open as an editor for the whole game rather than a list of fields, and only while',
-      '  they keep their exact shape: config/questions.js as the "quiz editor", config/story.js as the',
-      '  "story editor", config/achievements.js as the "achievements editor", the Achievements part of',
-      '  Share (each entry is id, name, how, icon, when), and config/controls.js as "Controls", where a',
-      '  person picks how the game is held and what each button does. Adding a key those do not know — a',
-      '  weight on an answer, a field on a scene, a second test on a rule, a list of bindings where a line',
-      '  of them belongs — costs the person the editor and drops them back to a form or to the code.',
-      '  Do not reshape one to add a feature unless you have been asked for that feature and told the trade;',
-      '  changing the words, adding questions, scenes or achievements, and everything else inside the shape',
-      '  is free.',
-      '',
-      'Say what happens as it happens: Moments.say("name", value) on the line where the game gains a level,',
-      'ends a run, settles a score or reaches an ending. A moment is just "this happened"; the studio watches',
-      'them while a game is played, and config/achievements.js is where moments become what a player earns —',
-      'each achievement a rule over one moment. Slug-shaped names, and a number, a short word or nothing for',
-      'the value.',
-      '',
-      `${LIBRARY_DIR}/ is the studio's library, copied into this game so it runs anywhere, and it is the one`,
-      'part of the tree you cannot write: your file tools refuse it. Read it, call it, and say so if it needs',
-      `to change. ${LIBRARY_MANIFEST} says which libraries this game has and at what version.`,
-      `Each one is a plain script and needs its tag in index.html — <script src="${LIBRARY_DIR}/input.js"></script>`,
-      "and so on for the others — before the game's own scripts, or its calls run against nothing. If you write",
-      'index.html, that is yours to get right.',
-    );
-    // The engine's contract, never its source: each held library documents
-    // itself with the note at the top of its file, read from the game's own
-    // copy so it matches the version this game actually holds. Adding a
-    // library to the studio teaches every helper about it with no edit here.
-    const held = new Set();
-    for (const { file, note } of libraryNotes) {
-      lines.push('', `How to use ${file} — the note from the top of the file:`, note);
-      held.add(file.slice(LIBRARY_DIR.length + 1, -3));
-    }
-    // After the notes, because the shape is what to do with them.
-    lines.push(...shapeLines(held));
-    lines.push(
-      '',
-      'A game can see its own assets/ folder live: GET _assets, relative to the game\'s page, answers',
-      '{"files": [{"path": "assets/sprites/hero.png", "size": 1234, "mime": "image/png"}, …]} — every file',
-      'under assets/, read from disk on each request — so a game can find all its pictures or sounds without',
-      'a hand-kept list. Sprites and Sound still draw and play by name; this is for finding the names.',
-    );
-    // Only while the switch is on: a helper told about routes that answer 404
-    // would happily build a broken board (spec.md §6).
-    if (project.scores_on !== 0) lines.push(
-      '',
-      'Every game also has a scoreboard, kept by the studio rather than in the files, and a score only',
-      'counts for a signed-in player: people sign in on the games site\'s front page, and the name on the',
-      'board is their account\'s — never typed into the game, never in the body. From the game\'s own page:',
-      'GET /_me answers {"user": {"name": "Pat"}} or {"user": null}; when it is null, offer a plain link',
-      'to / saying to sign in to get on the board, and skip the post. POST /_scores/<slug> with JSON',
-      '{"score": 120} saves one entry and answers {"rank": 3} — a null rank missed the board, a 401 means',
-      'nobody is signed in — and GET /_scores/<slug> returns the best first as',
-      '{"scores": [{"name": …, "score": …}, …]}, ten of them unless ?limit= asks for up to 100. The slug',
-      'is the first piece of the page\'s address: location.pathname.split("/")[1]. Scores are whole',
-      'numbers and bigger is better, so post a time as its negative and flip it back to show it. The',
-      'board keeps the best 100. Show names with textContent, never innerHTML.',
-    );
-    lines.push(
-      '',
-      'Keep the project documents at the root, next to the code. They are notes for the people and agents',
-      'working on the game, and never part of the game itself:',
-      'BRIEF.md — the file map: what each file is for, how the pieces fit together, what someone needs to',
-      '  know before touching them. This is the one file always in front of you, so keep it short, and',
-      '  update it whenever you add, move, or repurpose a file.',
-      'SPEC.md — what the game is and how it is meant to work: rules, controls, screens, and the decisions',
-      '  already settled. Update it when a decision changes, not on every turn.',
-      'TODO.md — one task per line, and only when the list is long enough to be worth staging. Delete a',
-      '  line when it is done. For a small job, skip the file and do the work.',
-      '',
-      'The game runs in a preview beside the chat, and what it throws while somebody plays — a script that',
-      'errored, a file that would not load — comes back to you on your next turn, against the version it',
-      'happened on. Until somebody presses play, nothing you wrote has been tested, so ask them to.',
-      '',
-      'Settle the design before you write, then write each file once. Rewriting a file you wrote a moment',
-      'ago, over and over, is how a reply runs out of turns with the game half-built — and the version that',
-      'ships is then the one nobody has read. When you have finished changing a file, read it back.',
-      '',
-      `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
-      'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',
-      'a turn spent on a single read is a turn you do not get back. If you can see you will not finish,',
-      'stop and say what is left rather than being cut off mid-file.',
-    );
-  } else {
-    lines.push(
-      '',
-      'You have no file tools. You can read and discuss the project but not change it.',
-    );
+  // The engine's contract, never its source: each held library documents
+  // itself with the note at the top of its file, read from the game's own
+  // copy so it matches the version this game actually holds. Adding a
+  // library to the studio teaches every helper about it with no edit here.
+  const held = new Set();
+  for (const { file, note } of libraryNotes) {
+    lines.push('', `How to use ${file} — the note from the top of the file:`, note);
+    held.add(file.slice(LIBRARY_DIR.length + 1, -3));
   }
+  // After the notes, because the shape is what to do with them.
+  lines.push(...shapeLines(held));
+  lines.push(
+    '',
+    'A game can see its own assets/ folder live: GET _assets, relative to the game\'s page, answers',
+    '{"files": [{"path": "assets/sprites/hero.png", "size": 1234, "mime": "image/png"}, …]} — every file',
+    'under assets/, read from disk on each request — so a game can find all its pictures or sounds without',
+    'a hand-kept list. Sprites and Sound still draw and play by name; this is for finding the names.',
+  );
+  // Only while the switch is on: a helper told about routes that answer 404
+  // would happily build a broken board (spec.md §6).
+  if (project.scores_on !== 0) lines.push(
+    '',
+    'Every game also has a scoreboard, kept by the studio rather than in the files, and a score only',
+    'counts for a signed-in player: people sign in on the games site\'s front page, and the name on the',
+    'board is their account\'s — never typed into the game, never in the body. From the game\'s own page:',
+    'GET /_me answers {"user": {"name": "Pat"}} or {"user": null}; when it is null, offer a plain link',
+    'to / saying to sign in to get on the board, and skip the post. POST /_scores/<slug> with JSON',
+    '{"score": 120} saves one entry and answers {"rank": 3} — a null rank missed the board, a 401 means',
+    'nobody is signed in — and GET /_scores/<slug> returns the best first as',
+    '{"scores": [{"name": …, "score": …}, …]}, ten of them unless ?limit= asks for up to 100. The slug',
+    'is the first piece of the page\'s address: location.pathname.split("/")[1]. Scores are whole',
+    'numbers and bigger is better, so post a time as its negative and flip it back to show it. The',
+    'board keeps the best 100. Show names with textContent, never innerHTML.',
+  );
+  lines.push(
+    '',
+    'Keep the project documents at the root, next to the code. They are notes for the people and agents',
+    'working on the game, and never part of the game itself:',
+    'BRIEF.md — the file map: what each file is for, how the pieces fit together, what someone needs to',
+    '  know before touching them. This is the one file always in front of you, so keep it short, and',
+    '  update it whenever you add, move, or repurpose a file.',
+    'SPEC.md — what the game is and how it is meant to work: rules, controls, screens, and the decisions',
+    '  already settled. Update it when a decision changes, not on every turn.',
+    'TODO.md — one task per line, and only when the list is long enough to be worth staging. Delete a',
+    '  line when it is done. For a small job, skip the file and do the work.',
+    '',
+    'The game runs in a preview beside the chat, and what it throws while somebody plays — a script that',
+    'errored, a file that would not load — comes back to you on your next turn, against the version it',
+    'happened on. Until somebody presses play, nothing you wrote has been tested, so ask them to.',
+    '',
+    'Settle the design before you write, then write each file once. Rewriting a file you wrote a moment',
+    'ago, over and over, is how a reply runs out of turns with the game half-built — and the version that',
+    'ships is then the one nobody has read. When you have finished changing a file, read it back.',
+    '',
+    `This reply gets at most ${maxAssistantTurns} turns and ${maxToolCalls} tool calls, then it is cut off`,
+    'wherever it happens to be. Several tool calls in one turn cost one turn, so send them together:',
+    'a turn spent on a single read is a turn you do not get back. If you can see you will not finish,',
+    'stop and say what is left rather than being cut off mid-file.',
+  );
   // What this game is, when the studio knows (projects.type). A type brings
   // an editor the person works in, and a helper that has not been told sees
   // the story as a file to rewrite from the wrong end. Named by the words on
@@ -831,7 +824,6 @@ async function buildContext({
   const fileBlock = isChat ? null : await buildFileBlock(db, chat, dir);
   const preamble = isChat ? null : studioPreamble({
     project,
-    canEdit: agent.file_tools,
     maxAssistantTurns,
     maxToolCalls,
     libraryNotes: await buildLibraryNotes(dir),
@@ -1529,80 +1521,20 @@ export function createOrchestrator({
     return '';
   }
 
-  // How hard this fire thinks, decided by the **ask** rather than by a setting
-  // somebody made before anyone knew what would be asked (spec.md §8, §14).
-  // One tiny call — the wording, nothing else, its own prefix, 119 tokens.
-  //
-  // ⚠️ It only ever turns thinking **down**. A request that names what to
-  // change has nothing to work out and `none` was measured writing the same
-  // change to the same file as `low`; but a person who chose `none` chose
-  // predictability and the cliff is real at every other setting, so nothing
-  // here ever turns it up. An answer that will not parse, an upstream that
-  // will not answer, and an agent already on `none` all keep the level, and
-  // the last of those skips the call entirely.
-  // Returns the level, what asking cost, and the usage row, because §8 has two
-  // rules to keep here: the number recorded on a reply is the number the
-  // budget was charged, and the receipt's requests add up to that number. A
-  // judge that charged without a row would break the second, and one that
-  // neither charged nor showed would hide a real request from the person
-  // paying for it.
-  async function judgeThinking(fire, toolset) {
-    const { agent, context } = fire;
-    const keep = { thinking: agent.thinking, charged: 0, usage: null };
-    if (agent.thinking === 'none') return keep;
-    // ⚠️ And only where there is something to change. `clear` asks whether the
-    // request named *what to change*, which is not a question about a helper
-    // that cannot change anything — a chat-only helper is having a
-    // conversation, and its thinking is all its answer is made of.
-    if (!toolset) return keep;
-    const ask = lastAsk(context.messages);
-    if (!ask) return keep;
-    try {
-      const answer = await llm.complete({
-        system: CLEAR_JUDGE,
-        messages: [{ role: 'user', content: ask }],
-        thinking: 'none',
-        maxTokens: CLEAR_MAX_TOKENS,
-        responseFormat: 'json_object',
-      });
-      // ⚠️ Not charged here. The builder's sizing charges itself because its
-      // cost belongs to no loop, but this rides `outcome.charged`, which
-      // persistReply puts through consumeBudget and chargeUser once. Charging
-      // in both places bills the judge twice.
-      return {
-        thinking: parseClear(answer.text) === true ? 'none' : agent.thinking,
-        charged: tokensCharged(answer.usage),
-        usage: {
-          hit: answer.usage?.prompt_cache_hit_tokens ?? 0,
-          miss: answer.usage?.prompt_cache_miss_tokens ?? answer.usage?.prompt_tokens ?? 0,
-          out: answer.usage?.completion_tokens ?? 0,
-        },
-      };
-    } catch {
-      return keep;
-    }
-  }
-
-  // The fire every room but the builder's gets: one loop, one reply.
+  // The fire a chat project's helper gets: one loop, one reply, no tools —
+  // there is no tree, and the helper is whatever its description says, at the
+  // thinking level it was given. The thinking judge that used to go ahead of
+  // this fire (§14, "the tiny judge") went with the open room it was for: a
+  // game's rooms are all the builder's since 2026-09-15, and the cliff it
+  // guarded against is thinking against tools.
   async function openFire(fire) {
-    const { row, agent, dir, context, emit } = fire;
-    const toolset = agent.file_tools && dir !== null
-      ? createToolset({
-        dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
-      })
-      : null;
-    const judged = await judgeThinking(fire, toolset);
+    const { agent, context, emit } = fire;
     const outcome = await runLoop({
-      agent, system: context.system, messages: context.messages, toolset,
-      thinking: judged.thinking, emit,
+      agent, system: context.system, messages: context.messages, toolset: null,
+      thinking: agent.thinking, emit,
     });
-    if (judged.usage) {
-      // First, because it was: the judge is asked before the fire is made.
-      outcome.requests.unshift(judged.usage);
-      outcome.charged += judged.charged;
-    }
     const kept = await persistReply({
-      ...fire, toolset, outcome, subject: firstLine(outcome.reply) || 'update files',
+      ...fire, toolset: null, outcome, subject: firstLine(outcome.reply) || 'update files',
     });
     if (kept.nothing) return;
     reportOutcome({ ...fire, outcome, changed: kept.changed });
@@ -2038,7 +1970,7 @@ export function createOrchestrator({
         `SELECT ca.id, ca.chat_id, ca.agent_id, ca.response_pending,
                 c.project_id, c.name AS chat_name,
                 a.name AS agent_name, a.description, a.thinking,
-                a.file_tools, a.deleted, a.builtin,
+                a.deleted, a.builtin,
                 c.builder,
                 p.slug, p.name AS project_name, p.kind, p.type, p.archived, p.scores_on, p.stage
            FROM chat_agents ca
@@ -2123,7 +2055,6 @@ export function createOrchestrator({
         name: row.agent_name,
         description: row.description,
         thinking: row.thinking,
-        file_tools: row.file_tools === 1,
       };
       // Snapshot before streaming: anything with a higher id arrived while
       // this reply was being written and was therefore unseen by it.
@@ -2135,11 +2066,11 @@ export function createOrchestrator({
       // swallow them, and the problems the preview filed against those saves
       // are HEAD's by the time the context reads them (files/pending.js).
       if (dir !== null && pending) await pending.settle(row.slug);
-      // The builder's room sizes first (spec.md §8); everywhere else is the
+      // A builder room sizes first (spec.md §8); a chat project's room is the
       // one fire it always was. Its context names the small budget, since
       // that is what a small ask there runs under and the sizing shares the
       // prefix; a piece builds its own.
-      const builderRoom = row.builder === 1 && agent.file_tools && dir !== null;
+      const builderRoom = row.builder === 1 && dir !== null;
       const limits = builderRoom ? smallLimits : roomLimits;
       // Build it pressed: the newest turn is the builder's own card, and the
       // fire adds the turn there is to answer (runQueued).

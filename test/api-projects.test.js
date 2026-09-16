@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  setup, signIn, putInChat, workChat, startGames,
+  setup, signIn, startGames,
 } from './helpers.js';
 import { isRepo, logCommits } from '../server/files/git.js';
 import { parseConfigFile } from '../public/config-file.js';
@@ -653,10 +653,6 @@ test("archiving and unarchiving are the originator's alone, and never a publishe
 test('a fork copies the files and their history, and gets the builder', async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Bob', description: 'builds' },
-  });
-  await putInChat(app, 'tank', agent.body.id, { chatty: true });
   await app.client.put('/api/projects/tank/files/index.html', {
     headers: { 'content-type': 'text/plain' }, rawBody: '<h1>tank</h1>',
   });
@@ -680,8 +676,8 @@ test('a fork copies the files and their history, and gets the builder', async (t
   assert.ok(commits.length >= 2, 'the original commits are present');
   assert.equal(fs.existsSync(path.join(dir, '.git', 'refs', 'remotes', 'origin')), false);
 
-  // The builder is in the copy's Building like any game's; the original's own
-  // helpers stay with the original — a fork is the files, not the rooms.
+  // The builder is in the copy's Building like any game's, and the copy is
+  // born with a game's two rooms — a fork is the files, not the rooms.
   const forked2 = await app.client.json('GET', '/api/projects/tank-two');
   const building = forked2.body.chats.find((c) => c.builder);
   const detail = await app.client.json('GET', `/api/projects/tank-two?chat=${building.id}`);

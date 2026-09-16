@@ -7,9 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {
-  parseSizing, parseClear, sizingRules, inOtherScript,
-} from '../server/agents/sizing.js';
+import { parseSizing, sizingRules, inOtherScript } from '../server/agents/sizing.js';
 
 const PLAN = {
   size: 'pieces',
@@ -70,13 +68,6 @@ test('a first object followed by something that is not its own tail is read alon
   assert.equal(parseSizing('I would make this in three pieces.'), null);
   assert.equal(parseSizing('{"size":"pieces","pieces":[{"title":"a"'), null, 'never closed');
   assert.equal(parseSizing(''), null);
-});
-
-test('the clear key is read only when it is a boolean', () => {
-  assert.equal(parseClear('{"clear": true}'), true);
-  assert.equal(parseClear('{"clear": false}'), false);
-  assert.equal(parseClear('{"clear": "yes"}'), null);
-  assert.equal(parseClear('nope'), null);
 });
 
 // ⚠️ Measured and withdrawn (spec/ §14, 2026-09-15): a line telling the sizing

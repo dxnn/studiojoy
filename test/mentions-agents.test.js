@@ -5,8 +5,11 @@
 //
 // The rules under test: a named helper joins waiting-to-be-called rather than
 // chatty, the room's cap still holds, a helper already in the room is left
-// exactly as it is, ⚠️ a human-only chat lets nobody in this way either, and
-// the message says who came.
+// exactly as it is, ⚠️ a human-only chat and a builder room let nobody in
+// this way either, and the message says who came.
+//
+// Two projects: a chat project, whose one room is where a person's helper can
+// be called in, and a game, whose rooms take nobody's (spec/ §3).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,17 +27,17 @@ const makeHelper = async (app, name) => (await app.client.json('POST', '/api/age
   body: { name, description: 'builds things' },
 })).body.id;
 
-const say = (app, body, chatId) => app.client.json('POST', '/api/projects/tank/messages', {
-  body: { body, chat_id: chatId },
-});
+const say = (app, body, chatId, slug = 'talk') => app.client.json(
+  'POST', `/api/projects/${slug}/messages`, { body: { body, chat_id: chatId } },
+);
 
-const inChat = async (app, chatId) => (
-  await app.client.json('GET', `/api/projects/tank?chat=${chatId}`)
+const inChat = async (app, chatId, slug = 'talk') => (
+  await app.client.json('GET', `/api/projects/${slug}?chat=${chatId}`)
 ).body.agents;
 
 test('naming a helper who is not in the room puts them in it', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   await makeHelper(app, 'Alice');
 
   assert.deepEqual(await inChat(app, work), []);
@@ -49,7 +52,7 @@ test('naming a helper who is not in the room puts them in it', async (t) => {
 
 test('a prefix reaches them the same way it reaches a person', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   await makeHelper(app, 'Level Designer');
 
   await say(app, 'over to you @level', work);
@@ -58,9 +61,9 @@ test('a prefix reaches them the same way it reaches a person', async (t) => {
 
 test('a helper already in the room is left exactly as they are', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   const alice = await makeHelper(app, 'Alice');
-  await app.client.json(`POST`, `/api/projects/tank/chats/${work}/agents`, {
+  await app.client.json(`POST`, `/api/projects/talk/chats/${work}/agents`, {
     body: { agent_id: alice, chatty: true },
   });
 
@@ -79,14 +82,28 @@ test('a human-only chat lets nobody in by name', async (t) => {
   assert.equal(home.bots, false);
   await makeHelper(app, 'Alice');
 
-  const sent = await say(app, '@Alice are you listening?', home.id);
+  const sent = await say(app, '@Alice are you listening?', home.id, 'tank');
   assert.equal(sent.status, 201, 'the message still goes');
-  assert.deepEqual(await inChat(app, home.id), []);
+  assert.deepEqual(await inChat(app, home.id, 'tank'), []);
+});
+
+// ⚠️ And a builder room keeps its one seat the same way. Until 2026-09-15 the
+// caller checked `bots` alone, and a name typed in Building put a helper there.
+test('a builder room lets nobody in by name either', async (t) => {
+  const app = await studio(t);
+  const building = (await app.client.json('GET', '/api/projects/tank')).body.chats
+    .find((c) => c.builder);
+  await makeHelper(app, 'Alice');
+
+  const sent = await say(app, '@Alice are you listening?', building.id, 'tank');
+  assert.equal(sent.status, 201, 'the message still goes');
+  assert.deepEqual(sent.body.joined ?? [], []);
+  assert.deepEqual((await inChat(app, building.id, 'tank')).map((a) => a.name), ['Builder']);
 });
 
 test('a name nobody has, and a helper that has been deleted, call nobody', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   const alice = await makeHelper(app, 'Alice');
   await app.client.json('DELETE', `/api/agents/${alice}`);
 
@@ -96,7 +113,7 @@ test('a name nobody has, and a helper that has been deleted, call nobody', async
 
 test('the room’s cap holds against a message naming everybody', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   const names = [];
   for (let i = 0; i < 12; i += 1) {
     const name = `Helper${String(i).padStart(2, '0')}`;
@@ -117,7 +134,7 @@ test('the room’s cap holds against a message naming everybody', async (t) => {
 
 test('the message says who it called in, so every tab can show them', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await workChat(app, 'talk');
   await makeHelper(app, 'Alice');
 
   const stream = await openStream(app.client);

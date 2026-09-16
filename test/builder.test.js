@@ -106,7 +106,7 @@ test('a new game is born with the builder in Building, and opens there', async (
   assert.equal(home.body.chat.name, 'Humans only');
 });
 
-test("the builder's room takes no other helper, and the builder goes nowhere else", async (t) => {
+test("a builder room takes no other helper, and the builder goes nowhere else", async (t) => {
   const { app, chatId } = await studio(t);
   const designer = await app.client.json('POST', '/api/agents', {
     body: { name: 'Designer', description: 'd' },
@@ -115,12 +115,21 @@ test("the builder's room takes no other helper, and the builder goes nowhere els
   assert.equal(refused.status, 409);
   assert.match(refused.body.error, /Builder's/);
 
+  // A chat added to a game is another builder room, the builder seated
+  // already — so it is the same door, and there is nowhere in a game to put
+  // anybody else.
   const art = await app.client.json('POST', '/api/projects/tank/chats', { body: { name: 'Art' } });
-  const elsewhere = await putInChat(app, 'tank', builderId(app), { chat_id: art.body.id });
-  assert.equal(elsewhere.status, 409);
-  assert.match(elsewhere.body.error, /only works in Building/);
+  assert.equal(art.body.builder, true);
+  assert.deepEqual(
+    (await app.client.json('GET', `/api/projects/tank?chat=${art.body.id}`)).body.agents.map((a) => a.name),
+    ['Builder'],
+  );
+  assert.equal((await putInChat(app, 'tank', designer.body.id, { chat_id: art.body.id })).status, 409);
 
-  // Not by name either: an @ calls people's helpers in, never the studio's.
+  // And the builder does not go into a chat project, by hand or by name.
+  const elsewhere = await putInChat(app, 'talk', builderId(app));
+  assert.equal(elsewhere.status, 409);
+  assert.match(elsewhere.body.error, /cannot be put in a chat/);
   const stream = await openStream(app.client);
   t.after(() => stream.close());
   await app.client.json('POST', '/api/projects/tank/messages', {
@@ -128,6 +137,13 @@ test("the builder's room takes no other helper, and the builder goes nowhere els
   });
   const posted = await stream.waitFor((e) => e.event === 'message.new' && /come here/.test(e.data.body));
   assert.deepEqual(posted.data.joined ?? [], []);
+
+  // Nor out of its own room: the seat is the room's.
+  const taken = await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${chatId}/agents/${builderId(app)}`,
+  );
+  assert.equal(taken.status, 409);
+  await taken.text();
 
   // And nothing about it is anybody's to change or take away.
   const changed = await app.client.json('PATCH', `/api/agents/${builderId(app)}`, {
@@ -160,12 +176,12 @@ test('a helper somebody called Builder is renamed, not removed, when the builder
     up.prepare('SELECT name, builtin FROM agents ORDER BY id').all().map((a) => [a.name, a.builtin]),
     [['Builder (helper)', 0], ['Builder', 1]],
   );
-  // A room the people renamed is theirs and is left alone; the builder gets
-  // a fresh Building beside it.
+  // A room the people made keeps its name and becomes the builder's: every
+  // room in a game but the humans' is (intoBuilderRooms).
   assert.deepEqual(
     up.prepare('SELECT name, bots, builder FROM chats WHERE project_id = 1 ORDER BY id').all()
       .map((c) => [c.name, c.bots, c.builder]),
-    [['Humans only', 0, 0], ['Level ideas', 1, 0], ['Building', 1, 1]],
+    [['Humans only', 0, 0], ['Level ideas', 1, 1]],
   );
   up.close();
 });

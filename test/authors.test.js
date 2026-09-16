@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn, workChat } from './helpers.js';
+import { setup, signIn, builderChat } from './helpers.js';
 
 // Two people: Dann, who makes the game, and Robin, who does not.
 async function two(t) {
@@ -99,8 +99,8 @@ test('anyone can talk in the human-only chat of any game', async (t) => {
   assert.equal(said.status, 201);
   assert.equal(said.body.user_name, 'Robin');
 
-  // But not in the chat where the work happens.
-  const work = await workChat(app, 'tank');
+  // But not in the room where the work happens.
+  const work = await builderChat(app, 'tank');
   const nope = await theirs.json('POST', '/api/projects/tank/messages', {
     body: { body: 'let me help', chat_id: work },
   });
@@ -153,7 +153,7 @@ test('an author adds somebody, and then they can change it', async (t) => {
   assert.deepEqual(added.body.authors.map((a) => a.display_name), ['Dann', 'Robin']);
 
   assert.equal((await write(theirs, 'index.html')).status, 201);
-  const work = await workChat(app, 'tank');
+  const work = await builderChat(app, 'tank');
   assert.equal(
     (await theirs.json('POST', '/api/projects/tank/messages', {
       body: { body: 'on it', chat_id: work },

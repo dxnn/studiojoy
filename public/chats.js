@@ -263,7 +263,6 @@ export async function attachAgent(agent) {
     agent_id: agent.id,
     name: agent.name,
     thinking: agent.thinking,
-    file_tools: agent.file_tools,
     chatty: true,
     responding: false,
   });

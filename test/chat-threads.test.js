@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
-  setup, signIn, openStream, putInChat, workChat, scratchDir,
+  setup, signIn, openStream, builderChat, scratchDir,
 } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 import { openDb } from '../server/db.js';
@@ -24,13 +24,13 @@ async function studio(t, opts = {}) {
   return app;
 }
 
-test('a game is born with a human-only chat and one that takes helpers', async (t) => {
+test("a game is born with a human-only chat and the builder's", async (t) => {
   const app = await studio(t);
   const detail = await app.client.json('GET', '/api/projects/tank');
 
   assert.deepEqual(
-    detail.body.chats.map((c) => [c.name, c.bots]),
-    [['Humans only', false], ['Building', true]],
+    detail.body.chats.map((c) => [c.name, c.bots, c.builder]),
+    [['Humans only', false, false], ['Building', true, true]],
   );
   // The one it opens on when nothing says otherwise is the human-only one.
   assert.equal(detail.body.chat.name, 'Humans only');
@@ -39,7 +39,7 @@ test('a game is born with a human-only chat and one that takes helpers', async (
 
 test('messages belong to the chat they were sent in', async (t) => {
   const app = await studio(t);
-  const work = await workChat(app, 'tank');
+  const work = await builderChat(app, 'tank');
 
   await app.client.json('POST', '/api/projects/tank/messages', { body: { body: 'in the home one' } });
   await app.client.json('POST', '/api/projects/tank/messages', {
@@ -64,7 +64,8 @@ test('a chat is made, renamed, and capped', async (t) => {
     body: { name: 'Art' },
   });
   assert.equal(made.status, 201);
-  assert.equal(made.body.bots, true, 'a chat you make takes helpers');
+  assert.equal(made.body.bots, true);
+  assert.equal(made.body.builder, true, "a chat you make in a game is the Builder's");
 
   const renamed = await app.client.json('PATCH', `/api/projects/tank/chats/${made.body.id}`, {
     body: { name: 'Pictures' },
@@ -90,7 +91,7 @@ test('a chat is made, renamed, and capped', async (t) => {
 test("a chat id from another game is not this game's chat", async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Snake', slug: 'snake' } });
-  const elsewhere = await workChat(app, 'snake');
+  const elsewhere = await builderChat(app, 'snake');
 
   const res = await app.client.json('GET', `/api/projects/tank?chat=${elsewhere}`);
   assert.equal(res.status, 404);
@@ -104,26 +105,23 @@ test("a chat id from another game is not this game's chat", async (t) => {
 test('nobody answers in the human-only chat', async (t) => {
   const llm = createFakeLlm([says('I would never.')]);
   const app = await studio(t, { llm });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Designer', description: 'You design games.' },
-  });
-  const work = await workChat(app, 'tank');
-  await putInChat(app, 'tank', agent.body.id, { chatty: true, chat_id: work });
+  const work = await builderChat(app, 'tank');
 
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
-  // A chatty helper, mentioned by name, in the chat it is not in.
+  // The builder — chatty in every room of the game's that is its — named in
+  // the one room that is not.
   await app.client.json('POST', '/api/projects/tank/messages', {
-    body: { body: 'anyone there @Designer?' },
+    body: { body: 'anyone there @Builder?' },
   });
   await new Promise((resolve) => setTimeout(resolve, 150));
   assert.equal(llm.calls.length, 0, 'no fire from the human-only chat');
 
-  // The same helper answers in its own chat, so it was the room and not the
+  // The same helper answers in its own room, so it was the room and not the
   // helper that was quiet.
   await app.client.json('POST', '/api/projects/tank/messages', {
-    body: { body: 'over here @Designer', chat_id: work },
+    body: { body: 'over here @Builder', chat_id: work },
   });
   const reply = await stream.waitFor(
     (e) => e.event === 'message.new' && e.data.agent_id !== null,
@@ -135,11 +133,7 @@ test('nobody answers in the human-only chat', async (t) => {
 test('a helper only sees the conversation it is in', async (t) => {
   const llm = createFakeLlm([says('Only this one.')]);
   const app = await studio(t, { llm });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Designer', description: 'You design games.' },
-  });
-  const work = await workChat(app, 'tank');
-  await putInChat(app, 'tank', agent.body.id, { chatty: true, chat_id: work });
+  const work = await builderChat(app, 'tank');
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -196,14 +190,14 @@ test('a database from before chats comes forward with its history', (t) => {
   const up = openDb(file);
   const chats = up.prepare('SELECT * FROM chats ORDER BY id').all();
 
-  // The game with a history gets three: the human-only one it now opens on;
-  // the room the conversation was in, which had a helper of its own in it and
-  // so keeps it under `Old building`; and a fresh Building for the builder
-  // (server/builder.js, intoBuilderRooms).
+  // The game with a history gets two: the human-only one it now opens on, and
+  // the room the conversation was in, which is the builder's now like every
+  // room in a game that is not the humans' (server/builder.js,
+  // intoBuilderRooms).
   const old = chats.filter((c) => c.project_id === 1);
   assert.deepEqual(
     old.map((c) => [c.name, c.bots, c.builder]),
-    [['Humans only', 0, 0], ['Old building', 1, 0], ['Building', 1, 1]],
+    [['Humans only', 0, 0], ['Building', 1, 1]],
   );
   const building = old[1];
 
@@ -212,16 +206,17 @@ test('a database from before chats comes forward with its history', (t) => {
   assert.deepEqual(moved.map((m) => m.chat_id), [building.id, building.id]);
   assert.deepEqual(moved.map((m) => m.body), ['make it faster', 'done']);
 
-  // The helper moved into the same chat, keeping its chatty switch, and the
-  // old table is gone rather than left to disagree with the new one. The
-  // builder sits in the fresh Building, chatty, and nowhere else.
-  const joined = up.prepare('SELECT * FROM chat_agents WHERE agent_id = 1').all();
-  assert.deepEqual(joined.map((r) => [r.chat_id, r.agent_id, r.chatty]), [[building.id, 1, 1]]);
+  // The helper that was in the conversation has left it — a person's helper
+  // lives in a chat project since 2026-09-15 — and its words stay. The old
+  // table is gone rather than left to disagree with the new one. The builder
+  // sits in both games' Building, chatty.
+  assert.deepEqual(up.prepare('SELECT * FROM chat_agents WHERE agent_id = 1').all(), []);
   const builder = up.prepare('SELECT id FROM agents WHERE builtin = 1').get();
+  const quiet = chats.filter((c) => c.project_id === 2);
   assert.deepEqual(
     up.prepare('SELECT chat_id, chatty FROM chat_agents WHERE agent_id = ? ORDER BY chat_id')
       .all(builder.id).map((r) => [r.chat_id, r.chatty]),
-    [[chats.filter((c) => c.project_id === 2)[1].id, 1], [old[2].id, 1]],
+    [[building.id, 1], [quiet[1].id, 1]],
   );
   assert.equal(
     up.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE name = 'project_agents'").get().c,
@@ -229,10 +224,9 @@ test('a database from before chats comes forward with its history', (t) => {
     'the old table is dropped, not left behind',
   );
 
-  // A project nobody ever talked in gets both as well. It has nothing to
-  // carry, so its empty Building becomes the builder's in place.
+  // A project nobody ever talked in gets both as well.
   assert.deepEqual(
-    chats.filter((c) => c.project_id === 2).map((c) => [c.name, c.bots, c.builder]),
+    quiet.map((c) => [c.name, c.bots, c.builder]),
     [['Humans only', 0, 0], ['Building', 1, 1]],
   );
 

@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn, workChat, openStream } from './helpers.js';
+import { setup, signIn, openStream } from './helpers.js';
 
 // Dann makes the game; Robin Fox is in the studio and is not an author.
 async function two(t) {
@@ -50,9 +50,12 @@ test('a message naming nobody leaves nothing, and an address is not a mention', 
 
 test('the mark says which conversation, and reading that one clears it', async (t) => {
   const { app, theirs } = await two(t);
-  const work = await workChat(app, 'tank');
+  // A third room: a chat added to a game is another of the builder's.
+  const work = (await app.client.json('POST', '/api/projects/tank/chats', {
+    body: { name: 'Art' },
+  })).body.id;
 
-  // One in each chat: the human-only one, which is everybody's, and Building.
+  // One in each of two rooms: the human-only one, which is everybody's, and Art.
   await say(app.client, '@Robin over here');
   await say(app.client, '@Robin and here too', work);
 
@@ -61,7 +64,7 @@ test('the mark says which conversation, and reading that one clears it', async (
   assert.deepEqual(
     before.chats.map((c) => c.mentions),
     [1, 0, 1],
-    'and each conversation says its own — Humans only, Building, and the helpers\' room',
+    'and each conversation says its own — Humans only, Building, Art',
   );
 
   // Reading one clears that one and leaves the other standing.

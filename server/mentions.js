@@ -60,10 +60,12 @@ export function agentEligible({ name, chatty = false }, mentions) {
    wakes them on this very message, because the @ that let them in is the same
    @ that makes them eligible. */
 
-// ⚠️ Never into a chat that refuses helpers: the caller checks `bots` before
-// this is reached, and assertBotsAllowed guards the route that does it by
-// hand. A room that promises nobody is listening cannot be talked into
-// breaking that promise.
+// ⚠️ Never into a chat that refuses helpers: the caller checks `takesHelpers`
+// (chats.js) before this is reached — the same rule assertBotsAllowed keeps
+// on the route that does it by hand, so a room that promises nobody is
+// listening, and a builder room with its one seat, cannot be talked into
+// breaking that promise. Until 2026-09-15 the caller checked `bots` alone,
+// and a name typed in Building did put a helper there.
 export function callAgentsIn(db, { chatId, body, userId, now }) {
   const mentions = parseMentions(body);
   if (mentions.size === 0) return [];

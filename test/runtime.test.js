@@ -2,28 +2,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
-  setup, signIn, startGames, openStream, putInChat, workChat,
+  setup, signIn, startGames, openStream, builderChat,
 } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 import { WRAPPER_PATH } from '../server/reporter.js';
 import { currentSha } from '../server/files/git.js';
 import { MAX_ERRORS_PER_PROJECT } from '../server/runtime.js';
 
-// A studio with a game, and optionally a helper attached to it.
+// A studio with a game, and optionally the builder's room to talk in.
 async function studio(t, { llm = null, agent = false } = {}) {
   const app = await setup({ llm });
   t.after(() => app.close());
   await signIn(app);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  if (agent) {
-    const created = await app.client.json('POST', '/api/agents', {
-      body: { name: 'Designer', description: 'You design games.' },
-    });
-    app.chatId = await workChat(app, 'tank');
-    await putInChat(app, 'tank', created.body.id, { chatty: true, chat_id: app.chatId });
-  }
+  if (agent) app.chatId = await builderChat(app, 'tank');
   return { app, dir: path.join(app.gamesDir, 'tank') };
 }
+
+// The person's message as the builder's fire saw it. The fire extends the
+// sizing's exchange (spec.md §8), so the last two turns are the sizing's
+// answer and `[studio] Go ahead.`, and the message — with what rode on it —
+// is the one before those.
+const asked = (call) => call.messages.at(-3).content;
 
 // A report is filed against the commit the game's bytes came from, which for
 // a test is simply HEAD unless it says otherwise.
@@ -197,7 +197,7 @@ test('problems reach the next fire, and a commit retires them', async (t) => {
   });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'I see it.');
 
-  const sent = llm.lastCall().messages.at(-1).content;
+  const sent = asked(llm.lastCall());
   assert.match(sent, /PROBLEMS THE RUNNING GAME REPORTED/);
   assert.match(sent, /js\/game\.js:41 — TypeError: sprite is undefined \(2 times\)/);
   // Files first, problems next to the message: the file block is the prefix
@@ -216,7 +216,7 @@ test('problems reach the next fire, and a commit retires them', async (t) => {
     body: { body: 'and now?', chat_id: app.chatId },
   });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'All quiet now.');
-  assert.doesNotMatch(llm.lastCall().messages.at(-1).content, /PROBLEMS THE RUNNING GAME/);
+  assert.doesNotMatch(asked(llm.lastCall()), /PROBLEMS THE RUNNING GAME/);
 });
 
 // The whole point of injecting: a problem is filed against the code that
@@ -254,7 +254,7 @@ test('a game with no problems says nothing about problems', async (t) => {
     body: { body: 'make a start', chat_id: app.chatId },
   });
   await stream.waitFor((e) => e.event === 'message.new' && e.data.body === 'Sure.');
-  assert.doesNotMatch(llm.lastCall().messages.at(-1).content, /PROBLEMS/);
+  assert.doesNotMatch(asked(llm.lastCall()), /PROBLEMS/);
   // Nothing about the reporter reaches the model: it is injected by the
   // server, so an agent has nothing to remember and nothing to get wrong.
   assert.doesNotMatch(llm.lastCall().system, /_studio|reporter/i);

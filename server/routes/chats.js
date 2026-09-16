@@ -9,9 +9,10 @@ import { markSeen } from '../mentions.js';
 import { markRead } from '../reads.js';
 import { requireProject, requireString } from './helpers.js';
 import {
-  createChat, listChats, requireChat, chatPublic,
+  listChats, requireChat, chatPublic,
   MAX_CHATS_PER_PROJECT, MAX_CHAT_NAME,
 } from '../chats.js';
+import { makeBuilderRoom } from '../builder.js';
 
 export function chatRoutes(r) {
   r.get('/api/projects/:slug/chats', (ctx) => {
@@ -20,11 +21,13 @@ export function chatRoutes(r) {
     json(ctx.res, 200, { chats: listChats(ctx.db, project.id).map(chatPublic) });
   });
 
-  // A new chat always allows helpers. The one that does not is the one a game
-  // was born with, and there is no way to make a second of those: "just us"
-  // is a place, not a setting.
+  // A new chat in a game is a builder room — the builder seated, nobody else
+  // let in — under whatever name it was given: a place to build the next
+  // thing. The one room that is not is the one a game was born with, and
+  // there is no way to make a second of those: "just us" is a place, not a
+  // setting. Helpers people make go in chat projects.
   r.post('/api/projects/:slug/chats', async (ctx) => {
-    requireAuth(ctx);
+    const user = requireAuth(ctx);
     const project = requireProject(ctx, { write: true });
     const body = await readJson(ctx.req);
     const name = requireString(body.name, 'name', { max: MAX_CHAT_NAME });
@@ -43,7 +46,7 @@ export function chatRoutes(r) {
       throw new HttpError(409, `a game may not have more than ${MAX_CHATS_PER_PROJECT} chats`);
     }
 
-    const chat = createChat(ctx.db, project.id, { name, bots: 1 });
+    const chat = makeBuilderRoom(ctx.db, project.id, user.id, new Date().toISOString(), name);
     ctx.broker.broadcast('chats.changed', { project_slug: project.slug });
     json(ctx.res, 201, chatPublic(chat));
   });

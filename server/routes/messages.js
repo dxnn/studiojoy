@@ -4,7 +4,7 @@ import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
 import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic, requireString } from './helpers.js';
-import { requireChat, homeChat } from '../chats.js';
+import { requireChat, homeChat, takesHelpers } from '../chats.js';
 import { canEdit } from '../authors.js';
 import { mentionedUsers, recordMentions, callAgentsIn } from '../mentions.js';
 
@@ -90,7 +90,7 @@ export function messageRoutes(r) {
       recordMentions(ctx.db, {
         messageId: id, chatId: chat.id, projectId: project.id, users: named, now,
       });
-      if (chat.bots === 1) {
+      if (takesHelpers(chat)) {
         joined = callAgentsIn(ctx.db, {
           chatId: chat.id, body: text, userId: user.id, now,
         });

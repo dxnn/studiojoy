@@ -4,17 +4,15 @@
 // Crew tab: nobody edits it, nobody deletes it, it is not offered for putting
 // in a chat, and its description and thinking are the code's — written
 // onto the row on every open, so a studio that upgrades gets the new words.
-// It lives in one room per game, `Building`, which takes no other helper the
-// way `Humans only` takes none (chats.js, assertBotsAllowed). What it does
-// there that an ordinary helper does not — the sizing call, one fire per
-// piece — is the orchestrator's (spec.md §8, ideas/planner.md).
+// Every room in a game but `Humans only` is its: a game is born with
+// `Building` and every chat added to it is another builder room, each with
+// the builder seated and no other helper let in (chats.js, assertBotsAllowed).
+// Helpers people make live in chat projects, blind to any tree. What the
+// builder does that they do not — the sizing call, one fire per piece — is
+// the orchestrator's (spec.md §8, ideas/planner.md).
 
 export const BUILDER_NAME = 'Builder';
 export const BUILDER_CHAT = 'Building';
-// What an existing game's Building becomes when it had helpers in it: the room
-// and its words are kept under a name that says what it now is, and a fresh
-// Building is made for the builder (intoBuilderRooms).
-export const CARRIED_BUILDING = 'Old building';
 
 // Item 3 of the system prompt, after the preamble and the brief. The preamble
 // says what the studio is and BRIEF.md what this game is, so this says only
@@ -45,7 +43,7 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
   const existing = builderAgent(db);
   if (existing) {
     db.prepare(
-      'UPDATE agents SET description = ?, thinking = ?, file_tools = 1 WHERE id = ?',
+      'UPDATE agents SET description = ?, thinking = ? WHERE id = ?',
     ).run(BUILDER_DESCRIPTION, BUILDER_THINKING, existing.id);
     return builderAgent(db);
   }
@@ -57,8 +55,8 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
     .run(BUILDER_NAME);
   db.prepare(
     `INSERT INTO agents
-       (name, description, thinking, file_tools, builtin, created_by, created_at)
-     VALUES (?, ?, ?, 1, 1, ?, ?)`,
+       (name, description, thinking, builtin, created_by, created_at)
+     VALUES (?, ?, ?, 1, ?, ?)`,
   ).run(BUILDER_NAME, BUILDER_DESCRIPTION, BUILDER_THINKING, someone, now);
   return builderAgent(db);
 }
@@ -76,46 +74,35 @@ function seatBuilder(db, chat, builder, userId, now) {
   ).run(chat.id, builder.id, userId, now);
 }
 
-// A game's Building: the builder's room, with the builder in it.
-export function makeBuilderRoom(db, projectId, userId, now = new Date().toISOString()) {
+// A builder room, with the builder in it: a game's Building at birth, and
+// every chat added to a game after.
+export function makeBuilderRoom(db, projectId, userId, now = new Date().toISOString(), name = BUILDER_CHAT) {
   const builder = ensureBuilder(db, now);
   const info = db
     .prepare('INSERT INTO chats (project_id, name, bots, builder, created_at) VALUES (?, ?, 1, 1, ?)')
-    .run(projectId, BUILDER_CHAT, now);
+    .run(projectId, name, now);
   const chat = db.prepare('SELECT * FROM chats WHERE id = ?').get(info.lastInsertRowid);
   if (builder) seatBuilder(db, chat, builder, userId, now);
   return chat;
 }
 
-// Every game gets the builder's room, an upgraded database included. A game's
-// first room that takes helpers is its Building: empty, it becomes the
-// builder's in place; with helpers in it, it keeps them and its words under
-// `Old building`, and a fresh Building is made beside it. A room the people
-// renamed is theirs and is left alone. Nothing runs twice: a game with a
-// builder room is skipped.
+// Every room in a game that takes helpers is the builder's, an upgraded
+// database included: the room keeps its name and every word said in it, the
+// builder is seated, and the helpers people had put there leave — since
+// 2026-09-15 a person's helper lives in a chat project and nowhere else. Two
+// rooms a game used to be given (`Building` and, when that one had helpers,
+// `Old building` beside it) both come forward as builder rooms. Idempotent:
+// a room that is already the builder's is not touched.
 export function intoBuilderRooms(db, now = new Date().toISOString()) {
   const builder = ensureBuilder(db, now);
   if (!builder) return;
-  const games = db.prepare(
-    `SELECT id FROM projects p
-      WHERE p.kind = 'game'
-        AND NOT EXISTS (SELECT 1 FROM chats c WHERE c.project_id = p.id AND c.builder = 1)`,
+  const rooms = db.prepare(
+    `SELECT c.* FROM chats c JOIN projects p ON p.id = c.project_id
+      WHERE p.kind = 'game' AND c.bots = 1 AND c.builder = 0 ORDER BY c.id`,
   ).all();
-  for (const game of games) {
-    const open = db
-      .prepare('SELECT * FROM chats WHERE project_id = ? AND bots = 1 ORDER BY id LIMIT 1')
-      .get(game.id);
-    if (open && open.name === BUILDER_CHAT) {
-      const helpers = db
-        .prepare('SELECT COUNT(*) AS n FROM chat_agents WHERE chat_id = ?')
-        .get(open.id).n;
-      if (helpers === 0) {
-        db.prepare('UPDATE chats SET builder = 1 WHERE id = ?').run(open.id);
-        seatBuilder(db, open, builder, builder.created_by, now);
-        continue;
-      }
-      db.prepare('UPDATE chats SET name = ? WHERE id = ?').run(CARRIED_BUILDING, open.id);
-    }
-    makeBuilderRoom(db, game.id, builder.created_by, now);
+  for (const room of rooms) {
+    db.prepare('DELETE FROM chat_agents WHERE chat_id = ? AND agent_id != ?').run(room.id, builder.id);
+    db.prepare('UPDATE chats SET builder = 1 WHERE id = ?').run(room.id);
+    seatBuilder(db, room, builder, builder.created_by, now);
   }
 }

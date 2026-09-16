@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup, signIn, openStream, putInChat, workChat } from './helpers.js';
+import {
+  setup, signIn, openStream, putInChat, workChat, builderChat,
+} from './helpers.js';
 import {
   createFakeLlm, createFailingLlm, says, calls, answers, truncated, thinksOnly,
 } from './fake-llm.js';
@@ -12,27 +14,44 @@ import { NOTE_BYTES, weigh } from '../server/agents/orchestrator.js';
 import { tokensForChars } from '../server/llm/deepseek.js';
 import { arcFor } from '../public/arc.js';
 
-// A studio with one project, one agent, and the chat that agent is in. The
-// human-only chat a project opens on is not that chat, so every message here
-// names the one where helpers are.
-async function studio(t, { llm, chatty = true, agent = {}, ...opts } = {}) {
+// A studio with one game and the builder in its Building — the one kind of
+// helper a game has, and the one with tools (spec.md §3, §8). The fake answers
+// every sizing call with nothing unless a test scripts one, and nothing reads
+// as a reply: the plain tooled fire at the builder's level, under its small
+// budget, extending the sizing's exchange. So `llm.calls[0].messages` ends
+// `…person's message + trigger, the sizing's answer, "[studio] Go ahead."`.
+async function studio(t, { llm, ...opts } = {}) {
   const app = await setup({ llm, ...opts });
   t.after(() => app.close());
   await signIn(app);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  const chatId = await builderChat(app, 'tank');
+  app.chatId = chatId;
+  app.slug = 'tank';
+  const agentId = app.db.prepare('SELECT id FROM agents WHERE builtin = 1').get().id;
+  return { app, dir: path.join(app.gamesDir, 'tank'), agentId, chatId };
+}
+
+// A chat project with one helper of the test's own in its one room: blind —
+// no tree, no tools, no preamble — and whatever its description says, at the
+// thinking level it was given. Where eligibility, mentions and a plain
+// conversation are tested.
+async function chatStudio(t, { llm, chatty = true, agent = {}, ...opts } = {}) {
+  const app = await setup({ llm, ...opts });
+  t.after(() => app.close());
+  await signIn(app);
   const created = await app.client.json('POST', '/api/agents', {
     body: { name: 'Designer', description: 'You design games.', ...agent },
   });
-  const chatId = await workChat(app, 'tank');
-  await putInChat(app, 'tank', created.body.id, { chatty, chat_id: chatId });
+  const chatId = await workChat(app, 'talk');
+  await putInChat(app, 'talk', created.body.id, { chatty, chat_id: chatId });
   app.chatId = chatId;
-  return {
-    app, dir: path.join(app.gamesDir, 'tank'), agentId: created.body.id, chatId,
-  };
+  app.slug = 'talk';
+  return { app, agentId: created.body.id, chatId };
 }
 
 const send = (app, body, contextPaths) =>
-  app.client.json('POST', '/api/projects/tank/messages', {
+  app.client.json('POST', `/api/projects/${app.slug}/messages`, {
     body: {
       body, chat_id: app.chatId,
       ...(contextPaths ? { context_paths: contextPaths } : {}),
@@ -63,7 +82,7 @@ test('a chatty agent answers a human message', async (t) => {
 
 test('a quiet agent waits to be mentioned', async (t) => {
   const llm = createFakeLlm([says('You rang?')]);
-  const { app } = await studio(t, { llm, chatty: false });
+  const { app } = await chatStudio(t, { llm, chatty: false });
 
   await send(app, 'just thinking out loud');
   await new Promise((resolve) => setTimeout(resolve, 120));
@@ -78,7 +97,7 @@ test('a quiet agent waits to be mentioned', async (t) => {
 
 test('a mention matches a prefix of the name', async (t) => {
   const llm = createFakeLlm([says('here'), says('here again')]);
-  const { app } = await studio(t, {
+  const { app } = await chatStudio(t, {
     llm, chatty: false, agent: { name: 'Level Designer' },
   });
   const stream = await openStream(app.client);
@@ -137,7 +156,7 @@ test('a reply is the last thing said; the rest is its working, kept but never re
   assert.equal(await working.text(), 'Let me read the page first.\n\nNow the loop.');
   // The commit is headed by the reply, not by the first thing muttered.
   const [head] = await logCommits(dir, { limit: 1 });
-  assert.equal(head.subject, 'Designer: Done: the loop runs. Press play.');
+  assert.equal(head.subject, 'Builder: Done: the loop runs. Press play.');
 
   // The next fire is given the reply and none of the working.
   await send(app, 'nice');
@@ -161,7 +180,8 @@ test('write_file lands on disk, in a commit, and in the message', async (t) => {
 
   await send(app, 'make a start');
 
-  const toolEvent = await stream.waitFor((e) => e.event === 'agent.tool');
+  // The sizing announces itself the same way first (spec.md §9).
+  const toolEvent = await stream.waitFor((e) => e.event === 'agent.tool' && e.data.tool !== 'size');
   assert.equal(toolEvent.data.tool, 'write_file');
   assert.equal(toolEvent.data.path, 'index.html');
 
@@ -172,8 +192,8 @@ test('write_file lands on disk, in a commit, and in the message', async (t) => {
 
   // One commit for the turn, authored by the agent.
   const [head] = await logCommits(dir, { limit: 1 });
-  assert.match(head.subject, /^Designer: /);
-  assert.equal(head.author, 'Designer');
+  assert.match(head.subject, /^Builder: /);
+  assert.equal(head.author, 'Builder');
   assert.equal(head.email, 'tank@agent.gamestudio.local');
 
   assert.deepEqual(reply.data.writes.map((w) => [w.path, w.action]), [['index.html', 'create']]);
@@ -213,11 +233,14 @@ test('a reply leaves a receipt, and the newest reply holds the prompt', async (t
   const b = r1.body.breakdown;
   assert.ok(b.system.preamble > 0, 'the preamble was measured');
   assert.ok(b.system.files.bytes > 0, 'the file block was measured');
-  assert.equal(b.transcript.messages, 1);
+  // The person's message, the sizing's answer and the turn on top: the fire
+  // extends the sizing's exchange, and the receipt counts what was sent.
+  assert.equal(b.transcript.messages, 3);
   assert.equal(b.loop.turns, 2);
   assert.equal(b.loop.tool_calls, 1);
-  // The judge that set the thinking level (spec.md §8), then the loop's two.
-  assert.equal(b.requests.length, 3, 'one usage entry per request');
+  // The loop's two. The sizing ahead of them is billed and shown on no row
+  // (spec.md §8).
+  assert.equal(b.requests.length, 2, 'one usage entry per request');
   // The receipt's arithmetic reaches the number under the bubble.
   const charged = b.requests
     .reduce((n, u) => n + u.miss + Math.ceil(u.hit / 50) + u.out * 4, 0);
@@ -229,7 +252,7 @@ test('a reply leaves a receipt, and the newest reply holds the prompt', async (t
   assert.equal(p1.status, 200);
   const prompt = await p1.text();
   assert.match(prompt, /^\[system\]\n/);
-  assert.ok(!prompt.includes('\nSIZING\n'), 'the sizing rules are the builder\'s room\'s alone');
+  assert.ok(prompt.includes('\nSIZING\n'), 'the sizing rules ride the builder\'s prompt');
   // The transcript names its speakers, so the human turn carries one.
   assert.match(prompt, /\[user\]\n\[\w+\] make a start/);
   assert.match(prompt, /\[tool call call_0: write_file\]/);
@@ -572,20 +595,6 @@ test('delete_file removes the file and the deletion is recorded', async (t) => {
   assert.deepEqual(reply.data.writes.map((w) => w.action), ['delete']);
 });
 
-test('an agent without file tools is offered none', async (t) => {
-  const llm = createFakeLlm([says('I only have opinions.')]);
-  const { app } = await studio(t, {
-    llm, agent: { name: 'Critic', description: 'You critique.', file_tools: false },
-  });
-  const stream = await openStream(app.client);
-  t.after(() => stream.close());
-
-  await send(app, 'thoughts?');
-  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
-  assert.equal(llm.lastCall().tools, null);
-  assert.match(llm.lastCall().system, /no file tools/);
-});
-
 test('a reasoning trace streams but is never persisted', async (t) => {
   const llm = createFakeLlm([
     says('Movement first.', { reasoning: 'The user wants a tank game. Think about physics.' }),
@@ -659,7 +668,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
 
   const { system, messages } = llm.lastCall();
   assert.match(system, /Keep it under 200KB/, 'the brief is injected');
-  assert.match(system, /You design games\./, 'the agent description is injected');
+  assert.match(system, /You are the Builder/, 'the agent description is injected');
   assert.match(system, /prefer patch_file/i);
   // ⚠️ A capability an agent is not told about may as well not exist, and
   // seeing is the newest one (spec/ §14).
@@ -760,13 +769,16 @@ test('the context carries the tree and the brief, and the pin rides the last mes
     'the tree follows the file contents',
   );
 
-  // The pin is named on the last user message, next to the volatile things —
+  // The pin is named on the person's message, next to the volatile things —
   // never inside the file block, where it would move with every human turn.
+  // In the builder's room that message also carries the sizing trigger, and
+  // is followed by the sizing's answer and the turn the fire adds (spec.md §8).
   assert.ok(!system.includes('pinned'), 'no pin label in the system prompt');
   assert.equal(
-    messages.at(-1).content,
-    '(the user pinned these files: js/game.js)\n\n[Dann] look at this',
+    messages.at(-3).content,
+    '(the user pinned these files: js/game.js)\n\n[Dann] look at this\n\n[studio] Size this request.',
   );
+  assert.equal(messages.at(-1).content, '[studio] Go ahead.');
 });
 
 // A game with a type is briefed about it: what the story file is, that the
@@ -1009,7 +1021,7 @@ test('an oversized brief is cut, and says where', async (t) => {
   // preamble, not withheld.
   const { system } = llm.lastCall();
   const briefSection = system.slice(
-    system.indexOf('Project brief'), system.indexOf('You design games.'),
+    system.indexOf('Project brief'), system.indexOf('You are the Builder'),
   );
   assert.match(briefSection, /cut here: BRIEF\.md is 52013 bytes/);
   assert.ok(!briefSection.includes('the last line'), 'the tail is not in that copy');
@@ -1039,10 +1051,10 @@ test('pinning takes priority but does not exempt a file from the cap', async (t)
   assert.match(system, /--- FILE: js\/f90\.js \(90000 bytes\) ---/);
   assert.ok(!system.includes('--- FILE: js/f94.js'), 'the largest is not sent');
   assert.match(system, /left out for size[^\n]*js\/f94\.js/);
-  // The dropped pin is still what the human is pointing at, so the last
+  // The dropped pin is still what the human is pointing at, so the person's
   // message names it with the rest.
   assert.match(
-    messages.at(-1).content,
+    messages.at(-3).content,
     /the user pinned these files: js\/f90\.js, js\/f91\.js, js\/f92\.js, js\/f93\.js, js\/f94\.js/,
   );
 });
@@ -1091,7 +1103,7 @@ test('a file the validator refuses is listed but never opened', async (t) => {
 
 test('a trimmed transcript says where it was trimmed', async (t) => {
   const llm = createFakeLlm([says('Caught up.')]);
-  const { app } = await studio(t, { llm, chatty: false });
+  const { app } = await chatStudio(t, { llm, chatty: false });
   // Nine messages of 31 KB is over the 200 KB history budget. A quiet agent
   // means none of them fires, so the whole pile is there when one does.
   // Trimming cuts back to half the budget, not to the line — that is what
@@ -1120,7 +1132,7 @@ test('a trimmed transcript says where it was trimmed', async (t) => {
 
 test('the trim seam holds still while the next fires fit their budget', async (t) => {
   const llm = createFakeLlm((opts, i) => says(i === 0 ? 'Noted.' : 'Again.'));
-  const { app } = await studio(t, { llm, chatty: false });
+  const { app } = await chatStudio(t, { llm, chatty: false });
   const long = 'w'.repeat(31 * 1024);
   for (let i = 0; i < 9; i += 1) {
     await send(app, `${i} ${long}`);
@@ -1166,8 +1178,12 @@ test('a fire that grows too big stops instead of walking the window', async (t) 
   t.after(() => stream.close());
 
   await send(app, 'write the whole engine');
+  // In the builder's room a reply that hits a wall first says it turned out
+  // bigger than one go and asks the sizing what is left; sized small again
+  // with no continuation to spend, the wall itself is named (spec.md §8).
   const banner = await stream.waitFor(
-    (e) => e.event === 'message.new' && e.data.kind === 'system',
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /too much to hold in one reply/.test(e.data.body),
   );
   assert.match(banner.data.body, /too much to hold in one reply/);
   assert.equal(llm.calls.length, 3, 'three turns of growth, not twenty-four');
@@ -1189,45 +1205,25 @@ test('the studio budget stops a fire before the API is called', async (t) => {
   assert.equal(llm.calls.length, 0, 'no request is made when the budget is gone');
 });
 
-// An open room has no sizing call to ride, so one tiny judge goes ahead of the
-// fire and takes the thinking level from the ask rather than from a setting
-// made before anyone knew what would be asked (spec.md §8, §14). It only ever
-// turns thinking down: `clear` means the request named what to change, and
-// anything else — including an answer that will not parse — keeps the level.
-for (const [label, answer, want] of [
-  ['clear', '{"clear":true}', 'none'],
-  ['not clear', '{"clear":false}', 'low'],
-  ['unreadable', 'I think it is clear!', 'low'],
-]) {
-  test(`an open room sized ${label} fires at ${want}`, async (t) => {
-    const llm = createFakeLlm([says('Done.')], [answers(answer)]);
-    const { app } = await studio(t, { llm });
-    const stream = await openStream(app.client);
-    t.after(() => stream.close());
-
-    await send(app, 'make the ship turn a bit faster');
-    await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
-    assert.equal(llm.calls[0].thinking, want);
-  });
-}
-
-// ⚠️ A helper that cannot change a file is having a conversation, and its
-// thinking is all its answer is made of — so there is nothing to judge and the
-// call is not made at all.
-test('a helper with no file tools is never judged', async (t) => {
+// ⚠️ A chat project's helper is having a conversation: no tools, no judge, no
+// sizing — one call at the level it was given, and its thinking is all the
+// answer is made of.
+test('a chat helper fires once, at its own level, with nothing in front', async (t) => {
   const llm = createFakeLlm([says('I would start with movement.')]);
-  const { app } = await studio(t, { llm, agent: { file_tools: false } });
+  const { app } = await chatStudio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, 'make the ship turn a bit faster');
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
-  assert.equal(llm.asked.length, 0, 'no judge call was made');
+  assert.equal(llm.asked.length, 0, 'no call ahead of the fire');
+  assert.equal(llm.calls.length, 1);
   assert.equal(llm.calls[0].thinking, 'low', 'the level it was set to');
+  assert.equal(llm.calls[0].tools, null);
 });
 
 test('a reply charges the budget with the cache discount applied', async (t) => {
-  const llm = createFakeLlm([says('Charged.', { tokens: 40 })], [answers('{"clear":false}')]);
+  const llm = createFakeLlm([says('Charged.', { tokens: 40 })], [answers('{"size":"reply"}')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1236,7 +1232,7 @@ test('a reply charges the budget with the cache discount applied', async (t) => 
   await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
 
   const state = budgetState(app.db);
-  // The judge ahead of the fire (spec.md §8), at the fake's complete defaults
+  // The sizing ahead of the fire (spec.md §8), at the fake's complete defaults
   // of 200 + 40×4; then the fire: 100 prompt tokens, all misses, plus 40
   // completion at four times a miss.
   assert.equal(state.used, (200 + 40 * 4) + (100 + 40 * 4));
@@ -1250,7 +1246,7 @@ test('what a reply cost is recorded on the reply', async (t) => {
     calls([{ name: 'write_file', input: { path: 'index.html', content: '<h1>Tank</h1>' } }],
       { tokens: 25 }),
     says('Built it.', { tokens: 40 }),
-  ], [answers('{"clear":false}')]);
+  ], [answers('{"size":"reply"}')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1260,9 +1256,10 @@ test('what a reply cost is recorded on the reply', async (t) => {
     (e) => e.event === 'message.new' && e.data.agent_id !== null,
   );
 
-  // The judge ahead of it (200 + 40×4), then both turns of the one fire,
-  // output at four: (100 + 25×4) + (100 + 40×4).
-  assert.equal(reply.data.tokens, 360 + 460);
+  // Both turns of the one fire, output at four: (100 + 25×4) + (100 + 40×4).
+  // The sizing ahead of it (200 + 40×4) is billed and shown on no row
+  // (spec.md §8), so the budget carries it and the reply does not.
+  assert.equal(reply.data.tokens, 460);
   assert.equal(budgetState(app.db).used, 360 + 460);
 
   // Nothing a person or the studio wrote costs anything.
@@ -1344,13 +1341,18 @@ test('the tool call limit stops the loop and says so', async (t) => {
   // Every turn asks for another write, so only the limit ends it.
   const llm = createFakeLlm((opts, turn) =>
     calls([{ name: 'write_file', input: { path: `f${turn}.txt`, content: `${turn}` } }]));
-  const { app } = await studio(t, { llm, maxToolCalls: 3, maxAssistantTurns: 8 });
+  // The builder's reply runs under its small budget (spec.md §8), and with no
+  // continuation to spend the wall is named once what is left has been sized.
+  const { app } = await studio(t, {
+    llm, smallToolCalls: 3, smallTurns: 8, maxContinuations: 0,
+  });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, 'go forever');
   const banner = await stream.waitFor(
-    (e) => e.event === 'message.new' && e.data.kind === 'system',
+    (e) => e.event === 'message.new' && e.data.kind === 'system'
+      && /stopped after/.test(e.data.body),
   );
   assert.match(banner.data.body, /stopped after 3 tool calls/);
   const listing = await app.client.json('GET', '/api/projects/tank/files');
@@ -1361,7 +1363,7 @@ test('running out of turns carries on rather than needing a nudge', async (t) =>
   const llm = createFakeLlm((opts, turn) =>
     calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]));
   const { app } = await studio(t, {
-    llm, maxAssistantTurns: 3, maxToolCalls: 50, maxContinuations: 1,
+    llm, smallTurns: 3, smallToolCalls: 50, maxContinuations: 1,
   });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1391,7 +1393,7 @@ test('a continuation is answerable — the agent sees a turn to reply to', async
     return calls([{ name: 'read_file', input: { path: `nope${turn}.txt` } }]);
   });
   const { app } = await studio(t, {
-    llm, maxAssistantTurns: 2, maxToolCalls: 50, maxContinuations: 1,
+    llm, smallTurns: 2, smallToolCalls: 50, maxContinuations: 1,
   });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
@@ -1404,12 +1406,16 @@ test('a continuation is answerable — the agent sees a turn to reply to', async
 
   // Two turns per fire, so the continuation's first request is the third.
   // It reached the model at all only because buildContext found a user-role
-  // turn to answer — the studio note is what supplies one.
+  // turn to answer — the studio note is what supplies one; in the builder's
+  // room the sizing then rides that note and the fire adds its own turn.
   const continuation = sent[2];
   assert.ok(continuation, 'the continuation reached the model');
   const last = continuation[continuation.length - 1];
   assert.equal(last.role, 'user');
-  assert.match(last.content, /carrying on/);
+  assert.ok(
+    continuation.some((m) => m.role === 'user' && /carrying on/.test(m.content)),
+    'the note is what it answers',
+  );
 });
 
 test('a new human message refills the continuation allowance', async (t) => {
@@ -1522,7 +1528,7 @@ test('a failed stream still commits the files earlier turns wrote', async (t) =>
 
   // The write is committed and credited, not stranded dirty in the tree.
   const [head] = await logCommits(dir, { limit: 1 });
-  assert.match(head.subject, /^Designer: And then/);
+  assert.match(head.subject, /^Builder: And then/);
   assert.deepEqual(reply.data.writes.map((w) => [w.path, w.commit_sha]), [['js/game.js', head.sha]]);
   const changed = await stream.waitFor((e) => e.event === 'files.changed');
   assert.deepEqual(changed.data.paths, ['js/game.js']);
@@ -1567,8 +1573,10 @@ test('a fault after the stream starts still ends the stream and says so', async 
 });
 
 // ⚠️ The whole point of the cap: a turn that runs away thinking is asked
-// again with thinking off, so the reply is files rather than nine minutes of
-// nothing (spec.md §14).
+// again with thinking off, so the reply is an answer rather than nine minutes
+// of nothing (spec.md §14). In the builder's room a first-turn cap goes to
+// the sizing instead (test/builder.test.js); this is the retry a chat
+// project's helper gets.
 test('a runaway trace is retried with thinking off, and says so', async (t) => {
   const llm = {
     calls: [],
@@ -1583,17 +1591,11 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
           err.reasoningChars = 35_000;
           throw err;
         }
-        // The retry writes its file; the turn after it has nothing left to
-        // add, which is what ends the loop.
-        const turn = nth === 2
-          ? calls([{ name: 'write_file', input: { path: 'js/tank.js', content: 'drive()' } }],
-            { text: 'Started on movement.' })
-          : says('');
-        for (const event of turn) yield event;
+        for (const event of says('Started on movement.')) yield event;
       })();
     },
   };
-  const { app, dir } = await studio(t, { llm, agent: { thinking: 'full' } });
+  const { app } = await chatStudio(t, { llm, agent: { thinking: 'full' } });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -1603,11 +1605,9 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
   );
   assert.equal(reply.data.body, 'Started on movement.');
 
-  // The runaway turn, then the same turn again with thinking off — and it
-  // stays off for the rest of the fire, so the cap cannot trip twice.
+  // The runaway turn, then the same turn again with thinking off.
   assert.equal(llm.calls[0].thinking, 'full');
   assert.equal(llm.calls[1].thinking, 'none');
-  assert.equal(llm.calls[2].thinking, 'none');
   // The retry carries what the runaway turn had worked out, as notes on the
   // user turn: dropped, it under-delivers; handed, it follows the design
   // (spec.md §14). Once, in this fire, and never to the next one — the test
@@ -1617,9 +1617,6 @@ test('a runaway trace is retried with thinking off, and says so', async (t) => {
   assert.ok(handed, 'the trace is handed to the retry');
   assert.match(handed.content, /and another thing/);
 
-  // The file landed, so the retry is the reply rather than a salvage.
-  const [head] = await logCommits(dir, { limit: 1 });
-  assert.match(head.subject, /^Designer: Started on movement\./);
   await stream.waitFor(
     (e) => e.event === 'message.new' && e.data.kind === 'system'
       && /stop planning and start working/.test(e.data.body),
@@ -1680,14 +1677,14 @@ test('an archived project never fires an agent', async (t) => {
 
 test('a detached agent stops answering', async (t) => {
   const llm = createFakeLlm([says('one'), says('two')]);
-  const { app, agentId } = await studio(t, { llm });
+  const { app, agentId } = await chatStudio(t, { llm });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
   await send(app, 'first');
   await stream.waitFor((e) => e.event === 'agent.stream.end' && e.data.message_id);
   await (await app.client.request(
-    'DELETE', `/api/projects/tank/chats/${app.chatId}/agents/${agentId}`,
+    'DELETE', `/api/projects/talk/chats/${app.chatId}/agents/${agentId}`,
   )).text();
 
   await send(app, 'second');
@@ -1695,13 +1692,32 @@ test('a detached agent stops answering', async (t) => {
   assert.equal(llm.calls.length, 1);
 });
 
+// ⚠️ The builder's seat is the room's: the same route refuses, and the room
+// keeps answering.
+test('the builder cannot be taken out of its room', async (t) => {
+  const llm = createFakeLlm([says('Still here.')]);
+  const { app, agentId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  const taken = await app.client.request(
+    'DELETE', `/api/projects/tank/chats/${app.chatId}/agents/${agentId}`,
+  );
+  assert.equal(taken.status, 409);
+  await taken.text();
+
+  await send(app, 'anyone?');
+  const reply = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(reply.data.body, 'Still here.');
+});
+
 test('two agents both answer the same message', async (t) => {
   const llm = createFakeLlm([says('From one.'), says('From two.')]);
-  const { app } = await studio(t, { llm });
+  const { app } = await chatStudio(t, { llm });
   const second = await app.client.json('POST', '/api/agents', {
     body: { name: 'Critic', description: 'You critique.' },
   });
-  await putInChat(app, 'tank', second.body.id, { chatty: true, chat_id: app.chatId });
+  await putInChat(app, 'talk', second.body.id, { chatty: true, chat_id: app.chatId });
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 

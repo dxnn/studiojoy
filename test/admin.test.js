@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn, openStream, workChat } from './helpers.js';
+import { setup, signIn, openStream, builderChat } from './helpers.js';
 import { createFakeLlm, says } from './fake-llm.js';
 import { userSpentToday, DEFAULT_DAILY_TOKENS } from '../server/budget.js';
 
@@ -157,16 +157,11 @@ test('a reply is billed to whoever asked, and their allowance stops them alone',
   const llm = createFakeLlm([says('First.'), says('Second.'), says('Third.')]);
   const { app, robin, theirs } = await two(t, { llm });
 
-  // Robin's game, Robin's helper, Robin's allowance — a small one.
+  // Robin's game, the builder in its Building, Robin's allowance — a small one.
   await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Designer', description: 'You design games.' },
-  });
-  const chat = await workChat(app, 'tank');
-  await theirs.json('POST', `/api/projects/tank/chats/${chat}/agents`, {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
-  // Small enough that one reply uses it up: a fired reply costs ~110 here.
+  const chat = await builderChat(app, 'tank');
+  // Small enough that one reply uses it up: a fired reply costs ~110 here, and
+  // the sizing ahead of it is billed to the asker too.
   await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { daily_tokens: 50 } });
 
   const stream = await openStream(app.client);
@@ -192,12 +187,9 @@ test('a reply is billed to whoever asked, and their allowance stops them alone',
   assert.equal(llm.calls.length, 1, 'no second fire');
 
   // The admin, who has no allowance of their own, is unaffected in their own
-  // game with the same helper.
+  // game with the same builder.
   await app.client.json('POST', '/api/projects', { body: { name: 'Mine', slug: 'mine' } });
-  const otherChat = await workChat(app, 'mine');
-  await app.client.json('POST', `/api/projects/mine/chats/${otherChat}/agents`, {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const otherChat = await builderChat(app, 'mine');
   await app.client.json('POST', '/api/projects/mine/messages', {
     body: { body: 'my turn', chat_id: otherChat },
   });
@@ -213,13 +205,7 @@ test('you can see your own day, and nobody else’s', async (t) => {
   await app.client.json('PATCH', `/api/admin/users/${robin.id}`, { body: { daily_tokens: 1000 } });
 
   await theirs.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  const agent = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Designer', description: 'You design games.' },
-  });
-  const chat = await workChat(app, 'tank');
-  await theirs.json('POST', `/api/projects/tank/chats/${chat}/agents`, {
-    body: { agent_id: agent.body.id, chatty: true },
-  });
+  const chat = await builderChat(app, 'tank');
 
   const stream = await openStream(theirs);
   t.after(() => stream.close());

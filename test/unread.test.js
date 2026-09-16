@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn, workChat } from './helpers.js';
+import { setup, signIn } from './helpers.js';
 
 // Dann makes the game; Robin Fox is in the studio and is not an author.
 async function two(t) {
@@ -48,7 +48,10 @@ test('a message naming nobody still leaves the generic flag', async (t) => {
 
 test('unread says which conversation, and reading that one clears it', async (t) => {
   const { app, theirs } = await two(t);
-  const work = await workChat(app, 'tank');
+  // A third room: a chat added to a game is another of the builder's.
+  const work = (await app.client.json('POST', '/api/projects/tank/chats', {
+    body: { name: 'Art' },
+  })).body.id;
 
   await say(app.client, 'over here');
   await say(app.client, 'and here too', work);
@@ -58,7 +61,7 @@ test('unread says which conversation, and reading that one clears it', async (t)
   assert.deepEqual(
     before.chats.map((c) => c.unread),
     [true, false, true],
-    'Humans only and the helpers\' room each hold one; Building does not',
+    'Humans only and Art each hold one; Building does not',
   );
 
   const seen = await theirs.json('POST', `/api/projects/tank/chats/${work}/seen`);

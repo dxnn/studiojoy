@@ -86,39 +86,6 @@ export function sizingTrigger({ paused = null, begun = false } = {}) {
   return lines.join('\n');
 }
 
-// ⚠️ The open-room judge. The builder gets the same judgement free, as the
-// `clear` key on a sizing call it was making anyway; a room with no sizing has
-// no call to ride, and giving it a full-prompt one would want the sizing rules
-// in every preamble and a `[studio]` trigger landing on a child's message in a
-// room that never mentions sizing. So: one tiny call of its own instead — the
-// message, a definition, no tree, no preamble, its own prefix.
-//
-// Measured 2026-09-13 (probes/probe-v41-symptom.mjs, §14): **119 prompt
-// tokens** a call, a whole miss every time and disturbing no other prefix, so
-// $0.0000355 — and it agreed with the labels 26 times in 27 and answered every
-// single time, where the full-prompt key answers about two-thirds of the time.
-// The wording is the probe's, byte for byte.
-export const CLEAR_JUDGE = [
-  'Somebody is building a browser game and has sent a message about it.',
-  'Answer with JSON only: {"clear": true} when the message says what to change — a value, a thing, a',
-  'name, or a symptom somebody can point at. {"clear": false} when it says only how the game should',
-  'feel or how it should turn out, and what to change still has to be worked out.',
-].join('\n');
-export const CLEAR_MAX_TOKENS = 32;
-
-// True, false, or null for "it did not say" — and null is never guessed at:
-// every caller falls back to the level the agent was already on.
-export function parseClear(text) {
-  try {
-    const obj = JSON.parse(String(text ?? '').trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/, ''));
-    return typeof obj?.clear === 'boolean' ? obj.clear : null;
-  } catch {
-    return null;
-  }
-}
-
 // Defensive on purpose: response_format is a belt, and a fence, a sentence
 // first, or a shape with the wrong keys all still arrive. Null is "could not
 // size it", which the caller treats as a reply — the plain fire, the cap

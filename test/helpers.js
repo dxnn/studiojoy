@@ -213,21 +213,22 @@ export async function startGames(fixture, opts = {}) {
   };
 }
 
-// A chat a test's own helper can be put in. A game is born with `Humans only`
-// and `Building`, and Building is the builder's — it takes no other helper —
-// so a test that wants a helper of its own answering gets a room made for it,
-// once. A chat project's one room takes helpers and is what comes back.
-export async function workChat(app, slug = 'tank') {
-  const res = await app.client.json('GET', `/api/projects/${slug}`);
-  const open = res.body.chats?.find((c) => c.bots && !c.builder);
-  if (open) return open.id;
-  const made = await app.client.json('POST', `/api/projects/${slug}/chats`, {
-    body: { name: 'Helpers' },
-  });
-  if (made.status !== 201) {
-    throw new Error(`could not make a chat for helpers in ${slug}: ${made.status}`);
+// The room a test's own helper can be put in: a chat project's one room. A
+// game has none — every room there is the humans' or the builder's — so this
+// names a chat project, made here when the test has not made it yet, and a
+// game's slug is a loud failure rather than a room.
+export async function workChat(app, slug = 'talk') {
+  let res = await app.client.json('GET', `/api/projects/${slug}`);
+  if (res.status === 404) {
+    const made = await app.client.json('POST', '/api/projects', {
+      body: { name: slug, slug, kind: 'chat' },
+    });
+    if (made.status !== 201) throw new Error(`could not make the chat project ${slug}: ${made.status}`);
+    res = await app.client.json('GET', `/api/projects/${slug}`);
   }
-  return made.body.id;
+  const room = res.body.chats?.find((c) => c.bots && !c.builder);
+  if (!room) throw new Error(`${slug} has no room a helper of your own can be put in`);
+  return room.id;
 }
 
 // The builder's room in a game: where the studio's own helper answers.

@@ -31,7 +31,6 @@ const MIGRATIONS = [
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     thinking TEXT NOT NULL DEFAULT 'low',
-    file_tools INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER NOT NULL REFERENCES users,
     deleted INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
@@ -433,6 +432,10 @@ export function openDb(dbPath) {
   // was kept written-and-unread for three days so a rollback would find
   // something true in it; production has run past that, so it goes.
   dropColumnIfPresent(db, 'agents', 'model');
+  // Whether a helper could write files. Since 2026-09-15 the only helper in
+  // a game is the builder and a chat project has no tree, so the bit decided
+  // nothing anywhere; the tools are the builder's by construction.
+  dropColumnIfPresent(db, 'agents', 'file_tools');
   // What one person's helpers may spend in a day. Null is no allowance of
   // their own — only the studio-wide budget, which is the outer wall either
   // way.
@@ -484,8 +487,8 @@ export function openDb(dbPath) {
   // The builder (server/builder.js): the one `agents` row the studio owns —
   // never listed for editing, deleting or putting in a chat.
   addColumnIfMissing(db, 'agents', 'builtin', 'INTEGER NOT NULL DEFAULT 0');
-  // The builder's room, one per game: `bots = 1` and this, and the door
-  // refuses every other helper (chats.js, assertBotsAllowed).
+  // A builder room — every room in a game but `Humans only`: `bots = 1` and
+  // this, and the door refuses every other helper (chats.js, assertBotsAllowed).
   addColumnIfMissing(db, 'chats', 'builder', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'messages', 'chat_id', 'INTEGER REFERENCES chats');
   // After the column, not with the other CREATEs: on a database written before

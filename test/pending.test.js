@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  setup, signIn, openStream, startGames, putInChat, workChat, scratchDir,
+  setup, signIn, openStream, startGames, builderChat, scratchDir,
 } from './helpers.js';
 import { createFakeLlm, calls, says } from './fake-llm.js';
 import { createMutex } from '../server/files/mutex.js';
@@ -96,11 +96,7 @@ test("a helper's turn lands the person's saves first, under their name", async (
     says('Done.'),
   ]);
   const { app, dir } = await project(t, { llm });
-  const created = await app.client.json('POST', '/api/agents', {
-    body: { name: 'Designer', description: 'You design games.' },
-  });
-  const chatId = await workChat(app, 'tank');
-  await putInChat(app, 'tank', created.body.id, { chatty: true, chat_id: chatId });
+  const chatId = await builderChat(app, 'tank');
   const stream = await openStream(app.client);
   t.after(() => stream.close());
 
@@ -112,7 +108,7 @@ test("a helper's turn lands the person's saves first, under their name", async (
 
   const commits = await logCommits(dir);
   assert.deepEqual(commits.slice(0, 2).map((c) => [c.subject, c.author]), [
-    ['Designer: Done.', 'Designer'],
+    ['Builder: Done.', 'Builder'],
     ['create js/story.js', 'Dann'],
   ]);
   // And every commit, whoever made it, is announced as a version.

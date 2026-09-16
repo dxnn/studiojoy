@@ -14,10 +14,11 @@
 // - **A helper belongs to a chat, not to a project.** The line-up, the chatty
 //   switch, the cooldown and the dirty bit are all per chat, because they are
 //   all about one conversation.
-// - **A game's second chat is the builder's.** `Building` holds the studio's
-//   own helper and nobody else's (server/builder.js): the same door that keeps
-//   `Humans only` empty keeps this one to its one seat. Helpers people make go
-//   in the chats people make.
+// - **Every other room in a game is the builder's.** `Building`, and every
+//   chat added to a game after it, holds the studio's own helper and nobody
+//   else's (server/builder.js): the same door that keeps `Humans only` empty
+//   keeps each of them to its one seat. Helpers people make go in chat
+//   projects, where there is no tree to see.
 
 import { HttpError } from './http/respond.js';
 import { HOME_CHAT } from './db.js';
@@ -76,6 +77,13 @@ export function requireChat(db, project, raw) {
   return chat;
 }
 
+// Whether a person's helper may be in this chat at all: a chat project's one
+// room, and nothing in a game — every room there is the humans' or the
+// builder's. ⚠️ The one rule, read by the door below and by a message that
+// names a helper (mentions.js): a mention that could put a helper where the
+// door refuses one would be the door kept by luck.
+export const takesHelpers = (chat) => chat.bots === 1 && chat.builder !== 1;
+
 // ⚠️ The one place that says a helper may not be put in a chat. Attach, the
 // fork's copy and anything else that would write chat_agents goes through it,
 // because "no bots allowed" that is only checked when a bot would answer is a
@@ -84,10 +92,10 @@ export function assertBotsAllowed(chat) {
   if (chat.bots !== 1) {
     throw new HttpError(409, `${chat.name} is just for the humans — helpers cannot be put in it`);
   }
-  // The builder's room has its one seat and takes no other helper. The same
+  // A builder room has its one seat and takes no other helper. The same
   // promise as above, kept at the same door.
   if (chat.builder === 1) {
-    throw new HttpError(409, `${chat.name} is the Builder's — other helpers go in another chat`);
+    throw new HttpError(409, `${chat.name} is the Builder's — a helper of your own goes in a chat of its own`);
   }
 }
 

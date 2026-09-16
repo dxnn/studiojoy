@@ -149,7 +149,8 @@ test('agent defaults match the verified DeepSeek settings', () => {
   // 'low' rather than the old boolean's "on": at full effort an ambitious
   // request writes nothing at all (spec.md §14).
   assert.equal(row.thinking, 'low');
-  assert.equal(row.file_tools, 1);
+  // No file-tools bit either: the tools are the builder's by construction.
+  assert.equal(row.file_tools, undefined);
   assert.equal(row.deleted, 0);
   db.close();
 });
