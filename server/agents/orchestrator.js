@@ -1314,14 +1314,28 @@ export function createOrchestrator({
     // is something this agent has not seen.
     lastFired.set(row.id, snapshot);
     let commitSha = null;
+    let commitFailed = false;
     if (changed.length > 0) {
-      commitSha = await mutex.run(row.slug, async () => {
-        // Anything a person saved while this fire ran is theirs first.
-        if (pending) await pending.settleLocked(row.slug);
-        return commitPaths(
-          dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
+      try {
+        commitSha = await mutex.run(row.slug, async () => {
+          // Anything a person saved while this fire ran is theirs first.
+          if (pending) await pending.settleLocked(row.slug);
+          return commitPaths(
+            dir, changed, `${row.agent_name}: ${subject}`, agentAuthorFor(agent, row.slug),
+          );
+        });
+      } catch (err) {
+        // ⚠️ The files are already on disk; it is only history that failed.
+        // Letting this throw carried the whole turn to the outer catch, which
+        // wrote no message row at all — so the work was in the tree with
+        // nothing naming it and nothing that would ever commit it. Reported
+        // and carried on instead: the reply is still worth keeping, and the
+        // person is told plainly which half succeeded.
+        commitFailed = true;
+        console.error(
+          `commit for ${row.slug} failed; ${changed.length} file(s) left uncommitted`, err,
         );
-      });
+      }
     }
 
     if (!body && changed.length === 0) {
@@ -1387,6 +1401,19 @@ export function createOrchestrator({
     if (commitSha) {
       broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
       versionNew(broker, row.slug, commitSha, changed);
+    }
+    if (commitFailed) {
+      // Said in the room rather than only to the log, because the difference
+      // matters to the person: the game really did change, and Versions is
+      // the part that is missing.
+      broker.broadcast('files.changed', { project_slug: row.slug, paths: changed });
+      postSystemMessage(db, broker, {
+        project,
+        chat,
+        agentId: row.agent_id,
+        body: `${row.agent_name}'s changes are saved and the game is running them, `
+          + 'but the studio could not add them to Versions. Nothing is lost.',
+      });
     }
     return { messageId, commitSha, changed, nothing: false };
   }
