@@ -452,6 +452,41 @@ the game is fun?"` — which is not wrong so much as meaningless, and is why
 every caller treats anything but `true` as "keep the level" rather than as a
 judgement about the request.
 
+#### The tiny judge on a whole-game ask
+
+Since 2026-09-13 every open room runs the tiny judge ahead of its fire, and
+`clear: true` fires at `none`. It had only been scored on space-racer's small
+asks; the ask the *cliff's rate* is about — a whole game from an empty tree,
+where `low` runs away 15 times in 16 — had never been put to it. Measured
+2026-09-15 (`probes/probe-v41-judge-whole.mjs`), eight big open asks five
+times each, the shipped wording byte for byte:
+
+| ask | `clear: true` of 5 |
+| --- | --- |
+| the tank ask (two players, split screen, walls, power-ups) | 1 |
+| "make me a platformer where a frog eats flies" | 0 |
+| "I want a game like flappy bird but with a dragon" | 4 |
+| "make a racing game" | 0 |
+| "make a game" | 0 |
+| "build a quiz about dinosaurs" | 2 |
+| "add a second player with split screen so two people can race each other" | 5 |
+| "make me something fun to play with my brother" | 0 |
+| **all** | **12 of 40**, `false` 28, unsaid 0 |
+
+⚠️ **A whole-game ask is `false` more often than not, so an open room fires
+it at `low` and takes the ~43 s detour to the cap nearly every time.** The
+judge is not wrong by its own definition — *what to change still has to be
+worked out* is exactly true of a game from nothing — but the definition lumps
+two asks together that want opposite treatment: a vague *small* ask, where
+`low` finishes and `none` runs out of turns (above), and a whole game, where
+`low` is `none` plus the detour. `Building` tells them apart because its
+sizing answers in pieces and a plan of two or more runs at `none`; an open
+room has no such call. What to do about it is a decision, not a measurement
+(TODO.md): size an open request the way `Building` does, or give the tiny
+judge a second key for "more than one sitting", or leave an open room's
+whole-game ask to the builder's room, which is where the studio already sends
+every new game.
+
 ### ⚠️ The size of the ask is the lever
 
 Measured 2026-09-03 (`probes/probe-sizing.mjs`, `probes/probe-step.mjs`,

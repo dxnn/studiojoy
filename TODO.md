@@ -8,15 +8,15 @@ deliberately deferred.
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
-- ask the tiny judge (`CLEAR_JUDGE`) what it makes of a whole-game ask — it
-  has only ever been measured on space-racer's small ones. The cap's cost
-  landed 2026-09-15: `low` on a whole-game ask from an empty tree runs away
-  15 in 16 and costs ~43 s before the retry (spec/ §14, "The cliff's rate").
-  Every room takes its thinking from the ask since 2026-09-13, so an open
-  room pays that only when the judge says `clear: false` to "make me a tank
-  game". If it does, the fix is sizing an open request the way `Building`
-  sizes one, not a lower cap — 12,000 was proposed and withdrawn the same
-  day, it would have cut the best trace measured (spec/ §8, §14)
+- ! decide what an open room does with a whole-game ask. Measured 2026-09-15
+  (spec/ §14, "The tiny judge on a whole-game ask"): the judge says
+  `clear: false` to 28 of 40, so the fire runs at `low`, which on that ask
+  runs away 15 in 16 and costs ~43 s before the retry. Three ways, none
+  chosen: size an open request the way `Building` does; a second key on the
+  tiny judge for "more than one sitting", which fires at `none`; or leave it,
+  since every new game is born in `Building` and the detour is an open room's
+  alone. Not a lower cap — 12,000 was proposed and withdrawn the same day, it
+  would have cut the best trace measured (spec/ §8, §14)
 - watch what helpers do with `look_at` and `look_at_game` now they can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"

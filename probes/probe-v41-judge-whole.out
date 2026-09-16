@@ -1,0 +1,13 @@
+deepseek-flash, CLEAR_JUDGE as shipped, max_tokens 32, 5 a row
+
+tank         nYnnn   Build me a tank game. Two players, split screen, destructible walls, power-ups.
+frog         nnnnn   make me a platformer where a frog eats flies
+dragon       YYYYn   I want a game like flappy bird but with a dragon
+racing       nnnnn   make a racing game
+agame        nnnnn   make a game
+quiz         nnYnY   build a quiz about dinosaurs
+splitscreen  YYYYY   add a second player with split screen so two people can race each other
+brother      nnnnn   make me something fun to play with my brother
+
+clear: true 12, false 28, unsaid 0, of 40
+prompt 121 tokens a call
