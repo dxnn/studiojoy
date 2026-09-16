@@ -138,13 +138,14 @@ test('a helper joins one chat at most once', () => {
   db.close();
 });
 
-test('agent defaults match the verified DeepSeek model set', () => {
+test('agent defaults match the verified DeepSeek settings', () => {
   const db = seeded();
   db.prepare(
     `INSERT INTO agents (name, description, created_by, created_at) VALUES ('A', 'd', 1, ?)`,
   ).run(new Date().toISOString());
   const row = db.prepare('SELECT * FROM agents WHERE id = 1').get();
-  assert.equal(row.model, 'deepseek-flash');
+  // There is one model and no column for it (spec.md §3, §14).
+  assert.equal(row.model, undefined);
   // 'low' rather than the old boolean's "on": at full effort an ambitious
   // request writes nothing at all (spec.md §14).
   assert.equal(row.thinking, 'low');

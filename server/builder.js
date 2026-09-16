@@ -9,8 +9,6 @@
 // there that an ordinary helper does not — the sizing call, one fire per
 // piece — is the orchestrator's (spec.md §8, ideas/planner.md).
 
-import { MODEL } from './llm/deepseek.js';
-
 export const BUILDER_NAME = 'Builder';
 export const BUILDER_CHAT = 'Building';
 // What an existing game's Building becomes when it had helpers in it: the room
@@ -47,8 +45,8 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
   const existing = builderAgent(db);
   if (existing) {
     db.prepare(
-      'UPDATE agents SET description = ?, model = ?, thinking = ?, file_tools = 1 WHERE id = ?',
-    ).run(BUILDER_DESCRIPTION, MODEL, BUILDER_THINKING, existing.id);
+      'UPDATE agents SET description = ?, thinking = ?, file_tools = 1 WHERE id = ?',
+    ).run(BUILDER_DESCRIPTION, BUILDER_THINKING, existing.id);
     return builderAgent(db);
   }
   const someone = db.prepare('SELECT MIN(id) AS id FROM users').get()?.id ?? null;
@@ -59,9 +57,9 @@ export function ensureBuilder(db, now = new Date().toISOString()) {
     .run(BUILDER_NAME);
   db.prepare(
     `INSERT INTO agents
-       (name, description, model, thinking, file_tools, builtin, created_by, created_at)
-     VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
-  ).run(BUILDER_NAME, BUILDER_DESCRIPTION, MODEL, BUILDER_THINKING, someone, now);
+       (name, description, thinking, file_tools, builtin, created_by, created_at)
+     VALUES (?, ?, ?, 1, 1, ?, ?)`,
+  ).run(BUILDER_NAME, BUILDER_DESCRIPTION, BUILDER_THINKING, someone, now);
   return builderAgent(db);
 }
 

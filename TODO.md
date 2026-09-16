@@ -3,9 +3,6 @@
 v0 is built and green. `spec/` is the design-of-record; §15 lists what was
 deliberately deferred.
 
-- drop `agents.model`: written and never read since c3ff845 (2026-09-12),
-  and production has run every commit since, so the rollback it was kept for
-  would take ten other commits with it
 - ! check a plan's script against the request's and re-ask once, for the
   plan in 35 that comes back with its titles in Chinese (spec/ §14,
   2026-09-15) — a kid would get a card they cannot read. ⚠️ Not words: a

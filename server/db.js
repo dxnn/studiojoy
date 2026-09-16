@@ -30,7 +30,6 @@ const MIGRATIONS = [
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
-    model TEXT NOT NULL DEFAULT 'deepseek-flash',
     thinking TEXT NOT NULL DEFAULT 'low',
     file_tools INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER NOT NULL REFERENCES users,
@@ -430,13 +429,10 @@ export function openDb(dbPath) {
   // ⚠️ After the backfill above, never before it: an old database is still
   // reading this column to learn what its helpers were set to.
   dropColumnIfPresent(db, 'agents', 'reasoning');
-  // There is one model now (llm/deepseek.js) and nothing reads this column any
-  // more. Still written, and brought forward here, for the same reason the
-  // boolean above was kept for a while: a rollback finds something true in it.
-  // Idempotent, so it costs one statement a start and nothing else. ⚠️ SQLite
-  // will not change a column default afterwards, which is why the writers pass
-  // the value rather than leaning on the CREATE TABLE above.
-  db.prepare("UPDATE agents SET model = 'deepseek-flash' WHERE model != 'deepseek-flash'").run();
+  // There is one model now (llm/deepseek.js) and nobody chooses it. The column
+  // was kept written-and-unread for three days so a rollback would find
+  // something true in it; production has run past that, so it goes.
+  dropColumnIfPresent(db, 'agents', 'model');
   // What one person's helpers may spend in a day. Null is no allowance of
   // their own — only the studio-wide budget, which is the outer wall either
   // way.

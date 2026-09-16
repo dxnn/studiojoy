@@ -49,8 +49,8 @@ test('a model sent by an old client is ignored, never honoured', async (t) => {
     const res = await makeAgent(app, { name: `Helper ${i}`, description: 'd', model });
     assert.equal(res.status, 201, String(model));
     assert.equal(res.body.model, undefined);
-    const row = app.db.prepare('SELECT model FROM agents WHERE id = ?').get(res.body.id);
-    assert.equal(row.model, 'deepseek-flash', String(model));
+    const row = app.db.prepare('SELECT * FROM agents WHERE id = ?').get(res.body.id);
+    assert.equal(row.model, undefined, String(model));
   }
 });
 

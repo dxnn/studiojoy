@@ -2,7 +2,7 @@ import { json, noContent, HttpError } from '../http/respond.js';
 import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { tx } from '../db.js';
-import { MODEL, THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
+import { THINKING_LEVELS, DEFAULT_THINKING } from '../llm/deepseek.js';
 import { requireProject, requireString, optionalBool } from './helpers.js';
 import { requireChat, assertBotsAllowed, MAX_AGENTS_PER_CHAT } from '../chats.js';
 
@@ -80,11 +80,11 @@ export function agentRoutes(r) {
     const info = ctx.db
       .prepare(
         `INSERT INTO agents
-           (name, description, model, thinking, file_tools, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (name, description, thinking, file_tools, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        name, description, MODEL, thinking, fileTools ? 1 : 0,
+        name, description, thinking, fileTools ? 1 : 0,
         user.id, new Date().toISOString(),
       );
     json(ctx.res, 201, agentPublic(liveAgent(ctx.db, info.lastInsertRowid)));

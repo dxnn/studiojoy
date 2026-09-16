@@ -114,7 +114,6 @@ account by hand in the panel.
 | `id` | INTEGER PK | |
 | `name` | TEXT NOT NULL | `@mention` handle; unique among non-deleted |
 | `description` | TEXT NOT NULL | system prompt, appended to the studio preamble; ≤ 8 KB |
-| `model` | TEXT NOT NULL DEFAULT `'deepseek-flash'` | ⚠️ retired in place: written, never read, absent from every payload. There is one model (§14) and nobody chooses it |
 | `thinking` | TEXT NOT NULL DEFAULT `'low'` | **thinking level**: `full`, `low`, `none` (§14) |
 | `file_tools` | INTEGER NOT NULL DEFAULT 1 | may the agent write files |
 | `builtin` | INTEGER NOT NULL DEFAULT 0 | 1 = the *builder*, the studio's own (below) |
@@ -127,7 +126,7 @@ delete, or attach any agent. This is the "zero account complexity" rule
 applied to agents as well as projects.
 
 The one exception is the **builder** (`server/builder.js`): a reserved row with
-`builtin = 1` whose name, description, model and thinking are the code's,
+`builtin = 1` whose name, description and thinking are the code's,
 written onto the row on every open so an upgraded studio gets the new words.
 `GET /api/agents` leaves it out, `PATCH` and `DELETE` answer 403 for it, no
 attach route and no `@mention` puts it anywhere, and it sits in exactly one
