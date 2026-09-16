@@ -115,7 +115,6 @@ account by hand in the panel.
 | `name` | TEXT NOT NULL | `@mention` handle; unique among non-deleted |
 | `description` | TEXT NOT NULL | system prompt, appended to the studio preamble; ≤ 8 KB |
 | `thinking` | TEXT NOT NULL DEFAULT `'low'` | **thinking level**: `full`, `low`, `none` (§14) |
-| `file_tools` | INTEGER NOT NULL DEFAULT 1 | may the agent write files |
 | `builtin` | INTEGER NOT NULL DEFAULT 0 | 1 = the *builder*, the studio's own (below) |
 | `created_by` | INTEGER NOT NULL → users | display only; confers no ownership |
 | `deleted` | INTEGER NOT NULL DEFAULT 0 | soft delete |
@@ -129,11 +128,13 @@ The one exception is the **builder** (`server/builder.js`): a reserved row with
 `builtin = 1` whose name, description and thinking are the code's,
 written onto the row on every open so an upgraded studio gets the new words.
 `GET /api/agents` leaves it out, `PATCH` and `DELETE` answer 403 for it, no
-attach route and no `@mention` puts it anywhere, and it sits in exactly one
-chat per game — `Building`, which takes nobody else (`chats.builder`). Made
-the first time a game is, since `created_by` has to be somebody; a helper a
-person had already called Builder is renamed `Builder (helper)`, never
-removed. What it does that an ordinary helper does not is §8's.
+attach route and no `@mention` puts it anywhere, no detach route takes it
+out, and it sits in every room of a game's but `Humans only` — `Building`
+and every chat added to the game after it, each a **builder room**
+(`chats.builder`) that takes nobody else. Made the first time a game is,
+since `created_by` has to be somebody; a helper a person had already called
+Builder is renamed `Builder (helper)`, never removed. What it does that an
+ordinary helper does not is §8's.
 
 `CREATE UNIQUE INDEX idx_agents_name ON agents (name) WHERE deleted = 0` —
 unlike `new-y`, names are unique, so an `@mention` resolves to exactly one
@@ -146,9 +147,12 @@ find something true in it; one bit cannot hold three states, so `low` — the
 default, and the level that writes files where full effort writes none (§14) —
 came back as `full`, which is the failure the levels exist to prevent.
 
-`file_tools` is a genuine per-agent switch rather than a model capability
-gate — both DeepSeek models support function calling (§14). An agent with
-`file_tools = 0` is a critic: it reads the project and talks, but cannot edit.
+There is no file-tools switch. Until 2026-09-15 `file_tools` said whether a
+helper could write, and a helper with it off was a critic that read the tree
+and talked; since then a person's helper lives in a *chat project*, where
+there is no tree to read, and the only helper in a game is the builder, so
+the bit decided nothing anywhere and the migration drops it. The tools are
+the builder's by construction (§8).
 
 ### `projects`
 
@@ -265,34 +269,42 @@ in the studio may change it. It is an author's decision — see §11.
 | `project_id` | INTEGER NOT NULL → projects | |
 | `name` | TEXT NOT NULL | ≤ 60 chars |
 | `bots` | INTEGER NOT NULL DEFAULT 1 | 0 = human only: no *helper* may be put in it at all |
-| `builder` | INTEGER NOT NULL DEFAULT 0 | 1 = the *builder*'s room: its one seat, and no other helper may be put in it |
+| `builder` | INTEGER NOT NULL DEFAULT 0 | 1 = a **builder room**: the *builder*'s one seat, and no other helper may be put in it. Every room in a game but `Humans only` |
 | `created_at` | TEXT NOT NULL | |
 
 One conversation inside a project. Every game is born with two: `Humans only`
 (`bots = 0`), which is the one a bare GET opens on, and `Building`
-(`builder = 1`), the builder's room, with the builder already in it — and the
-one a new game is answered with, so the first thing typed is answered. Helpers
-people make go in chats people make (`Add chat…`). A game may have up to 20.
-There is no delete: a chat holds what people said in it, and nothing else in
-the studio throws words away.
+(`builder = 1`), a builder room, with the builder already in it — and the
+one a new game is answered with, so the first thing typed is answered. Every
+chat added to a game (`Add chat…`) is another builder room under the name it
+was given — a place to build the next thing, the builder seated at once. A
+game may have up to 20. ⚠️ Since 2026-09-15 a game has **no room for a
+person's helper**: those live in *chat projects*, blind to any tree, which is
+the simpler shape for a kid to hold — the game is where the Builder is, a
+chat is where a chatbot is. There is no delete: a chat holds what people said
+in it, and nothing else in the studio throws words away.
 
-**The upgrade to the builder** (`intoBuilderRooms`): a game's first chat that
-takes helpers is its Building. Empty, it becomes the builder's in place;
-with people's helpers already in it, it keeps them under `Building with
-helpers` and a fresh `Building` is made beside it; renamed by the people, it
-is left alone and a fresh `Building` is made instead. Runs on every open,
-unconditionally, doing nothing to a game that already has a builder room —
-⚠️ `intoChats` used to make `Building` only where there was a thread or
-line-up to carry into it, which left a game nobody had talked in yet with
-nowhere a helper could ever be put. The condition belongs to what moves,
-not to whether the chat exists.
+**The upgrade** (`intoBuilderRooms`): every room in a game that takes helpers
+and is not yet the builder's becomes one — its name and every word said in
+it kept, the builder seated, the helpers people had put there detached
+(their rows in `chat_agents` deleted; nothing else). Runs on every open,
+idempotent. Two earlier shapes come forward the same way: the `Building` that
+`intoChats` gave every project, and the `Old building` an earlier upgrade
+made beside a fresh `Building` when people's helpers were in it, so a game
+may have two builder rooms from birth. ⚠️ `intoChats` used to make `Building`
+only where there was a thread or line-up to carry into it, which left a game
+nobody had talked in yet with nowhere the builder could ever be put. The
+condition belongs to what moves, not to whether the chat exists.
 
-⚠️ `bots = 0` is enforced where a helper would be **put in** (`assertBotsAllowed`
-on the attach route and on a mention's call-in), not where one would answer. A
-room that promises nobody is listening has to keep that promise at the door; an
-eligibility-time check would be one forgotten call away from a helper sitting
-in it silently. `builder = 1` is refused at the same door, for the same reason:
-the builder's room has its one seat.
+⚠️ Whether a helper may be put in a chat is one rule, `takesHelpers`:
+`bots = 1` and not a builder room — which is to say a chat project's one room
+and nothing in a game. It is read at the attach route (`assertBotsAllowed`)
+and at a mention's call-in alike, where a helper would be **put in** rather
+than where one would answer. A room that promises nobody is listening has to
+keep that promise at the door; an eligibility-time check would be one
+forgotten call away from a helper sitting in it silently. Until 2026-09-15
+the call-in read `bots` alone, and a name typed in `Building` put a helper
+there.
 
 Index `idx_chats_project ON chats (project_id, id)`.
 

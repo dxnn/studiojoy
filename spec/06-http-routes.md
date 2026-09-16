@@ -92,7 +92,7 @@ in the studio, and a `PATCH` naming a removed id is a 404.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects/:slug/chats` | — | this project's conversations |
-| POST | `/api/projects/:slug/chats` | `{name}` | a new one, always allowing helpers |
+| POST | `/api/projects/:slug/chats` | `{name}` | a new *builder room* under that name, the builder seated; games only, 409 for a chat project |
 | PATCH | `/api/projects/:slug/chats/:chat_id` | `{name}` | rename |
 | POST | `/api/projects/:slug/chats/:chat_id/seen` | — | clear your own *marks* on that chat |
 
@@ -110,12 +110,12 @@ There is no route that deletes a chat.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/agents` | — | every agent people made — never the *builder*, which is in every game's `Building` already and goes nowhere else |
-| POST | `/api/agents` | `{name, description, thinking?, file_tools?}` | create. A `model` from an old tab is ignored, never honoured |
+| POST | `/api/agents` | `{name, description, thinking?}` | create. A `model` or a `file_tools` from an old tab is ignored, never honoured |
 | PATCH | `/api/agents/:id` | any of the above | update; 403 for the builder |
 | DELETE | `/api/agents/:id` | — | soft delete; detaches from all projects; 403 for the builder |
-| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in that chat; 409 for `Humans only`, for the builder's room, and for the builder itself |
+| POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in a *chat project*'s room; 409 anywhere in a game — `Humans only` and every *builder room* — and for the builder itself |
 | PATCH | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | `{chatty}` | update |
-| DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out |
+| DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out; 409 for the builder, whose seat is the room's |
 
 #### Messages
 

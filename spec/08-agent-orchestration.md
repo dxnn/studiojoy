@@ -9,9 +9,11 @@ messages never make agents eligible — bot-to-bot dampening — but agents do s
 each other's messages as context.
 
 The human-only chat has no helpers to evaluate, by construction rather than by
-a filter here: nothing can be written into `chat_agents` for it. A fire's
-transcript, its pins and its history floor are all that chat's, so a helper
-sees the conversation it is in and no other.
+a filter here: nothing can be written into `chat_agents` for it. A *builder
+room* has exactly one, the builder, the same way (§3); a person's helpers are
+a *chat project*'s, where there is no tree. A fire's transcript, its pins and
+its history floor are all that chat's, so a helper sees the conversation it
+is in and no other.
 
 ### Dirty bit + cooldown
 
@@ -65,36 +67,27 @@ than a wall that grows. A stream that dies mid-turn leaves the dying turn's
 words as the reply. A closing request for a synopsis was considered and
 declined: ~10 K tokens a fire for a note the model already writes.
 
-**How hard a fire thinks is taken from the ask, not from a setting.** Ahead of
-every open room's fire goes one tiny call — the wording of the last thing a
-person said, a definition of **clear**, no tree and no preamble, its own prefix
-at **119 tokens** (§14). `clear` means the request named *what* to change: a
-value, a thing, a name, or a symptom somebody can point at. A clear request has
-nothing to work out, so the fire runs at `none`; anything else keeps the
-agent's *thinking level*.
+**How hard a fire thinks.** In a builder room, from the ask: the sizing's
+`clear` key (below) says whether the request named *what* to change — a
+value, a thing, a name, or a symptom somebody can point at — and a clear
+one-piece request runs at `none`, since `none` and `low` were measured writing
+the same change to the same file for a concrete ask (§14); anything else
+keeps the builder's level. In a chat project, from the helper's own *thinking
+level* and nothing else: it has no tools, so the cliff that thinking against
+tools falls off (§14) is not there, and the thinking is all the answer is made
+of. ⚠️ Until 2026-09-15 a game's open rooms held people's tooled helpers, and
+one tiny call — the wording, a definition of `clear`, 119 tokens — went ahead
+of each of their fires to turn the level down; §14 keeps its measurements,
+and the last of them, that the judge calls a whole-game ask *unclear* 28
+times in 40, is part of why the open room went.
 
-⚠️ It only ever turns thinking **down**. `none` and `low` were measured writing
-the same change to the same file for a concrete ask, so turning it down is
-free; but every level above `none` can run away (§14), and somebody who chose
-`none` chose predictability — so an answer of `false`, an answer that will not
-parse, an upstream that will not answer, and an agent already on `none` all
-leave the level exactly where it was. The last of those skips the call.
+### A builder room: sizing and pieces
 
-⚠️ It is not asked of a helper with **no file tools**: `clear` is a question
-about what to change, and a helper that changes nothing is having a
-conversation, where the thinking is all the answer is made of. The judge's
-usage is the first row of the reply's receipt and its tokens are in the number
-under the bubble, because a request somebody paid for is shown.
-
-The *builder*'s room does the same judgement for nothing, as the `clear` key on
-a sizing call it was making anyway (below).
-
-### The builder's room: sizing and pieces
-
-Everything above is any room's. `Building` — the *builder*'s room, every
-game's (§3) — sizes a message before answering it, since a helper thinks in
-proportion to the ask (§14): a whole game at once thinks until the budget is
-gone; one piece of it thinks for a second. Design: ideas/planner.md.
+Everything above is any room's. A **builder room** — `Building`, and every
+chat added to a game (§3) — sizes a message before answering it, since a
+helper thinks in proportion to the ask (§14): a whole game at once thinks
+until the budget is gone; one piece of it thinks for a second. Design:
+ideas/planner.md.
 
 **Sizing.** One `complete()` — the microhelper shape (§6) — with the fire's
 own system prompt, no tools, thinking off, `response_format` json_object as
@@ -407,8 +400,8 @@ prompt hasn't been tried.
 
 ### Project documents
 
-The preamble asks an agent with file tools for a shape rather than leaving
-it to guess one — left to guess, it writes a single enormous `index.html`
+The preamble asks the builder for a shape rather than leaving it to guess
+one — left to guess, it writes a single enormous `index.html`
 (the games built here before the preamble asked were exactly that, one 62 KB
 in one file, and also the file most likely to be cut off half-written, §14).
 So it asks for `index.html` holding markup only, `css/`, and one file per
@@ -681,10 +674,11 @@ do that by writing a file, so this adds reach, not a new capability.
 
 ### Tools
 
-Offered whenever `file_tools = 1`. No model gating is needed — there is one
-model and it supports function calling, including parallel calls in a single
-turn (§14), so an agent can write several files at once and cut loop
-iterations.
+Offered in a builder room, which is to say to the builder; a chat project's
+helper has none, and there is no per-helper switch (§3). No model gating is
+needed — there is one model and it supports function calling, including
+parallel calls in a single turn (§14), so an agent can write several files at
+once and cut loop iterations.
 
 | tool | args | behaviour |
 |---|---|---|

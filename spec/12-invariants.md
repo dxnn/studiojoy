@@ -44,9 +44,12 @@ Tests enforce each of these.
   enters history (§3, §8).
 - An image never rides the system prompt. The API refuses one there (§14), so
   the ambient file block names a picture and `look_at` shows it.
-- The builder's room holds the builder and nobody else: `assertBotsAllowed`
-  refuses every other helper there, no route and no mention puts the builder
-  anywhere else, and nothing edits or deletes its row.
+- Every room in a game is the humans' or a builder room, and a builder room
+  holds the builder and nobody else: one rule, `takesHelpers`, refuses every
+  other helper there at the attach route and at a mention alike; no route
+  puts the builder in a chat project or takes it out of its room, and nothing
+  edits or deletes its row. A chat project's helper has no tools, so tools
+  are the builder's by construction (§3, §8).
 - An agent message never makes an agent eligible to respond.
 - An agent whose `cooldown_until` is in the future cannot post a message.
 - `studio_state.tokens_used_today` is monotone non-decreasing within a UTC day,

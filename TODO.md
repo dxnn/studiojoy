@@ -8,16 +8,7 @@ deliberately deferred.
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
-- ! decide what an open room does with a whole-game ask. Measured 2026-09-15
-  (spec/ §14, "The tiny judge on a whole-game ask"): the judge says
-  `clear: false` to 28 of 40, so the fire runs at `low`, which on that ask
-  runs away 15 in 16 and costs ~43 s before the retry. Three ways, none
-  chosen: size an open request the way `Building` does; a second key on the
-  tiny judge for "more than one sitting", which fires at `none`; or leave it,
-  since every new game is born in `Building` and the detour is an open room's
-  alone. Not a lower cap — 12,000 was proposed and withdrawn the same day, it
-  would have cut the best trace measured (spec/ §8, §14)
-- watch what helpers do with `look_at` and `look_at_game` now they can see
+- watch what the builder does with `look_at` and `look_at_game` now it can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"
   comes back often enough to be worth a second trigger
@@ -39,13 +30,11 @@ deliberately deferred.
   (a PWA in the app switcher may not be `visible`), and whether the shared
   `tag` really does collapse rung 1's notification and the push into one on
   a hidden tab rather than showing two
-- try a two-helper game (a builder plus a critic) and see whether the
-  bot-to-bot dampening makes the second one useless in practice
-- ask a helper to move flip-for-what onto the input module, the way space-racer
-  went; then check whether either game wants a sound effect now that one can be
-  made without leaving the studio
-- let a person lock a game file: helpers get its API note, not its bytes,
-  and cannot write it (ideas/api-notes.md)
+- ask the builder to move flip-for-what onto the input module, the way
+  space-racer went; then check whether either game wants a sound effect now
+  that one can be made without leaving the studio
+- let a person lock a game file: the builder gets its API note, not its
+  bytes, and cannot write it (ideas/api-notes.md)
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, with a map editor over `config/world.js`
@@ -96,7 +85,7 @@ deliberately deferred.
   ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
   limit, caps) are settled and tested by the scoreboard now
 - pull space-racer's colours out of its drawing code into `config/look.js` (a
-  game refactor, so ask a helper to do it rather than doing it by hand)
+  game refactor, so ask the builder to do it rather than doing it by hand)
 - migrate `redwolf-radness` — still one big file, so this is a rebuild rather
   than a move (fun-slide went this way live: `2a6821d` in its repo)
 - the point-and-click control scheme: `Input.point()`, an answer about
@@ -106,8 +95,9 @@ deliberately deferred.
   focus-cycling with a loud focus ring. ⚠️ It cannot live in `input.js` as it
   is: a page of buttons has no frame loop to call `Input.update()`, so it
   wants a heartbeat of its own (ideas/control-schemes.md, "The sixth")
-- ask a helper to move space-racer to the buttons scheme, and its hand-rolled
-  menus onto Screens.title — its screens still sit under the drawn controls
+- ask the builder to move space-racer to the buttons scheme, and its
+  hand-rolled menus onto Screens.title — its screens still sit under the
+  drawn controls
 - asteriskoids' upgrade chooser still sits under the drawn touch controls —
   the title and game-over screens step aside now, that one does not. It is
   the game's own screen, and `screens-open` is the library's class to set
@@ -120,8 +110,8 @@ deliberately deferred.
   to the window and need nothing)
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
-  in its code, so a rename in a form is a silent code break. It wants either a
-  helper doing both halves or a search of the tree first
+  in its code, so a rename in a form is a silent code break. It wants either
+  the builder doing both halves or a search of the tree first
 - when the shape changes, the notes at the top of `config/controls.js` still
   describe the shape the game was seeded with. Either the panel swaps that
   block for the new shape's, or the presets are made shape-neutral and the
@@ -152,7 +142,7 @@ deliberately deferred.
   drawn stand-in have shown the shape works (ideas/achievements.md, the last
   section). It wants tools, which those two do not, so it is the first one
   that is not a single request
-- ask a helper to move one real game onto the signed-in scoreboard flow
+- ask the builder to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice
 - interpret `:wave:`-style emoji shortcodes in messages (deferred from the

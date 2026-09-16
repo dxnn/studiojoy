@@ -144,10 +144,13 @@ walk into, each paid for once already.
   replayed. Joining the turns back into one body is how a 167 KB wall got
   replayed into every fire in a chat (spec/ §8).
 - `Humans only` is enforced where a helper would be *put in*
-  (`assertBotsAllowed`), not where one would answer: a room that promises
-  nobody is listening keeps that promise at the door. `Building` is the
-  **builder**'s room and is refused at the same door: its one seat, no `+`,
-  no rename, and the builder itself goes nowhere else (spec/ §3, §8).
+  (`takesHelpers`, read by `assertBotsAllowed` and by a mention's call-in),
+  not where one would answer: a room that promises nobody is listening keeps
+  that promise at the door. ⚠️ Every other room in a game is a **builder
+  room**, refused at the same door: the builder's one seat, no `+`, and the
+  builder itself goes nowhere else and cannot be taken out. A person's helper
+  lives in a chat project, blind — no tree, no tools, no preamble — so there
+  is no file-tools switch anywhere (spec/ §3, §8; since 2026-09-15).
 - ⚠️ The **sizing** ask rides the last user message *after* everything else on
   it. Ahead of an attachment it was swamped, and anywhere but the last message
   it would break the cache prefix the fire shares with it (spec/ §8, §14). The
@@ -305,11 +308,14 @@ direction stops working.
 Complete, green, and running on a real server. What exists, with where it is
 specified:
 
-- Projects are games or chats. A game holds several chats and is born with
-  `Humans only` and `Building`; a chat project is one room (§3, §6). Helpers
-  belong to a chat, with a chatty switch, a cooldown and a thinking level (§8).
-- **The builder**: the studio's own helper, in every game's `Building` and
-  nowhere else, with nobody else in there. It sizes each message first — one
+- Projects are games or chats. A game is born with `Humans only` and
+  `Building`, and every chat added to it is another **builder room** — the
+  studio's helper seated, nobody else's let in — so a game is where the
+  Builder is; a chat project is one room, and the one place a person's
+  helper can be, blind to any tree (§3, §6). A helper belongs to a chat, with
+  a chatty switch, a cooldown and a thinking level (§8).
+- **The builder**: the studio's own helper, in every one of a game's builder
+  rooms and nowhere else, with nobody else in there. It sizes each message first — one
   small call, no tools, thinking off, its rules in the preamble and a short
   trigger on the last message — and answers a remark as a **reply** and any
   change as a **plan** of one to six **pieces**, one fire each on the
@@ -319,9 +325,8 @@ specified:
   changed and its **headline**. A plan of one runs at once at the builder's
   level; a plan of two or more waits as a **draft** the person can change
   until **Build it**, and its pieces run at `none`. A message mid-plan pauses it; the
-  next sizing carries on, sets aside or replaces it. Open rooms with people's
-  helpers are unchanged. Measured in §14 on 2026-09-03 and 2026-09-06;
-  designed in ideas/planner.md (§8).
+  next sizing carries on, sets aside or replaces it. Measured in §14 on
+  2026-09-03 and 2026-09-06; designed in ideas/planner.md (§8).
 - Accounts split into **studio access** and players behind a waiting list; one
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).

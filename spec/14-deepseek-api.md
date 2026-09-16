@@ -409,6 +409,12 @@ as they ship today:
 
 #### The symptom rule, and the tiny judge
 
+⚠️ History, since 2026-09-15: the open room the tiny judge was built for no
+longer exists — a game's rooms are all the builder's and a chat project's
+helper has no tools (§3, §8) — so the judge was removed and the sizing's
+`clear` key is the one that remains. The measurements below stand as what
+they were, and the last of them is part of why the open room went.
+
 Both of the above were acted on the same day and re-measured together
 (`probes/probe-v41-symptom.mjs`, three runs an ask, twelve asks — the ten
 above plus two more symptoms, because a rule written to catch one row is
@@ -481,11 +487,10 @@ two asks together that want opposite treatment: a vague *small* ask, where
 `low` finishes and `none` runs out of turns (above), and a whole game, where
 `low` is `none` plus the detour. `Building` tells them apart because its
 sizing answers in pieces and a plan of two or more runs at `none`; an open
-room has no such call. What to do about it is a decision, not a measurement
-(TODO.md): size an open request the way `Building` does, or give the tiny
-judge a second key for "more than one sitting", or leave an open room's
-whole-game ask to the builder's room, which is where the studio already sends
-every new game.
+room has no such call. What to do about it was decided the same day, and not
+by tuning: a game's rooms are now all the builder's, so every whole-game ask
+is sized, and a person's helper lives in a chat project with no tools, where
+there is no cliff to fall off (§3, §8).
 
 ### ⚠️ The size of the ask is the lever
 
