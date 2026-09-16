@@ -71,6 +71,28 @@ if [ -z "$remote_games" ]; then
   exit 1
 fi
 
+# The server's own working trees, in one call rather than one per game.
+#
+# ⚠️ A dirty tree over there is what refuses a push, and nothing here could see
+# it before: this script only ever reported the *local* copy's uncommitted
+# count. A helper's turn whose commit failed leaves files in the server's tree
+# that no later save, turn or sweep picks up, because every commit the studio
+# makes is scoped to its own paths (spec/ §5) — so it sits there silently until
+# somebody happens to push.
+remote_dirty=""
+if [ "$what" = "status" ] || [ "$what" = "push" ]; then
+  if [ "$far" = 1 ]; then
+    remote_dirty=$(ssh "$host" "cd $base 2>/dev/null || exit 0; for d in */; do n=\$(git -C \"\$d\" status --porcelain 2>/dev/null | wc -l | tr -d ' '); [ \"\$n\" = 0 ] || echo \"\${d%/} \$n\"; done" 2>/dev/null || true)
+  else
+    remote_dirty=$(cd "$base" && for d in */; do n=$(git -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' '); [ "$n" = 0 ] || echo "${d%/} $n"; done)
+  fi
+fi
+
+# How many files the server's copy of one game has uncommitted; 0 when clean.
+remote_dirty_for() {
+  printf '%s\n' "$remote_dirty" | awk -v s="$1" '$1 == s { print $2; hit = 1 } END { if (!hit) print 0 }'
+}
+
 for slug in $remote_games; do
   dir="games/$slug"
   if [ "$far" = 1 ]; then url="$host:$base/$slug"; else url="$base/$slug"; fi
@@ -109,7 +131,12 @@ for slug in $remote_games; do
 
   case "$what" in
     status)
-      echo "$slug: $behind behind, $ahead ahead, $dirty uncommitted"
+      far_dirty=$(remote_dirty_for "$slug")
+      if [ "$far_dirty" = "0" ]; then
+        echo "$slug: $behind behind, $ahead ahead, $dirty uncommitted"
+      else
+        echo "$slug: $behind behind, $ahead ahead, $dirty uncommitted, ! $far_dirty uncommitted on the server"
+      fi
       ;;
     pull)
       if [ "$behind" = "0" ]; then
@@ -128,6 +155,10 @@ for slug in $remote_games; do
         echo "$slug: nothing to send"
       elif [ "$behind" != "0" ]; then
         echo "$slug: ! $behind behind — pull first, and rebase rather than force"
+      elif [ "$(remote_dirty_for "$slug")" != "0" ]; then
+        # Said before the attempt rather than after: updateInstead's refusal
+        # names neither the files nor which side they are on.
+        echo "$slug: ! the server's copy has $(remote_dirty_for "$slug") uncommitted file(s) — commit those there first"
       elif git -C "$dir" push -q server main 2>&1; then
         echo "$slug: pushed $ahead"
       else

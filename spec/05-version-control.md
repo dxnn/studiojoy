@@ -27,6 +27,20 @@ One git repository per project, at the project directory root.
   *attribution* of one person's last 45 s, never the bytes: the tree still
   holds them, and the next commit to name those paths picks them up. A clean
   shutdown lands every window first.
+- ⚠️ A commit names its own paths, so a path that exists in neither the working
+  tree nor HEAD is dropped before `git add` rather than passed to it. One such
+  name — a scratch file a helper wrote and removed inside its own turn — fails
+  the *whole* pathspec, and the turn's other writes went down with it: the
+  commit threw, the fire ended in its outer catch, and because every commit
+  here is path-scoped no later save, turn or sweep ever named those paths
+  again. The files stayed in the tree, absent from Versions, and the only
+  symptom was `deploy/sync-games.sh push` being refused days later. Measured on
+  `a-new-game`, 2026-09-15.
+- A commit that fails for any other reason is reported and not thrown: the
+  reply's message row is still written, the room is told the change is saved
+  but not in Versions, and the fire does not end in the outer catch. The
+  bytes are on disk either way; what is at stake is whether anything names
+  them.
 - A person and a helper writing the same file in the same window is the same
   logical lost update two agents can make (below): the helper's write lands
   the person's window first, so what the tree held is history under the right
