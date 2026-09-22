@@ -33,6 +33,11 @@ const MIME = {
   '.opus': 'audio/ogg',
   '.flac': 'audio/flac',
   '.webm': 'video/webm',
+  // A 3D model, for a game holding a renderer (ideas/modularity.md). A
+  // loader's fetch reads any type; these are so a visit shows it rather than
+  // downloading it, and so the studio can tell what it is.
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',

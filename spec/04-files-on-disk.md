@@ -45,7 +45,12 @@ followed for serving (`lstat` check).
 Chosen from the extension, not from any client claim:
 
 `.html .css .js .mjs .json .txt .md .csv .svg .png .jpg .jpeg .gif .webp .ico
-.mp3 .ogg .wav .m4a .aac .opus .flac .webm .woff .woff2 .ttf`
+.mp3 .ogg .wav .m4a .aac .opus .flac .webm .glb .gltf .woff .woff2 .ttf`
+
+`.glb` and `.gltf` are 3D models, ahead of any renderer the studio carries
+(ideas/modularity.md): a loader's `fetch` reads any type, so they are for a
+direct visit and for the upload guess, which sends them to `assets/models/`
+by extension, a model having no shape to measure.
 
 The four audio types past `.wav` are what a phone or a tablet exports music
 as. Without them an uploaded track is served as an opaque download and an

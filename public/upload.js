@@ -24,6 +24,11 @@ export const SOUND_DIR = `${ASSET_DIR}/sounds`;
 export const MUSIC_DIR = `${ASSET_DIR}/music`;
 export const IMAGE_DIR = `${ASSET_DIR}/images`;
 export const SPRITE_DIR = `${ASSET_DIR}/sprites`;
+// A 3D model has no shape to measure, so its extension decides. Named here and
+// not in the preamble's folder list: a game without a renderer has no use for
+// it, and the renderer's own shape lines are where a helper learns it.
+export const MODEL_DIR = `${ASSET_DIR}/models`;
+const MODEL_EXT = /\.(glb|gltf)$/i;
 
 // Where audio stops being a noise and becomes a tune. A sound effect longer
 // than this is unusual and a piece of music shorter than it is unusual, so
@@ -58,6 +63,7 @@ async function uploadItems(files) {
     // hero.png is usually wide, and wide-and-divisible is also what a strip
     // looks like. The folder box in the dialog still overrules this.
     if (RESERVED_IMAGES.includes(assetPath('', file.name))) return { file, folder: '' };
+    if (MODEL_EXT.test(file.name)) return { file, folder: MODEL_DIR };
     if (file.type?.startsWith('audio/')) {
       const length = await seconds(file);
       return { file, folder: length > MUSIC_SECONDS ? MUSIC_DIR : SOUND_DIR };

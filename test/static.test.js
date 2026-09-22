@@ -13,6 +13,8 @@ test('mime comes from the extension, case-insensitively', () => {
   assert.equal(mimeForPath('GAME.HTML'), 'text/html; charset=utf-8');
   assert.equal(mimeForPath('a/b/sprite.PNG'), 'image/png');
   assert.equal(mimeForPath('mod.mjs'), 'text/javascript; charset=utf-8');
+  assert.equal(mimeForPath('assets/models/ship.GLB'), 'model/gltf-binary');
+  assert.equal(mimeForPath('assets/models/ship.gltf'), 'model/gltf+json');
   assert.equal(mimeForPath('save.dat'), null);
   assert.equal(mimeForPath('noextension'), null);
 });
