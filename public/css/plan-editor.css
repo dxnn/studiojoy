@@ -1,0 +1,70 @@
+/* The plan editors: the track and the world ---------------------------------
+   The canvas is the game's own 960 × 600 world, drawn flat by the studio with
+   handles on what can be dragged (plan-canvas.js). A column beside it for the
+   whole thing's settings, the list of what is in it and the checks; the bar
+   under both. On a phone the column drops under the canvas. */
+.plan-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.plan-body { flex: 1; min-height: 0; display: flex; }
+.plan-canvas-box {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  background: var(--look-deep);
+}
+/* Scaled to the box's width, its shape kept; the pointer maths in
+   plan-canvas.js reads the scale back off the drawn size. */
+.plan-canvas {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  height: auto;
+  aspect-ratio: 960 / 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  touch-action: none;
+}
+/* It takes focus only so Delete reaches the studio; the chosen thing's white
+   outline already says where the keyboard is. */
+.plan-canvas:focus { outline: none; }
+.plan-side {
+  flex: 0 0 250px;
+  border-left: 1px solid var(--border);
+  padding: 8px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-side .section-label { margin-top: 8px; }
+.plan-side .row { gap: 8px; align-items: center; }
+.plan-side input[type="range"] { flex: 1; min-width: 0; }
+.plan-side .hint { margin: 0; }
+/* A thing in the world as a row: what it is, where it is, its ···. Lights up
+   because it can be pressed. */
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+.plan-row:hover { background: var(--hover); }
+.plan-row.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
+.plan-row .label { flex: 1; }
+.plan-row .hint.mono { font-size: 11px; }
+.inspector .link.danger { color: var(--danger); align-self: flex-start; }
+
+/* On a phone the canvas keeps the height its width gives it, and the column
+   under it is what scrolls. Left to share the height, the column's list won
+   and the canvas was squeezed to a sliver. */
+@media (max-width: 860px) {
+  .plan-body { flex-direction: column; }
+  .plan-canvas-box { flex: 0 0 auto; }
+  .plan-side { flex: 1 1 auto; min-height: 0; border-left: none; border-top: 1px solid var(--border); }
+}

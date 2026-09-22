@@ -25,6 +25,7 @@ import {
 } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
+import { planCanvas } from './plan-canvas.js';
 
 export { TRACK_FILE };
 
@@ -164,16 +165,11 @@ function colours() {
 
 // Handles are a thumb's size on screen whatever the canvas is scaled to, so
 // everything drawn for the hand is measured in screen pixels and scaled up.
-function paint(canvas, st) {
-  const ctx = canvas.getContext?.('2d');
-  if (!ctx) return;
+function paint(ctx, px, st) {
   const { model, selected } = st;
   const { points, width, things } = model;
   const c = colours();
-  const rect = canvas.getBoundingClientRect?.() ?? { width: WORLD.width };
-  const px = (n) => n * (WORLD.width / (rect.width || WORLD.width));
 
-  ctx.clearRect(0, 0, WORLD.width, WORLD.height);
   ctx.fillStyle = c.deep;
   ctx.fillRect(0, 0, WORLD.width, WORLD.height);
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -291,11 +287,7 @@ function paint(canvas, st) {
 
 /* The editor ----------------------------------------------------------------- */
 
-const note = (...kids) => h('div', { class: 'track-editor' }, h('div', { class: 'pad muted' }, ...kids));
-
-// One keyboard listener for the open editor, replaced on every render rather
-// than added again.
-let keys = null;
+const note = (...kids) => h('div', { class: 'plan-editor' }, h('div', { class: 'pad muted' }, ...kids));
 
 export function renderTrackEditor() {
   const st = S.track;
@@ -318,78 +310,48 @@ export function renderTrackEditor() {
 
   /* The canvas --------------------------------------------------------------- */
 
-  const canvas = h('canvas', { class: 'track-canvas', width: WORLD.width, height: WORLD.height });
-  const repaint = () => paint(canvas, st);
-  // Painted once the canvas is on the page: its screen size decides how big
-  // the handles are drawn.
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(repaint);
-  else repaint();
-
-  const worldPoint = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scale = WORLD.width / (rect.width || WORLD.width);
-    return { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale, scale };
-  };
-
-  let drag = null;
-  if (!ro) {
-    canvas.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      const p = worldPoint(e);
+  const { canvas, repaint } = planCanvas({
+    world: WORLD,
+    className: 'plan-canvas',
+    readOnly: ro,
+    paint: (ctx, px) => paint(ctx, px, st),
+    press: (p) => {
       const hit = hitAt(model, p.x, p.y, 14 * p.scale);
       if (hit?.kind === 'road') {
         // A click on the road between two handles is a new point there, and
         // the pointer is already holding it.
         const index = insertPoint(model, hit.seg, hit.x, hit.y);
         st.selected = { kind: 'point', index };
-        drag = { kind: 'point', index, moved: true };
         markUnsaved();
-      } else if (hit) {
-        st.selected = { kind: hit.kind, index: hit.index };
-        drag = { kind: hit.kind, index: hit.index, moved: false };
-      } else {
-        st.selected = null;
-        drag = null;
-        render();
-        return;
+        return { kind: 'point', index, moved: true };
       }
-      canvas.setPointerCapture?.(e.pointerId);
-      repaint();
-      e.preventDefault();
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      if (!drag) return;
-      const p = worldPoint(e);
-      if (drag.kind === 'point') movePoint(model, drag.index, p.x, p.y);
-      else moveThing(model, drag.index, p.x, p.y);
-      drag.moved = true;
-      repaint();
-    });
-    const lift = () => {
-      if (!drag) return;
-      const d = drag;
-      drag = null;
+      if (hit) {
+        st.selected = { kind: hit.kind, index: hit.index };
+        return { kind: hit.kind, index: hit.index, moved: false };
+      }
+      st.selected = null;
+      render();
+      return null;
+    },
+    drag: (d, p) => {
+      if (d.kind === 'point') movePoint(model, d.index, p.x, p.y);
+      else moveThing(model, d.index, p.x, p.y);
+      d.moved = true;
+    },
+    lift: (d) => {
       if (d.moved) markUnsaved();
       render();
-    };
-    canvas.addEventListener('pointerup', lift);
-    canvas.addEventListener('pointercancel', lift);
-  }
-
-  // Delete takes the selected point or thing out, when the keyboard is not in
-  // a field.
-  if (keys && typeof window !== 'undefined') window.removeEventListener('keydown', keys);
-  keys = (e) => {
-    if (ro || !st.selected || S.track !== st) return;
-    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-    if (e.target?.closest?.('input, textarea, select')) return;
-    e.preventDefault();
-    if (st.selected.kind === 'point') { if (!removePoint(model, st.selected.index)) return; } else removeThing(model, st.selected.index);
-    st.selected = null;
-    markUnsaved();
-    render();
-  };
-  if (typeof window !== 'undefined') window.addEventListener('keydown', keys);
+    },
+    // Delete takes the selected point or thing out.
+    remove: () => {
+      if (!st.selected || S.track !== st) return false;
+      if (st.selected.kind === 'point') { if (!removePoint(model, st.selected.index)) return false; } else removeThing(model, st.selected.index);
+      st.selected = null;
+      markUnsaved();
+      render();
+      return true;
+    },
+  });
 
   /* The side column -------------------------------------------------------- */
 
@@ -418,7 +380,7 @@ export function renderTrackEditor() {
   };
 
   const thingRow = (t, i) => h('div', {
-    class: `track-row${st.selected?.kind === 'thing' && st.selected.index === i ? ' on' : ''}`,
+    class: `plan-row${st.selected?.kind === 'thing' && st.selected.index === i ? ' on' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button, select, input')) return;
       st.selected = { kind: 'thing', index: i };
@@ -432,7 +394,7 @@ export function renderTrackEditor() {
     onPick: () => { removeThing(model, i); st.selected = null; markUnsaved(); render(); },
   }], { label: `More about this ${NAMES[t.kind].slice(2)}` }));
 
-  const side = h('div', { class: 'track-side scroll', 'data-scroll': 'track-side' },
+  const side = h('div', { class: 'plan-side scroll', 'data-scroll': 'track-side' },
     h('div', { class: 'section-label', text: 'The road' }),
     h('div', { class: 'row' }, h('span', { class: 'hint muted', text: 'Width' }), widthField, widthOut),
     h('p', {
@@ -480,9 +442,9 @@ export function renderTrackEditor() {
       onclick: () => saveTrack(),
     }));
 
-  return h('div', { class: 'track-editor' },
-    h('div', { class: 'track-body' },
-      h('div', { class: 'track-canvas-box' }, canvas),
+  return h('div', { class: 'plan-editor' },
+    h('div', { class: 'plan-body' },
+      h('div', { class: 'plan-canvas-box' }, canvas),
       side),
     bar);
 }
