@@ -926,6 +926,39 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   assert.ok(!system.includes('A noise is Sound.play'), 'and each is gated on its own');
 });
 
+// The shape lines are the index's (`shape` beside `what`), so a library the
+// studio grows is taught with no orchestrator edit. Held alone, each library
+// brings its own lines and nobody else's.
+test("each library's shape lines ride its own manifest entry and no other", async (t) => {
+  const index = JSON.parse(fs.readFileSync(path.join('public', 'studio-lib', 'index.json'), 'utf8'));
+  const names = Object.keys(index.libraries);
+  const llm = createFakeLlm(names.map(() => says('ok')));
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  const replies = () => stream.events.filter(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  ).length;
+  for (const [i, name] of names.entries()) {
+    await app.client.json('PUT', '/api/projects/tank/files/studio/studio.json', {
+      rawBody: JSON.stringify({ [name]: index.libraries[name].version }),
+    });
+    await app.client.json('PUT', `/api/projects/tank/files/studio/${name}.js`, {
+      rawBody: fs.readFileSync(path.join('public', 'studio-lib', name, `${name}.js`)),
+    });
+    await send(app, `build it with ${name}`);
+    await stream.waitFor(() => replies() > i);
+    const { system } = llm.lastCall();
+    assert.ok(system.includes(index.libraries[name].shape.join('\n')), `${name}'s shape`);
+    for (const other of names) {
+      if (other === name) continue;
+      assert.ok(!system.includes(index.libraries[other].shape[0]), `${name} alone: nothing of ${other}'s`);
+    }
+    await app.client.json('DELETE', `/api/projects/tank/files/studio/${name}.js`);
+  }
+});
+
 // DeepSeek re-bills the chain's accumulated reasoning on every continuation
 // (spec.md §14); a user-role note sheds it once carrying costs more than the
 // note does.

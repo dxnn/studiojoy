@@ -460,10 +460,15 @@ game is on the screen is `Screens.fit` rather than width css of the game's
 own, the HUD strip is `Screens.chips` — meters and the game's own nodes
 included, so nothing about a HUD is left worth hand-rolling — a frame begins
 with `Input.update()`, choosing `SCHEME` is the game's job, `Moments.say` goes
-on the line where the thing happens. ⚠️ Each line is gated on the manifest exactly as the notes are — a
+on the line where the thing happens, and what a player earns is a rule over
+a moment, not a trophy list of the game's own. Each library carries its own
+lines as `shape` in `studio-lib/index.json`, beside its `what`, so a library
+the studio grows teaches the shape with no orchestrator edit; they are
+emitted in the index's order, so each library's lines stand on their own.
+⚠️ Each library's lines are gated on the manifest exactly as the notes are — a
 game without `screens.js` is told nothing about `Screens`, since a call into
 nothing is worse than silence — and `test/orchestrator.test.js` asserts both
-the presence and the gating.
+the presence and the gating, for every library in the index.
 
 Two paragraphs on **method** sit beside the turn budget, both paid for by
 the same fire: the preview reports what a game throws back into the next

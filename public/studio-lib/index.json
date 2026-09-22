@@ -5,6 +5,14 @@
       "version": 6,
       "core": true,
       "what": "One way in for the keyboard, a game controller and a touchscreen, for one player or two.",
+      "shape": [
+        "- Every frame begins with Input.update(), before anything reads it, and the game asks Input.held,",
+        "  Input.pressed and Input.axis rather than listening for keys itself. config/controls.js is where the",
+        "  bindings live and where SCHEME says what a touchscreen gets. Read that word before writing any input",
+        "  code: it was picked when the game was made and a person can change it in Controls whenever they",
+        "  like, so it is a decision rather than a default — and the notes above it may still describe the",
+        "  shape the game started as. Change it only if you are asked to, and then make the bindings match it."
+      ],
       "files": ["input.js"],
       "seeds": [{ "from": "/templates/controls-none.js", "to": "config/controls.js" }],
       "scripts": ["config/controls.js", "studio/input.js"]
@@ -13,6 +21,10 @@
       "version": 3,
       "core": true,
       "what": "Plays the sounds in assets/sounds/ with one call — overlapping shots, loops, mute — and never breaks the game over a missing file.",
+      "shape": [
+        "- A noise is Sound.play, by plain name, and it stays quiet about a file nobody has made yet — so the",
+        "  call goes in before the sound does, in the same reply that asks for it."
+      ],
       "files": ["sound.js"],
       "seeds": [],
       "scripts": ["studio/sound.js"]
@@ -21,6 +33,10 @@
       "version": 2,
       "core": true,
       "what": "Draws the pictures in assets/sprites/ by name, animated when the picture is a film strip of square frames, and never breaks the game over a missing one.",
+      "shape": [
+        "- A picture is Sprites.draw, by plain name, and it stays quiet about a file nobody has made yet — so",
+        "  the call goes in before the art does, in the same reply that asks for it."
+      ],
       "files": ["sprites.js"],
       "seeds": [],
       "scripts": ["studio/sprites.js"]
@@ -29,6 +45,24 @@
       "version": 14,
       "core": true,
       "what": "How big the game is on the screen, a phone-fit title and game-over screen, a HUD strip of score chips and meters, a one-line how-to-play hint worked out from config/controls.js and the device, and snippets to put inside a screen — the scoreboard above all, fetched and posted for you. A screen and a chip both take the game's own nodes. Carries its own two typefaces, so a game asks nothing of a font host.",
+      "shape": [
+        "- It opens on a title screen rather than already running: Screens.title({ onStart: start }) puts up",
+        "  the name, the tagline, one Start button and the how-to-play line, and calls start when pressed. A",
+        "  tap on it reaches Input as one frame of \"start\", so a touchscreen needs nothing extra. A score is",
+        "  what makes the same screen the game-over screen, so a run ends on Screens.title({ score, post: true,",
+        "  board: true, onStart: start }). It returns { close } for taking it away yourself — there is no",
+        "  Screens.close. Do not draw a title, a game-over banner or a play-again prompt of your own: those",
+        "  three are the ones most often rebuilt by hand, and a hand-rolled one sits under the drawn touch",
+        "  controls instead of stepping aside for them.",
+        "- How big the game is on the screen is Screens.fit(el), called once at boot with the canvas or the",
+        "  box holding it — not width css of your own, which is the thing fit overrules. A game sized on the",
+        "  window's width alone comes off the bottom of a phone held sideways, and every game here that was",
+        "  written that way did.",
+        "- The numbers on screen while it runs are Screens.chips({ Score: 12, Lives: 3 }), a whole strip per",
+        "  call and cheap to call every frame — not text the game draws for itself. A bar is a chip too:",
+        "  { Risk: { value: 43, max: 100, text: \"43/100\" } } draws a meter beside the number, and a node of",
+        "  your own as a value puts anything else in the row, so there is no reason to build a HUD by hand."
+      ],
       "files": [
         "screens.js",
         "space-grotesk.woff2",
@@ -44,6 +78,9 @@
       "version": 1,
       "core": true,
       "what": "Lets the game say what just happened — a level gained, a run over, an ending reached — in one line, so achievements and the studio can listen.",
+      "shape": [
+        "- Moments.say goes on the line where the thing happens, not in a batch at the end."
+      ],
       "files": ["moments.js"],
       "seeds": [],
       "scripts": ["studio/moments.js"]
@@ -52,6 +89,11 @@
       "version": 2,
       "core": true,
       "what": "What a player can earn in this game, written in config/achievements.js as rules over the game's moments. Earned ones are kept forever by the studio and shown as a toast the moment they are won.",
+      "shape": [
+        "- What a player can earn is a rule in config/achievements.js over a moment the game already says —",
+        "  not a trophy list, a toast or a saved flag of the game's own. The library shows the toast and the",
+        "  studio keeps what was won; Achievements.unlock is only for one no moment can describe."
+      ],
       "files": ["achievements.js"],
       "seeds": [{ "from": "/templates/achievements.js", "to": "config/achievements.js" }],
       "scripts": ["config/achievements.js", "studio/achievements.js"]

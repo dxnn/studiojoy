@@ -179,7 +179,8 @@ walk into, each paid for once already.
   cap only when the alternative is deleting a call somebody can still make.
   The notes are followed by the **shape of a game**, which is what says
   a game is expected to *make* those calls rather than merely being able to;
-  every line of it is gated on the manifest, and both halves are tested.
+  each library's lines are its `shape` in `studio-lib/index.json`, gated on
+  the manifest, and both halves are tested.
 - The ambient file block lives in the **system prompt**, after the brief and
   the agent description, never on the last user message; the order inside it
   and the history trim boundary hold still between fires. All of it is for the

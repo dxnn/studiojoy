@@ -109,6 +109,37 @@ test('a person adds an extra, once, as one commit', async (t) => {
   }
 });
 
+// What makes a directory under studio-lib/ a library, for any library the
+// studio grows: its files are there, its note-bearing file carries its name
+// (buildLibraryNotes finds it by that convention), every script it asks a page
+// to load is one it installs, it says how a game uses it, and bytes written
+// somewhere else carry their licence beside them — the fonts' precedent, and
+// a vendored engine's.
+test('every library is whole: files, note, scripts, shape and licences', () => {
+  const root = path.resolve(import.meta.dirname, '..', 'public', 'studio-lib');
+  const { libraries } = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  for (const [name, l] of Object.entries(libraries)) {
+    assert.ok(Number.isInteger(l.version) && l.version >= 1, `${name} version`);
+    assert.ok(l.what, `${name} says what it is`);
+    for (const file of l.files) {
+      assert.ok(fs.existsSync(path.join(root, name, file)), `${name}/${file}`);
+    }
+    assert.ok(l.files.includes(`${name}.js`), `${name}.js carries the note`);
+    const installs = new Set([...l.files.map((f) => `studio/${f}`), ...(l.seeds ?? []).map((s) => s.to)]);
+    for (const src of l.scripts ?? []) assert.ok(installs.has(src), `${name} installs ${src}`);
+    assert.ok(Array.isArray(l.shape) && l.shape.length > 0, `${name} has a shape`);
+    assert.ok(l.shape[0].startsWith('- '), `${name}'s shape is a list item`);
+    for (const line of l.shape) {
+      assert.ok(line.startsWith('- ') || line.startsWith('  '), `${name}: ${line}`);
+    }
+    // Not the studio's own bytes: a font, or a minified engine.
+    const carried = l.files.filter((f) => /\.(woff2?|ttf|otf)$|\.min\.js$/.test(f));
+    if (carried.length > 0) {
+      assert.ok(l.files.some((f) => /licen[cs]e/i.test(f)), `${name} carries a licence for ${carried}`);
+    }
+  }
+});
+
 test("every template's extras are libraries the studio offers as extras", () => {
   const publicDir = path.resolve(import.meta.dirname, '..', 'public');
   const read = (...p) => JSON.parse(fs.readFileSync(path.join(publicDir, ...p), 'utf8'));

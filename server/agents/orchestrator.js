@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { tx } from '../db.js';
@@ -133,8 +134,17 @@ function firstLine(text) {
 // TODO.md ended up with their own menus sitting under the drawn touch
 // controls. The note is the contract; this is the shape.
 //
-// Gated on the manifest, one line at a time: a game that does not hold
-// screens.js must not be told to call Screens.
+// Each library carries its own lines as `shape` in studio-lib/index.json,
+// beside its `what`, so a new library teaches the shape with no edit here.
+// Gated on the manifest, one library at a time: a game that does not hold
+// screens.js must not be told to call Screens. In the index's order, and each
+// library's lines stand on their own, since which neighbours are held varies.
+// The studio's own index rather than the game's copy, as the words here
+// always were — read once, like arc.js, since a deploy restarts the studio.
+const LIBRARY_INDEX = JSON.parse(
+  fs.readFileSync(new URL('../../public/studio-lib/index.json', import.meta.url), 'utf8'),
+);
+
 function shapeLines(held) {
   const out = [];
   if (held.size === 0) return out;
@@ -144,42 +154,9 @@ function shapeLines(held) {
     'each is already in this game\'s tree. Answering one again in the game\'s own code is the most common',
     'way a game ends up as something nobody else can pick up and change:',
   );
-  if (held.has('screens')) out.push(
-    '- It opens on a title screen rather than already running: Screens.title({ onStart: start }) puts up',
-    '  the name, the tagline, one Start button and the how-to-play line, and calls start when pressed. A',
-    '  tap on it reaches Input as one frame of "start", so a touchscreen needs nothing extra. A score is',
-    '  what makes the same screen the game-over screen, so a run ends on Screens.title({ score, post: true,',
-    '  board: true, onStart: start }). It returns { close } for taking it away yourself — there is no',
-    '  Screens.close. Do not draw a title, a game-over banner or a play-again prompt of your own: those',
-    '  three are the ones most often rebuilt by hand, and a hand-rolled one sits under the drawn touch',
-    '  controls instead of stepping aside for them.',
-    '- How big the game is on the screen is Screens.fit(el), called once at boot with the canvas or the',
-    '  box holding it — not width css of your own, which is the thing fit overrules. A game sized on the',
-    '  window\'s width alone comes off the bottom of a phone held sideways, and every game here that was',
-    '  written that way did.',
-    '- The numbers on screen while it runs are Screens.chips({ Score: 12, Lives: 3 }), a whole strip per',
-    '  call and cheap to call every frame — not text the game draws for itself. A bar is a chip too:',
-    '  { Risk: { value: 43, max: 100, text: "43/100" } } draws a meter beside the number, and a node of',
-    '  your own as a value puts anything else in the row, so there is no reason to build a HUD by hand.',
-  );
-  if (held.has('input')) out.push(
-    '- Every frame begins with Input.update(), before anything reads it, and the game asks Input.held,',
-    '  Input.pressed and Input.axis rather than listening for keys itself. config/controls.js is where the',
-    '  bindings live and where SCHEME says what a touchscreen gets. Read that word before writing any input',
-    '  code: it was picked when the game was made and a person can change it in Controls whenever they',
-    '  like, so it is a decision rather than a default — and the notes above it may still describe the',
-    '  shape the game started as. Change it only if you are asked to, and then make the bindings match it.',
-  );
-  if (held.has('moments')) out.push(
-    '- Moments.say goes on the line where the thing happens, not in a batch at the end.',
-  );
-  if (held.has('sprites')) out.push(
-    '- A picture is Sprites.draw, by plain name, and it stays quiet about a file nobody has made yet — so',
-    '  the call goes in before the art does, in the same reply that asks for it.',
-  );
-  if (held.has('sound')) out.push(
-    '- A noise is Sound.play, the same way and for the same reason.',
-  );
+  for (const [name, library] of Object.entries(LIBRARY_INDEX.libraries ?? {})) {
+    if (held.has(name)) out.push(...(library.shape ?? []));
+  }
   return out;
 }
 
