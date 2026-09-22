@@ -32,6 +32,10 @@ import {
 import {
   renderTrackEditor, renderTrackInspector, loadTrack, parkTrack, trackChanged,
 } from './track-form.js';
+import {
+  renderWorldEditor, renderWorldInspector, loadWorld, parkWorld, worldChanged,
+} from './world-form.js';
+import { isWorldPath } from './world-editor.js';
 import { isStoryPath } from './story-editor.js';
 import { isAdventurePath } from './adventure-editor.js';
 import { isTrackPath } from './track-editor.js';
@@ -119,6 +123,21 @@ export const GAME_TYPES = {
       changed: () => trackChanged(),
       reset: () => { S.track = null; },
       inspector: () => renderTrackInspector(),
+    }],
+  },
+  knockdown: {
+    editors: [{
+      id: 'world',
+      label: 'World',
+      what: 'Everything in the world — drag crates, stone and targets about, no code needed',
+      render: renderWorldEditor,
+      isPath: (p) => isWorldPath(p),
+      load: () => loadWorld(),
+      // Saved on its own button, like the track, so what is unsaved is parked.
+      park: () => parkWorld(),
+      changed: () => worldChanged(),
+      reset: () => { S.world = null; },
+      inspector: () => renderWorldInspector(),
     }],
   },
 };

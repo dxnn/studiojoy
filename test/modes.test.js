@@ -40,7 +40,21 @@ test('a type\'s editors sit after the chat, keeping their plain names', () => {
   assert.deepEqual(idsOf(game('visual-novel')).slice(0, 2), ['chat', 'story']);
   assert.deepEqual(idsOf(game('adventure')).slice(0, 2), ['chat', 'adventure']);
   assert.deepEqual(idsOf(game('racing')).slice(0, 2), ['chat', 'track']);
+  assert.deepEqual(labelsOf(game('knockdown')).slice(0, 2), ['Speak', 'World']);
+  assert.deepEqual(idsOf(game('knockdown')).slice(0, 2), ['chat', 'world']);
   assert.equal(editorsFor(null).length, 0, 'a free-form game brings none');
+});
+
+// Every type a template makes has its editor registered, and an editor over a
+// file of its own is the type's heart — so the studio opens a new game in it.
+test('every template with a heart it edits has that editor registered', async () => {
+  const fs = await import('node:fs');
+  const { templates } = JSON.parse(fs.readFileSync(new URL('../public/game-templates/index.json', import.meta.url), 'utf8'));
+  for (const [type, t] of Object.entries(templates)) {
+    for (const e of editorsFor(type).filter((x) => x.isPath)) {
+      assert.equal(e.isPath(t.heart), true, `${type}: ${e.id} edits ${t.heart}`);
+    }
+  }
 });
 
 test('a chat project is one room and no row', () => {

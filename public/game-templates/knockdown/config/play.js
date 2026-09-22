@@ -12,7 +12,7 @@ const PLAY = {
   // The shot
   SHOT_SIZE: 14,       // how big the shot is, from its middle to its edge
   SHOT_WEIGHT: 4,      // how heavy the shot is next to a crate — heavier knocks harder
-  PULL: 7,             // how fast a shot flies for every pixel you pull the sling back
+  PULL: 10,            // how fast a shot flies for every pixel you pull the sling back
   MAX_SPEED: 1100,     // the fastest a shot can go, in pixels a second
   REACH: 110,          // how far the sling pulls back, in pixels
   AIM_DOTS: 8,         // dots showing where a shot starts to go — 0 for none

@@ -1502,6 +1502,65 @@ a track written from numbers is a track nobody drove. The interface says
 **On the road** for what the file calls `THINGS`, because *thing* is already
 the interface's word for a picture a spot picks up or a sprite on the shelf.
 
+⚠️ The track editor's canvas is the **plan canvas** now (`public/plan-canvas.js`,
+since 2026-09-22), shared with the world editor below: the canvas in world
+pixels, the pointer mapped through the drawn box, the drag held by pointer
+capture, handles measured in screen pixels, Delete for the selected thing.
+The canvas takes focus when pressed — the preview's game holds the keyboard
+otherwise, and Delete never reached the studio — and Delete is answered only
+while a plan canvas is on screen. On a phone the canvas keeps its own height
+and the column under it scrolls (`css/plan-editor.css`).
+
+#### Knock it down
+
+The **knock-it-down template** is the sixth (`public/game-templates/knockdown/`,
+key `knockdown`, "Knock it down", built 2026-09-22 from ideas/modularity.md)
+and the first born holding an **extra**: its index entry names `libraries:
+["physics"]`, so creation installs the physics library beside the core set.
+A sling, a pile of crates and stone, and targets in it; a few shots to knock
+every target down. Its heart is `config/bodies.js`: `BODIES`, each a `kind`
+(`box`, `block`, `ball`, `target`), an `at` (its middle), a `size` —
+`[wide, tall]` for the square kinds, a radius for the round ones — and, for
+the square ones only, an `angle` in degrees; and `SLING`, `{ at }`, where the
+shots come from. ⚠️ A `block` is the one kind that never moves, and the file
+does not say `still`: the game adds it when it builds the level, so the kind
+is the one truth. `config/play.js` is the feel (shots, gravity, bounce,
+friction, the shot's size and weight, how hard the sling throws and how far
+it pulls, the aiming dots, how hard a target must be hit — `POP` — how long a
+shot waits for the dust to settle, and the points). The scheme is `none` and
+the template ships its own `config/controls.js`: the sling is pulled on the
+canvas with a finger or a mouse — pressed anywhere, so a small screen needs no
+precise first touch — and the keys turn the aim, change how hard, and fire.
+`js/knock.js` builds the level with `Physics.build`, steps it, knocks a target
+down on a hit at `POP` or harder or when it leaves the world, ends a shot when
+`Physics.moving()` is false or `SETTLE` runs out, and finishes on
+`Screens.title` with `post` and `board`. Moments: `shot`, `crash`, `pop`,
+`cleared` (the shots it took), `score`. Its three sounds — `hit`, `pop`,
+`fling` — are the sound maker's. A target drawn at
+`assets/sprites/target.png` replaces the face. `test/knockdown-template.test.js`
+holds the shape and ⚠️ runs the shipped pile through the real physics for
+three seconds: nothing moves and nothing is hit hard, because a pile that
+falls before the first shot is a game that plays itself.
+
+The **world editor** (`public/world-editor.js` the model and geometry,
+`public/world-form.js` the interface, the **World** mode) is the plan canvas
+over the bodies, drawn from the unsaved model with the sling as the game
+draws it. Drag a thing by wherever it was pressed to move it; the chosen
+one's white dot sizes it (a rectangle's corner in its own turned frame, a
+round thing's edge); drag the sling; Delete takes the chosen one out. The
+column holds a button per kind — dropped in the middle of the sky — a row per
+thing and the checks; the rail holds the chosen thing's kind, place, size and
+turn, or with nothing chosen the sling's place. Explicit Save, like the
+track's. Its checks: **nothing to knock down**, **nothing still** (no block,
+so everything falls off the bottom), a body **past the edge of the world**,
+two bodies **starting inside each other** — measured by separating axes for
+two rectangles, the nearest point for a ball against one — which the physics
+throws apart on the first frame (two blocks may overlap: neither moves), the
+**sling inside something**, and more than 60 things, past which a phone
+crawls. Helpers are told the world is built by hand and **never to type or
+change a body's `at`, `size` or `angle`** (§8). The interface says **Crate**
+and **Stone** where the file says `box` and `block`.
+
 ### Games origin (`GAMES_PORT`)
 
 | method | path | effect |

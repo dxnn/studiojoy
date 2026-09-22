@@ -277,7 +277,10 @@ what prompt caching pays for (below):
    name the story gives it; an *adventure* is told what a *spot* is and ⚠️
    never to write or change one's `at`, because a helper can look at a
    picture and cannot measure it, so the box is the person's to drag in the
-   "adventure editor"; a *racing game* is told its track is drawn in the
+   "adventure editor"; a *knock-it-down* game is told its pile is built in
+   the "world editor" and never to type a body's `at`, `size` or `angle`,
+   because one written from numbers starts with things inside each other;
+   a *racing game* is told its track is drawn in the
    "track editor" and never to type its points, and that the feel lives in
    `config/play.js` — and a note that games run on a separate origin so
    absolute URLs back to the studio will not resolve. Fixed per project rather

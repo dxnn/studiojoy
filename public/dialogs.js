@@ -30,6 +30,7 @@ import { editorsFor } from './game-types.js';
 import { STORY_FILE, discardStory, saveStory } from './story-form.js';
 import { ADVENTURE_FILE, discardAdventure, saveAdventure } from './adventure-form.js';
 import { TRACK_FILE, discardTrack, saveTrack } from './track-form.js';
+import { WORLD_FILE, discardWorld, saveWorld } from './world-form.js';
 import { renderShelfDialog, artCredit, asPng } from './story-guide.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
 import { discardAchievements, saveAchievements } from './achievements-form.js';
@@ -44,6 +45,7 @@ const editorConflict = (name) => ({
   story: { file: STORY_FILE, noun: 'story', which: 'story', discard: discardStory, save: saveStory },
   adventure: { file: ADVENTURE_FILE, noun: 'adventure', which: 'adventure', discard: discardAdventure, save: saveAdventure },
   track: { file: TRACK_FILE, noun: 'track', which: 'track', discard: discardTrack, save: saveTrack },
+  world: { file: WORLD_FILE, noun: 'world', which: 'world', discard: discardWorld, save: saveWorld },
   achievements: { file: ACHIEVEMENTS_FILE, noun: 'achievements', which: 'list', discard: discardAchievements, save: saveAchievements },
 })[name];
 

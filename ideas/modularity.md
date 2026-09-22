@@ -41,12 +41,14 @@ Built, each its own commit with its tests:
   `game-templates/index.json`, moved byte for byte.
 - §4.4 template harness: `test/templates.test.js`.
 
-Left, on purpose:
+Phase 1 built the same day (Q1–Q9 answered, §8's names taken): the physics
+library over planck 1.5.0, *Knock it down* (`knockdown`, heart
+`config/bodies.js` — not `world.js`, which stays the move-and-collect
+batch), the world editor, and the plan canvas extracted from the track
+editor as the world editor was built on it. The adventure's DOM boxes stayed
+out of it.
 
-- **The plan canvas** (§4.4). The two sources share less than it looked: the
-  track draws on a canvas, the adventure puts DOM boxes over an `<img>`.
-  Extracting now would be an abstraction over one real case. Extract it from
-  the track editor and the physics world editor when the second exists.
+Left, on purpose:
 - **Pics' sections** (`pics-hear.js:116–150`) stay hand-named for the two
   types that have them; a `kinds` hook is worth it at the third.
 - **`arc.js`'s fallback** is `ARCS.arcade` with *What is it?* in front, which

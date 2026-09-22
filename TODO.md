@@ -38,7 +38,10 @@ deliberately deferred.
 - give each game its own four colours in its `config/look.js` — they all wear
   the studio's default crimson until somebody picks (GLOSSARY: *look*)
 - the move-and-collect template, with a map editor over `config/world.js`
-  where one fits (ideas/templates.md)
+  where one fits (ideas/templates.md) — the *plan canvas* is its drag half
+- play Knock it down and build a pile in the world editor on a real phone:
+  whether a thumb can pull the sling without hiding the aim dots, and hit
+  the size dot on a crate (both driven by a mouse only, 2026-09-22)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The *height* complaint only — sideways is
   checked now and clean (`test/ui/narrow.ui.js`), so what is left is what a

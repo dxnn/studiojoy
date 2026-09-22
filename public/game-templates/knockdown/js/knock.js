@@ -195,13 +195,15 @@ canvas.addEventListener("pointercancel", () => { if (Level) Level.pulling = fals
 // ---------- what the player sees around the game ----------
 
 // The whole strip, every frame. Screens.chips builds it once and touches only
-// what changed, so saying all of it every time costs nothing.
+// what changed, so saying all of it every time costs nothing. No how-to-play
+// hint beside it: the sling is pulled rather than pressed, and the title
+// screen's tagline is what says so.
 function updateHud() {
   const chips = {};
   chips[WORDS.hudShots] = Level.shotsLeft;
   chips[WORDS.hudTargets] = targets().length;
   chips[WORDS.hudScore] = Level.score;
-  Screens.chips(chips, { hint: true });
+  Screens.chips(chips);
 }
 
 function startGame() {

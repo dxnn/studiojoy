@@ -214,6 +214,26 @@ by hand if the law ever breaks. Two refusals guard the edges: a manifest
 newer than the studio's own is left alone (a rolled-back studio, not a game
 to fix), and an archived game is skipped, catching up on its next reopening.
 
+The **physics library** (`studio/physics.js`, the first extra, 2026-09-22) is
+a **façade**: the studio's own file, carrying its note, over a vendored
+engine it ships beside it — `studio/planck.min.js`, planck.js 1.5.0 (Box2D in
+JavaScript, MIT, a classic UMD script setting `planck`), with
+`planck-license.txt`, the fonts' precedent. It speaks the game's pixels with y
+down and degrees in config: `Physics.build(list)` makes a body from each
+config entry (`at`, a `size` pair for a box or a radius for a ball, `angle`,
+`still`, `bounce`/`friction`/`weight`), keeping every other key on
+`b.thing`; `step(dt)` runs a fixed 60 Hz clock whatever the frame rate, so a
+tower falls the same way on a phone and a laptop; `onHit(fn)` is told each
+contact **after** the step — planck locks the world while it steps, so a
+listener may remove bodies — with how hard the two met along the push
+between them; `fling`, `at`, `remove`, `all`, `moving`, `clear`, `world` are
+the rest. Nothing in it draws. ⚠️ **The engine's version is in the library's
+name**: `physics` is planck 1.x, and its own integer counts façade changes
+that keep the compatibility law. An engine that plays a tuned tower
+differently is a new library, `physics2`, which no sweep installs into a game
+that did not ask. The note says the engine is there and the game's own code
+may use `planck`; the studio supports what the façade offers.
+
 Two rules make it a library rather than a folder, both load-bearing:
 
 - ⚠️ **A helper may read it and may not write it.** `isLibraryPath` in
