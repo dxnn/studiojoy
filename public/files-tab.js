@@ -12,12 +12,10 @@ import { isQuizPath, quizModel } from './quiz-editor.js';
 import { renderQuizForm } from './quiz-form.js';
 import { isControlsPath, controlsModel } from './controls-editor.js';
 import { renderControlsForm } from './controls-form.js';
-import { isStoryPath } from './story-editor.js';
-import { isAdventurePath } from './adventure-editor.js';
-import { isTrackPath } from './track-editor.js';
 import { isAchievementsPath } from './achievements-editor.js';
+import { editorsFor } from './game-types.js';
 import {
-  S, render, frozen, sizeText, more, EDITOR_AREA, showMode, hasEditor, encodePath,
+  S, render, frozen, sizeText, more, EDITOR_AREA, showMode, encodePath,
 } from './main.js';
 import {
   chooseFile, closeOpenFile, saveOpenFile,
@@ -308,9 +306,7 @@ export function renderOpenFile() {
     // story editor — its editor is Write, with a model of its own — and the
     // achievements, whose editor is under Share. A form there would be a
     // second thing writing the same file.
-    const inEditor = (isStoryPath(S.open.path) && hasEditor('story'))
-      || (isAdventurePath(S.open.path) && hasEditor('adventure'))
-      || (isTrackPath(S.open.path) && hasEditor('track'))
+    const inEditor = editorsFor(S.project?.type).some((e) => e.isPath?.(S.open.path))
       || isAchievementsPath(S.open.path);
     const parsed = isConfigPath(S.open.path) && S.open.content !== null && !inEditor
       ? parseConfigFile(S.open.content)

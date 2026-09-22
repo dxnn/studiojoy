@@ -19,16 +19,7 @@ import {
   loadAchievements, parkAchievements, renderAchievementsTab, loadCounts, countsFor,
 } from './achievements-form.js';
 import { renderControlsEditor } from './controls-form.js';
-import {
-  loadStory, parkStory, saveStory, dropStageImages, selectScene,
-  renderStoryInspector,
-} from './story-form.js';
-import {
-  loadAdventure, parkAdventure, saveAdventure, dropAdventureSizes, selectAdventureScene,
-  renderAdventureInspector,
-} from './adventure-form.js';
-import { loadTrack, parkTrack, renderTrackInspector } from './track-form.js';
-import { editorsFor, modesFor } from './game-types.js';
+import { editorsFor, modesFor, allEditors } from './game-types.js';
 import { renderVersionsTab } from './versions.js';
 import { renderChat } from './chat.js';
 import { renderSidebar, wordmark } from './sidebar.js';
@@ -492,6 +483,12 @@ const viewFromUrl = () => {
   };
 };
 
+// The editors that save themselves, when they hold unsaved work: on leaving a
+// mode, the game, or the page (`keepalive`). The rest keep their own button.
+const saveAutosaved = (opts) => Promise.all(
+  editorsFor(S.project?.type).map((e) => e.saveDirty?.(opts)),
+);
+
 // An editor id the open game's type actually brings, or null.
 const editorOf = (id) => (editorsFor(S.project?.type).some((e) => e.id === id) ? id : null);
 export const hasEditor = (id) => editorOf(id) === id;
@@ -508,10 +505,7 @@ export const editorShowing = () => editorsFor(S.project?.type).find((e) => e.id 
 export function showMode(id) {
   const mode = modeOf(id) ?? 'chat';
   if (S.slug && S.mode !== mode) {
-    Promise.all([
-      S.story?.dirty ? saveStory() : null,
-      S.adventure?.dirty ? saveAdventure() : null,
-    ]).then(() => commitNow());
+    saveAutosaved().then(() => commitNow());
   }
   S.mode = mode;
   S.menu = null;
@@ -617,14 +611,8 @@ function urlNow() {
   // open, so Back to the chat is the address without ?mode=.
   if (S.mode !== 'chat') {
     q.set('mode', S.mode);
-    if (S.mode === 'story') {
-      const first = S.story?.model?.scenes[0]?.key;
-      if (S.story?.scene && S.story.scene !== first) q.set('scene', S.story.scene);
-    }
-    if (S.mode === 'adventure') {
-      const first = S.adventure?.model?.scenes[0]?.key;
-      if (S.adventure?.scene && S.adventure.scene !== first) q.set('scene', S.adventure.scene);
-    }
+    const scene = editorShowing()?.view?.();
+    if (scene) q.set('scene', scene);
     if (['code', 'pics', 'hear'].includes(S.mode) && S.open) q.set('file', S.open.path);
     if (S.mode === 'versions') {
       if (S.historyPath) q.set('file', S.historyPath);
@@ -711,12 +699,7 @@ async function applyView({
   // address talking, the same as a missing ?file=. Undefined is no address at
   // all — a game opened from the sidebar — and leaves the reader where the
   // story was loaded, parked edits and their place included.
-  if (want === 'story' && scene !== undefined) {
-    selectScene(scene ?? S.story?.model?.scenes[0]?.key);
-  }
-  if (want === 'adventure' && scene !== undefined) {
-    selectAdventureScene(scene ?? S.adventure?.model?.scenes[0]?.key);
-  }
+  if (scene !== undefined) editorShowing()?.applyView?.(scene);
   if (isChat()) return;
   const path = file ?? null;
   if (want === 'versions') {
@@ -844,12 +827,8 @@ export async function openProject(slug, { view = null } = {}) {
   // that far behind the typing — and are parked against the game being left
   // only if that failed. Achievements edits are parked as they always were,
   // put back on return while the file is still the one they were made on.
-  if (S.story?.dirty) await saveStory();
-  parkStory();
-  if (S.adventure?.dirty) await saveAdventure();
-  parkAdventure();
-  // The track saves on its own button, so what is unsaved is parked whole.
-  parkTrack();
+  await saveAutosaved();
+  for (const e of editorsFor(S.project?.type)) e.park?.();
   parkAchievements();
 
   // Colours changed in the editor belong to the game being left, so they go in
@@ -861,13 +840,9 @@ export async function openProject(slug, { view = null } = {}) {
   // settled again below for the one being opened.
   S.mode = 'chat';
   S.menu = null;
-  S.story = null;
-  S.adventure = null;
-  S.track = null;
+  for (const e of allEditors()) e.reset?.();
   S.achievements = null;
   S.tryScene = null;
-  dropStageImages();
-  dropAdventureSizes();
 
   if (!slug) {
     S.slug = null;
@@ -966,9 +941,7 @@ export async function openProject(slug, { view = null } = {}) {
     await loadReservedImages();
     // And the story, when this game has the editor for it — before applyView,
     // so ?edit= and ?scene= have something to land on.
-    if (hasEditor('story')) await loadStory();
-    if (hasEditor('adventure')) await loadAdventure();
-    if (hasEditor('track')) await loadTrack();
+    for (const e of editorsFor(S.project?.type)) await e.load?.();
     render();
   }
   // A game remembered on Share has to fetch what Share shows now. Waiting for
@@ -1252,9 +1225,8 @@ function renderRail() {
 // carries, in the same order, read-only. Each heading is the way to the real
 // editor.
 function renderInspector() {
-  if (editorShowing()?.id === 'story') return renderStoryInspector();
-  if (editorShowing()?.id === 'adventure') return renderAdventureInspector();
-  if (editorShowing()?.id === 'track') return renderTrackInspector();
+  const editor = editorShowing();
+  if (editor?.inspector) return editor.inspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
   return renderGameSummary();
 }
@@ -1488,7 +1460,6 @@ window.addEventListener('pagehide', () => {
       }).catch(() => { /* the page is going away regardless */ });
     }
   }
-  if (S.story?.dirty) saveStory({ keepalive: true });
-  if (S.adventure?.dirty) saveAdventure({ keepalive: true });
+  saveAutosaved({ keepalive: true });
   commitNow(S.slug, { keepalive: true });
 });
