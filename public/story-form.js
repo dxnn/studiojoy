@@ -30,6 +30,7 @@ import {
   S, render, send, say, frozen, encodePath, commitNow, more, NO_CONNECTION,
 } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
+import { writeEditorFile } from './editor-file.js';
 import { createPictureAt } from './drawing.js';
 import { renderGuide, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
@@ -242,27 +243,16 @@ export async function saveStory({ force = false, keepalive = false } = {}) {
     await refreshFiles();
     return true;
   }
-  const headers = { 'content-type': 'text/plain' };
-  if (!force && st.etag) headers['if-match'] = st.etag;
   st.saving = true;
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(STORY_FILE)}`, {
-    method: 'PUT', headers, body: text, keepalive,
+  const etag = await writeEditorFile(STORY_FILE, text, {
+    etag: st.etag, force, keepalive, editor: 'story', noun: 'story',
   });
-  const body = await res.json().catch(() => null);
   st.saving = false;
-  if (res.status === 409) {
-    S.dialog = { kind: 'story-conflict' };
-    render();
-    return false;
-  }
-  if (!res.ok) {
-    say(res.status === 0 ? NO_CONNECTION : (body?.error ?? 'Could not save the story.'), true);
-    return false;
-  }
+  if (etag === null) return false;
   // Only the editor that asked may finish the job: the commit is a
   // files.changed, and the game may have changed under it since.
   if (S.story === st) {
-    st.etag = body.etag;
+    st.etag = etag;
     st.text = text;
     // Typed during the save: the model is ahead of what landed, so it is
     // still dirty and goes in at the next quiet moment.

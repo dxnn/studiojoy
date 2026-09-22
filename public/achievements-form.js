@@ -27,6 +27,7 @@ import {
 } from './main.js';
 import { momentsFor } from './telemetry.js';
 import { chooseFile, refreshFiles } from './files.js';
+import { writeEditorFile } from './editor-file.js';
 
 // Which row is open, for which game — a different game opens closed.
 let opened = { slug: null, index: null };
@@ -114,27 +115,16 @@ export async function saveAchievements({ force = false } = {}) {
     render();
     return true;
   }
-  const headers = { 'content-type': 'text/plain' };
-  if (!force && st.etag) headers['if-match'] = st.etag;
   st.saving = true;
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(ACHIEVEMENTS_FILE)}`, {
-    method: 'PUT', headers, body: text,
+  const etag = await writeEditorFile(ACHIEVEMENTS_FILE, text, {
+    etag: st.etag, force, editor: 'achievements', noun: 'achievements',
   });
-  const body = await res.json().catch(() => null);
   st.saving = false;
-  if (res.status === 409) {
-    S.dialog = { kind: 'achievements-conflict' };
-    render();
-    return false;
-  }
-  if (!res.ok) {
-    say(res.status === 0 ? NO_CONNECTION : (body?.error ?? 'Could not save the achievements.'), true);
-    return false;
-  }
+  if (etag === null) return false;
   // Only the tab that asked may finish the job: the commit is a files.changed,
   // and the game may have changed under it since.
   if (S.achievements === st) {
-    st.etag = body.etag;
+    st.etag = etag;
     st.text = text;
     st.dirty = false;
     st.stale = false;

@@ -30,6 +30,7 @@ import {
   S, render, send, say, frozen, encodePath, commitNow, more, NO_CONNECTION, prefs,
 } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
+import { readEditorFile, writeEditorFile } from './editor-file.js';
 import { createPictureAt } from './drawing.js';
 import {
   artShelf, artCredit, asPng, plainCard,
@@ -88,29 +89,18 @@ async function loadWords(slug, kept = null) {
 export async function loadAdventure() {
   const slug = S.slug;
   const was = S.adventure;
-  if (!S.files.some((f) => f.path === ADVENTURE_FILE)) {
-    S.adventure = { grown: `${ADVENTURE_FILE} is not in this game`, missing: true };
-    return;
-  }
   const kept = parked.get(slug);
-  parked.delete(slug);
-  const [res, words] = await Promise.all([
-    send(`/api/projects/${slug}/files/${encodePath(ADVENTURE_FILE)}`),
+  const [got, words] = await Promise.all([
+    readEditorFile(slug, ADVENTURE_FILE, adventureModel),
     loadWords(slug, kept?.words),
   ]);
-  if (S.slug !== slug) return;
-  if (!res.ok) {
-    S.adventure = { grown: res.status === 0 ? NO_CONNECTION : `the studio could not read ${ADVENTURE_FILE}` };
+  if (!got) return;
+  if (got.state) {
+    S.adventure = got.state;
     return;
   }
-  const text = await res.text();
-  if (S.slug !== slug) return;
-  const etag = res.headers.get('etag');
-  const read = adventureModel(text);
-  if (!read.ok) {
-    S.adventure = { grown: read.reason };
-    return;
-  }
+  parked.delete(slug);
+  const { text, etag, read } = got;
   if (kept && kept.etag === etag) {
     S.adventure = {
       text, etag, model: kept.model, words, dirty: true, scene: null, spot: 'scene', item: null, title: false,
@@ -168,25 +158,14 @@ export async function saveAdventure({ force = false, keepalive = false } = {}) {
     await refreshFiles();
     return true;
   }
-  const headers = { 'content-type': 'text/plain' };
-  if (!force && st.etag) headers['if-match'] = st.etag;
   st.saving = true;
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(ADVENTURE_FILE)}`, {
-    method: 'PUT', headers, body: text, keepalive,
+  const etag = await writeEditorFile(ADVENTURE_FILE, text, {
+    etag: st.etag, force, keepalive, editor: 'adventure', noun: 'adventure',
   });
-  const body = await res.json().catch(() => null);
   st.saving = false;
-  if (res.status === 409) {
-    S.dialog = { kind: 'adventure-conflict' };
-    render();
-    return false;
-  }
-  if (!res.ok) {
-    say(res.status === 0 ? NO_CONNECTION : (body?.error ?? 'Could not save the adventure.'), true);
-    return false;
-  }
+  if (etag === null) return false;
   if (S.adventure === st) {
-    st.etag = body.etag;
+    st.etag = etag;
     st.text = text;
     st.dirty = adventureText(st.model) !== text;
     st.stale = false;

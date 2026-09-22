@@ -36,6 +36,17 @@ import { discardAchievements, saveAchievements } from './achievements-form.js';
 
 /* Render: dialogs -------------------------------------------------------- */
 
+// The editors of a whole game that can meet somebody else's save, by the
+// name editor-file.js puts on the conflict. A function rather than a table:
+// the modules it names import main.js, which imports this one, so their
+// bindings are only safe to read once a dialog is actually drawn.
+const editorConflict = (name) => ({
+  story: { file: STORY_FILE, noun: 'story', which: 'story', discard: discardStory, save: saveStory },
+  adventure: { file: ADVENTURE_FILE, noun: 'adventure', which: 'adventure', discard: discardAdventure, save: saveAdventure },
+  track: { file: TRACK_FILE, noun: 'track', which: 'track', discard: discardTrack, save: saveTrack },
+  achievements: { file: ACHIEVEMENTS_FILE, noun: 'achievements', which: 'list', discard: discardAchievements, save: saveAchievements },
+})[name];
+
 const inLibrary = (path) => path === LIBRARY_DIR || path.startsWith(`${LIBRARY_DIR}/`);
 
 // One way in, out of several: a big name and a line saying what it does. Three
@@ -1584,65 +1595,23 @@ export function dialogFor(d) {
         })));
   }
 
-  // The story editor's own conflict: the same question as a file's, asked
-  // about the story rather than the text, because nobody here has seen the
-  // text. Keep theirs re-reads the file; Keep mine writes over it.
-  if (d.kind === 'story-conflict') {
-    return wrap('The story changed while you were editing',
-      h('p', { text: `A helper saved ${STORY_FILE} after you started. Which story do you want to keep?` }),
+  // An editor of the whole game's own conflict (editor-file.js): the same
+  // question as a file's, asked about the story or the track rather than the
+  // text, because nobody here has seen the text. Keep theirs re-reads the
+  // file; Keep mine writes over it.
+  if (d.kind === 'editor-conflict') {
+    const e = editorConflict(d.editor);
+    if (!e) return null;
+    return wrap(`The ${e.noun} changed while you were editing`,
+      h('p', { text: `A helper saved ${e.file} after you started. Which ${e.which} do you want to keep?` }),
       h('div', { class: 'actions' },
         h('button', {
           class: 'quiet', text: 'Keep theirs',
-          onclick: async () => { close(); await discardStory(); },
+          onclick: async () => { close(); await e.discard(); },
         }),
         h('button', {
           class: 'filled', text: 'Keep mine',
-          onclick: async () => { close(); await saveStory({ force: true }); },
-        })));
-  }
-
-  // And for the adventure editor.
-  if (d.kind === 'adventure-conflict') {
-    return wrap('The adventure changed while you were editing',
-      h('p', { text: `A helper saved ${ADVENTURE_FILE} after you started. Which adventure do you want to keep?` }),
-      h('div', { class: 'actions' },
-        h('button', {
-          class: 'quiet', text: 'Keep theirs',
-          onclick: async () => { close(); await discardAdventure(); },
-        }),
-        h('button', {
-          class: 'filled', text: 'Keep mine',
-          onclick: async () => { close(); await saveAdventure({ force: true }); },
-        })));
-  }
-
-  // And for the track editor.
-  if (d.kind === 'track-conflict') {
-    return wrap('The track changed while you were editing',
-      h('p', { text: `A helper saved ${TRACK_FILE} after you started. Which track do you want to keep?` }),
-      h('div', { class: 'actions' },
-        h('button', {
-          class: 'quiet', text: 'Keep theirs',
-          onclick: async () => { close(); await discardTrack(); },
-        }),
-        h('button', {
-          class: 'filled', text: 'Keep mine',
-          onclick: async () => { close(); await saveTrack({ force: true }); },
-        })));
-  }
-
-  // The same two answers for the Achievements tab.
-  if (d.kind === 'achievements-conflict') {
-    return wrap('The achievements changed while you were editing',
-      h('p', { text: `A helper saved ${ACHIEVEMENTS_FILE} after you started. Which list do you want to keep?` }),
-      h('div', { class: 'actions' },
-        h('button', {
-          class: 'quiet', text: 'Keep theirs',
-          onclick: async () => { close(); await discardAchievements(); },
-        }),
-        h('button', {
-          class: 'filled', text: 'Keep mine',
-          onclick: async () => { close(); await saveAchievements({ force: true }); },
+          onclick: async () => { close(); await e.save({ force: true }); },
         })));
   }
 
