@@ -265,6 +265,45 @@ export const ARCS = {
     PLAYED,
     OUT,
   ],
+  knockdown: [
+    stamp(
+      'falls', 'It falls!',
+      'Things that fall, stack and tumble — and a sling that throws.',
+      '“Find the fun first” — one shot into a pile that falls well is most of a knock-down game.',
+      [
+        { text: 'the numbers in config/play.js', test: (f) => has(f.files, is('config/play.js')) },
+        { text: 'the world in config/bodies.js', test: (f) => has(f.files, is('config/bodies.js')) },
+      ],
+      [ask('The throw', 'Tune PULL, GRAVITY and SHOT_WEIGHT in config/play.js until a shot feels strong but not wild.')],
+    ),
+    stamp(
+      'knocks', 'It knocks!',
+      'A pile worth hitting: it stands up on its own and comes down in a satisfying way.',
+      'A good pile has a weak spot. Find it, then hide it a little.',
+      [],
+      [ask('A weak spot', 'Suggest one change to the pile in config/bodies.js that gives it a weak spot a clever shot can find.')],
+    ),
+    stamp(
+      'puzzle', 'It’s a puzzle',
+      'Not every shot works. The player has to think about where to hit.',
+      'A puzzle is fair when the answer feels obvious afterwards.',
+      [],
+      [ask('Fewer shots', 'Tune SHOTS and POP so knocking everything down takes one good idea, not luck.')],
+    ),
+    LOOKS,
+    stamp(
+      'feels', 'It feels good',
+      'Every crash and every target answers back: a sound, a flash, a wobble.',
+      'Juice: the same crash with a thud on it hits twice as hard and plays exactly the same.',
+      [
+        { text: 'a sound in assets/sounds/', test: (f) => has(f.files, under('assets/sounds')) },
+        { text: 'a target in assets/sprites/', test: (f) => has(f.files, under('assets/sprites')) },
+      ],
+      [ask('A target', 'Draw a target at assets/sprites/target.png so it has a face of its own.')],
+    ),
+    PLAYED,
+    OUT,
+  ],
 };
 
 // A type's arc. A game with no type takes the arcade's with "What is it?" in

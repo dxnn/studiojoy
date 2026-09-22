@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knock It Down</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- one line of critical CSS: the page must never flash white before the
+       stylesheet arrives -->
+  <style>html { background: #10131f; }</style>
+</head>
+<body>
+  <!-- The game is one canvas and nothing else. Everything around it — the
+       title screen, the end screen with the scoreboard, the HUD strip and
+       how big this canvas may be — is the studio's, from studio/screens.js. -->
+  <div id="wrap">
+    <canvas id="game" width="960" height="600"></canvas>
+  </div>
+
+  <!-- config/controls.js first: the input library reads it. -->
+  <script src="config/controls.js"></script>
+  <script src="studio/input.js"></script>
+  <script src="studio/sound.js"></script>
+  <script src="studio/sprites.js"></script>
+  <script src="studio/screens.js"></script>
+  <script src="studio/moments.js"></script>
+  <script src="config/achievements.js"></script>
+  <script src="studio/achievements.js"></script>
+  <!-- planck.js first: the physics library is the studio's way in to it. -->
+  <script src="studio/planck.min.js"></script>
+  <script src="studio/physics.js"></script>
+  <script src="config/look.js"></script>
+  <script src="config/bodies.js"></script>
+  <script src="config/play.js"></script>
+  <script src="config/words.js"></script>
+  <script src="js/knock.js"></script>
+</body>
+</html>

@@ -75,6 +75,27 @@
         "the road measured once, the car, the rivals, the things, laps and the finish; a car drawn at",
         "assets/sprites/car.png replaces the triangle."
       ]
+    },
+    "knockdown": {
+      "title": "Knock it down",
+      "what": "A sling, a pile of crates and something to knock off the top. Build the pile with your finger — no code needed.",
+      "heart": "config/bodies.js",
+      "scheme": "none",
+      "libraries": ["physics"],
+      "brief": [
+        "This game knocks things down: a sling, a world of crates, stone and targets, and a few shots to knock",
+        "every target down. The world is config/bodies.js — BODIES, each a kind (box, block, ball or target),",
+        "where its middle is, its size and, for the square ones, how far it is turned in degrees; and SLING,",
+        "where the shots come from — and the person builds it in the \"world editor\" — World, in the row of",
+        "modes over this chat — by dragging things about. ⚠️ Never type or change a body's at, size or angle:",
+        "a pile is built by hand, and one you wrote from numbers starts with things inside each other, which",
+        "the physics throws apart the moment the game begins. Add a body with any other change and ask the",
+        "person to drag it into place. The falling, stacking and knocking are the physics library's, never",
+        "the game's own sums; tune them in config/play.js — gravity, bounce, grip, the sling, how hard a",
+        "target has to be hit, shots and points. js/knock.js is the game itself: the level built from the",
+        "bodies, the sling, what counts as down, and the end; a target drawn at assets/sprites/target.png",
+        "replaces the face."
+      ]
     }
   }
 }

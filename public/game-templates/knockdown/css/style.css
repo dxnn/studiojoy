@@ -1,0 +1,45 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #10131f;
+  color-scheme: dark; /* tell the browser this page is dark, so it never paints light chrome or form controls */
+  --line: #2a3050;
+  --text: #e4e8ff;
+}
+
+html { background: var(--bg); } /* the root element owns the page background; body alone lets white show through during load */
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100dvh; /* on iOS 100vh is the window with the toolbars gone, which is a promise the browser keeps only once you scroll */
+  padding: 12px;
+}
+
+/* ⚠️ No width here on purpose. How big the game is on the screen is
+   Screens.fit(#wrap), called once at boot in js/knock.js: it works the size out
+   from the canvas's own 960×600, against the window's height as well as its
+   width, and writes it inline over anything this file says. */
+#wrap { position: relative; }
+
+canvas {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  /* The sling is pulled with a finger: without this a drag on a phone
+     scrolls the page instead. */
+  touch-action: none;
+}
+
+/* The studio's screens take their colours from the four in config/look.js, so
+   there is nothing to say about them here. This is the one thing worth
+   setting: the typeface they read in. */
+:root { --screens-font: system-ui, -apple-system, sans-serif; }
