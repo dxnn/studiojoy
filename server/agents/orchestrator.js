@@ -145,6 +145,11 @@ const LIBRARY_INDEX = JSON.parse(
   fs.readFileSync(new URL('../../public/studio-lib/index.json', import.meta.url), 'utf8'),
 );
 
+// The same, for a type's paragraph (below).
+const TEMPLATE_INDEX = JSON.parse(
+  fs.readFileSync(new URL('../../public/game-templates/index.json', import.meta.url), 'utf8'),
+);
+
 function shapeLines(held) {
   const out = [];
   if (held.size === 0) return out;
@@ -325,59 +330,10 @@ function studioPreamble({
   // an editor the person works in, and a helper that has not been told sees
   // the story as a file to rewrite from the wrong end. Named by the words on
   // the pill, like every other button; orchestrator.test.js asserts them.
-  if (project.type === 'visual-novel') {
-    lines.push(
-      '',
-      'This game is a visual novel. The whole story is config/story.js — CAST, who speaks and their moods,',
-      'and SCENES, each a picture, music, lines read from the top, then choices, a go, or the end — and',
-      'the person writes it in the "story editor" — Write, in the row of modes over this chat — which shows it as scenes',
-      'and lines rather than as code. So the story is changed by changing that file inside its shape,',
-      'and a picture is asked for by the name the story gives it: a scene\'s is its picture path under',
-      'assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played',
-      'and css/style.css how it looks; a request about what happens is config/story.js alone.',
-      'A scene\'s "music" is a whole path under assets/music/; it loops behind the scene and keeps playing',
-      'into the next scene naming the same track. A noise is a step among the lines instead —',
-      '{ sound: "page" } between two spoken lines plays assets/sounds/page.wav and carries straight on —',
-      'so "play the door slam after she knocks" is a line in the list, not a key on the scene. ⚠️ A',
-      'scene-level "sound" is the older shape: still played, but the editor moves it into the lines the',
-      'next time somebody saves, so write new ones as steps.',
-      'The editor walks the person through the story a question at a time, and each question offers',
-      '"Fill it in for me", which writes the lines of a scene from a sentence about what happens, and',
-      '"Make one for me", which draws a simple picture at the name the story expects. So somebody stuck',
-      'for words or for art has a button for it, and neither one needs you.',
-    );
-  }
-  if (project.type === 'adventure') {
-    lines.push(
-      '',
-      'This game is a point-and-click adventure. The whole adventure is config/scenes.js — SCENES, each a',
-      'picture and its spots: a box on the picture, at: [x, y, width, height] in the picture\'s own pixels,',
-      'doing one thing when clicked (go to a scene, say a line or a list of lines, or take a thing the',
-      'player then carries), with need and set for switches and sound for a noise — and the person makes it',
-      'in the "adventure editor" — Scenes, in the row of modes over this chat — which draws every spot as a',
-      'box on the picture. ⚠️ Never write or change an "at": you can look at a picture but you cannot',
-      'measure it, and a box guessed from a look is confidently wrong. Add a spot with any other change to',
-      'it and ask the person to drag its box into place in the studio; leave the boxes they drew alone.',
-      'A scene\'s picture is its path under assets/images/; a thing\'s picture is assets/sprites/<thing>.png,',
-      'shown among what the player carries, and the word until there is one. A scene with no spots is the',
-      'end. js/adventure.js is how the adventure is played and css/style.css how it looks; a request about',
-      'what happens is config/scenes.js alone.',
-    );
-  }
-  if (project.type === 'racing') {
-    lines.push(
-      '',
-      'This game is a racing game: laps around a closed track against rivals. The track is config/track.js',
-      '— TRACK, the points the road passes through in the game\'s own 960 by 600 world, how wide it is and',
-      'where the start line sits, and THINGS, the rocks, boost pads and puddles on it — and the person draws',
-      'it in the "track editor" — Track, in the row of modes over this chat — by dragging its points. ⚠️ Never',
-      'type or change the points: a track is drawn, and one you wrote from numbers is a track nobody drove.',
-      'Tune how it drives in config/play.js — turn, thrust, drag, top speed, the rivals, laps, the countdown,',
-      'what scores — which is where a request about the feel of the race goes. js/race.js is the race itself:',
-      'the road measured once, the car, the rivals, the things, laps and the finish; a car drawn at',
-      'assets/sprites/car.png replaces the triangle.',
-    );
-  }
+  // Each type's words are its template's `brief` in game-templates/index.json,
+  // beside the `what` New game shows, so a new type needs no edit here.
+  const brief = TEMPLATE_INDEX.templates?.[project.type]?.brief;
+  if (brief) lines.push('', ...brief);
   // Where the game is on its arc (public/arc.js, spec.md §6), so a helper's
   // suggestions fit the stamp the person is working towards and it can say
   // when a request belongs to a later one. One line, changing only when a

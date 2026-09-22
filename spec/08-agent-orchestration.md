@@ -270,7 +270,8 @@ what prompt caching pays for (below):
    rewriting whole files, the project documents and file layout it is expected
    to keep (below), each held library's API note followed by the **shape of a
    game** those notes are for, two paragraphs on **method** (both below), and
-   a section for the game's *type* when it has one — a visual
+   a section for the game's *type* when it has one, which is that
+   template's `brief` in `game-templates/index.json` — a visual
    novel is told what `config/story.js` is, that the person writes it in the
    "story editor" tab beside the chat, and that a picture is asked for by the
    name the story gives it; an *adventure* is told what a *spot* is and ⚠️

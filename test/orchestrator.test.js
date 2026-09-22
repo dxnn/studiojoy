@@ -926,6 +926,32 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   assert.ok(!system.includes('A noise is Sound.play'), 'and each is gated on its own');
 });
 
+// A type's paragraph is its template's `brief` (game-templates/index.json),
+// so a type the studio grows is briefed with no orchestrator edit. A game of
+// each type hears its own and nobody else's.
+test("each type's brief rides a game of that type and no other", async (t) => {
+  const { templates } = JSON.parse(fs.readFileSync(path.join('public', 'game-templates', 'index.json'), 'utf8'));
+  const types = Object.keys(templates);
+  const llm = createFakeLlm(types.map(() => says('ok')));
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  const replies = () => stream.events.filter(
+    (e) => e.event === 'message.new' && e.data.agent_id !== null,
+  ).length;
+  for (const [i, type] of types.entries()) {
+    app.db.prepare('UPDATE projects SET type = ? WHERE slug = ?').run(type, 'tank');
+    await send(app, `build the ${type}`);
+    await stream.waitFor(() => replies() > i);
+    const { system } = llm.lastCall();
+    if (templates[type].brief) assert.ok(system.includes(templates[type].brief.join('\n')), type);
+    for (const other of types) {
+      if (other === type || !templates[other].brief) continue;
+      assert.ok(!system.includes(templates[other].brief[0]), `${type}: nothing of ${other}'s`);
+    }
+  }
+});
+
 // The shape lines are the index's (`shape` beside `what`), so a library the
 // studio grows is taught with no orchestrator edit. Held alone, each library
 // brings its own lines and nobody else's.

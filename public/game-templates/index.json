@@ -1,5 +1,5 @@
 {
-  "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows. `heart` is the file the studio opens the new game on: the one a person edits to change the game, which for a template with an editor of its own is where the game is actually made. `scheme` fixes the template's *control scheme* — a game of buttons is pressed rather than steered — and New game does not ask when a template says one; a template without it takes whatever was picked, or the default. `libraries` names the *extra* studio libraries (studio-lib/index.json) the game is born holding on top of the core set; none today.",
+  "_what": "The game templates: starter trees copied into a new game at creation, right after the library scaffold, as one commit. From then on the files are the game's own — no version, no updates — unlike a library, because genre code has to stay editable. `title` and `what` are the words the New game dialog shows. `heart` is the file the studio opens the new game on: the one a person edits to change the game, which for a template with an editor of its own is where the game is actually made. `scheme` fixes the template's *control scheme* — a game of buttons is pressed rather than steered — and New game does not ask when a template says one; a template without it takes whatever was picked, or the default. `brief` is the paragraph every helper in a game of this type is given, one string per line (orchestrator.js). `libraries` names the *extra* studio libraries (studio-lib/index.json) the game is born holding on top of the core set; none today.",
   "_blank": "blank/index.html is the page a game made without a template starts from, and is deliberately not listed below: the dialog already offers it as the empty choice. It is the one page here that is not copied byte for byte — {{name}} becomes the game's name.",
   "templates": {
     "arcade": {
@@ -18,19 +18,63 @@
       "title": "A story with choices",
       "what": "Scenes, people talking, and choices that lead somewhere else. Write it in the story editor: no code needed.",
       "heart": "config/story.js",
-      "scheme": "none"
+      "scheme": "none",
+      "brief": [
+        "This game is a visual novel. The whole story is config/story.js — CAST, who speaks and their moods,",
+        "and SCENES, each a picture, music, lines read from the top, then choices, a go, or the end — and",
+        "the person writes it in the \"story editor\" — Write, in the row of modes over this chat — which shows it as scenes",
+        "and lines rather than as code. So the story is changed by changing that file inside its shape,",
+        "and a picture is asked for by the name the story gives it: a scene's is its picture path under",
+        "assets/images/, a face is assets/sprites/<who>-<mood>.png. js/story.js is how the story is played",
+        "and css/style.css how it looks; a request about what happens is config/story.js alone.",
+        "A scene's \"music\" is a whole path under assets/music/; it loops behind the scene and keeps playing",
+        "into the next scene naming the same track. A noise is a step among the lines instead —",
+        "{ sound: \"page\" } between two spoken lines plays assets/sounds/page.wav and carries straight on —",
+        "so \"play the door slam after she knocks\" is a line in the list, not a key on the scene. ⚠️ A",
+        "scene-level \"sound\" is the older shape: still played, but the editor moves it into the lines the",
+        "next time somebody saves, so write new ones as steps.",
+        "The editor walks the person through the story a question at a time, and each question offers",
+        "\"Fill it in for me\", which writes the lines of a scene from a sentence about what happens, and",
+        "\"Make one for me\", which draws a simple picture at the name the story expects. So somebody stuck",
+        "for words or for art has a button for it, and neither one needs you."
+      ]
     },
     "adventure": {
       "title": "A point-and-click adventure",
       "what": "Pictures with things to click on: doors, keys, people. Draw a box on the picture to make one — no code needed.",
       "heart": "config/scenes.js",
-      "scheme": "none"
+      "scheme": "none",
+      "brief": [
+        "This game is a point-and-click adventure. The whole adventure is config/scenes.js — SCENES, each a",
+        "picture and its spots: a box on the picture, at: [x, y, width, height] in the picture's own pixels,",
+        "doing one thing when clicked (go to a scene, say a line or a list of lines, or take a thing the",
+        "player then carries), with need and set for switches and sound for a noise — and the person makes it",
+        "in the \"adventure editor\" — Scenes, in the row of modes over this chat — which draws every spot as a",
+        "box on the picture. ⚠️ Never write or change an \"at\": you can look at a picture but you cannot",
+        "measure it, and a box guessed from a look is confidently wrong. Add a spot with any other change to",
+        "it and ask the person to drag its box into place in the studio; leave the boxes they drew alone.",
+        "A scene's picture is its path under assets/images/; a thing's picture is assets/sprites/<thing>.png,",
+        "shown among what the player carries, and the word until there is one. A scene with no spots is the",
+        "end. js/adventure.js is how the adventure is played and css/style.css how it looks; a request about",
+        "what happens is config/scenes.js alone."
+      ]
     },
     "racing": {
       "title": "A racing game",
       "what": "Laps around a track against rivals. Draw the track with your finger — no code needed.",
       "heart": "config/track.js",
-      "scheme": "buttons"
+      "scheme": "buttons",
+      "brief": [
+        "This game is a racing game: laps around a closed track against rivals. The track is config/track.js",
+        "— TRACK, the points the road passes through in the game's own 960 by 600 world, how wide it is and",
+        "where the start line sits, and THINGS, the rocks, boost pads and puddles on it — and the person draws",
+        "it in the \"track editor\" — Track, in the row of modes over this chat — by dragging its points. ⚠️ Never",
+        "type or change the points: a track is drawn, and one you wrote from numbers is a track nobody drove.",
+        "Tune how it drives in config/play.js — turn, thrust, drag, top speed, the rivals, laps, the countdown,",
+        "what scores — which is where a request about the feel of the race goes. js/race.js is the race itself:",
+        "the road measured once, the car, the rivals, the things, laps and the finish; a car drawn at",
+        "assets/sprites/car.png replaces the triangle."
+      ]
     }
   }
 }
