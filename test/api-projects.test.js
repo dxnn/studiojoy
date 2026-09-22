@@ -51,24 +51,11 @@ test('a new game is born holding the studio library', async (t) => {
   const index = JSON.parse(
     fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
   );
-  // Whatever the studio offers is what a game is born with, version and all.
+  // The core set is what a blank game is born with, version and all; the
+  // extras are libraries.test.js's.
+  const core = Object.entries(index.libraries).filter(([, l]) => l.core);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'studio/studio.json'), 'utf8'));
-  assert.deepEqual(
-    manifest,
-    Object.fromEntries(Object.entries(index.libraries).map(([n, l]) => [n, l.version])),
-  );
-  assert.deepEqual(
-    fs.readFileSync(path.join(dir, 'studio/input.js')),
-    fs.readFileSync(path.join(publicDir, 'studio-lib/input/input.js')),
-  );
-  assert.deepEqual(
-    fs.readFileSync(path.join(dir, 'studio/sound.js')),
-    fs.readFileSync(path.join(publicDir, 'studio-lib/sound/sound.js')),
-  );
-  assert.deepEqual(
-    fs.readFileSync(path.join(dir, 'studio/sprites.js')),
-    fs.readFileSync(path.join(publicDir, 'studio-lib/sprites/sprites.js')),
-  );
+  assert.deepEqual(manifest, Object.fromEntries(core.map(([n, l]) => [n, l.version])));
   // Nobody picked, so the library's own seed wrote it: the null controller,
   // which draws nothing over a game that has not grown controls yet.
   assert.deepEqual(
@@ -78,7 +65,7 @@ test('a new game is born holding the studio library', async (t) => {
   // Every file each library declares, byte for byte — the screens library
   // carries its own typefaces, and a .woff2 that came through a text read
   // would be a game with no type and no error to say why.
-  for (const [name, library] of Object.entries(index.libraries)) {
+  for (const [name, library] of core) {
     for (const file of library.files) {
       assert.deepEqual(
         fs.readFileSync(path.join(dir, 'studio', file)),

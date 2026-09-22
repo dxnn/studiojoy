@@ -151,6 +151,7 @@ change to it, so neither authorship nor archiving stands in the way.
 | POST | `/api/projects/:slug/files/move` | `{from, to}` — `git mv`, commits |
 | POST | `/api/projects/:slug/files/duplicate` | `{from, to}` — copies the bytes into a new file, commits; 409 if `to` exists |
 | POST | `/api/projects/:slug/files/import` | `{from_slug, from_path, to_path?}` — copies a file **in from another game**, commits; 409 if `to_path` exists |
+| POST | `/api/projects/:slug/libraries` | `{name}` — an **extra** studio library into the game, the studio's bytes, one commit `added the <name> library`; 400 for a name that is not an extra, 409 if held (§4) |
 
 `import` is the copy/paste between games: reading the source is every
 account's, so only the destination's rights matter — `write: true` on

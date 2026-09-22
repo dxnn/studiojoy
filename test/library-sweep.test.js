@@ -22,9 +22,9 @@ const publicDir = path.resolve(import.meta.dirname, '..', 'public');
 const INDEX = JSON.parse(
   fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
 );
-const CURRENT = Object.fromEntries(
-  Object.entries(INDEX.libraries).map(([name, l]) => [name, l.version]),
-);
+// The core set: what the sweep hands every game. Extras are libraries.test.js's.
+const CORE = Object.entries(INDEX.libraries).filter(([, l]) => l.core);
+const CURRENT = Object.fromEntries(CORE.map(([name, l]) => [name, l.version]));
 const STUDIO = { name: 'Unbridled Joy', email: 'studio@gamestudio.local' };
 
 // A game as some earlier studio left it: its own files, and whatever slice
@@ -57,7 +57,7 @@ test('a game from before the library gets everything, once', async () => {
   // Every declared file, byte for byte — the sweep is how the fleet gets the
   // screens library's typefaces, and a .woff2 that came through a text read
   // would be a game with no type and nothing said about why.
-  for (const [name, library] of Object.entries(INDEX.libraries)) {
+  for (const [name, library] of CORE) {
     for (const file of library.files) {
       assert.deepEqual(
         fs.readFileSync(path.join(dir, 'studio', file)),

@@ -178,17 +178,32 @@ shared test (§16).
 **Copied, not shared**: real bytes, in the tree, in the history — at the
 cost of drift, which the manifest makes visible rather than silent (other
 designs tried and rejected: spec/alternatives.md). **Every game is born
-holding the library**: creation scaffolds it server-side
+holding the core set**: creation scaffolds it server-side
 (`server/files/library.js`, reading `public/studio-lib/index.json`) in one
 commit right after `init`. The sweep is the same install pointed at a game
 that already exists.
+
+**Core and extras.** A library with `core: true` in the index is every
+game's; one without is an **extra**, held only where somebody asked — an
+engine is the case, since a quiz carrying a renderer costs its tree the bytes
+and every fire its note (ideas/modularity.md). A template names the extras it
+is born holding in its own `libraries` list (`game-templates/index.json`),
+and a person adds one to an existing game from *Add a file* under Code —
+one choice per extra the game lacks, absent when there is none, through
+`POST /api/projects/:slug/libraries`, named by key and never a helper's
+bytes. The install rule is **core ∪ held ∪ asked**: the sweep asks for
+nothing, so it raises a held extra and never hands one to a game without it.
+No removal: taking an engine out of a game whose code calls it is a broken
+game nobody asked for. A helper cannot add one either; the page's
+`<script>` tag stays the page-writer's job, and the toast says to ask the
+builder for it.
 
 **Every game is kept current by the sweep.** Pinning each game to its birth
 version split the fleet into generations: a helper asked to use a library
 its game lacked had no file and no API note to find. `npm run sweep`
 (`bin/sweep.js`), run on the machine holding the games, closes the gap:
-every non-archived game gets the libraries it lacks and the current version
-of the ones it holds, one commit per game, authored as the studio
+every non-archived game gets the core libraries it lacks and the current
+version of every one it holds, one commit per game, authored as the studio
 (`studio@gamestudio.local`). Seeds and the game's own files are never
 touched; `<script>` tags stay the page-writer's job.
 

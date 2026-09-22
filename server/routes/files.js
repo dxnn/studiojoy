@@ -9,6 +9,7 @@ import {
 } from '../files/tree.js';
 import { commitPaths, movePath } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
+import { addLibrary, listExtras } from '../files/library.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
 
 // Describe the current state of a path for a conflict response, so the editor
@@ -60,6 +61,34 @@ export function fileRoutes(r) {
       });
       versionNew(ctx.broker, project.slug, sha, [from.rel, to.rel]);
       json(ctx.res, 200, { from: from.rel, to: to.rel, commit: sha });
+    });
+  });
+
+  // An extra studio library into this game (spec.md §4) — a person's action,
+  // never a helper's: named by key, checked against the studio's own index,
+  // and the bytes are always the studio's. The page's <script> tag stays the
+  // game's to write.
+  r.post('/api/projects/:slug/libraries', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    const dir = projectDirFor(ctx, project);
+    const body = await readJson(ctx.req);
+    const name = String(body.name ?? '');
+    if (!Object.hasOwn(listExtras(ctx.publicDir), name)) {
+      throw new HttpError(400, `no such library to add: ${name}`);
+    }
+
+    await ctx.mutex.run(project.slug, async () => {
+      await ctx.pending.settleLocked(project.slug);
+      const result = await addLibrary(dir, ctx.publicDir, name, authorFor(user));
+      if (!result) throw new HttpError(409, `this game already has the ${name} library`);
+      ctx.broker.broadcast('files.changed', {
+        project_slug: project.slug, paths: result.written,
+      });
+      versionNew(ctx.broker, project.slug, result.sha, result.written);
+      json(ctx.res, 200, {
+        name, added: result.added, updated: result.updated, commit: result.sha,
+      });
     });
   });
 

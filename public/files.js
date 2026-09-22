@@ -495,6 +495,19 @@ export async function copyFileTo(slug, from, to) {
   say(`Copied ${to} into ${game?.name ?? slug}.`);
 }
 
+// An extra studio library into this game (spec.md §4): the studio's bytes,
+// one commit. The page's <script> tag is still the game's own to write, so
+// the toast says who can do that.
+export async function addLibrary(name) {
+  const res = await api('POST', `/api/projects/${S.slug}/libraries`, { name });
+  if (!res.ok) {
+    say(res.body?.error ?? 'Could not add that library.', true);
+    return;
+  }
+  await refreshFiles();
+  say(`Added the ${name} library. Ask the builder to put it on the page.`);
+}
+
 // A picture out of this game and into the studio's collection, where every
 // game's shelf can pick it. The bytes go up raw, like an upload, with
 // everything else in the query — a picture is not a JSON field.

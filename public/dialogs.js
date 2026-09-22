@@ -16,7 +16,7 @@ import {
 import { syncAttached, attachAgent, createChat } from './chats.js';
 import {
   openFile, saveOpenFile, saveAndClose, createFile, renameFile, duplicateFile,
-  deleteFile, setAuthors, setOpenEdit, setPublished, copyFileTo, LIBRARY_DIR,
+  deleteFile, setAuthors, setOpenEdit, setPublished, copyFileTo, addLibrary, LIBRARY_DIR,
   shareArt, unshareArt, RESERVED_IMAGES, DRESSING,
 } from './files.js';
 import { restore, rollback } from './history.js';
@@ -558,8 +558,7 @@ export function dialogFor(d) {
         if (files.length) openUpload(files);
       },
     });
-    return wrap(only === 'sound' ? 'Add a sound' : 'Add a file',
-      h('div', { class: 'choices' },
+    const choices = h('div', { class: 'choices' },
         only ? null : choice('+ New file', 'An empty file you name yourself — code, notes, anything.',
           () => { S.dialog = { kind: 'new-file' }; render(); }),
         choice('+ Upload',
@@ -587,7 +586,23 @@ export function dialogFor(d) {
         // have not heard yet cannot be named, and everything else about it is
         // in the pane.
         choice('+ Make a sound', `A .wav from a row of sliders, into ${SOUND_DIR}/.`,
-          () => { close(); createSound(); })),
+          () => { close(); createSound(); }));
+    // The extras (spec.md §4): libraries a game holds only if somebody asks —
+    // an engine, say. One choice each for those this game lacks, landing
+    // after the dialog is built, like New game's templates; none today.
+    if (!only) {
+      send('/studio-lib/index.json').then(async (res) => {
+        if (!res.ok) return;
+        const { libraries } = await res.json();
+        for (const [name, l] of Object.entries(libraries ?? {})) {
+          if (l.core || S.files.some((f) => f.path === `${LIBRARY_DIR}/${name}.js`)) continue;
+          choices.append(choice(`+ The ${name} library`, l.what,
+            () => { close(); addLibrary(name); }));
+        }
+      });
+    }
+    return wrap(only === 'sound' ? 'Add a sound' : 'Add a file',
+      choices,
       picker,
       h('div', { class: 'actions' }, cancel));
   }

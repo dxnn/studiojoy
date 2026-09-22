@@ -172,12 +172,14 @@ export function projectRoutes(r) {
       await ctx.mutex.run(slug, async () => {
         if (!(await isRepo(dir))) {
           await initRepo(dir, { author: authorFor(user), slug });
-          // Born holding the studio library (spec.md §4); npm run sweep
-          // keeps it current from then on. The chosen control scheme is
-          // which config/controls.js the input library seeds.
-          await scaffoldLibraries(
-            dir, ctx.publicDir, authorFor(user), schemeSeed(ctx.publicDir, chosen),
-          );
+          // Born holding the studio library's core set and whatever extras
+          // its template names (spec.md §4); npm run sweep keeps them current
+          // from then on. The chosen control scheme is which
+          // config/controls.js the input library seeds.
+          await scaffoldLibraries(dir, ctx.publicDir, authorFor(user), {
+            seedFrom: schemeSeed(ctx.publicDir, chosen),
+            want: template ? listTemplates(ctx.publicDir)[template].libraries ?? [] : [],
+          });
           // A starter tree, or failing that a page. Either way the game has an
           // index.html from its first minute: a working tree without one is
           // nothing the games origin can serve, and the preview and the play
