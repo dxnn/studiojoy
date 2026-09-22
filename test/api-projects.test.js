@@ -118,7 +118,7 @@ test('a game made from a blank page is playable straight away', async (t) => {
   const index = JSON.parse(
     fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
   );
-  for (const [, library] of Object.entries(index.libraries)) {
+  for (const library of Object.values(index.libraries).filter((l) => l.core)) {
     for (const src of library.scripts) assert.ok(markup.includes(`<script src="${src}">`), src);
   }
   // And config/controls.js stands in front of studio/input.js, which is the
@@ -178,7 +178,7 @@ test('a game born from the quiz template holds its starter tree', async (t) => {
     fs.readFileSync(path.join(publicDir, 'studio-lib', 'index.json'), 'utf8'),
   );
   const markup = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
-  for (const library of Object.values(index.libraries)) {
+  for (const library of Object.values(index.libraries).filter((l) => l.core)) {
     for (const src of library.scripts) assert.ok(markup.includes(src), src);
   }
 

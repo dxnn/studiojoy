@@ -97,6 +97,20 @@
       "files": ["achievements.js"],
       "seeds": [{ "from": "/templates/achievements.js", "to": "config/achievements.js" }],
       "scripts": ["config/achievements.js", "studio/achievements.js"]
+    },
+    "physics": {
+      "version": 1,
+      "core": false,
+      "what": "Things that fall, stack, roll, bounce and knock each other over — boxes and balls in the game's own pixels, built from a list in config/, on a steady clock so a tower falls the same way everywhere. planck.js underneath (Box2D, MIT).",
+      "shape": [
+        "- A thing that falls, rolls or gets knocked is a body in Physics, built from a list in config/ with",
+        "  Physics.build — not motion the game works out for itself. Physics.step(dt) once a frame, then draw",
+        "  each body at its x, y and angle; Physics.onHit is where a crash becomes a sound and a moment. A",
+        "  body's place in config/ is where it starts, so moving one is an edit there, never in js/."
+      ],
+      "files": ["physics.js", "planck.min.js", "planck-license.txt"],
+      "seeds": [],
+      "scripts": ["studio/planck.min.js", "studio/physics.js"]
     }
   }
 }
