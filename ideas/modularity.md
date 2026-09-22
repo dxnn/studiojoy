@@ -13,6 +13,51 @@ key or a library name is hard-coded. No tests were run, no browser opened, and
 ⚠️ nothing about third-party engines was checked against the network — the
 sizes and build shapes in §3 are from memory and want confirming on a laptop.
 
+## Progress (2026-09-22)
+
+Decided: **vendor** both engines (Q1), **Phase 0 first** in the order of §5
+(Q9), the defaults for the rest — so no working name in §8 is coined yet,
+and Phase 1 waits on them.
+
+Built, each its own commit with its tests:
+
+- §4.1 optional libraries — `core` in the index, a template's `libraries`,
+  `POST /api/projects/:slug/libraries`, one choice per missing extra in *Add
+  a file*. The glossary has **core set** and **extra**, taken from here.
+- §4.2 shape lines in the index as `shape`, achievements' line included, and
+  a generic library test (files, note, scripts, shape, carried licences). The
+  engine-version-in-the-name rule (Q3) needs no code until an engine lands.
+- §4.5 `.glb`/`.gltf` mime and the upload guess to `assets/models/`. The
+  folder is *not* in the preamble's list: a game with no renderer has no use
+  for it, and the renderer's own shape line is where a helper should learn it.
+- §4.4, plumbing half: `public/editor-file.js` (read an editor's file, write
+  it against its etag) and one conflict dialog for the four whole-game
+  editors. Smaller than the `configEditor` sketched below — the parked copy,
+  the selection and autosave stayed each editor's, because they differ.
+- §4.3, first half: each editor entry in `game-types.js` carries `isPath`,
+  `load`, `park`, `saveDirty`, `changed`, `reset`, `inspector`,
+  `view`/`applyView`, and `main.js`, `stream.js` and `files-tab.js` loop over
+  them. The type's preamble paragraph is its template's `brief` in
+  `game-templates/index.json`, moved byte for byte.
+- §4.4 template harness: `test/templates.test.js`.
+
+Left, on purpose:
+
+- **The plan canvas** (§4.4). The two sources share less than it looked: the
+  track draws on a canvas, the adventure puts DOM boxes over an `<img>`.
+  Extracting now would be an abstraction over one real case. Extract it from
+  the track editor and the physics world editor when the second exists.
+- **Pics' sections** (`pics-hear.js:116–150`) stay hand-named for the two
+  types that have them; a `kinds` hook is worth it at the third.
+- **`arc.js`'s fallback** is `ARCS.arcade` with *What is it?* in front, which
+  is deliberate and documented — not the smell §1b took it for.
+- **Directories per type** (`public/types/<key>/`): with the hooks on the
+  registry entry and the words in the index, a new type is one registry
+  entry, one index entry and its own two modules. The directory move buys
+  little more.
+- ⚠️ No browser has shown a real extra in the *Add a file* dialog — there is
+  none in the index yet. Server side is tested.
+
 ## 0. The short version
 
 Both registries already exist and both are the right shape:
@@ -238,14 +283,14 @@ a fluent helper will reach past the façade into `THREE` whatever the note
 says, so the note has to say the engine is there and that the game's own code
 may use it, rather than pretend otherwise.
 
-What the two engines look like from memory — ⚠️ confirm on a laptop before
-choosing:
+What the engines look like — planck and three.js measured from their npm
+tarballs on 2026-09-22, the rest still from memory:
 
 | | shape | build | ≈ size | note |
 |---|---|---|---|---|
 | matter.js | 2D rigid bodies, MIT | UMD, classic `<script>` | ~85 KB min | simplest API, DeepSeek fluent; stacking jitters, tunnels at speed |
-| planck.js | Box2D in JS, MIT | UMD | ~200 KB min | robust stacking and joints; a Box2D-shaped API, verbose without a façade |
-| three.js | 3D renderer, MIT | ⚠️ **ES module only** since r160 (2023); no UMD build | ~650 KB module | the default 3D on the web; DeepSeek fluent |
+| planck.js | Box2D in JS, MIT | UMD, classic `<script>`, global `planck` — **measured** 1.5.0 | 297 KB min, 55 KB gz | robust stacking and joints; a Box2D-shaped API, verbose without a façade |
+| three.js | 3D renderer, MIT | ⚠️ **ES module only** — **measured** 0.186: `three.cjs` is a deprecation shim, no UMD, and npm ships no `.min` | 2.1 MB unminified (`three.module.js` 663 KB + the `three.core.js` it imports 1.46 MB), 420 KB gz | the default 3D on the web; DeepSeek fluent |
 | Babylon.js | 3D engine, Apache | UMD | ~4 MB | too big to copy into a tree |
 | bespoke 2D | circles + boxes, impulses | classic | ~30 KB | ours; towers are the risk |
 | bespoke 3D | primitives, lights, one camera | classic | ~60 KB | ours; no models, no shadows, a long tail |

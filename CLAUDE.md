@@ -363,8 +363,12 @@ specified:
   `VAPID_*` in the environment or none; without them the routes are 404 and
   only a live tab is told. Needs a secure origin.
 - Six studio libraries — input, sound, sprites, screens, moments,
-  achievements — copied into every game at creation and raised by
-  `npm run sweep` (§4). Screens owns how big a game is on the screen
+  achievements — the **core set**, copied into every game at creation and
+  raised by `npm run sweep` (§4). An **extra** (none yet; an engine is what
+  it is for) goes only where a template names it or a person adds it, and
+  the sweep never adds one. Each library carries its own shape lines and
+  each type its own preamble paragraph, in the two index files, so neither
+  needs an orchestrator edit (ideas/modularity.md). Screens owns how big a game is on the screen
   (`Screens.fit`) as well as its words: a game that sizes its own canvas on
   the window's width alone comes off the bottom of a sideways phone, which
   two of them did.
