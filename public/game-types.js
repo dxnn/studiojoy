@@ -36,6 +36,10 @@ import {
   renderWorldEditor, renderWorldInspector, loadWorld, parkWorld, worldChanged,
 } from './world-form.js';
 import { isWorldPath } from './world-editor.js';
+import {
+  renderLevelEditor, renderLevelInspector, loadLevel, parkLevel, levelChanged,
+} from './level-form.js';
+import { isLevelPath } from './level-editor.js';
 import { isStoryPath } from './story-editor.js';
 import { isAdventurePath } from './adventure-editor.js';
 import { isTrackPath } from './track-editor.js';
@@ -138,6 +142,21 @@ export const GAME_TYPES = {
       changed: () => worldChanged(),
       reset: () => { S.world = null; },
       inspector: () => renderWorldInspector(),
+    }],
+  },
+  rollball: {
+    editors: [{
+      id: 'level',
+      label: 'Level',
+      what: 'The maze from above — paint walls, holes, coins, the start and the goal, no code needed',
+      render: renderLevelEditor,
+      isPath: (p) => isLevelPath(p),
+      load: () => loadLevel(),
+      // Saved on its own button, like the track, so what is unsaved is parked.
+      park: () => parkLevel(),
+      changed: () => levelChanged(),
+      reset: () => { S.level = null; },
+      inspector: () => renderLevelInspector(),
     }],
   },
 };

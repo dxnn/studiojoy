@@ -42,6 +42,9 @@ deliberately deferred.
 - play Knock it down and build a pile in the world editor on a real phone:
   whether a thumb can pull the sling without hiding the aim dots, and hit
   the size dot on a crate (both driven by a mouse only, 2026-09-22)
+- play Roll a ball on a real phone: whether the stick steers a maze, the
+  frame rate on an older phone (three.js, unminified, 2.1 MB), and painting
+  a 12-by-11 level with a thumb (driven by keys and a mouse only, 2026-09-23)
 - re-check the story editor at phone width: at 390px the scene strip stacks
   over the stage and both are tall. The *height* complaint only — sideways is
   checked now and clean (`test/ui/narrow.ui.js`), so what is left is what a

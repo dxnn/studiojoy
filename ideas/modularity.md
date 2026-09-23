@@ -48,6 +48,28 @@ batch), the world editor, and the plan canvas extracted from the track
 editor as the world editor was built on it. The adventure's DOM boxes stayed
 out of it.
 
+Phase 2 built 2026-09-23: the 3D library, named **render3d** rather than
+§8's `scene` — *scene* is already the story's word, *world* now Knock it
+down's — over three.js 0.186, vendored unminified (Q4's 2.1 MB); *Roll a
+ball* (`rollball`, heart `config/level.js`); and the level editor as a tile
+painter on the plan canvas. What §6's traps came to:
+
+- **Modules** (Q5): the façade and the game's own code are modules, last on
+  the page; the blank page and every other template stay classic. The
+  harness holds the order, and the index says `module: true`.
+- **The shot**: `preserveDrawingBuffer`, and read back lit in a WebGL
+  browser.
+- **Drawing-buffer size**: the façade sizes it and never the CSS. ⚠️ A trap
+  §6 missed: the buffer *is* the canvas's `width` and `height`, which
+  `Screens.fit` reads the shape from — so `fit` runs once, before `start`.
+  Said in the note and held by a test; a second library that grew a
+  `fit`-like read would walk into it too.
+- **The look axis** was never needed: a follow camera and a stick are enough
+  for a maze. Phase 3's first-person maze is where pointer lock would start.
+- The ball's rolling is the game's own, not the physics library's: a circle
+  on a grid is a few lines, and a 2D engine under a 3D game would be a
+  second thing to agree with the picture.
+
 Left, on purpose:
 - **Pics' sections** (`pics-hear.js:116–150`) stay hand-named for the two
   types that have them; a `kinds` hook is worth it at the third.
@@ -60,7 +82,13 @@ Left, on purpose:
 - **The preamble does not say when a held library's tag is missing** from
   `index.html` (§4.1 proposed it). A person who adds physics to a racing game
   is told by the toast to ask the builder; nothing tells the builder on its
-  own. Worth building if that toast turns out to be missed.
+  own. Worth building if that toast turns out to be missed. With render3d it
+  matters more: a classic game given the 3D library needs its own code
+  turned into a module, which is more than a tag.
+- **Models**: `.glb`/`.gltf` are served and uploaded to `assets/models/`,
+  but nothing loads one. That wants three.js's `GLTFLoader` (in its
+  `examples/jsm`, with its own imports) vendored into render3d and a
+  `Render3D.model(path)` — a version bump that keeps the law.
 
 *Add a file* offering physics to a game without it, the one commit it
 makes, and the choice going away after were shown in a browser on

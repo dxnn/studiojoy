@@ -234,6 +234,31 @@ differently is a new library, `physics2`, which no sweep installs into a game
 that did not ask. The note says the engine is there and the game's own code
 may use `planck`; the studio supports what the façade offers.
 
+The **render3d library** (`studio/render3d.js`, the second extra, 2026-09-23)
+is the 3D façade: three.js 0.186 (MIT) vendored as `three.module.js` and the
+`three.core.js` it imports — 2.1 MB unminified, since npm ships no minified
+build and the studio has no build step — with `three-license.txt`. ⚠️ **It is
+a module**: three.js ships no classic build any more, so the façade is
+`<script type="module">`, sets `window.Render3D` and `window.THREE`, and a
+game using it has its own code as a module after it. Modules run in page
+order after every classic script, so `Input`, `Screens` and `config/` are
+there when they do; the index marks the library `module: true` and the
+template harness holds the order (classic tags first, a module library as a
+module, the game's own code a module). `start(canvas)` makes the renderer,
+scene, camera and two lights; `box`, `ball` and `boxes` — many of one box as
+a single instanced mesh, which is how a phone draws a floor — answer
+`THREE.Mesh`es; `follow`, `look`, `remove`, `clear`, `draw(dt)`. The world is
+whole units with y up. ⚠️ The drawing buffer is sized from the canvas's CSS
+box (at most twice the screen's pixels, kept by a ResizeObserver) and never
+the CSS, which is `Screens.fit`'s; but the buffer *is* the canvas's `width`
+and `height`, which `fit` reads the game's shape from, so `fit` runs once,
+before `start`, and never again. ⚠️ The renderer keeps its last frame
+(`preserveDrawingBuffer`), because the preview's shot copies the biggest
+canvas into a 2D one and a WebGL canvas that does not reads back black — a
+helper told to look at the game would have seen nothing. No models or
+shadows yet: `.glb`/`.gltf` are served and uploaded to `assets/models/`
+(§4), and loading one wants three.js's GLTFLoader vendored beside it.
+
 Two rules make it a library rather than a folder, both load-bearing:
 
 - ⚠️ **A helper may read it and may not write it.** `isLibraryPath` in

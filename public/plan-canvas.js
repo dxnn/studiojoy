@@ -27,8 +27,13 @@ export function planCanvas({
   // Focusable, and focused when pressed: the preview beside it keeps the
   // keyboard otherwise — a game grabs focus when it loads — and Delete would
   // go to the game instead of taking the chosen thing out.
+  // Its shape is the world's, which is 960 × 600 for a track and a pile and
+  // whatever the grid is for a level — and never much taller than a
+  // track's, so a tall level is narrower rather than a page to scroll.
+  const widest = Math.min(960, Math.round((620 * world.width) / world.height));
   const canvas = h('canvas', {
     class: className, width: world.width, height: world.height, tabindex: '-1',
+    style: `aspect-ratio: ${world.width} / ${world.height}; max-width: ${widest}px`,
   });
 
   const repaint = () => {

@@ -365,25 +365,30 @@ specified:
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — the **core set**, copied into every game at creation and
   raised by `npm run sweep` (§4). An **extra** goes only where a template
-  names it or a person adds it, and the sweep never adds one; the **physics
-  library** is the first — a façade over vendored planck.js, the engine's
-  version in the library's name (§4). Each library carries its own shape lines and
+  names it or a person adds it, and the sweep never adds one. Two exist:
+  **physics**, a façade over vendored planck.js, and **render3d**, one over
+  vendored three.js — ⚠️ a module, so a game using it has its own code as a
+  module too, and calls `Screens.fit` once, before `Render3D.start`, since
+  the WebGL buffer is the canvas's width and height (§4). Each library carries its own shape lines and
   each type its own preamble paragraph, in the two index files, so neither
   needs an orchestrator edit (ideas/modularity.md). Screens owns how big a game is on the screen
   (`Screens.fit`) as well as its words: a game that sizes its own canvas on
   the window's width alone comes off the bottom of a sideways phone, which
   two of them did.
-- Five templates carry their own editors, so a game can be made with no
+- Six templates carry their own editors, so a game can be made with no
   helper at all: the quiz; the visual novel, with a guide that builds a story
   by asking one question at a time; the **point-and-click adventure**
   (Scenes), whose spots are boxes dragged on the picture and whose guide asks
   the same way; the **racing game** (Track), whose track is points dragged
-  on a canvas with explicit Save (§6, built 2026-09-15); and **Knock it
-  down** (World), a pile of physics bodies dragged and sized on the same
-  **plan canvas** (§6, built 2026-09-22). The track and world editors'
-  drags, Delete and 390px layout were driven through the Playwright MCP
-  browser on 2026-09-22, which caught Delete never reaching the studio and
-  the canvas squeezed to a sliver on a phone. ⚠️ The adventure's box-drag has
+  on a canvas with explicit Save (§6, built 2026-09-15); **Knock it down**
+  (World), a pile of physics bodies dragged and sized on the same **plan
+  canvas** (§6, built 2026-09-22); and **Roll a ball** (Level), the first 3D
+  game, a maze painted square by square on that canvas — no studio surface
+  draws 3D, *Try it* is where it is seen (§6, 2026-09-23). The track, world
+  and level editors' drags, Delete and 390px layout, and both new games,
+  were driven through the Playwright MCP browser (WebGL included), which
+  caught Delete never reaching the studio and the canvas squeezed to a
+  sliver on a phone. ⚠️ The adventure's box-drag has
   still not been shown in any browser, and none of it has met a real finger.
 - **Microhelpers**: the guide's *Fill it in for me* and *Make one for me* —
   one request, one answer, nothing kept, through the same two token walls a

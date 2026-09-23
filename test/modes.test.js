@@ -42,6 +42,8 @@ test('a type\'s editors sit after the chat, keeping their plain names', () => {
   assert.deepEqual(idsOf(game('racing')).slice(0, 2), ['chat', 'track']);
   assert.deepEqual(labelsOf(game('knockdown')).slice(0, 2), ['Speak', 'World']);
   assert.deepEqual(idsOf(game('knockdown')).slice(0, 2), ['chat', 'world']);
+  assert.deepEqual(labelsOf(game('rollball')).slice(0, 2), ['Speak', 'Level']);
+  assert.deepEqual(idsOf(game('rollball')).slice(0, 2), ['chat', 'level']);
   assert.equal(editorsFor(null).length, 0, 'a free-form game brings none');
 });
 

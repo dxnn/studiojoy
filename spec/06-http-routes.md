@@ -1563,6 +1563,45 @@ crawls. Helpers are told the world is built by hand and **never to type or
 change a body's `at`, `size` or `angle`** (§8). The interface says **Crate**
 and **Stone** where the file says `box` and `block`.
 
+#### Roll a ball
+
+The **roll-a-ball template** is the seventh (`public/game-templates/rollball/`,
+key `rollball`, "Roll a ball", built 2026-09-23) and the first game in 3D: it
+is born holding the **render3d** extra, and its page is the one whose own
+code is a module (`js/roll.js`, after `studio/render3d.js`, after every
+classic script). A ball on a maze seen from behind, rolled to the goal with
+coins on the way. Its heart is `config/level.js`: `LEVEL`, rows of characters
+seen from above, the top row the far end — `#` a wall, `.` floor, a space a
+hole, `S` the start, `G` the goal, `o` a coin — the move-and-collect heart
+ideas/templates.md sketched. A short row reads as ending in holes, since a
+text editor is apt to trim trailing spaces. `config/play.js` is the feel (the
+ball's size, push, top speed, friction, brake, bounce, falling, how close a
+coin must be, respawn, points), `config/look.js` the colours, the walls'
+height and where the camera sits. Scheme `stick-buttons`, its own
+`config/controls.js`: the stick rolls it, a round **STOP** button brakes. The
+rolling is the game's own — a circle on the grid, pushed out of each wall
+square it overlaps and keeping `BOUNCE` of the speed it hit with, dropping
+when the square under its middle is a hole — because a few lines say that
+better than an engine would; three.js only draws, the floor and the walls one
+`Render3D.boxes` call each. Moments: `coin`, `fall`, `goal` (the time),
+`score`; sounds `coin`, `fall`, `goal`. `test/rollball-template.test.js`
+holds the shape; the game itself was played in a WebGL browser through the
+Playwright MCP tools, where the shot was read back lit.
+
+The **level editor** (`public/level-editor.js` the model, `public/level-form.js`
+the interface, the **Level** mode) is the plan canvas as a tile painter: the
+level from above, a square a cell, in the game's colours. Pick what a square
+is — Wall, Floor, Hole, Coin, Start, Goal — then click or drag to paint; a
+second Start or Goal moves the first. `+ Row`, `− Row`, `+ Column`, `− Column`
+grow and shrink the grid at the near end and the right, between 3 and 24 a
+side; squares the ball can never reach are dimmed. The plan canvas takes its
+shape from the grid and is never much taller than a track's. Explicit Save,
+like the track's. Its checks: no start or more than one, no goal or more than
+one, the goal the ball **cannot roll to** (a search from the start, four ways,
+never through a wall or over a hole), coins it cannot reach, and a level
+past 24 a side. ⚠️ No studio surface draws 3D: the plan is flat, and *Try it*
+is where the level is seen as the game draws it.
+
 ### Games origin (`GAMES_PORT`)
 
 | method | path | effect |

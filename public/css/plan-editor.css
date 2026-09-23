@@ -15,14 +15,14 @@
   overflow: auto;
   background: var(--look-deep);
 }
-/* Scaled to the box's width, its shape kept; the pointer maths in
-   plan-canvas.js reads the scale back off the drawn size. */
+/* Scaled to the box's width, its shape kept — plan-canvas.js sets the
+   aspect-ratio from the world, since a level's grid is any shape — and the
+   pointer maths there reads the scale back off the drawn size. */
 .plan-canvas {
   display: block;
   width: 100%;
   max-width: 960px;
   height: auto;
-  aspect-ratio: 960 / 600;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   cursor: crosshair;
@@ -59,6 +59,11 @@
 .plan-row .label { flex: 1; }
 .plan-row .hint.mono { font-size: 11px; }
 .inspector .link.danger { color: var(--danger); align-self: flex-start; }
+/* The level editor's paint, the chosen one lit the way a chosen row is. */
+.level-tools button.on {
+  background: color-mix(in oklab, var(--look-primary) 28%, transparent);
+  color: #fff;
+}
 
 /* On a phone the canvas keeps the height its width gives it, and the column
    under it is what scrolls. Left to share the height, the column's list won
