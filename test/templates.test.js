@@ -43,7 +43,10 @@ for (const [key, t] of Object.entries(templates)) {
   });
 
   const html = read('index.html');
-  const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+  // Every tag with a src, classic or module, in page order.
+  const tags = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/g)]
+    .map((m) => ({ src: m[1], module: /\btype="module"/.test(m[0]) }));
+  const scripts = tags.map((tag) => tag.src);
 
   test(`${key}: every script on the page is shipped or installed`, () => {
     for (const src of scripts) {
@@ -64,6 +67,24 @@ for (const [key, t] of Object.entries(templates)) {
     const last = scripts[scripts.length - 1];
     assert.ok(last && !last.startsWith('studio/') && !last.startsWith('config/'), `${last} is the game's own code`);
     assert.doesNotMatch(html, /id="hud/, 'the HUD is the screens library\'s');
+  });
+
+  // ⚠️ A module runs after every classic script whatever its place, so the
+  // page says so by putting them last; a module library's tag is a module
+  // and a classic one's never is; and a game that holds a module library has
+  // its own code as a module, since that is the only way it runs after it.
+  test(`${key}: classic scripts first, modules after, each library as its kind`, () => {
+    const firstModule = tags.findIndex((tag) => tag.module);
+    if (firstModule >= 0) {
+      assert.ok(tags.slice(firstModule).every((tag) => tag.module), 'no classic tag after a module');
+    }
+    for (const [name, l] of held) {
+      for (const src of l.scripts ?? []) {
+        const tag = tags.find((x) => x.src === src);
+        if (tag && src.startsWith('studio/')) assert.equal(tag.module, Boolean(l.module), `${name}: ${src}`);
+      }
+    }
+    if (held.some(([, l]) => l.module)) assert.equal(tags[tags.length - 1].module, true, 'the game\'s own code is a module');
   });
 
   test(`${key}: every config file is one the form can read`, () => {

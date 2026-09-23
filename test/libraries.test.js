@@ -132,11 +132,19 @@ test('every library is whole: files, note, scripts, shape and licences', () => {
     for (const line of l.shape) {
       assert.ok(line.startsWith('- ') || line.startsWith('  '), `${name}: ${line}`);
     }
-    // Not the studio's own bytes: a font, or a minified engine.
-    const carried = l.files.filter((f) => /\.(woff2?|ttf|otf)$|\.min\.js$/.test(f));
-    if (carried.length > 0) {
-      assert.ok(l.files.some((f) => /licen[cs]e/i.test(f)), `${name} carries a licence for ${carried}`);
+    // Not the studio's own bytes — a font, an engine — is `vendored`, and
+    // rides with its licence. A font or a minified file that is not listed
+    // is somebody else's bytes slipping in unnamed.
+    const vendored = l.vendored ?? [];
+    for (const f of vendored) assert.ok(l.files.includes(f), `${name} ships ${f}`);
+    for (const f of l.files.filter((x) => /\.(woff2?|ttf|otf)$|\.min\.js$/.test(x))) {
+      assert.ok(vendored.includes(f), `${name}: ${f} is listed as vendored`);
     }
+    if (vendored.length > 0) {
+      assert.ok(l.files.some((f) => /licen[cs]e/i.test(f)), `${name} carries a licence for ${vendored}`);
+    }
+    // A module is loaded as one; only a library that says so may be.
+    assert.equal(typeof (l.module ?? false), 'boolean', `${name}: module is true or absent`);
   }
 });
 

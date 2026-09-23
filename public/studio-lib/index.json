@@ -71,6 +71,7 @@
         "space-mono-bold.woff2",
         "fonts-license.txt"
       ],
+      "vendored": ["space-grotesk.woff2", "space-grotesk-ext.woff2", "space-mono.woff2", "space-mono-bold.woff2"],
       "seeds": [],
       "scripts": ["studio/screens.js"]
     },
@@ -109,8 +110,26 @@
         "  body's place in config/ is where it starts, so moving one is an edit there, never in js/."
       ],
       "files": ["physics.js", "planck.min.js", "planck-license.txt"],
+      "vendored": ["planck.min.js"],
       "seeds": [],
       "scripts": ["studio/planck.min.js", "studio/physics.js"]
+    },
+    "render3d": {
+      "version": 1,
+      "core": false,
+      "what": "A game drawn in 3D — boxes and balls in the game's colours, lit, with a camera that follows the player. three.js underneath (MIT). A module, so the game's own code that uses it is one too.",
+      "shape": [
+        "- A 3D game is drawn by Render3D: studio/render3d.js is a <script type=\"module\"> after every classic",
+        "  script, and the game's own code that uses it is a module after that. Screens.fit(el) first, then",
+        "  Render3D.start(canvas) — never a renderer, camera or light of the game's own. Many of the same box",
+        "  (a floor, a maze) is one Render3D.boxes call, not a box each, or a phone cannot keep up. The world",
+        "  is whole units with y up, and Render3D.draw(dt) is the last line of every frame."
+      ],
+      "files": ["render3d.js", "three.module.js", "three.core.js", "three-license.txt"],
+      "vendored": ["three.module.js", "three.core.js"],
+      "seeds": [],
+      "scripts": ["studio/render3d.js"],
+      "module": true
     }
   }
 }
