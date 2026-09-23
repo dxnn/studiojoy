@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roll a Ball</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- one line of critical CSS: the page must never flash white before the
+       stylesheet arrives -->
+  <style>html { background: #0e1726; }</style>
+</head>
+<body>
+  <!-- The game is one canvas and nothing else. Everything around it — the
+       title screen, the end screen with the scoreboard, the HUD strip and
+       how big this canvas may be — is the studio's, from studio/screens.js.
+       The 3D inside it is studio/render3d.js. -->
+  <div id="wrap">
+    <canvas id="game" width="960" height="600"></canvas>
+  </div>
+
+  <!-- config/controls.js first: the input library reads it. -->
+  <script src="config/controls.js"></script>
+  <script src="studio/input.js"></script>
+  <script src="studio/sound.js"></script>
+  <script src="studio/sprites.js"></script>
+  <script src="studio/screens.js"></script>
+  <script src="studio/moments.js"></script>
+  <script src="config/achievements.js"></script>
+  <script src="studio/achievements.js"></script>
+  <script src="config/look.js"></script>
+  <script src="config/level.js"></script>
+  <script src="config/play.js"></script>
+  <script src="config/words.js"></script>
+  <!-- ⚠️ Modules last. They run in this order once everything above has, so
+       the 3D library is there before the game that draws with it. -->
+  <script type="module" src="studio/render3d.js"></script>
+  <script type="module" src="js/roll.js"></script>
+</body>
+</html>

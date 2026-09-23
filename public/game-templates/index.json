@@ -96,6 +96,25 @@
         "bodies, the sling, what counts as down, and the end; a target drawn at assets/sprites/target.png",
         "replaces the face."
       ]
+    },
+    "rollball": {
+      "title": "Roll a ball",
+      "what": "A ball in 3D, a maze of walls and holes, coins and a goal. Paint the maze square by square — no code needed.",
+      "heart": "config/level.js",
+      "scheme": "stick-buttons",
+      "libraries": ["render3d"],
+      "brief": [
+        "This game rolls a ball: a level of floor, walls and holes seen from behind in 3D, with coins and a",
+        "goal. The level is config/level.js — LEVEL, rows of characters seen from above, the top row the far",
+        "end: # a wall, . floor, a space a hole, S the start, G the goal, o a coin — and the person paints it",
+        "in the \"level editor\" — Level, in the row of modes over this chat — square by square. Change the level",
+        "there or in that file inside its shape: every row the same length, only those six characters, one S",
+        "and one G. The feel is config/play.js (push, top speed, friction, brake, bounce, falling, coins,",
+        "points) and the camera and colours config/look.js. js/roll.js is the game — a module, because the 3D",
+        "library is: the level built once with Render3D.boxes, the rolling as a circle on the grid, the holes,",
+        "the coins and the goal. ⚠️ It is drawn by the studio's render3d library over three.js; add to a level",
+        "by adding squares, not meshes, and never make a renderer, camera or light of the game's own."
+      ]
     }
   }
 }

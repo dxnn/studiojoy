@@ -304,6 +304,42 @@ export const ARCS = {
     PLAYED,
     OUT,
   ],
+  rollball: [
+    stamp(
+      'rolls', 'It rolls!',
+      'A ball that goes where the stick says and stops when you let go.',
+      '“Find the fun first” — a ball that feels good on an empty floor is most of a rolling game.',
+      [
+        { text: 'the numbers in config/play.js', test: (f) => has(f.files, is('config/play.js')) },
+        { text: 'the controls in config/controls.js', test: (f) => has(f.files, is('config/controls.js')) },
+      ],
+      [ask('The feel', 'Tune ROLL, TOP and FRICTION in config/play.js until the ball feels quick but easy to steer.')],
+    ),
+    stamp(
+      'maze', 'A maze worth rolling',
+      'A way to the goal that takes some finding, with a hole or two to mind.',
+      'A good maze shows you the goal early and makes you go the long way round.',
+      [{ text: 'the level in config/level.js', test: (f) => has(f.files, is('config/level.js')) }],
+      [ask('A trickier bit', 'Suggest one change to config/level.js that puts a hole beside the quickest way to the goal.')],
+    ),
+    stamp(
+      'coins', 'Coins worth the detour',
+      'Coins that tempt you off the quick way, so there is a choice to make.',
+      'A reward is only interesting when it costs something to get.',
+      [],
+      [ask('A tempting coin', 'Suggest where in config/level.js a coin would be worth a risky detour.')],
+    ),
+    LOOKS,
+    stamp(
+      'feels', 'It feels good',
+      'Every coin, bump and fall answers back: a sound, a flash, a wobble.',
+      'Juice: the same maze with a chime on every coin rolls twice as nicely and plays exactly the same.',
+      [{ text: 'a sound in assets/sounds/', test: (f) => has(f.files, under('assets/sounds')) }],
+      [ask('A bump', 'Play a soft sound when the ball hits a wall hard, from assets/sounds/.')],
+    ),
+    PLAYED,
+    OUT,
+  ],
 };
 
 // A type's arc. A game with no type takes the arcade's with "What is it?" in
