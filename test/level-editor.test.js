@@ -40,12 +40,12 @@ test('anything past the shape declines', () => {
 });
 
 test('reachable rolls four ways, never through a wall or over a hole', () => {
-  const m = model(['#####', '#S# #', '#.  #', '#o..#', '#####']);
+  const m = model(['######', '#S# .#', '#.  ##', '#o..##', '######']);
   const can = reachable(m);
   assert.ok(can.has('3,1'), 'down the side');
   assert.ok(can.has('3,3'));
   assert.ok(!can.has('1,3'), 'a hole is never a way on');
-  assert.ok(!can.has('0,0'));
+  assert.ok(!can.has('1,4'), 'so the floor past it, walled in, is out of reach');
 });
 
 test('the checks say what only the whole level can', () => {

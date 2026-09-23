@@ -1590,7 +1590,9 @@ Playwright MCP tools, where the shot was read back lit.
 
 The **level editor** (`public/level-editor.js` the model, `public/level-form.js`
 the interface, the **Level** mode) is the plan canvas as a tile painter: the
-level from above, a square a cell, in the game's colours. Pick what a square
+level from above, a square a cell — walls pale, floor dark, the start and
+the goal in the game's `primary` and `accent`, a coin pale rather than gold
+(gold is a number in the studio). Pick what a square
 is — Wall, Floor, Hole, Coin, Start, Goal — then click or drag to paint; a
 second Start or Goal moves the first. `+ Row`, `− Row`, `+ Column`, `− Column`
 grow and shrink the grid at the near end and the right, between 3 and 24 a

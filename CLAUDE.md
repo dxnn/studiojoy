@@ -385,7 +385,8 @@ specified:
   canvas** (§6, built 2026-09-22); and **Roll a ball** (Level), the first 3D
   game, a maze painted square by square on that canvas — no studio surface
   draws 3D, *Try it* is where it is seen (§6, 2026-09-23). The track, world
-  and level editors' drags, Delete and 390px layout, and both new games,
+  and level editors' drags and 390px layout, Delete in the first two (a
+  level is painted over, so it has none), and both new games,
   were driven through the Playwright MCP browser (WebGL included), which
   caught Delete never reaching the studio and the canvas squeezed to a
   sliver on a phone. ⚠️ The adventure's box-drag has

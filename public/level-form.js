@@ -160,7 +160,8 @@ function paintPlan(ctx, px, st) {
     }
     const mid = [x + CELL / 2, y + CELL / 2];
     if (ch === 'o') {
-      ctx.fillStyle = '#ffd166';
+      // Pale, not gold: in the studio gold is a number and nothing else.
+      ctx.fillStyle = '#e2ecff';
       ctx.beginPath();
       ctx.arc(mid[0], mid[1], CELL * 0.18, 0, Math.PI * 2);
       ctx.fill();
