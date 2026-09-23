@@ -129,9 +129,14 @@ function step(dt) {
     b.vx *= PLAY.TOP / speed;
     b.vz *= PLAY.TOP / speed;
   }
-  b.x += b.vx * dt;
-  b.z += b.vz * dt;
-  bounceOffWalls(b);
+  // In steps shorter than half the ball, so a fast ball or a small one can
+  // never land its middle inside a wall in one go and come out the far side.
+  const steps = Math.max(1, Math.ceil((Math.hypot(b.vx, b.vz) * dt) / (PLAY.BALL_SIZE / 2)));
+  for (let i = 0; i < steps; i += 1) {
+    b.x += (b.vx * dt) / steps;
+    b.z += (b.vz * dt) / steps;
+    bounceOffWalls(b);
+  }
 
   // Spun the way it rolls: a ball of radius r turns one radian for every r
   // it travels.
@@ -244,6 +249,9 @@ drawLevel();
 const [sx, sz] = toWorld(start[0], start[1]);
 ball = R.ball({ at: [sx, PLAY.BALL_SIZE, sz], size: PLAY.BALL_SIZE, colour: LOOK.BALL });
 R.follow(ball, { back: LOOK.CAMERA_BACK, up: LOOK.CAMERA_UP });
+// Built once before the title screen, so the level behind it has its coins;
+// Roll! builds it again, fresh.
+Run = newRun();
 
 Screens.title({ start: WORDS.start, onStart: startRun });
 requestAnimationFrame(loop);

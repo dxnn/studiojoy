@@ -6,7 +6,8 @@
 //
 //   when: { moment: "goal" }                // the first time it is said at all
 //   when: { moment: "goal", atMost: 30 }    // the number is 30 or less
-//   when: { moment: "coin", times: 6 }      // said 6 times in one play
+//   when: { moment: "coin", atLeast: 6 }    // the number is 6 or more
+//   when: { moment: "fall", times: 3 }      // said 3 times since the page opened
 //
 // Leave `when` out and only Achievements.unlock("id") in the game's own code
 // grants it. A name is up to 60 characters, `how` up to 200, the icon one
@@ -36,12 +37,14 @@ const ACHIEVEMENTS = [
     name: "Collector",
     how: "Pick up six coins in one go",
     icon: "🪙",
-    when: { moment: "coin", times: 6 },
+    // "coin" says how many this run has, so six is six in one go — `times`
+    // would count coins across every run since the page opened.
+    when: { moment: "coin", atLeast: 6 },
   },
   {
     id: "speedy",
     name: "Speedy",
-    how: "Reach the goal in under 30 seconds",
+    how: "Reach the goal in 30 seconds or less",
     icon: "⚡",
     when: { moment: "goal", atMost: 30 },
   },

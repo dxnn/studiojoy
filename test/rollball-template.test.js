@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import { levelModel, levelChecks, levelText, CHARS } from '../public/level-editor.js';
 
 const read = (rel) => fs.readFileSync(new URL(`../public/${rel}`, import.meta.url), 'utf8');
@@ -87,6 +88,76 @@ test('the shipped level reads clean, writes back byte for byte, and the game kno
   for (const ch of CHARS.filter((x) => x !== '.')) {
     assert.ok(code(GAME).includes(`"${ch}"`), `the game knows "${ch}"`);
   }
+});
+
+// The game's own rolling, run for real: js/roll.js in a sandbox with a
+// stand-in 3D library, input and screens, driven frame by frame. It imports
+// nothing, so it runs as the script it reads like.
+function roll({ level, play = {}, push = [1, 0], frames = 60, fps = 20 }) {
+  const meshes = [];
+  const mesh = () => {
+    const m = { position: { set(x, y, z) { Object.assign(this, { x, y, z }); } }, rotation: { x: 0, y: 0, z: 0 }, visible: true };
+    meshes.push(m);
+    return m;
+  };
+  let frame = null;
+  let started = null;
+  const said = [];
+  const ctx = vm.createContext({
+    console,
+    Math,
+    document: { getElementById: () => ({ tagName: 'CANVAS' }) },
+    requestAnimationFrame: (fn) => { frame = fn; },
+    Render3D: { start() {}, boxes() {}, box: mesh, ball: mesh, follow() {}, draw() {}, remove() {} },
+    Screens: { fit() {}, chips() {}, title(o) { started = o.onStart; } },
+    Input: { update() {}, held: () => false, axis: (a) => (a === 'left' ? push[0] : push[1]) },
+    Sound: { play() {} },
+    Moments: { say: (name, value) => said.push([name, value]) },
+  });
+  ctx.window = ctx;
+  const config = (src) => src.replace(/^const (\w+) =/gm, 'var $1 =');
+  vm.runInContext(`var LEVEL = ${JSON.stringify(level)};`, ctx);
+  vm.runInContext(config(PLAY), ctx);
+  Object.assign(ctx.PLAY, play);
+  vm.runInContext(config(LOOK), ctx);
+  vm.runInContext(config(WORDS), ctx);
+  vm.runInContext(GAME, ctx);
+  started();
+  const ball = meshes[0];
+  for (let i = 1; i <= frames; i += 1) frame((i * 1000) / fps);
+  return { ball, said };
+}
+
+test('a fast ball, or a small one, never rolls through a wall', () => {
+  // One wall square between the start and the far side, rolled at hard.
+  const level = ['#######', '#S.#..#', '#######'];
+  const wallFace = 0 - 0.5; // the wall at column 3 is x 0, so its near face is -0.5
+  for (const play of [{}, { TOP: 10 }, { BALL_SIZE: 0.15, TOP: 10 }, { BALL_SIZE: 0.1, TOP: 20 }]) {
+    for (const fps of [20, 30, 60]) {
+      const { ball } = roll({ level, play, fps });
+      const r = play.BALL_SIZE ?? 0.3;
+      const { x } = ball.position;
+      assert.ok(x <= wallFace - r + 1e-6, `${JSON.stringify(play)} at ${fps} fps: stopped at ${x.toFixed(3)}`);
+    }
+  }
+});
+
+test('a hole drops the ball and the goal ends the run', () => {
+  const fell = roll({ level: ['#####', '#S. #', '#####'], frames: 40 });
+  assert.ok(fell.said.some(([name]) => name === 'fall'), 'it fell');
+  const won = roll({ level: ['######', '#S.oG#', '######'], frames: 40 });
+  assert.deepEqual(won.said.map(([name]) => name), ['coin', 'goal', 'score']);
+  assert.equal(won.said[0][1], 1, 'coin says the count this run');
+});
+
+test('what the achievements promise is something one run can do', () => {
+  const rules = read('game-templates/rollball/config/achievements.js');
+  const coins = levelModel(LEVEL).rows.flat().filter((ch) => ch === 'o').length;
+  const collector = Number(rules.match(/moment: "coin", atLeast: (\d+)/)?.[1]);
+  assert.ok(collector > 0 && collector <= coins, `${collector} coins asked, ${coins} in the level`);
+  assert.doesNotMatch(rules, /moment: "coin", times:/, 'coin counts this run; times would count every run');
+  const quick = Number(rules.match(/moment: "goal", atMost: (\d+)/)?.[1]);
+  assert.ok(quick < Number(PLAY.match(/PAR: (\d+)/)[1]), 'speedy is under par');
 });
 
 test('it ships its three sounds, made by the sound maker', () => {
