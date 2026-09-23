@@ -8,7 +8,7 @@
 // module too, after it: <script type="module" src="js/game.js">. Modules run
 // in order once the page has loaded, so Input, Screens and config/ are there.
 //
-//   Screens.fit(document.getElementById("wrap"));  // first: fit reads 960 × 600
+//   Screens.fit(document.getElementById("wrap"));  // ⚠️ once, and first: see below
 //   Render3D.start(canvas, { sky: LOOK.SKY });
 //   Render3D.boxes([[0, 0, 0], [1, 0, 0]], { size: [1, 0.2, 1], colour: "#556" });
 //   const ball = Render3D.ball({ at: [0, 1, 0], size: 0.3, colour: LOOK.primary });
@@ -31,7 +31,9 @@
 //
 // The drawing buffer is sized from the canvas's box on the page, at most
 // twice the screen's pixels, and kept right as it resizes, so nothing sizes
-// the canvas but Screens.fit. The picture is kept after every frame, so the
+// the canvas but Screens.fit. ⚠️ That buffer is the canvas's width and height,
+// which are what fit reads the game's shape from: call fit once, before
+// start, and never again, or it reads the buffer and shrinks the game to it. The picture is kept after every frame, so the
 // studio can see what the player sees. Those calls are the whole of it: no
 // renderer, scene, camera or light to make. There are no models or shadows
 // yet — a thing is a box or a ball.

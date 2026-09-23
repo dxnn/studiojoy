@@ -40,6 +40,9 @@ test('the note says it is a module, and so is the code that uses it', () => {
   const note = FACADE.split('\n').filter((l) => l.startsWith('//')).join('\n');
   assert.match(note, /<script type="module" src="studio\/render3d\.js">/);
   assert.match(note, /Screens\.fit\(/, 'fit before start');
+  // ⚠️ The buffer is the canvas's width and height, which fit reads: a second
+  // fit after start would shrink the game to whatever the buffer was.
+  assert.match(note, /call fit once, before\n\/\/ start, and never again/);
   for (const call of ['start', 'box', 'ball', 'boxes', 'remove', 'clear', 'follow', 'look', 'draw']) {
     assert.match(note, new RegExp(`\\b${call}\\(`), `the note names ${call}`);
     assert.match(code(FACADE), new RegExp(`\\b${call}: `), `and the façade offers it`);
