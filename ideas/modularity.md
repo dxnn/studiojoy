@@ -57,8 +57,14 @@ Left, on purpose:
   registry entry and the words in the index, a new type is one registry
   entry, one index entry and its own two modules. The directory move buys
   little more.
-- ⚠️ No browser has shown a real extra in the *Add a file* dialog — there is
-  none in the index yet. Server side is tested.
+- **The preamble does not say when a held library's tag is missing** from
+  `index.html` (§4.1 proposed it). A person who adds physics to a racing game
+  is told by the toast to ask the builder; nothing tells the builder on its
+  own. Worth building if that toast turns out to be missed.
+
+*Add a file* offering physics to a game without it, the one commit it
+makes, and the choice going away after were shown in a browser on
+2026-09-23.
 
 ## 0. The short version
 

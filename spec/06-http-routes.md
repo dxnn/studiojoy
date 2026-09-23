@@ -861,9 +861,10 @@ replaced on `files.changed` and revoked on replace — the file routes send
 every keystroke; `has_icon` on the project list keeps the sidebar from
 probing every game for an icon it lacks.
 
-The six libraries under `studio/` — what each does, the manifest, the
-compatibility law, the sweep, and picking a game's control scheme — are
-documented separately, in spec/06-studio-library.md.
+The libraries under `studio/` — the six in the core set and the physics
+extra, what each does, the manifest, the compatibility law, the sweep, and
+picking a game's control scheme — are documented separately, in
+spec/06-studio-library.md.
 
 ### Game templates
 
@@ -888,7 +889,8 @@ after the library scaffold like a template, from
 nothing the games origin can serve. That page is the one thing under
 `game-templates/` not copied byte for byte (`{{name}}` becomes the game's
 name, escaped), and is absent from `index.json` since the dialog already
-offers it as the empty choice. It loads every library the game holds,
+offers it as the empty choice. It loads every library the game holds — the
+core set, since a blank game holds no extra —
 including input, since a game's *control scheme* is chosen at creation: the
 null controller draws nothing, and an arcade shape wants its two tags from
 the first minute.

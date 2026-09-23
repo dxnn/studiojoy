@@ -57,9 +57,14 @@ Tests enforce each of these.
   compute it.
 - An archived project rejects every write with 409, while its game stays
   publicly served. Only its originator can archive it, never while it is
-  published, and no route unarchives it.
+  published, and only its originator can unarchive it (`npm run unarchive`
+  is for the game whose originator has been removed).
 - A project's git repository has at least one commit from the moment the
   project exists.
+- The sweep adds a core library a game lacks and raises every one it holds,
+  and never adds an extra; an extra reaches a game only from its template's
+  `libraries` at creation or `POST /api/projects/:slug/libraries`, named by
+  key against the studio's own index, the bytes always the studio's.
 - A chat has nothing on disk: no directory is created for it, every route that
   would reach one answers 409, and the games origin answers 404 for its slug
   even if a directory with that name exists.

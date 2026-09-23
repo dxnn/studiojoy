@@ -602,7 +602,7 @@ export function dialogFor(d) {
           () => { close(); createSound(); }));
     // The extras (spec.md §4): libraries a game holds only if somebody asks —
     // an engine, say. One choice each for those this game lacks, landing
-    // after the dialog is built, like New game's templates; none today.
+    // after the dialog is built, like New game's templates.
     if (!only) {
       send('/studio-lib/index.json').then(async (res) => {
         if (!res.ok) return;
