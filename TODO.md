@@ -182,3 +182,11 @@ deliberately deferred.
 - ⚠️ before exposing this beyond a trusted group, revisit the v1 security list
   in spec/ §11: no CSRF token (bounded to logout now), in-memory lockouts,
   no rate limit outside login, and sessions that never expire or rotate
+- ⚠️ deploy the studio: the server still runs b25f39c (2026-09-16), from before
+  builder rooms, so a person's helper can still be called into a game's
+  `Building` and write to its tree — "Buildermate Steve" did, into three games
+  after the 15th. f6bce28 detaches those seats on the first open
+- give Knock it down levels and kinds of body it makes up, the way Roll a ball
+  has them — ideas/knockdown-levels.md, three questions waiting
+- decide how a free-form game reaches three.js and a 3D physics engine —
+  ideas/open-engines.md, three questions waiting
