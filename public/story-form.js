@@ -406,7 +406,7 @@ function buildStage() {
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 // Ids on the fields are what carry the caret across a background render
-// (main.js keeps the focus of anything called story-…). Read-only — somebody
+// (main.js puts the focus back on anything with an id). Read-only — somebody
 // else's game, an archived one — is a field you can read and not type in; a
 // button you could not press is left out instead (spec.md §6).
 const field = (id, value, placeholder, on = {}) => {

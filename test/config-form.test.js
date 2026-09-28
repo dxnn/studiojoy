@@ -1,9 +1,11 @@
-// The config form over the DOM stand-in. A write to anybody's game renders
-// the whole studio, this form included, so a field has to survive being
-// rebuilt while somebody types in it: an id for render() to put the caret
-// back by, and what was typed already in the open file (spec/ §17).
+// The config form, and the quiz form beside it, over the DOM stand-in. A
+// write to anybody's game renders the whole studio, these forms included, so
+// a field has to survive being rebuilt while somebody types in it: an id for
+// render() to put the caret back by, and what was typed already in the open
+// file (spec/ §17).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { install, all } from './dom-stand-in.js';
 
 // ⚠️ Before main.js, which reads `document` on the way in.
@@ -12,6 +14,8 @@ install();
 const { S } = await import('../public/main.js');
 const { parseConfigFile } = await import('../public/config-file.js');
 const { renderConfigForm } = await import('../public/config-form.js');
+const { renderQuizForm } = await import('../public/quiz-form.js');
+const { quizModel } = await import('../public/quiz-editor.js');
 
 const PLAY = `// How the ball moves.
 const SPEED = 300; // how fast it rolls
@@ -64,4 +68,21 @@ test('words are in the file as they are typed', () => {
   type(field(open(PLAY), 'cfg.NAME'), 'Zoom zoom');
   assert.match(S.open.content, /const NAME = "Zoom zoom";/);
   assert.equal(field(form(), 'cfg.NAME').value, 'Zoom zoom');
+});
+
+const QUIZ = fs.readFileSync(new URL('../public/game-templates/quiz/config/questions.js', import.meta.url), 'utf8');
+
+test('a quiz field is in the file as it is typed, found again by its id', (t) => {
+  S.project = { slug: 'quiz', can_edit: true, archived: false, type: 'quiz', agents: [] };
+  S.open = { path: 'config/questions.js', content: QUIZ, dirty: false };
+  // The form saves itself two seconds on; with nothing open by then it does not.
+  t.after(() => { S.open = null; });
+  const model = quizModel(QUIZ);
+  const nodes = renderQuizForm(model);
+  for (const id of ['quiz-ask-0', 'quiz-answer-0-0', 'quiz-counts-0-0', 'quiz-ending-0', 'quiz-tell-0']) {
+    assert.ok(field(nodes, id), `${id} is found again after a render`);
+  }
+  type(field(nodes, 'quiz-ask-0'), 'A sunny Sunday?');
+  assert.match(S.open.content, /ask: "A sunny Sunday\?"/);
+  assert.equal(field(renderQuizForm(model), 'quiz-ask-0').value, 'A sunny Sunday?');
 });

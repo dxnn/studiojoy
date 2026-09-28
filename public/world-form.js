@@ -360,7 +360,7 @@ export function renderWorldInspector() {
   if (b) {
     const i = selected;
     const kindPick = h('select', {
-      disabled: ro,
+      id: 'world-kind', disabled: ro,
       onchange: (e) => { setKind(model, i, e.currentTarget.value); markUnsaved(); render(); },
     }, KINDS.map((k) => {
       const o = h('option', { value: k, text: LABELS[k] });

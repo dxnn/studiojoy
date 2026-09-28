@@ -10,7 +10,8 @@
 // The editor's shape is one notch looser than the game's: an entry with no
 // name yet has an empty id and name while it is being written, which the
 // library and the server skip and the checks below flag. The id is derived
-// from the name the first time one is given and never again (freshId).
+// from the name the first time one is saved with one, and never again
+// (freshId).
 
 import { parseConfigFile } from './config-file.js';
 import { readAchievements } from './achievement-shape.js';

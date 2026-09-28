@@ -495,7 +495,7 @@ export function renderTrackInspector() {
     const i = selected.index;
     const t = model.things[i];
     const kindPick = h('select', {
-      disabled: ro,
+      id: 'track-kind', disabled: ro,
       onchange: (e) => { t.kind = e.currentTarget.value; markUnsaved(); render(); },
     }, KINDS.map((k) => {
       const o = h('option', { value: k, text: LABELS[k] });

@@ -45,7 +45,9 @@ export function renderSoundForm(sound, changed, renamed = null) {
   const sliders = new Map();
   const readouts = new Map();
 
+  // Ids, so a background render puts the focus back on what was being turned.
   const wave = h('select', {
+    id: 'sound-wave',
     onchange: (e) => {
       sound.wave = e.currentTarget.value;
       changed();
@@ -66,7 +68,7 @@ export function renderSoundForm(sound, changed, renamed = null) {
   const knobs = h('div', { class: 'knobs' }, SOUND_PARAMS.map((p) => {
     const readout = h('span', { class: 'knob-value mono' });
     const slider = h('input', {
-      type: 'range', min: p.min, max: p.max, step: p.step,
+      type: 'range', min: p.min, max: p.max, step: p.step, id: `sound-${p.key}`,
       // Dragging moves the number beside it; letting go is what plays the
       // sound, so a slow drag is not forty overlapping sounds.
       oninput: (e) => {

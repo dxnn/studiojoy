@@ -240,8 +240,8 @@ export function saveSoon(delay = AUTOSAVE_MS) {
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-// Ids on the fields carry the caret across a background render (main.js keeps
-// the focus of anything called adventure-…).
+// Ids on the fields carry the caret across a background render (main.js puts
+// the focus back on anything with an id).
 const field = (id, value, placeholder, on = {}) => {
   const input = h('input', {
     type: 'text', class: 'cfg-text', id, placeholder, disabled: frozen(), ...on,
@@ -829,7 +829,7 @@ export function renderAdventureEditor() {
           }) : null,
           spot.kind === 'take' ? h('label', { class: 'row hint' },
             h('input', {
-              type: 'checkbox', checked: spot.keep, disabled: ro,
+              type: 'checkbox', checked: spot.keep, disabled: ro, id: 'adventure-keep',
               onchange: (e) => { spot.keep = e.currentTarget.checked; touched(); },
             }), ' stays after it is taken') : null) : null,
         open && spot.kind !== 'go' ? h('div', { class: 'sub' }, sayArea(spot)) : null,

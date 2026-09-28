@@ -78,9 +78,10 @@ function words(key) {
 // A select that is really a button with a list behind it: the label sits in
 // front, picking one does the thing, and it goes back to the label so the
 // next pick reads the same.
-function pickOne(label, options, onPick) {
+// The id is what puts the focus back after a render (main.js).
+function pickOne(label, options, onPick, id) {
   return h('select', {
-    class: 'ctl-add',
+    class: 'ctl-add', id,
     onchange: (e) => {
       const { value } = e.currentTarget;
       e.currentTarget.value = '';
@@ -180,8 +181,12 @@ export function renderControlsForm(model) {
       const drawn = (b.kind === 'touch' || b.kind === 'toggle')
         && b.name !== 'screen' && !isArrow(b.name);
       const why = deadReason(shape, b);
+      // Written when it is left rather than as it is typed: it becomes a
+      // binding's name, spaces turned to dashes, and doing that mid-word would
+      // turn "big jump" into "big-" before the second word arrived. One verb
+      // is open at a time, so its rows' ids are the studio's only ones.
       const name = drawn ? h('input', {
-        class: 'cfg-text ctl-name',
+        class: 'cfg-text ctl-name', id: `ctl-name-${i}`,
         onchange: (e) => {
           const typed = e.currentTarget.value.trim().replace(/\s+/g, '-');
           if (typed) swap(i, `${b.kind}:${typed}`);
@@ -197,7 +202,7 @@ export function renderControlsForm(model) {
         // keeps the desktop feel the same.
         drawn ? h('label', { class: 'row hint' },
           h('input', {
-            type: 'checkbox', checked: b.kind === 'toggle',
+            type: 'checkbox', checked: b.kind === 'toggle', id: `ctl-latch-${i}`,
             onchange: (e) => swap(i, `${e.currentTarget.checked ? 'toggle' : 'touch'}:${b.name}`),
           }),
           h('span', { text: 'it latches' })) : null,
@@ -243,14 +248,14 @@ export function renderControlsForm(model) {
           },
         }),
         pickOne('+ A controller button', PAD_NAMES.map((n) => ({ value: `pad:${n}`, label: n })),
-          (value) => write([...raws, value])),
+          (value) => write([...raws, value]), 'ctl-add-pad'),
         screen.length === 0
           ? h('span', { class: 'hint muted', text: 'This shape draws nothing to press.' })
           : pickOne('+ Something on the screen', screen, (value) => {
             // A drawn button's name starts as the verb's own word, which is
             // what a player would expect to read on it.
             write([...raws, value.endsWith(':') ? `${value}${verb.toUpperCase()}` : value]);
-          })));
+          }, 'ctl-add-screen')));
     editor.onclick = (e) => e.stopPropagation();
     return editor;
   };
@@ -277,12 +282,13 @@ export function renderControlsForm(model) {
         model.side === 'left' ? 'on the left' : 'on the right',
         [{ value: 'right', label: 'on the right' }, { value: 'left', label: 'on the left' }],
         (value) => commit(setKnob(S.open.content, 'BUTTON_SIDE', JSON.stringify(value))),
+        'ctl-side',
       ),
       h('span', { class: 'hint muted', text: 'which thumb the buttons are under; whatever moves the player takes the other' })));
   }
   if (hasDeadzone(shape)) {
     const field = h('input', {
-      type: 'number', step: '0.05', min: '0', max: '0.95', class: 'cfg-num',
+      type: 'number', step: '0.05', min: '0', max: '0.95', class: 'cfg-num', id: 'ctl-deadzone',
       disabled: ro,
       onchange: (e) => {
         const typed = Number(e.currentTarget.value);

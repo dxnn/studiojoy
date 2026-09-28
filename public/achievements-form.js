@@ -108,6 +108,17 @@ export function achievementsChanged() {
 export async function saveAchievements({ force = false } = {}) {
   const st = S.achievements;
   if (!st?.model) return false;
+  // The words are kept as typed, spaces and all, until here. A new one's id
+  // comes from its whole name, here too: taken as the name was typed, every
+  // achievement would be called `c`, and ⚠️ Chrome blurs the field a render
+  // takes away, so leaving the field is no sign the name is finished.
+  const { entries } = st.model;
+  for (const a of entries) {
+    a.name = a.name.trim();
+    a.how = a.how.trim();
+    a.icon = a.icon.trim();
+    if (!a.id && a.name) a.id = freshId(a.name, entries.filter((x) => x !== a));
+  }
   const text = achievementsText(st.model);
   // Typed and typed back: no commit that changes nothing.
   if (text === st.text && !force) {
@@ -152,8 +163,11 @@ function commit(st) {
   if (status) status.textContent = 'Not saved yet';
 }
 
-const field = (value, placeholder, onchange, extra = {}) => {
-  const input = h('input', { type: 'text', class: 'cfg-text', placeholder, onchange, ...extra });
+// Into the model as it is typed, and found again by its id: a write to
+// anybody's game renders the whole studio, and a field that only committed
+// on `change` came back from that render empty-handed and without its caret.
+const field = (id, value, placeholder, oninput, extra = {}) => {
+  const input = h('input', { type: 'text', class: 'cfg-text', id, placeholder, oninput, ...extra });
   input.value = value;
   return input;
 };
@@ -229,8 +243,8 @@ function renderAchievementsForm(st) {
   // The checks about one row, for its marker.
   const own = (a) => checks.filter((c) => c.includes(a.name ? `“${a.name}”` : 'no name yet'));
 
-  const whenRow = (a) => {
-    const moment = field(a.when?.moment ?? '', 'a moment the game says', (e) => {
+  const whenRow = (a, i) => {
+    const moment = field(`ach-moment-${i}`, a.when?.moment ?? '', 'a moment the game says', (e) => {
       const name = e.currentTarget.value.trim();
       const had = Boolean(a.when);
       if (!name) a.when = null;
@@ -242,6 +256,7 @@ function renderAchievementsForm(st) {
       if (had !== Boolean(a.when)) render();
     }, { list: 'ach-moments' });
     const test = h('select', {
+      id: `ach-test-${i}`,
       disabled: !a.when,
       onchange: (e) => {
         const key = e.currentTarget.value;
@@ -255,22 +270,30 @@ function renderAchievementsForm(st) {
       return option;
     }));
     const numeric = a.when && a.when.test !== 'is' && a.when.test !== 'any';
+    // A half-typed number is never kept: it waits for the next keystroke, and
+    // is put back to the rule's own when the field is left.
+    const setValue = (e, leaving) => {
+      const raw = e.currentTarget.value;
+      if (numeric) {
+        const n = Number(raw);
+        if (raw.trim() === '' || !Number.isFinite(n)) {
+          if (leaving) e.currentTarget.value = String(a.when.value);
+          return;
+        }
+        a.when.value = n;
+      } else {
+        a.when.value = /^-?\d+(\.\d+)?$/.test(raw.trim()) ? Number(raw) : raw;
+      }
+      commit(st);
+    };
     const value = !a.when || a.when.test === 'any' ? null : h('input', {
       class: 'cfg-text ach-value',
+      id: `ach-value-${i}`,
       type: numeric ? 'number' : 'text',
       step: numeric ? 'any' : null,
       placeholder: numeric ? 'a number' : 'a word or a number',
-      onchange: (e) => {
-        const raw = e.currentTarget.value;
-        if (numeric) {
-          const n = Number(raw);
-          if (!Number.isFinite(n)) { e.currentTarget.value = String(a.when.value); return; }
-          a.when.value = n;
-        } else {
-          a.when.value = /^-?\d+(\.\d+)?$/.test(raw.trim()) ? Number(raw) : raw;
-        }
-        commit(st);
-      },
+      oninput: (e) => setValue(e, false),
+      onchange: (e) => setValue(e, true),
     });
     if (value) value.value = String(a.when.value);
     return h('div', { class: 'row ach-when' },
@@ -295,29 +318,27 @@ function renderAchievementsForm(st) {
     if (!isOpen) return h('div', { class: 'ach-card' }, head);
 
     const idNode = h('span', {
-      class: 'hint muted mono', text: a.id ? `id: ${a.id}` : 'the id comes from the name',
+      class: 'hint muted mono', text: a.id ? `id: ${a.id}` : 'the id comes from the name, on Save',
     });
     const body = h('div', { class: 'ach-open' },
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: 'Name' }),
-        field(a.name, 'What it is called', (e) => {
-          a.name = e.currentTarget.value.trim();
-          if (!a.id && a.name) {
-            a.id = freshId(a.name, entries.filter((x) => x !== a));
-            idNode.textContent = `id: ${a.id}`;
-          }
+        // As typed, and trimmed on Save: trimmed as it is typed, a render
+        // landing just after a space would take the space.
+        field(`ach-name-${i}`, a.name, 'What it is called', (e) => {
+          a.name = e.currentTarget.value;
           commit(st);
         }, { maxlength: 60 })),
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: 'How to get it' }),
-        field(a.how, 'What a player does to earn it, in their words', (e) => {
-          a.how = e.currentTarget.value.trim();
+        field(`ach-how-${i}`, a.how, 'What a player does to earn it, in their words', (e) => {
+          a.how = e.currentTarget.value;
           commit(st);
         }, { maxlength: 200 })),
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: 'Icon' }),
-        field(a.icon, '🏆', (e) => { a.icon = e.currentTarget.value.trim(); commit(st); }, { maxlength: 8, class: 'cfg-text ach-icon-field' })),
-      whenRow(a),
+        field(`ach-icon-${i}`, a.icon, '🏆', (e) => { a.icon = e.currentTarget.value; commit(st); }, { maxlength: 8, class: 'cfg-text ach-icon-field' })),
+      whenRow(a, i),
       h('p', {
         class: 'hint muted',
         text: heard.size

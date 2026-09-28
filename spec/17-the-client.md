@@ -38,7 +38,16 @@ is gone unless it is snapshotted and put back.
   is one, so in a busy studio that is every few seconds. The config form's
   are `cfg.` and the value's path (`cfg.TRACKS.1.width`), and it writes each
   keystroke into the open file rather than waiting for `change`, or the
-  rebuilt field comes back with what the file said before the typing.
+  rebuilt field comes back with what the file said before the typing; the
+  quiz's and the achievements' fields do the same. ⚠️ A field that turns what
+  is typed into something else — a controls name's spaces into dashes, an
+  adventure's thing into a key — still writes on `change`, since doing it
+  mid-word takes the space before the next word arrives: it keeps its caret
+  through a render and loses what was typed since it was last left. And
+  nothing is taken from a field's words as they are typed — an
+  achievement's id comes from its name on Save — because Chrome blurs the
+  field a render takes away, so leaving a field is no sign it is finished.
+  The dialog's fields need none of this: the dialog is one node, re-appended.
 - **Every scroller's position.** A `.scroll` container needs a `data-scroll`
   name or it jumps to the top on the next render.
 - **The open dialog**, which is built once and re-appended as the same node,

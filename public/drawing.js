@@ -792,7 +792,7 @@ export function renderDrawing() {
   }));
 
   const well = h('input', {
-    type: 'color',
+    type: 'color', id: 'draw-well',
     title: `Change the square you have chosen — this edits ${LOOK_FILE}`,
     'aria-label': 'Change the chosen colour',
   });

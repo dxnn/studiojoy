@@ -23,9 +23,12 @@ function commit(model) {
   saveOpenFileSoon();
 }
 
-const field = (value, placeholder, onchange) => {
+// Into the model as it is typed, and found again by its id: a write to
+// anybody's game renders the whole studio, and a field that only committed
+// on `change` came back from that render empty-handed and without its caret.
+const field = (id, value, placeholder, oninput) => {
   const input = h('input', {
-    type: 'text', class: 'cfg-text', placeholder, onchange, disabled: frozen(),
+    type: 'text', class: 'cfg-text', id, placeholder, oninput, disabled: frozen(),
   });
   input.value = value;
   return input;
@@ -47,9 +50,10 @@ export function renderQuizForm(model) {
 
   const questionCard = (q, qi) => {
     const rows = q.answers.map((a, ai) => h('div', { class: 'quiz-answer row' },
-      field(a.say, 'An answer', (e) => { a.say = e.currentTarget.value; commit(model); }),
+      field(`quiz-answer-${qi}-${ai}`, a.say, 'An answer', (e) => { a.say = e.currentTarget.value; commit(model); }),
       h('span', { class: 'hint muted', text: 'counts toward' }),
       h('select', {
+        id: `quiz-counts-${qi}-${ai}`,
         disabled: ro,
         onchange: (e) => { a.result = e.currentTarget.value; commit(model); },
       }, results.map((r) => {
@@ -65,7 +69,7 @@ export function renderQuizForm(model) {
     return h('div', { class: 'quiz-q' },
       h('div', { class: 'row' },
         h('span', { class: 'cfg-name mono', text: `#${qi + 1}` }),
-        field(q.ask, 'The question', (e) => { q.ask = e.currentTarget.value; commit(model); }),
+        field(`quiz-ask-${qi}`, q.ask, 'The question', (e) => { q.ask = e.currentTarget.value; commit(model); }),
         ro ? null : more(`question:${qi}`, [{
           text: 'Delete', danger: true,
           onPick: () => { questions.splice(qi, 1); commit(model); render(); },
@@ -89,7 +93,7 @@ export function renderQuizForm(model) {
     );
     return h('div', { class: 'quiz-q' },
       h('div', { class: 'row' },
-        field(r.name, 'What they are called', (e) => { r.name = e.currentTarget.value; commit(model); }),
+        field(`quiz-ending-${ri}`, r.name, 'What they are called', (e) => { r.name = e.currentTarget.value; commit(model); }),
         used > 0 ? h('span', {
           class: 'hint muted', text: `${used} answer${used === 1 ? '' : 's'}`,
         }) : null,
@@ -97,7 +101,7 @@ export function renderQuizForm(model) {
           text: 'Delete', danger: true,
           onPick: () => { results.splice(ri, 1); commit(model); render(); },
         }], { label: `More about ${named(r)}` })),
-      field(r.tell, 'A line about them', (e) => { r.tell = e.currentTarget.value; commit(model); }));
+      field(`quiz-tell-${ri}`, r.tell, 'A line about them', (e) => { r.tell = e.currentTarget.value; commit(model); }));
   };
 
   return [
