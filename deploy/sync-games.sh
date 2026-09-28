@@ -5,8 +5,8 @@
 # one people are actually editing, so this points every local copy at it as a
 # remote called `server` and moves them only in ways that cannot lose anything.
 #
-#   deploy/sync-games.sh user@host link     # add the remote, clone what is missing
-#   deploy/sync-games.sh user@host pull     # fast-forward only; refuses if diverged
+#   deploy/sync-games.sh user@host link     # re-point every remote here, clone what is missing
+#   deploy/sync-games.sh user@host pull     # link new ones, fast-forward the rest; refuses if diverged
 #   deploy/sync-games.sh user@host status   # what each one is, and nothing else
 #   deploy/sync-games.sh user@host push     # send local commits back
 #
@@ -98,12 +98,17 @@ for slug in $remote_games; do
   if [ "$far" = 1 ]; then url="$host:$base/$slug"; else url="$base/$slug"; fi
 
   if [ ! -d "$dir/.git" ]; then
-    if [ "$what" = "link" ]; then
-      echo "$slug: cloning"
+    if [ "$what" = "link" ] || [ "$what" = "pull" ]; then
       # -o server so a cloned game and a linked one answer to the same name.
-      git clone -q -o server "$url" "$dir"
+      # Reported rather than fatal, like a refused push: one entry over there
+      # that is not a repo must not stop the sweep over the rest.
+      if git clone -q -o server "$url" "$dir"; then
+        echo "$slug: cloned"
+      else
+        echo "$slug: ! could not clone the server copy"
+      fi
     else
-      echo "$slug: no local copy — run link first"
+      echo "$slug: no local copy — run pull first"
     fi
     continue
   fi
@@ -117,8 +122,12 @@ for slug in $remote_games; do
   fi
 
   if ! git -C "$dir" remote get-url server >/dev/null 2>&1; then
-    echo "$slug: not linked yet — run link first"
-    continue
+    if [ "$what" != "pull" ]; then
+      echo "$slug: not linked yet — run pull first"
+      continue
+    fi
+    git -C "$dir" remote add server "$url"
+    echo "$slug: linked"
   fi
   if ! git -C "$dir" fetch -q server 2>/dev/null; then
     echo "$slug: ! could not reach the server copy"

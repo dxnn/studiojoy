@@ -166,9 +166,9 @@ should have to make — a sweep across every game, a rename that has to land in
 ten places at once — with the tools on your own machine.
 
 ```sh
-deploy/sync-games.sh user@host link     # add the remote, clone what is missing
+deploy/sync-games.sh user@host link     # re-point every remote here, clone what is missing
 deploy/sync-games.sh user@host status   # behind / ahead / uncommitted, per game
-deploy/sync-games.sh user@host pull     # fast-forward only; refuses if diverged
+deploy/sync-games.sh user@host pull     # link new ones, fast-forward the rest; refuses if diverged
 deploy/sync-games.sh user@host push     # send local commits back
 ```
 
