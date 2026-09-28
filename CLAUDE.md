@@ -383,8 +383,10 @@ specified:
   on a canvas with explicit Save (§6, built 2026-09-15); **Knock it down**
   (World), a pile of physics bodies dragged and sized on the same **plan
   canvas** (§6, built 2026-09-22); and **Roll a ball** (Level), the first 3D
-  game, a maze painted square by square on that canvas — no studio surface
-  draws 3D, *Try it* is where it is seen (§6, 2026-09-23). The track, world
+  game, a list of mazes painted square by square on that canvas, with
+  **kinds of square** a game makes up (`SQUARES`, drawn before they do
+  anything; `ON_SQUARE` is what they do) — no studio surface draws 3D, *Try
+  it* is where it is seen (§6, 2026-09-23; levels 2026-09-28). The track, world
   and level editors' drags and 390px layout, Delete in the first two (a
   level is painted over, so it has none), and both new games,
   were driven through the Playwright MCP browser (WebGL included), which
