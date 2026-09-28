@@ -64,6 +64,13 @@
   background: color-mix(in oklab, var(--look-primary) 28%, transparent);
   color: #fff;
 }
+/* A made-up kind of square's own colour, at the head of its row. */
+.plan-row .kind-colour {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
 
 /* On a phone the canvas keeps the height its width gives it, and the column
    under it is what scrolls. Left to share the height, the column's list won

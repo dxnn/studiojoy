@@ -29,7 +29,12 @@ test('the template is registered, held by a stick, born holding render3d', () =>
   assert.equal(t.heart, 'config/level.js');
   assert.equal(t.scheme, 'stick-buttons');
   assert.deepEqual(t.libraries, ['render3d']);
-  assert.match(t.what, /Paint the maze/);
+  assert.match(t.what, /Paint each level/);
+  // What the builder is told is what the level editor and the game hold to.
+  const brief = t.brief.join(' ');
+  for (const words of [/LEVELS/, /SQUARES/, /\{ name, colour, solid \}/, /ON_SQUARE/, /level editor/]) {
+    assert.match(brief, words);
+  }
 });
 
 test('its own code is a module after the 3D library, which is after every classic script', () => {
@@ -73,42 +78,55 @@ test('it keeps its numbers and its words out of the code', () => {
     assert.match(LOOK, new RegExp(`${key}:`), `config/look.js sets ${key}`);
     assert.ok(code(GAME).includes(`LOOK.${key}`), `the game reads LOOK.${key}`);
   }
-  for (const key of ['hudCoins', 'hudTime', 'finished', 'finishedHow', 'start', 'again']) {
+  for (const key of ['hudLevel', 'hudCoins', 'hudTime', 'finished', 'finishedHow', 'start', 'again']) {
     assert.match(WORDS, new RegExp(`${key}:`), `config/words.js sets ${key}`);
     assert.ok(code(GAME).includes(`WORDS.${key}`), `the game reads WORDS.${key}`);
   }
 });
 
-test('the shipped level reads clean, writes back byte for byte, and the game knows every square', () => {
+test('the shipped levels read clean, write back byte for byte, and the game knows every square', () => {
   const model = levelModel(LEVEL);
   assert.equal(model.ok, true, model.reason);
-  assert.deepEqual(levelChecks(model), []);
+  assert.ok(model.levels.length > 1, 'it ships more than one, so the list is there to be seen');
+  for (const level of model.levels) assert.deepEqual(levelChecks(level, model.squares), []);
+  assert.deepEqual(model.squares, {}, 'no kind of square made up: that is the game\'s to do');
   assert.equal(levelText(model), LEVEL);
   // Floor is whatever is not the others, so it needs no name in the game.
   for (const ch of CHARS.filter((x) => x !== '.')) {
     assert.ok(code(GAME).includes(`"${ch}"`), `the game knows "${ch}"`);
   }
+  assert.match(code(GAME), /const ON_SQUARE = \{\};/, 'the one place a made-up square is given something to do');
 });
 
 // The game's own rolling, run for real: js/roll.js in a sandbox with a
 // stand-in 3D library, input and screens, driven frame by frame. It imports
-// nothing, so it runs as the script it reads like.
-function roll({ level, play = {}, push = [1, 0], frames = 60, fps = 20 }) {
+// nothing, so it runs as the script it reads like. `levels` is LEVELS,
+// `game` rewrites the source first — how a test puts something in ON_SQUARE.
+function roll({
+  levels, squares = {}, search = '', play = {}, push = [1, 0], frames = 60, fps = 20, game = (s) => s,
+}) {
   const meshes = [];
-  const mesh = () => {
-    const m = { position: { set(x, y, z) { Object.assign(this, { x, y, z }); } }, rotation: { x: 0, y: 0, z: 0 }, visible: true };
+  const mesh = (o) => {
+    const m = {
+      o, position: { set(x, y, z) { Object.assign(this, { x, y, z }); } }, rotation: { x: 0, y: 0, z: 0 }, visible: true,
+    };
     meshes.push(m);
     return m;
   };
   let frame = null;
   let started = null;
+  let followed = null;
   const said = [];
   const ctx = vm.createContext({
     console,
     Math,
+    URLSearchParams,
+    location: { search },
     document: { getElementById: () => ({ tagName: 'CANVAS' }) },
     requestAnimationFrame: (fn) => { frame = fn; },
-    Render3D: { start() {}, boxes() {}, box: mesh, ball: mesh, follow() {}, draw() {}, remove() {} },
+    Render3D: {
+      start() {}, boxes() {}, box: mesh, ball: mesh, follow(t) { followed = t; }, draw() {}, remove() {}, clear() {},
+    },
     Screens: { fit() {}, chips() {}, title(o) { started = o.onStart; } },
     Input: { update() {}, held: () => false, axis: (a) => (a === 'left' ? push[0] : push[1]) },
     Sound: { play() {} },
@@ -116,16 +134,16 @@ function roll({ level, play = {}, push = [1, 0], frames = 60, fps = 20 }) {
   });
   ctx.window = ctx;
   const config = (src) => src.replace(/^const (\w+) =/gm, 'var $1 =');
-  vm.runInContext(`var LEVEL = ${JSON.stringify(level)};`, ctx);
+  vm.runInContext(`var LEVELS = ${JSON.stringify(levels)}; var SQUARES = ${JSON.stringify(squares)};`, ctx);
   vm.runInContext(config(PLAY), ctx);
   Object.assign(ctx.PLAY, play);
   vm.runInContext(config(LOOK), ctx);
   vm.runInContext(config(WORDS), ctx);
-  vm.runInContext(GAME, ctx);
+  vm.runInContext(game(GAME), ctx);
   started();
-  const ball = meshes[0];
   for (let i = 1; i <= frames; i += 1) frame((i * 1000) / fps);
-  return { ball, said };
+  // The ball the camera is on: every level makes its own.
+  return { ball: followed, said, meshes };
 }
 
 test('a fast ball, or a small one, never rolls through a wall', () => {
@@ -134,7 +152,7 @@ test('a fast ball, or a small one, never rolls through a wall', () => {
   const wallFace = 0 - 0.5; // the wall at column 3 is x 0, so its near face is -0.5
   for (const play of [{}, { TOP: 10 }, { BALL_SIZE: 0.15, TOP: 10 }, { BALL_SIZE: 0.1, TOP: 20 }]) {
     for (const fps of [20, 30, 60]) {
-      const { ball } = roll({ level, play, fps });
+      const { ball } = roll({ levels: [level], play, fps });
       const r = play.BALL_SIZE ?? 0.3;
       const { x } = ball.position;
       assert.ok(x <= wallFace - r + 1e-6, `${JSON.stringify(play)} at ${fps} fps: stopped at ${x.toFixed(3)}`);
@@ -143,16 +161,56 @@ test('a fast ball, or a small one, never rolls through a wall', () => {
 });
 
 test('a hole drops the ball and the goal ends the run', () => {
-  const fell = roll({ level: ['#####', '#S. #', '#####'], frames: 40 });
+  const fell = roll({ levels: [['#####', '#S. #', '#####']], frames: 40 });
   assert.ok(fell.said.some(([name]) => name === 'fall'), 'it fell');
-  const won = roll({ level: ['######', '#S.oG#', '######'], frames: 40 });
+  const won = roll({ levels: [['######', '#S.oG#', '######']], frames: 40 });
   assert.deepEqual(won.said.map(([name]) => name), ['coin', 'goal', 'score']);
   assert.equal(won.said[0][1], 1, 'coin says the count this run');
 });
 
+test('a goal takes the ball on to the next level, and the last one ends the run', () => {
+  const room = ['######', '#S.oG#', '######'];
+  const { said } = roll({ levels: [room, room], frames: 80 });
+  assert.deepEqual(said.map(([name]) => name), ['coin', 'level', 'coin', 'goal', 'score']);
+  assert.equal(said[1][1], 1, 'level says the one just finished');
+  assert.equal(said[2][1], 2, 'the coins count on across the levels');
+});
+
+test('?level= starts the run on the level asked for', () => {
+  const trap = ['#####', '#S. #', '#####'];
+  const room = ['#####', '#S.G#', '#####'];
+  const { said } = roll({ levels: [trap, room], search: '?v=3&level=2', frames: 40 });
+  assert.deepEqual(said.map(([name]) => name), ['goal', 'score'], 'the second, never the first');
+  const odd = roll({ levels: [room], search: '?level=9', frames: 40 });
+  assert.ok(odd.said.some(([name]) => name === 'goal'), 'one past the end is the first');
+});
+
+test('a made-up square is drawn before it does anything, and does what ON_SQUARE says', () => {
+  const crate = { name: 'Crate', colour: '#aa7744', solid: true };
+  const bomb = { name: 'Bomb', colour: '#ff5533', solid: false };
+  // A solid one is a wall: the ball stops at it.
+  const { ball } = roll({ levels: [['#######', '#S.c..#', '#######']], squares: { c: crate } });
+  assert.ok(ball.position.x <= -0.5 - 0.3 + 1e-6, `stopped at ${ball.position.x.toFixed(3)}`);
+  // One the ball rolls over is a marker in its colour, and nothing more.
+  const level = ['######', '#Sb.G#', '######'];
+  const quiet = roll({ levels: [level], squares: { b: bomb }, frames: 40 });
+  assert.ok(quiet.meshes.some((m) => m.o?.colour === bomb.colour), 'a marker in its colour');
+  assert.deepEqual(quiet.said.map(([name]) => name), ['goal', 'score']);
+  const loud = roll({
+    levels: [level], squares: { b: bomb }, frames: 40,
+    game: (s) => s.replace('const ON_SQUARE = {};', 'const ON_SQUARE = { b: (square) => { Moments.say("bomb", square.c); fall(); } };'),
+  });
+  assert.deepEqual(loud.said.slice(0, 2), [['bomb', 2], ['fall', undefined]]);
+});
+
+test('a level with no start puts the ball on its first floor, not in a wall', () => {
+  const { said } = roll({ levels: [['#####', '#..G#', '#####']], frames: 40 });
+  assert.ok(said.some(([name]) => name === 'goal'));
+});
+
 test('what the achievements promise is something one run can do', () => {
   const rules = read('game-templates/rollball/config/achievements.js');
-  const coins = levelModel(LEVEL).rows.flat().filter((ch) => ch === 'o').length;
+  const coins = levelModel(LEVEL).levels.flatMap((level) => level.rows.flat()).filter((ch) => ch === 'o').length;
   const collector = Number(rules.match(/moment: "coin", atLeast: (\d+)/)?.[1]);
   assert.ok(collector > 0 && collector <= coins, `${collector} coins asked, ${coins} in the level`);
   assert.doesNotMatch(rules, /moment: "coin", times:/, 'coin counts this run; times would count every run');

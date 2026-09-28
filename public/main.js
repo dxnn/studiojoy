@@ -477,7 +477,8 @@ const viewFromUrl = () => {
   return {
     mode: q.get('mode') ?? modeFromOld(q.get('edit'), q.get('tab')),
     file: q.get('file'), version: q.get('version'),
-    chat: q.get('chat'), scene: q.get('scene'),
+    // The level editor's own name for the same one thing (game-types.js).
+    chat: q.get('chat'), scene: q.get('scene') ?? q.get('level'),
   };
 };
 
@@ -610,7 +611,7 @@ function urlNow() {
   if (S.mode !== 'chat') {
     q.set('mode', S.mode);
     const scene = editorShowing()?.view?.();
-    if (scene) q.set('scene', scene);
+    if (scene) q.set(editorShowing().viewParam ?? 'scene', scene);
     if (['code', 'pics', 'hear'].includes(S.mode) && S.open) q.set('file', S.open.path);
     if (S.mode === 'versions') {
       if (S.historyPath) q.set('file', S.historyPath);
@@ -1109,7 +1110,7 @@ function renderPreview() {
   // worked on; cleared with the game.
   const scene = editorShowing() && S.tryScene ? S.tryScene : null;
   const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
-    + (scene ? `&scene=${encodeURIComponent(scene)}` : '');
+    + (scene ? `&${editorShowing().viewParam ?? 'scene'}=${encodeURIComponent(scene)}` : '');
   // Folded, the frame is unloaded rather than hidden: a collapsed preview is
   // not a game running silently in the background.
   showPreview(S.previewOpen ? url : 'about:blank');

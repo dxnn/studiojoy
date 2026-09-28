@@ -280,9 +280,13 @@ what prompt caching pays for (below):
    "adventure editor"; a *knock-it-down* game is told its pile is built in
    the "world editor" and never to type a body's `at`, `size` or `angle`,
    because one written from numbers starts with things inside each other;
-   a *roll-a-ball* game is told its level is painted in the "level editor",
-   its six characters and one start and goal, that its own code is a module,
-   and never to make a renderer, camera or light of its own;
+   a *roll-a-ball* game is told its levels are painted in the "level
+   editor", its six characters and one start and goal a level, that a new
+   level is one more entry in `LEVELS` and a new *kind of square* one entry
+   in `SQUARES` — `{ name, colour, solid }` and nothing else — whose doing is
+   its letter's function in `ON_SQUARE`, because the game already draws it,
+   that its own code is a module, and never to make a renderer, camera or
+   light of its own;
    a *racing game* is told its track is drawn in the
    "track editor" and never to type its points, and that the feel lives in
    `config/play.js` — and a note that games run on a separate origin so

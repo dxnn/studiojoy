@@ -38,6 +38,7 @@ import {
 import { isWorldPath } from './world-editor.js';
 import {
   renderLevelEditor, renderLevelInspector, loadLevel, parkLevel, levelChanged,
+  levelView, selectLevel,
 } from './level-form.js';
 import { isLevelPath } from './level-editor.js';
 import { isStoryPath } from './story-editor.js';
@@ -61,6 +62,8 @@ import { S } from './main.js';
 //   inspector()    the rail, while this editor is showing
 //   view / applyView(v)  the one thing it adds to the address — a scene —
 //                  and landing on it; `applyView(null)` is the first
+//   viewParam      that thing's name in the address and in the preview's,
+//                  when it is not `scene`: the level editor's is `level`
 //
 // ⚠️ Every hook reads its module's bindings when called, never when this
 // table is built: those modules import main.js, which imports this one.
@@ -157,6 +160,9 @@ export const GAME_TYPES = {
       changed: () => levelChanged(),
       reset: () => { S.level = null; },
       inspector: () => renderLevelInspector(),
+      viewParam: 'level',
+      view: () => levelView(),
+      applyView: (n) => selectLevel(n),
     }],
   },
 };

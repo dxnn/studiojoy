@@ -17,6 +17,6 @@ const PLAY = {
 
   // The score
   COIN_POINTS: 100,    // points for every coin
-  PAR: 60,             // a good time for the level, in seconds — under it scores
+  PAR: 60,             // a good time for all the levels, in seconds — under it scores
   TIME_POINTS: 10,     // points for every second under PAR
 };

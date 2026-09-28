@@ -12,7 +12,8 @@ const WORDS = {
   again: "Roll again",
 
   // The labels on the HUD chips. A chip's label is the word here; the number
-  // beside it is the game's.
+  // beside it is the game's. The level's chip only shows with more than one.
+  hudLevel: "Level",
   hudCoins: "Coins",
   hudTime: "Time",
 

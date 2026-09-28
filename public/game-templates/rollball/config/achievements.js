@@ -19,10 +19,11 @@
 // id, name, how, icon, when — exactly.
 //
 // The moments this game says, to write rules against:
-//   "coin"    a coin picked up, with how many so far
+//   "coin"    a coin picked up, with how many so far this run
 //   "fall"    the ball fell down a hole
-//   "goal"    the goal reached, with the time in seconds
-//   "score"   the score the level earned
+//   "level"   a level finished and the next one begun, with the one finished
+//   "goal"    the last level's goal reached, with the run's time in seconds
+//   "score"   the score the run earned
 
 const ACHIEVEMENTS = [
   {

@@ -1,47 +1,82 @@
 // Roll a Ball — the whole game.
 //
-// A level of floor, walls and holes, seen from behind a ball; roll it to the
-// goal and pick up the coins on the way. The level is read from
-// config/level.js, one character a square, and drawn in 3D by the studio's
-// render3d library; the rolling is this file's own few lines — push, friction,
-// a top speed, bounce off a wall, fall down a hole. Everything around the game
-// — the title screen, the end screen and the scoreboard on it, the HUD strip,
-// and how much of the window the canvas gets — belongs to the studio
-// libraries, so none of it is in here.
+// Levels of floor, walls and holes, seen from behind a ball; roll it to the
+// goal and pick up the coins on the way, and the goal takes you on to the
+// next level. The levels are read from config/level.js, one character a
+// square, and drawn in 3D by the studio's render3d library; the rolling is
+// this file's own few lines — push, friction, a top speed, bounce off a wall,
+// fall down a hole. Everything around the game — the title screen, the end
+// screen and the scoreboard on it, the HUD strip, and how much of the window
+// the canvas gets — belongs to the studio libraries, so none of it is in here.
 //
 // ⚠️ This is a module (index.html loads it with type="module"), because the
 // 3D library is one. It still reads the classic scripts' names — Input,
-// Screens, LEVEL, PLAY — which were all there before it ran.
+// Screens, LEVELS, SQUARES, PLAY — which were all there before it ran.
 //
-// The level is config/level.js, painted in the studio's level editor; the
+// The levels are config/level.js, painted in the studio's level editor; the
 // feel is config/play.js, the colours and the camera config/look.js, the
 // words config/words.js. Change those first; come in here when you want the
-// game to do something new.
+// game to do something new — and a new kind of square does its thing in
+// ON_SQUARE, below.
 
 const R = window.Render3D;
 const canvas = document.getElementById("game");
 
-// ---------- the level ----------
+// ---------- the levels ----------
 
-const ROWS = LEVEL.length;
-const COLS = Math.max(...LEVEL.map((row) => row.length));
+// Which level a run starts on, counted from 0. The studio's "Try it" opens
+// the preview on the level being painted: ?level=2 is the second.
+const asked = Number(new URLSearchParams(location.search).get("level"));
+const FIRST = Number.isInteger(asked) && asked >= 1 && asked <= LEVELS.length ? asked - 1 : 0;
+
+// The level being played: its rows, its size, and where the ball starts.
+let level = LEVELS[FIRST];
+let ROWS = 0;
+let COLS = 0;
+let start = [0, 0];
+
 // What is in a square, by its character; outside the level is a hole.
-const tileAt = (r, c) => (r < 0 || c < 0 || r >= ROWS || c >= COLS ? " " : (LEVEL[r][c] || " "));
+const tileAt = (r, c) => (r < 0 || c < 0 || r >= ROWS || c >= COLS ? " " : (level[r][c] || " "));
 // Squares are one unit across, and the level sits in the middle of the world.
 const toWorld = (r, c) => [c - (COLS - 1) / 2, r - (ROWS - 1) / 2];
 const toSquare = (x, z) => [Math.round(z + (ROWS - 1) / 2), Math.round(x + (COLS - 1) / 2)];
-const squares = (ch) => {
+const whereIs = (ch) => {
   const out = [];
   for (let r = 0; r < ROWS; r += 1) for (let c = 0; c < COLS; c += 1) if (tileAt(r, c) === ch) out.push([r, c]);
   return out;
 };
-const start = squares("S")[0] || [0, 0];
+// What the ball bumps into: a wall, and any kind of square in SQUARES that
+// says it is solid.
+const solid = (ch) => ch === "#" || Boolean(SQUARES[ch] && SQUARES[ch].solid);
 
-// The level is drawn once: floor under everything that is not a hole, walls
-// on top, the goal a pad. Many of the same box is one Render3D.boxes call.
+function useLevel(n) {
+  level = LEVELS[n];
+  ROWS = level.length;
+  COLS = Math.max(...level.map((row) => row.length));
+  start = whereIs("S")[0] || firstFloor();
+}
+
+// A level with no S painted yet starts the ball on the first square it can
+// roll on, rather than inside a wall.
+function firstFloor() {
+  for (let r = 0; r < ROWS; r += 1) {
+    for (let c = 0; c < COLS; c += 1) {
+      const ch = tileAt(r, c);
+      if (ch !== " " && !solid(ch)) return [r, c];
+    }
+  }
+  return [0, 0];
+}
+
+// A level is drawn when the ball arrives in it, on an empty scene: floor
+// under everything that is not a hole, walls on top, a solid kind of square
+// as a block in its own colour, the goal a pad, then the ball and the camera
+// behind it. Many of the same box is one Render3D.boxes call.
 function drawLevel() {
+  R.clear();
   const floor = [];
   const walls = [];
+  const blocks = {}; // a solid kind of square's places, by its letter
   for (let r = 0; r < ROWS; r += 1) {
     for (let c = 0; c < COLS; c += 1) {
       const ch = tileAt(r, c);
@@ -49,38 +84,92 @@ function drawLevel() {
       const [x, z] = toWorld(r, c);
       floor.push([x, -0.1, z]);
       if (ch === "#") walls.push([x, LOOK.WALL_HEIGHT / 2, z]);
+      else if (solid(ch)) (blocks[ch] = blocks[ch] || []).push([x, LOOK.WALL_HEIGHT / 2, z]);
     }
   }
   R.boxes(floor, { size: [1, 0.2, 1], colour: LOOK.FLOOR });
   R.boxes(walls, { size: [1, LOOK.WALL_HEIGHT, 1], colour: LOOK.WALL });
-  for (const [r, c] of squares("G")) {
+  for (const ch of Object.keys(blocks)) {
+    R.boxes(blocks[ch], { size: [1, LOOK.WALL_HEIGHT, 1], colour: SQUARES[ch].colour });
+  }
+  for (const [r, c] of whereIs("G")) {
     const [x, z] = toWorld(r, c);
     R.box({ at: [x, 0.03, z], size: [0.9, 0.06, 0.9], colour: LOOK.GOAL });
   }
+  const [sx, sz] = toWorld(start[0], start[1]);
+  ball = R.ball({ at: [sx, PLAY.BALL_SIZE, sz], size: PLAY.BALL_SIZE, colour: LOOK.BALL });
+  R.follow(ball, { back: LOOK.CAMERA_BACK, up: LOOK.CAMERA_UP });
 }
+
+// ---------- what a kind of square does ----------
+
+// What each kind of square in config/level.js's SQUARES does when the ball
+// rolls onto it, by its letter. A kind with nothing here is still drawn in
+// its colour — a solid one as a block the ball bumps into, any other as a
+// marker on the floor — so a new kind can be painted and seen before it does
+// anything. Each is a function of the square the ball just rolled onto:
+//
+//   b: (square) => { fall(); },                        // a trap: down you go
+//   p: (square) => { square.mesh.visible = false; },   // picked up, gone
+//
+// `square` is { r, c, mesh }, the mesh its marker. Run is the run, and every
+// function in this file is there to call.
+const ON_SQUARE = {};
 
 // ---------- the run ----------
 
-// Everything that is true about the run happening right now. A new run is
-// this built again, coins and all, which is why there is no reset().
+// Everything that is true about the run happening right now: which level it
+// is on, the ball, the coins picked up, the clock. A new run is this built
+// again, which is why there is no reset(). Here is the level being played —
+// its coins and its markers — built again on every level.
 let Run = null;
+let Here = null;
 let playing = false;
 let last = 0;
 let ball = null;
 
 function newRun() {
-  if (Run) for (const coin of Run.coins) R.remove(coin.mesh);
-  const [x, z] = toWorld(start[0], start[1]);
-  const coins = squares("o").map(([r, c]) => {
+  const coinsIn = (rows) => rows.join("").split("o").length - 1;
+  Run = {
+    at: FIRST,
+    x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0,
+    falling: false, back: 0, // seconds until the ball is back after a fall
+    on: null, // the square under the ball, as "r,c"
+    got: 0, total: LEVELS.slice(FIRST).reduce((n, rows) => n + coinsIn(rows), 0),
+    time: 0,
+  };
+  enterLevel(FIRST);
+}
+
+// The ball arrives at the start of level n, with nothing picked up there yet.
+function enterLevel(n) {
+  Run.at = n;
+  useLevel(n);
+  drawLevel();
+  const coins = whereIs("o").map(([r, c]) => {
     const [cx, cz] = toWorld(r, c);
     return { x: cx, z: cz, mesh: R.ball({ at: [cx, 0.35, cz], size: 0.18, colour: LOOK.COIN }) };
   });
-  return {
-    x, z, y: PLAY.BALL_SIZE, vx: 0, vz: 0, vy: 0,
-    falling: false, back: 0, // seconds until the ball is back after a fall
-    coins, got: 0, total: coins.length,
-    time: 0,
-  };
+  const markers = {};
+  for (const ch of Object.keys(SQUARES)) {
+    if (solid(ch)) continue;
+    for (const [r, c] of whereIs(ch)) {
+      const [mx, mz] = toWorld(r, c);
+      markers[r + "," + c] = { r, c, ch, mesh: R.box({ at: [mx, 0.08, mz], size: [0.6, 0.16, 0.6], colour: SQUARES[ch].colour }) };
+    }
+  }
+  Here = { coins, markers };
+  const [x, z] = toWorld(start[0], start[1]);
+  Object.assign(Run, { x, z, y: PLAY.BALL_SIZE, vx: 0, vz: 0, vy: 0, falling: false, back: 0, on: null });
+}
+
+// Down a hole — or anything else that should send the ball back to the start.
+function fall() {
+  Run.falling = true;
+  Run.vy = 0;
+  Run.back = PLAY.RESPAWN;
+  Sound.play("fall", 0.6);
+  Moments.say("fall");
 }
 
 // ---------- the loop ----------
@@ -145,15 +234,17 @@ function step(dt) {
 
   const [r, c] = toSquare(b.x, b.z);
   const under = tileAt(r, c);
-  if (under === " ") {
-    b.falling = true;
-    b.vy = 0;
-    b.back = PLAY.RESPAWN;
-    Sound.play("fall", 0.6);
-    Moments.say("fall");
+  if (under === " ") fall();
+
+  // Rolled onto a new square: if it is a kind with something to do, it does it.
+  const key = r + "," + c;
+  if (key !== b.on) {
+    b.on = key;
+    const marker = Here.markers[key];
+    if (marker && ON_SQUARE[marker.ch]) ON_SQUARE[marker.ch](marker);
   }
 
-  for (const coin of b.coins) {
+  for (const coin of Here.coins) {
     if (!coin.mesh.visible) continue;
     coin.mesh.rotation.y += dt * 3;
     if (Math.hypot(b.x - coin.x, b.z - coin.z) < PLAY.COIN_REACH) {
@@ -164,8 +255,20 @@ function step(dt) {
     }
   }
 
-  if (under === "G") finish();
+  if (under === "G") reachGoal();
   else updateHud();
+}
+
+// The goal: on to the next level, or the end of the run after the last.
+function reachGoal() {
+  if (Run.at + 1 < LEVELS.length) {
+    Sound.play("goal", 0.6);
+    Moments.say("level", Run.at + 1);
+    enterLevel(Run.at + 1);
+    updateHud();
+  } else {
+    finish();
+  }
 }
 
 // A wall is a square; the ball is a circle on the floor. For each wall around
@@ -175,7 +278,7 @@ function bounceOffWalls(b) {
   const [r0, c0] = toSquare(b.x, b.z);
   for (let r = r0 - 1; r <= r0 + 1; r += 1) {
     for (let c = c0 - 1; c <= c0 + 1; c += 1) {
-      if (tileAt(r, c) !== "#") continue;
+      if (!solid(tileAt(r, c))) continue;
       const [wx, wz] = toWorld(r, c);
       const nx = Math.max(wx - 0.5, Math.min(wx + 0.5, b.x));
       const nz = Math.max(wz - 0.5, Math.min(wz + 0.5, b.z));
@@ -202,13 +305,14 @@ function bounceOffWalls(b) {
 // what changed, so saying all of it every time costs nothing.
 function updateHud() {
   const chips = {};
+  if (LEVELS.length > 1) chips[WORDS.hudLevel] = (Run.at + 1) + "/" + LEVELS.length;
   chips[WORDS.hudCoins] = Run.got + "/" + Run.total;
   chips[WORDS.hudTime] = Run.time.toFixed(1);
   Screens.chips(chips, { hint: true });
 }
 
 function startRun() {
-  Run = newRun();
+  newRun();
   playing = true;
   updateHud();
 }
@@ -244,14 +348,12 @@ function finish() {
 // library starts: fit reads the canvas's size, and the library then sizes its
 // picture to whatever fit made of it.
 Screens.fit(document.getElementById("wrap"));
-R.start(canvas, { sky: LOOK.SKY, fog: Math.max(ROWS, COLS) });
-drawLevel();
-const [sx, sz] = toWorld(start[0], start[1]);
-ball = R.ball({ at: [sx, PLAY.BALL_SIZE, sz], size: PLAY.BALL_SIZE, colour: LOOK.BALL });
-R.follow(ball, { back: LOOK.CAMERA_BACK, up: LOOK.CAMERA_UP });
+// The fog is set once, far enough out for the biggest level.
+const widest = Math.max(...LEVELS.map((rows) => Math.max(rows.length, ...rows.map((row) => row.length))));
+R.start(canvas, { sky: LOOK.SKY, fog: widest });
 // Built once before the title screen, so the level behind it has its coins;
 // Roll! builds it again, fresh.
-Run = newRun();
+newRun();
 
 Screens.title({ start: WORDS.start, onStart: startRun });
 requestAnimationFrame(loop);
