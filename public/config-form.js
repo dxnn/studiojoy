@@ -48,11 +48,11 @@ function setConfigValue(path, kind, raw, input) {
   markUnsaved();
 }
 
-// The first keystroke is already unsaved work, even though the field only
-// commits on `change`, when focus leaves it — without this the Save button
-// stayed grey while you typed, and a click on it did nothing until you had
-// clicked somewhere else first. Patched directly, like setConfigValue: a
-// render here would replace the field mid-keystroke.
+// The first keystroke is already unsaved work, even a half-typed number that
+// cannot be written yet — without this the Save button stayed grey while you
+// typed, and a click on it did nothing until you had clicked somewhere else
+// first. Patched directly, like setConfigValue: a render here would replace
+// the field mid-keystroke.
 function markUnsaved() {
   S.open.dirty = true;
   const save = document.getElementById('save-btn');
@@ -61,20 +61,26 @@ function markUnsaved() {
   if (status) status.textContent = 'Not saved yet';
 }
 
-// Fields update on change rather than on every keystroke, so a half-typed
-// number is never written into the file.
+// The id is how render() finds the field again and puts the caret back: a
+// write to anybody's game rebuilds the whole tree, this form included.
+const fieldId = (path) => `cfg.${path.join('.')}`;
+
+// Fields write into the open file as they are typed, so a background render
+// rebuilds them with what was typed rather than what the file said before.
+// A half-typed number is never written: it waits for the next keystroke, and
+// is put back to what the file says if focus leaves it half-typed.
 function configField(node, path) {
   if (node.kind === 'boolean') {
     return h('input', {
-      type: 'checkbox',
+      type: 'checkbox', id: fieldId(path),
       checked: node.value === true,
       onchange: (e) => setConfigValue(path, 'boolean', e.currentTarget.checked),
     });
   }
   if (node.kind === 'number') {
     const input = h('input', {
-      type: 'number', step: 'any', class: 'cfg-num',
-      oninput: markUnsaved,
+      type: 'number', step: 'any', class: 'cfg-num', id: fieldId(path),
+      oninput: (e) => { markUnsaved(); setConfigValue(path, 'number', e.currentTarget.value); },
       onchange: (e) => setConfigValue(path, 'number', e.currentTarget.value, e.currentTarget),
     });
     input.value = String(node.value);
@@ -83,9 +89,8 @@ function configField(node, path) {
   if (node.kind === 'string' && looksLikeColour(node.value)) {
     const shown = h('span', { class: 'mono hint', text: node.value });
     const input = h('input', {
-      type: 'color',
-      oninput: markUnsaved,
-      onchange: (e) => {
+      type: 'color', id: fieldId(path),
+      oninput: (e) => {
         setConfigValue(path, 'string', e.currentTarget.value);
         shown.textContent = e.currentTarget.value;
       },
@@ -101,10 +106,9 @@ function configField(node, path) {
     // A line with a newline in it is a paragraph, so it gets a box that shape.
     const multiline = node.value.includes('\n');
     const input = h(multiline ? 'textarea' : 'input', {
-      class: 'cfg-text',
+      class: 'cfg-text', id: fieldId(path),
       ...(multiline ? { rows: 2 } : { type: 'text' }),
-      oninput: markUnsaved,
-      onchange: (e) => setConfigValue(path, 'string', e.currentTarget.value),
+      oninput: (e) => setConfigValue(path, 'string', e.currentTarget.value),
     });
     input.value = node.value;
     return input;

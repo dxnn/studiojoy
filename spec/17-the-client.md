@@ -31,9 +31,14 @@ A render throws away every node, so anything the browser was keeping on one
 is gone unless it is snapshotted and put back.
 
 - **The caret and the text of whatever is being typed in.** `focusSnapshot`
-  holds the composer, the file editor and the sidebar's filter box; the box
-  loses its second character without that, because every keystroke
-  re-renders the pane it is in.
+  holds the composer and any control with an id, found again by it; the
+  sidebar's filter box loses its second character without that, because
+  every keystroke re-renders the pane it is in. ⚠️ So a field that must
+  survive a background render carries an id — and a write to *anybody's* game
+  is one, so in a busy studio that is every few seconds. The config form's
+  are `cfg.` and the value's path (`cfg.TRACKS.1.width`), and it writes each
+  keystroke into the open file rather than waiting for `change`, or the
+  rebuilt field comes back with what the file said before the typing.
 - **Every scroller's position.** A `.scroll` container needs a `data-scroll`
   name or it jumps to the top on the next render.
 - **The open dialog**, which is built once and re-appended as the same node,

@@ -276,13 +276,6 @@ export const EDITOR_AREA = 'editor-area';
 // The sidebar's filter box. Every keystroke in it re-renders the pane it is
 // in, so without this it would lose the caret on its own second character.
 export const SIDE_SEARCH = 'side-find';
-// The story editor's fields are every one of these too: a helper's reply
-// landing behind the editor renders, and the line being typed must not lose
-// its caret to it. They carry ids starting story-; the adventure editor's,
-// adventure-.
-const keepsFocus = (id) => id === EDITOR_AREA || id === SIDE_SEARCH
-  || Boolean(id?.startsWith('story-')) || Boolean(id?.startsWith('adventure-'))
-  || Boolean(id?.startsWith('track-'));
 
 function focusSnapshot() {
   const el = document.activeElement;
@@ -299,7 +292,12 @@ function focusSnapshot() {
       scroll: el.scrollTop,
     };
   }
-  if (el !== composerBox && !keepsFocus(el?.id)) return null;
+  // Anything else with an id is found again by it. A background render — a
+  // write to anybody's game anywhere in the studio, a helper's reply, the
+  // banner going — must not take the caret out of what is being typed in, so a
+  // field that has to survive one carries an id: the file editor, the filter
+  // box, the story, adventure, track and config forms' fields.
+  if (el !== composerBox && !el?.id) return null;
   return {
     composer: el === composerBox,
     id: el.id,
