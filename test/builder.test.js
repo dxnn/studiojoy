@@ -186,6 +186,56 @@ test('a helper somebody called Builder is renamed, not removed, when the builder
   up.close();
 });
 
+// The hole this closes: before 2026-09-15 an @name in Building seated that
+// helper there, and Building was already the builder's, so the upgrade that
+// empties the other rooms never looked in it.
+test('a helper left sitting in a builder room is detached on open', (t) => {
+  const dir = scratchDir('builder-seat-db');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // The builder is made on the first open that has somebody to make it.
+  const first = openDb(path.join(dir, 'db'));
+  first.exec(`INSERT INTO users (id, email, password_hash, display_name, created_at)
+    VALUES (1, 'a@b.c', 'x', 'Dann', '2026-01-01T00:00:00.000Z');`);
+  first.close();
+  const db = openDb(path.join(dir, 'db'));
+  const builder = db.prepare('SELECT id FROM agents WHERE builtin = 1').get().id;
+  db.exec(`
+    INSERT INTO agents (id, name, description, created_by, created_at)
+      VALUES (50, 'Buildermate Steve', 'theirs', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO projects (id, slug, name, kind, created_by, created_at)
+      VALUES (1, 'scary', 'Scary', 'game', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chats (id, project_id, name, bots, builder, created_at)
+      VALUES (1, 1, 'Building', 1, 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
+      VALUES (1, ${builder}, 1, 1, '2026-01-01T00:00:00.000Z'), (1, 50, 0, 1, '2026-01-01T00:00:00.000Z');
+  `);
+  db.close();
+
+  const up = openDb(path.join(dir, 'db'));
+  assert.deepEqual(up.prepare('SELECT agent_id FROM chat_agents WHERE chat_id = 1').all().map((r) => r.agent_id), [builder]);
+  up.close();
+});
+
+test('a helper found in a builder room never answers there, whatever woke it', async (t) => {
+  const llm = createFakeLlm([says('Done.')], [sized({ size: 'reply' })]);
+  const { app, chatId } = await studio(t, { llm });
+  app.db.exec(`
+    INSERT INTO agents (id, name, description, created_by, created_at)
+      VALUES (50, 'Steve', 'theirs', 1, '2026-01-01T00:00:00.000Z');
+    INSERT INTO chat_agents (chat_id, agent_id, chatty, attached_by, attached_at)
+      VALUES (${chatId}, 50, 1, 1, '2026-01-01T00:00:00.000Z');
+  `);
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, '@Steve make it faster');
+  const reply = await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+  assert.equal(reply.data.agent_id, builderId(app), 'the builder answers');
+  assert.equal(llm.asked.length, 1, 'one sizing, the builder\'s');
+  assert.equal(llm.calls.length, 1, 'one fire, the builder\'s');
+  assert.equal(app.db.prepare('SELECT response_pending FROM chat_agents WHERE agent_id = 50').get().response_pending, 0);
+});
+
 test('a remark is sized as a reply, then answered as one fire', async (t) => {
   const llm = createFakeLlm([says('Done — faster now.')], [sized({ size: 'reply' })]);
   const { app, chatId } = await studio(t, { llm });

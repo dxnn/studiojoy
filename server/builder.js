@@ -92,7 +92,13 @@ export function makeBuilderRoom(db, projectId, userId, now = new Date().toISOStr
 // 2026-09-15 a person's helper lives in a chat project and nowhere else. Two
 // rooms a game used to be given (`Building` and, when that one had helpers,
 // `Old building` beside it) both come forward as builder rooms. Idempotent:
-// a room that is already the builder's is not touched.
+// a room that is already the builder's is not made one again.
+//
+// ⚠️ And nobody is left beside the builder in any of them. Until 2026-09-15 a name
+// typed in `Building` seated that helper there, and `Building` was already
+// the builder's, so the rooms this finds never included it: a studio that ran
+// that code has people's helpers sitting in builder rooms, where every fire
+// is the builder's, file tools and all.
 export function intoBuilderRooms(db, now = new Date().toISOString()) {
   const builder = ensureBuilder(db, now);
   if (!builder) return;
@@ -105,4 +111,8 @@ export function intoBuilderRooms(db, now = new Date().toISOString()) {
     db.prepare('UPDATE chats SET builder = 1 WHERE id = ?').run(room.id);
     seatBuilder(db, room, builder, builder.created_by, now);
   }
+  db.prepare(
+    `DELETE FROM chat_agents WHERE agent_id != ?
+       AND chat_id IN (SELECT id FROM chats WHERE builder = 1)`,
+  ).run(builder.id);
 }

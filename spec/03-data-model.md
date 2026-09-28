@@ -296,6 +296,15 @@ only where there was a thread or line-up to carry into it, which left a game
 nobody had talked in yet with nowhere the builder could ever be put. The
 condition belongs to what moves, not to whether the chat exists.
 
+⚠️ The upgrade also detaches anybody but the builder from a room that is
+*already* a builder room. Until 2026-09-15 an `@name` in `Building` seated
+that helper there, and `Building` was the builder's already, so the pass
+over the other rooms never reached it: found 2026-09-28, with a person's
+helper committing to a game made ten days after the rule, on a server still
+running the code from before it. `fireAgent` refuses the same seat as a
+second lock — in a builder room only the `builtin` row ever fires — since a
+seat there gets the builder's whole path, file tools included.
+
 ⚠️ Whether a helper may be put in a chat is one rule, `takesHelpers`:
 `bots = 1` and not a builder room — which is to say a chat project's one room
 and nothing in a game. It is read at the attach route (`assertBotsAllowed`)

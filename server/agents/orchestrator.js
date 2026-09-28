@@ -1929,6 +1929,14 @@ export function createOrchestrator({
       clearPending();
       return;
     }
+    // ⚠️ A builder room's one seat is the builder's, and so is every fire in
+    // one — sizing, pieces, file tools. Anybody else found sitting there
+    // (intoBuilderRooms detaches them on every open) never answers, whatever
+    // woke them.
+    if (row.builder === 1 && row.builtin !== 1) {
+      clearPending();
+      return;
+    }
 
     // Claim the flag before any await, so a message arriving mid-fire sets it
     // again rather than being swallowed.
