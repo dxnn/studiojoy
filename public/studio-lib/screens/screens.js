@@ -906,7 +906,11 @@ const Screens = (function () {
       sayStart();
       if (typeof o.onStart === "function") o.onStart();
     });
-    button.focus();
+    // ⚠️ Only while the game already has the focus. In the studio's preview
+    // this runs on every reload, and a frame that focuses a button takes the
+    // keyboard away from whatever the person was typing in beside it. Enter
+    // and Space start the game either way: the listener below is on window.
+    if (typeof document.hasFocus !== "function" || document.hasFocus()) button.focus();
 
     // ⚠️ Enter and Space press the button, and this is why it takes a listener
     // rather than leaving it to the focused button: the input library binds

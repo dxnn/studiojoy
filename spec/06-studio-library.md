@@ -37,7 +37,7 @@ strip.
 
 The **screens library** (`studio/screens.js`) is the fourth, and the first
 presentational one: `Screens.fit()`, `Screens.hint()`, the phone-fit
-`Screens.title()`, and the `Screens.chips()` HUD strip. Five decisions worth
+`Screens.title()`, and the `Screens.chips()` HUD strip. Seven decisions worth
 stating.
 
 **How big the game is on the screen is the studio's answer, not the game's.**
@@ -130,6 +130,16 @@ chip's value is not always a number — `Guns · Cannon` in gold is the colour
 losing its meaning — so a value with no digit in it takes the reading face and
 the reading ink instead. Every chip in the fleet the day that rule landed had
 a digit in it, so it changed nothing anybody could see.
+
+**The title screen takes the focus only from a game that already has it.**
+`title()` focuses its Start button when `document.hasFocus()`, and otherwise
+leaves the focus where it is. ⚠️ The preview reloads the game on every write,
+and a cross-origin frame that calls `focus()` on load takes the keyboard from
+the page around it — measured in Chromium on 2026-09-28: a field in the studio
+lost the next keystrokes to the game. A game being played keeps the focus
+across a reload, because the frame is still the focused element, so the new
+document has it too. Nothing is lost either way: Enter and Space start the game
+through a listener on `window`, not through the focused button. Screens 15.
 
 **It carries its own typefaces.** Space Grotesk and Space Mono (OFL 1.1,
 `studio/fonts-license.txt`), four `.woff2` files beside the library — ~60 KB,

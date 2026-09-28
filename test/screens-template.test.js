@@ -408,6 +408,19 @@ test('title() builds the screen from config: name, tagline, button, hint', () =>
   assert.equal(document.head.children[0].tag, 'style');
 });
 
+// The studio's preview reloads the game on every write, and a frame that
+// focuses its button takes the keyboard from the field being typed in beside
+// it — measured in Chromium, 2026-09-28.
+test('title() takes the focus only from a game that already has it', () => {
+  const { Screens, document } = bootDom({ controls: SEED });
+  document.hasFocus = () => false;
+  Screens.title({});
+  assert.equal(find(document.body.children[0], 'screens-start').focused, false, 'a preview beside a field');
+  document.hasFocus = () => true;
+  Screens.title({});
+  assert.equal(find(document.body.children[0], 'screens-start').focused, true, 'a game being played');
+});
+
 test('title() falls back to the page title and a plain Start', () => {
   const { Screens, document } = bootDom({});
   Screens.title({});

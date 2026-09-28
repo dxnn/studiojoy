@@ -42,7 +42,7 @@
       "scripts": ["studio/sprites.js"]
     },
     "screens": {
-      "version": 14,
+      "version": 15,
       "core": true,
       "what": "How big the game is on the screen, a phone-fit title and game-over screen, a HUD strip of score chips and meters, a one-line how-to-play hint worked out from config/controls.js and the device, and snippets to put inside a screen — the scoreboard above all, fetched and posted for you. A screen and a chip both take the game's own nodes. Carries its own two typefaces, so a game asks nothing of a font host.",
       "shape": [
