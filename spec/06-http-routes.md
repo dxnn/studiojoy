@@ -594,7 +594,9 @@ ask for by asking for it. The stamp is the person's call: *This one's earned*
 moves `projects.stage` (§3) by one, the card's `···` takes one back, and the
 checks are hints, never gates — publishing never waits for a stamp. Editors
 press; everybody sees. The head is the fold (per game in `prefs`), and with
-every stamp earned the card is its row of dots and one line. Building only,
+every stamp earned the card is gone — a done game has nothing left to guide —
+and the last stamp's take-back goes with it, a price accepted on 2026-09-30.
+Building only,
 because the arc is a list of things to ask the builder for, and the preamble
 carries the same stamp so the builder's answers fit it (§8). Nothing about
 stamps on the front page or in the sidebar, yet: doneness is the maker's.

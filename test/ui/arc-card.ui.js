@@ -55,3 +55,17 @@ test('the arc shows in Building, folds on its head, and a press earns a stamp', 
   await page.locator('.arc-head').click();
   assert.equal(await page.locator('.arc-body').count(), 1);
 });
+
+test('a game with every stamp earned has no card at all', async (t) => {
+  const { app, browser } = await openStudio(t);
+  await signIn(app);
+  const made = await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
+  // The ratchet moves one stamp at a time.
+  for (let stage = 1; stage <= BLANK.length; stage += 1) {
+    await app.client.json('POST', '/api/projects/tank/stage', { body: { stage } });
+  }
+  const page = await pageFor(browser, app, app.client, { width: PHONE, touch: true });
+  await page.goto(`${app.base}/p/tank?chat=${made.body.chat.id}`);
+  await page.locator('textarea').waitFor();
+  assert.equal(await page.locator('.arc').count(), 0);
+});

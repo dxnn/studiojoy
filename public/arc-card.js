@@ -40,6 +40,9 @@ export function renderArcCard(p) {
   const arc = arcFor(p.type);
   const stage = Math.min(p.stage ?? 0, arc.length);
   const next = arc[stage] ?? null;
+  // A done game has nothing left to guide, so the card goes — and the last
+  // stamp's take-back with it, which is the price, and accepted.
+  if (!next) return null;
   const editor = !frozen();
   const shut = folded();
 
@@ -60,13 +63,7 @@ export function renderArcCard(p) {
   // here rather than typed into its name (public/arc.js), so the words are
   // free to change and a stamp can move. `data-stamp` is the same identity in
   // a form a test can hold, since the words are not one.
-  h('span', {
-    class: 'arc-next',
-    'data-stamp': next ? next.id : null,
-    text: next
-      ? `Step ${stage + 1}: ${next.name}`
-      : 'This game is done — well, until somebody wants a level 11.',
-  }),
+  h('span', { class: 'arc-next', 'data-stamp': next.id, text: `Step ${stage + 1}: ${next.name}` }),
   h('span', { class: 'caret', text: shut ? '▾' : '▴' }));
   // One way backwards, for a press by mistake; absent for anybody who may not
   // press it, and with nothing to take back.
@@ -77,7 +74,7 @@ export function renderArcCard(p) {
     : null;
 
   let body = null;
-  if (!shut && next) {
+  if (!shut) {
     const ticks = checks(next, { files: S.files ?? [], project: p });
     body = h('div', { class: 'arc-body' },
       h('div', { class: 'arc-principle', text: next.principle }),
@@ -102,5 +99,5 @@ export function renderArcCard(p) {
           onclick: () => setStage(stage + 1),
         })) : null);
   }
-  return h('div', { class: `arc${next ? '' : ' done'}` }, h('div', { class: 'arc-bar' }, head, menu), body);
+  return h('div', { class: 'arc' }, h('div', { class: 'arc-bar' }, head, menu), body);
 }

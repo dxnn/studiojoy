@@ -109,8 +109,8 @@ At the top of Building, under the pills, one card in the studio's own voice
 
 Folded to one row once pressed away (`prefs`, per game, like the preview's
 fold), so it never crowds a room that is being used for talking. With every
-stamp earned, the row alone: seven filled dots and *This game is done — well,
-until somebody wants a level 11.*
+stamp earned, no card at all (changed 2026-09-30: it was the row of dots and
+*This game is done — well, until somebody wants a level 11.*).
 
 `···` on the card: *Take the last stamp back* (the one way backwards, for a
 press by mistake) and *Hide the arc*. Nobody but an editor sees the button;
