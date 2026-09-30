@@ -414,6 +414,15 @@ const Input = (function () {
       style.touchAction = "none";
       style.userSelect = "none";
       style.webkitUserSelect = "none";
+      // ⚠️ iOS Safari zooms on a pinch whatever touch-action and the viewport
+      // say, and on a kid's iPad the zoomed game could not be pinched back
+      // out, which ends the run. Safari's own gesture event and a two-finger
+      // move are where a zoom starts, so both are refused.
+      const refuse = (e) => { if (e.preventDefault) e.preventDefault(); };
+      window.addEventListener("gesturestart", refuse);
+      window.addEventListener("touchmove", (e) => {
+        if (e.touches && e.touches.length > 1) refuse(e);
+      }, { passive: false });
     }
   }
 

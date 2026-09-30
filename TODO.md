@@ -114,6 +114,9 @@ deliberately deferred.
   `Screens.fit` games: asteriskoids, vroooooooom and redwolf-radness, the
   three that were cut off sideways (spec/ §4 — the other 17 size their canvas
   to the window and need nothing)
+- pinch a drawn-controller game on the iPad once input 7 is swept: Safari's
+  `gesturestart` and a two-finger move are refused now, which should stop the
+  zoom that could not be pinched back out. Checked in a vm only (spec/ §4)
 - add, rename and remove a *verb* in Controls. ⚠️ Left out on purpose: `left`,
   `thrust` and `boost` are the game's own words and `Input.held("thrust")` is
   in its code, so a rename in a form is a silent code break. It wants either

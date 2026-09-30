@@ -307,6 +307,28 @@ test('a declared scheme owns the screen; the old shape leaves it alone', () => {
   assert.equal(legacyBody.style.touchAction, undefined);
 });
 
+// iOS pinch-zooms past touch-action, and a zoomed game could not be pinched
+// back out on a real iPad. Safari's gesture event and a two-finger move are
+// refused; one finger is still the game's to steer with.
+test('a declared scheme refuses a pinch; none and the old shape leave it to the browser', () => {
+  const refused = (g, name, fingers) => {
+    const e = { touches: Array(fingers).fill({}), prevented: false, preventDefault() { this.prevented = true; } };
+    g.event(name, e);
+    return e.prevented;
+  };
+  const owned = boot({ controls: BUTTONS, body: { style: {} } });
+  owned.Input.update();
+  assert.equal(refused(owned, 'gesturestart', 2), true, 'Safari’s pinch never starts');
+  assert.equal(refused(owned, 'touchmove', 2), true, 'nor does a two-finger move');
+  assert.equal(refused(owned, 'touchmove', 1), false, 'one finger is the game’s');
+  for (const controls of [NONE, LEGACY]) {
+    const g = boot({ controls, body: { style: {} } });
+    g.Input.update();
+    assert.equal(refused(g, 'gesturestart', 2), false);
+    assert.equal(refused(g, 'touchmove', 2), false);
+  }
+});
+
 test('without a scheme, no whole-screen surface is installed', () => {
   const g = boot({ controls: LEGACY });
   g.Input.update();

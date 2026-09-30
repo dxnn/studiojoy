@@ -320,6 +320,14 @@ dialog's words and its seed file — doubling as the validation list the way
   the same file — `test/schemes.test.js` holds them together, the only two
   places that could disagree.
 
+**A declared scheme owns the screen**, unless it is `none`: the body gets
+`touch-action: none` and no text selection, and since input 7 Safari's
+`gesturestart` and any two-finger `touchmove` are refused too. iOS zooms on a
+pinch whatever the viewport and `touch-action` say, and on a kid's iPad the
+zoomed game could not be pinched back out mid-run (2026-09-29). ⚠️ Not yet
+felt on a real iPad. `none` and a file with no `SCHEME` keep the browser's
+zoom, so a story or a quiz can still be enlarged to be read.
+
 A template may fix its own scheme, and all three that ship do: the quiz and
 the visual novel say `none`, since buttons are pressed rather than steered,
 and the arcade template says `buttons`. So the dialog drops the question
