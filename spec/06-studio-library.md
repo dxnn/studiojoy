@@ -15,11 +15,12 @@ break over a sound.
 
 ⚠️ Since sound 4 a shot is a **Web Audio buffer**, fetched and decoded once
 per name, and a loop is still one streamed `<audio>` element. A shot used to
-be a pooled element each, and on an older iPad every new element loaded its
-file again and every `play()` stalled the page: Doki Doki froze for about a
-tenth of a second per star picked up, and fell to a frame a second when
-several came at once (2026-09-29). A loop stays an element because it is
-usually music, and three minutes decoded into memory is tens of megabytes.
+be a pooled element each — a new one loading its file again, every `play()` a
+trip through the media stack, which is what iOS is known to stall on — and on
+an older iPad Doki Doki froze for about a tenth of a second per star picked
+up, worst when several came at once (2026-09-29; seen, not profiled). A loop
+stays an element because it is usually music, and three minutes decoded into
+memory is tens of megabytes.
 Web Audio starts only from inside a press, so every press wakes it, and
 `navigator.audioSession.type = "playback"` keeps an iPad in silent mode
 sounding the way `<audio>` always did. The element pool is kept only for a

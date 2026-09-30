@@ -33,10 +33,11 @@ const Sound = (function () {
   //
   // ⚠️ A shot is a Web Audio buffer: the file is fetched and decoded once,
   // and every play after that is a cheap source node. It used to be an
-  // <audio> element per overlapping shot, and on an older iPad each new one
-  // loaded the file again and each play() stalled the page — a game that
-  // pours stars froze for a tenth of a second per pickup, and several at once
-  // took it down to a frame a second (2026-09-29).
+  // <audio> element per overlapping shot — each new one loading its file
+  // again, each play() a trip through the media stack — which is what iOS is
+  // known to stall on. On an older iPad a game that pours stars froze for a
+  // tenth of a second per pickup, worst when several came at once
+  // (2026-09-29; seen, not profiled).
   //
   // A loop stays one <audio> element, streamed: it is music more often than
   // not, and a three-minute track decoded into memory is tens of megabytes.
