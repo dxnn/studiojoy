@@ -146,3 +146,133 @@ test('volume is clamped to what an ear can take', () => {
   assert.equal(made[0].volume, 1);
   assert.equal(made[1].volume, 0);
 });
+
+// Where the browser has Web Audio, a shot is a buffer rather than an <audio>
+// element: on an older iPad each new element loaded its file again and each
+// play() stalled the page. Everything above is the fallback where it has none.
+function bootWeb({ missing = [] } = {}) {
+  const booted = { fetched: [], contexts: [], handlers: new Map() };
+  class FakeContext {
+    constructor() {
+      this.state = 'suspended';
+      this.sources = [];
+      this.destination = {};
+      this.master = null;
+      booted.contexts.push(this);
+    }
+
+    resume() { this.state = 'running'; return Promise.resolve(); }
+
+    createGain() {
+      const gain = { gain: { value: 1 }, connect() {} };
+      if (!this.master) this.master = gain;
+      return gain;
+    }
+
+    createBuffer() { return {}; }
+
+    createBufferSource() {
+      const source = {
+        buffer: null, starts: 0, stopped: false, connect() {},
+        start() { source.starts += 1; },
+        stop() { source.stopped = true; source.onended?.(); },
+      };
+      this.sources.push(source);
+      return source;
+    }
+
+    decodeAudioData(data, ok) { ok({ decoded: data }); }
+  }
+  booted.warnings = [];
+  const made = [];
+  const sandbox = {
+    AudioContext: FakeContext,
+    Audio: class {
+      constructor(src) { this.src = src; this.paused = true; made.push(this); }
+      addEventListener() {}
+      play() { this.paused = false; }
+      pause() { this.paused = true; }
+    },
+    console: { warn: (msg) => booted.warnings.push(msg) },
+  };
+  sandbox.fetch = (url) => {
+    booted.fetched.push(url);
+    const gone = missing.some((m) => url.includes(m));
+    return Promise.resolve({ ok: !gone, status: gone ? 404 : 200, arrayBuffer: () => Promise.resolve(url) });
+  };
+  sandbox.addEventListener = (name, fn) => booted.handlers.set(name, fn);
+  sandbox.window = sandbox;
+  vm.runInContext(SOUND, vm.createContext(sandbox));
+  booted.Sound = sandbox.Sound;
+  booted.made = made;
+  booted.press = () => booted.handlers.get('pointerdown')({});
+  // The shots that are the sound itself, not the silent frame a press plays.
+  booted.shots = () => booted.contexts[0].sources.filter((s) => s.buffer?.decoded);
+  return booted;
+}
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test('with Web Audio, a shot is fetched and decoded once however often it plays', async () => {
+  const g = bootWeb();
+  g.press();
+  for (let i = 0; i < 5; i += 1) g.Sound.play('collect');
+  await settle();
+  assert.deepEqual(g.fetched, ['assets/sounds/collect.wav']);
+  assert.equal(g.shots().length, 1, 'the asks before the file arrived are one shot, not five');
+  for (let i = 0; i < 3; i += 1) g.Sound.play('collect');
+  assert.equal(g.shots().length, 4, 'every later ask is a shot of its own');
+  assert.equal(g.fetched.length, 1);
+  assert.equal(g.made.length, 0, 'and no <audio> element is made for a shot');
+});
+
+test('with Web Audio, nothing is heard before the first press, and a press wakes it', async () => {
+  const g = bootWeb();
+  g.Sound.play('collect');
+  await settle();
+  assert.equal(g.shots().length, 0, 'skipped quietly, like autoplay');
+  g.press();
+  assert.equal(g.contexts[0].state, 'running');
+  g.Sound.play('collect');
+  assert.equal(g.shots().length, 1);
+});
+
+test('with Web Audio, overlap is capped and the oldest shot stops', async () => {
+  const g = bootWeb();
+  g.press();
+  g.Sound.play('laser');
+  await settle();
+  for (let i = 0; i < 10; i += 1) g.Sound.play('laser');
+  const shots = g.shots();
+  assert.equal(shots.filter((s) => !s.stopped).length, 8);
+  assert.ok(shots[0].stopped, 'the first one made room');
+});
+
+test('with Web Audio, stop and mute reach the shots, and a loop is still one <audio>', async () => {
+  const g = bootWeb();
+  g.press();
+  g.Sound.play('siren');
+  await settle();
+  g.Sound.play('siren');
+  g.Sound.loop('engine');
+  assert.equal(g.made.length, 1, 'the loop streams from an element');
+  g.Sound.stop('siren');
+  assert.ok(g.shots().every((s) => s.stopped));
+  g.Sound.mute(true);
+  assert.equal(g.contexts[0].master.gain.value, 0);
+  g.Sound.mute(false);
+  assert.equal(g.contexts[0].master.gain.value, 1);
+});
+
+test('with Web Audio, a missing file warns once and is never asked for again', async () => {
+  const g = bootWeb({ missing: ['ghost'] });
+  g.press();
+  g.Sound.play('ghost');
+  await settle();
+  g.Sound.play('ghost');
+  g.Sound.play('ghost');
+  await settle();
+  assert.equal(g.fetched.length, 1);
+  assert.equal(g.warnings.length, 1);
+  assert.match(g.warnings[0], /ghost/);
+});

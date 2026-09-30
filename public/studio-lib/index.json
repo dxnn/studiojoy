@@ -18,7 +18,7 @@
       "scripts": ["config/controls.js", "studio/input.js"]
     },
     "sound": {
-      "version": 3,
+      "version": 4,
       "core": true,
       "what": "Plays the sounds in assets/sounds/ with one call — overlapping shots, loops, mute — and never breaks the game over a missing file.",
       "shape": [

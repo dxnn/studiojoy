@@ -8,10 +8,22 @@ to the version this game has.
 The **sound player** (`studio/sound.js`) is the second library, and proved
 the shape: no orchestrator edit needed, since its API note is its own file
 header — just the file and an `index.json` entry. `Sound.play("laser")`
-plays `assets/sounds/laser.wav` (the sound editor's own files) through a
-pooled element per shot, so rapid fire overlaps instead of cutting itself,
-plus `loop`/`stop`/`mute`. A missing file or blocked autoplay is one console
-warning, never an error — a game must not break over a sound.
+plays `assets/sounds/laser.wav` (the sound editor's own files), so rapid fire
+overlaps instead of cutting itself, plus `loop`/`stop`/`mute`. A missing file
+or blocked autoplay is one console warning, never an error — a game must not
+break over a sound.
+
+⚠️ Since sound 4 a shot is a **Web Audio buffer**, fetched and decoded once
+per name, and a loop is still one streamed `<audio>` element. A shot used to
+be a pooled element each, and on an older iPad every new element loaded its
+file again and every `play()` stalled the page: Doki Doki froze for about a
+tenth of a second per star picked up, and fell to a frame a second when
+several came at once (2026-09-29). A loop stays an element because it is
+usually music, and three minutes decoded into memory is tens of megabytes.
+Web Audio starts only from inside a press, so every press wakes it, and
+`navigator.audioSession.type = "playback"` keeps an iPad in silent mode
+sounding the way `<audio>` always did. The element pool is kept only for a
+browser with no Web Audio. ⚠️ Not yet heard on a real iPad.
 
 The **sprites library** (`studio/sprites.js`) is the third. One sprite is one
 file: `Sprites.draw(ctx, "hero", x, y)` draws `assets/sprites/hero.png`. A PNG
