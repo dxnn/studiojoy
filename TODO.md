@@ -15,6 +15,13 @@ deliberately deferred.
 - a *shot* of a game drawn in HTML rather than on a canvas — every visual
   novel has none, so the one template a kid is most likely to be looking at
   is the one a helper cannot see. Wants an answer that is not a library
+- let the preview report a game that runs slowly, the way it reports an
+  error: the reporter (`server/reporter.js`) times its own frames and files
+  one problem when a game sits under ~24 a second for a few seconds while on
+  screen, so the builder hears it from the device it was slow on. Doki Doki
+  reached a frame a second on an older iPad and nobody but the person holding
+  it could tell. ⚠️ iOS Low Power Mode holds every page to 30, so the line
+  has to sit under that. Wants a sketch in ideas/ first
 - the plan card's synopsis: one no-tools call over the pieces' headlines when
   a plan of two or more finishes, as the card's head (ideas/planner.md, step
   6, the small half)

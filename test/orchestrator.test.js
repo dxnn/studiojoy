@@ -678,6 +678,9 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // The studio asks for many small files, a config/ directory, and the three
   // project documents.
   assert.match(system, /many small files/);
+  // Doki Doki repainted three full-screen gradients a frame and crawled on an
+  // older iPad (2026-09-29); nothing had told the builder what a frame costs.
+  assert.match(system, /Never fill the whole screen with a gradient every frame/);
   assert.match(system, /config\/play\.js/);
   assert.match(system, /config\/words\.js/);
   assert.match(system, /`const NAME = value;`/);
