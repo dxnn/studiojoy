@@ -1,7 +1,9 @@
 # Deploying
 
 Behind a reverse proxy that terminates TLS, with pm2 keeping the process up
-and a bare repo taking pushes.
+and a bare repo taking pushes. The steps are in the top-level
+[README](../README.md#run-it-on-a-server); this is the reasoning behind them
+and everything after the first deploy.
 
 ## One app, two hostnames
 
@@ -16,21 +18,9 @@ games.example.com   ─proxy→  localhost:GAMES_PORT
 studio.example.com  ─proxy→  localhost:PORT
 ```
 
-Caddy, for example:
-
-```caddyfile
-games.example.com {
-    reverse_proxy localhost:3001
-    encode zstd gzip
-}
-studio.example.com {
-    reverse_proxy localhost:3005
-    encode zstd gzip
-}
-```
-
-`encode` renames a strong ETag per encoding (`"<sha>"` becomes `"<sha>-zstd"`)
-and strips its suffix from `If-None-Match` only — never from `If-Match`, which
+The README's Caddy block is the example. Its `encode` renames a strong ETag
+per encoding (`"<sha>"` becomes `"<sha>-zstd"`) and strips its suffix from
+`If-None-Match` only — never from `If-Match`, which
 is what the editor's save sends. The studio's `If-Match` check compares the
 sha inside the tag rather than the exact string, so compression can stay on
 for the whole site; nothing here needs excluding from `encode`.
@@ -50,50 +40,16 @@ outside the work tree so a `git clean` in a future hook can never reach it.
 
 ## Setup
 
-Node ≥ 24 and `git` on the server. No build step, no `node_modules`.
-
-```sh
-mkdir -p ~/apps/studio.git ~/apps/studio ~/apps/studio-data/games
-git -C ~/apps/studio.git init --bare
-```
-
-Push once so `deploy/` exists on the box, then install the hook from it. The
-hook is not there yet, so that first push checks nothing out — do it by hand:
-
-```sh
-# on your machine
-git remote add prod user@host:apps/studio.git
-git push prod main
-
-# on the server — once, by hand; the hook does this on every push after
-git --work-tree=$HOME/apps/studio --git-dir=$HOME/apps/studio.git checkout -f main
-
-cp ~/apps/studio/deploy/studio.env.example ~/apps/studio.env
-chmod 600 ~/apps/studio.env
-$EDITOR ~/apps/studio.env          # the key, the ports, GAMES_URL, the paths
-
-cp ~/apps/studio/deploy/post-receive ~/apps/studio.git/hooks/post-receive
-chmod +x ~/apps/studio.git/hooks/post-receive
-$EDITOR ~/apps/studio.git/hooks/post-receive   # fix PATH, see the file
-
-pm2 start ~/apps/studio/deploy/ecosystem.config.cjs
-pm2 save && pm2 startup        # survives a reboot
-```
-
-Every push after that deploys.
+The first push has to be checked out by hand: `deploy/post-receive` is what
+does the checkout, and it is not on the box until that push has landed. Every
+push after it deploys.
 
 ## Accounts
 
-There is no signup route — presence in the `users` table is the whole
-permission model, and it exists only because you put someone in it.
-
-```sh
-cd ~/apps/studio
-DB_PATH=$HOME/apps/studio-data/db node bin/adduser.js you@example.com "Your Name"
-```
-
-Skip this entirely if you are moving an existing studio: accounts travel in
-the database, password hashes included.
+There is no signup route for studio access — an admin puts each person in,
+and the first account made is the admin. Skip `adduser` entirely if you are
+moving an existing studio: accounts travel in the database, password hashes
+included.
 
 After the first account, adding people is easier from the admin panel in the
 browser. ⚠️ Taking somebody out is not there and never will be — it is a soft
@@ -204,7 +160,7 @@ break by hand.
 Check that it took, before pushing anything:
 
 ```sh
-git -C ~/apps/studio-data/games/asteriskoids config --get receive.denyCurrentBranch
+git -C ~/apps/studio-data/games/<slug> config --get receive.denyCurrentBranch
 ```
 
 Empty means the include is not matching, and the trailing slash is the first
@@ -230,13 +186,11 @@ Three things to know:
 
 ## Backups
 
-The game trees recover themselves from git. The chats and accounts only live
-in SQLite, and `VACUUM INTO` is safe while the studio is running.
-
-```sh
-cd ~/apps/studio
-DB_PATH=$HOME/apps/studio-data/db node bin/backup.js ~/backups/studio-$(date +%F).db
-```
+The commands are in the [README](../README.md#backups). The chats and
+accounts only live in SQLite, and `VACUUM INTO` is safe while the studio is
+running. A game tree's history is in its own `.git`, so any copy of the games
+directory is a full one — `sync-games.sh pull`, above, is one way to keep a
+copy off the server.
 
 ## Environment
 

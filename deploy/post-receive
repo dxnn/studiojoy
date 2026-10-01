@@ -16,8 +16,8 @@ REPO="$HOME/apps/studio.git"
 # studio-data/ are untouched — but neither lives in here anyway, deliberately.
 git --work-tree="$APP" --git-dir="$REPO" checkout -f main
 
-# No `npm ci`: this project has zero dependencies and no package-lock.json, so
-# `npm ci` exits 1 and takes the rest of the hook with it.
+# No `npm ci`: the studio has no runtime dependencies, and the one
+# devDependency (Playwright, for `npm run ui`) has no business on a server.
 #
 # One pm2 app, not two. The games origin is the same process (spec.md §7).
 # --update-env makes pm2 re-read the ecosystem file, which is what picks up an

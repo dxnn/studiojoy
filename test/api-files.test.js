@@ -126,7 +126,7 @@ test('If-Match survives a proxy that renamed or weakened the ETag', async (t) =>
 
   // Caddy's `encode` appends the encoding name to a strong ETag on a
   // compressed GET and never strips it from If-Match on the way back —
-  // deploy/README.md fronts the studio with exactly that.
+  // README.md's Caddy block fronts the studio with exactly that.
   const suffixed = await put(app, 'game.js', 'version two', {
     'if-match': created.body.etag.replace(/"$/, '-zstd"'),
   });

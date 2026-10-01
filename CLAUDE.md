@@ -102,9 +102,14 @@ No build step, no linter, and **no runtime dependency**: `npm ci --omit=dev`
 is all the studio needs to run. One devDependency, Playwright, and only
 `npm run ui` touches it. Node ≥ 24, ESM.
 
-`deploy/` is the runbook for a real server: pm2 definition, env template,
-push-to-deploy hook. One process serves both hostnames, so it is one repo and
-one pm2 app — the thing every generic guide gets wrong here.
+`README.md` is the walkthrough for somebody running their own studio, and
+`deploy/` the runbook behind it: pm2 definition, env template, push-to-deploy
+hook. One process serves both hostnames, so it is one repo and one pm2 app —
+the thing every generic guide gets wrong here.
+
+⚠️ The repository is public on GitHub under MIT (decided 2026-10-01). No
+production hostname, address or key goes in it: the operator's studio is
+theirs alone, and the repo is for people running their own.
 
 ## Invariants worth keeping
 
