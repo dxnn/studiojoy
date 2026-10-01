@@ -1,4 +1,33 @@
-# Unbridled Joy
+# Studio Joy
+
+Hey, thanks for checking out this repo. 
+This is a game studio for making games with your family and friends. 
+It's designed for a small group of people who know and trust each other, so there's not many permissions or limitations. 
+
+I made this for my kids and their cousins to make games together. 
+They get to play each other's games, steal the high-score spots, 
+leave comments on unfinished creations and glorious trainwrecks,
+swap stories of close escapes and laugh about horrendous bugs.
+It's not really finished yet, but it's good enough to make some kind of fun games, 
+and make making games kind of fun, which has won me some best-uncle points. 
+
+The LLM is currently set to deepseek -- you can set it to something else if you'd prefer, but you may want to also change how caching is handled to match.
+It comes out to around a dollar a day for a dozen kids all going nuts making games (and you can set token limits if you want).
+I have a background project to get a machine running a local model set up in my homelab; I'll probably switch this over once I do that.
+
+Each of the games is actually a full git repo on the server, so the code is fully visible and editable, and you can roll back to previous versions. And all the game constants are in config files that have a nice form for editing, so all the game tuning can be done by hand, which is way faster than yelling at the LLM. (It doesn't hot-swap the constants in; maybe I'll add that as a feature someday.)
+
+I'm slowly adding various game development features -- there's a sound editor, a pixel art editor, a sprite animation editor, stuff like that. 
+
+It's also a PWA, so you can add it directly to your device as a standalone application.
+
+I hope you and yours enjoy this as much as me and mine have.
+
+-- dann
+
+
+
+> --------------- Autotext ---------------
 
 A game studio for a family, a classroom or a club: a few people and an AI
 helper make browser games together, and anybody can play what they make.
@@ -17,6 +46,35 @@ plain, and anything that throws something away asks first.
 
 The helpers run on [DeepSeek](https://platform.deepseek.com). You bring the
 API key and decide how much a day it may spend.
+
+## A look around
+
+The pills over a game — Speak, See, Hear, Touch, Taste, Recall, Smell — pick
+what you are working on.
+
+<p align="center">
+  <img src="docs/screenshots/chat.jpg" width="100%" alt="A game's chat: a person asks for a change, the helper says what it changed, and the game runs on the right">
+  <br><sub><b>Speak</b> — say what you want; the helper changes the files and the game reloads beside the chat</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/pixels.jpg" alt="The pixel editor with a ship drawn in white"><br><sub><b>See</b> — the pixel editor</sub></td>
+    <td width="50%"><img src="docs/screenshots/frames.jpg" alt="A sprite strip of eight frames with the fourth open"><br><sub><b>See</b> — a sprite's animation, frame by frame</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/sounds.jpg" alt="The sound maker: presets over a column of sliders"><br><sub><b>Hear</b> — sound effects from sliders, starting from presets like Laser and Jump</sub></td>
+    <td width="50%"><img src="docs/screenshots/achievements.jpg" alt="A list of achievements, each with the rule that earns it and how many players have it"><br><sub><b>Smell</b> — achievements, each with the rule that earns it</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/controls.jpg" alt="Control schemes to choose from, and the keys and buttons for each action"><br><sub><b>Touch</b> — how it's played: keys, a controller, or buttons drawn on a phone</sub></td>
+    <td width="50%"><img src="docs/screenshots/config.jpg" alt="A game's settings file shown as a form of numbers with explanations"><br><sub><b>Taste</b> — the files, with a game's settings as a form to tune by hand</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/versions.jpg" alt="A list of versions, each with who made it, when, and a link to its changes"><br><sub><b>Recall</b> — every change is a version you can look at or bring back</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/new-game.png" width="350" alt="The New game dialog with its list of templates"><br><sub>A new game starts blank or from a template</sub></td>
+  </tr>
+</table>
 
 ## What you need
 
