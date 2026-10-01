@@ -184,7 +184,7 @@ export const S = {
   // Set when a commit lands, so the versions list reloads instead of showing
   // whatever it happened to fetch first.
   historyStale: false,
-  drafts: new Map(), // slug -> unsent composer text
+  unsent: new Map(), // slug -> unsent composer text
   live: new Map(), // the open game's map from liveBySlug; see connectStream
   pending: new Map(), // the open chat's map from pendingBySlug; see connectStream
   traces: new Map(), // message_id -> {text, open}; this session only
@@ -245,7 +245,7 @@ export const composerBox = h('textarea', {
     }
   },
   oninput: () => {
-    if (S.slug) S.drafts.set(S.slug, composerBox.value);
+    if (S.slug) S.unsent.set(S.slug, composerBox.value);
     followAt();
   },
   // The caret moves without the text changing too — an arrow, a click, a tap
@@ -265,7 +265,7 @@ export async function sendComposer() {
   const slug = S.slug;
   composerBox.value = '';
   closeAtMenu();
-  S.drafts.delete(slug);
+  S.unsent.delete(slug);
   S.autoscroll = true;
   await sendMessage(text);
 }
@@ -817,8 +817,8 @@ export function nearQuota() {
 export async function openProject(slug, { view = null } = {}) {
   // Half-typed text belongs to the game it was typed in, so it is parked
   // here on the way out and put back on the way in.
-  if (S.slug) S.drafts.set(S.slug, composerBox.value);
-  composerBox.value = slug ? (S.drafts.get(slug) ?? '') : '';
+  if (S.slug) S.unsent.set(S.slug, composerBox.value);
+  composerBox.value = slug ? (S.unsent.get(slug) ?? '') : '';
   // The names in the menu are this game's; the words under it are not even
   // the same words any more.
   closeAtMenu();

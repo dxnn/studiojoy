@@ -69,7 +69,7 @@ export function mentionPerson(person) {
   const caret = before.length + lead.length + handle.length + 1 + tail.length;
   box.focus();
   box.setSelectionRange(caret, caret);
-  if (S.slug) S.drafts.set(S.slug, box.value);
+  if (S.slug) S.unsent.set(S.slug, box.value);
 }
 
 /* The @ menu ---------------------------------------------------------------
@@ -198,7 +198,7 @@ function pickAt(index) {
   closeAtMenu();
   composerBox.focus();
   composerBox.setSelectionRange(caret, caret);
-  if (S.slug) S.drafts.set(S.slug, composerBox.value);
+  if (S.slug) S.unsent.set(S.slug, composerBox.value);
 }
 
 // ⚠️ The keys the menu answers while it is open, before the composer's own

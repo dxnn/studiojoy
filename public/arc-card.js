@@ -23,7 +23,7 @@ function askBuilder(text) {
   composerBox.value = text;
   composerBox.focus();
   composerBox.setSelectionRange(text.length, text.length);
-  if (S.slug) S.drafts.set(S.slug, text);
+  if (S.slug) S.unsent.set(S.slug, text);
 }
 
 async function setStage(stage) {
