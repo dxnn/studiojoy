@@ -123,11 +123,13 @@ export function renderSidebar() {
 // rather than about any game, which is why it is in the row that is also
 // about you and nowhere else (ideas/notifications.md). Absent in a browser
 // that cannot do it at all: a control that can never be pressed is left out.
-// Blocked is still offered, because there the press has something to say.
+// Blocked is still offered, because there the press has something to say, and
+// so is an iPhone or iPad in a Safari tab, where it says to use the Home Screen.
 const BELL = {
   on: { text: '🔔', title: 'The studio tells you when somebody says something. Press to stop.' },
   off: { text: '🔕', title: 'Tell me when somebody says something while I am away' },
   blocked: { text: '🔕', title: 'This browser is blocking notifications' },
+  install: { text: '🔕', title: 'Add the studio to your Home Screen to be told things' },
 };
 
 function bell() {

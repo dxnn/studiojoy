@@ -514,8 +514,11 @@ The switch is the bell in the `who` row — about you rather than about any
 game, and that row is the only thing in the studio that is. Whether you want
 them is remembered per browser (`gs.notify`) rather than stored, because
 permission is per browser and a row saying yes on a laptop that has denied it
-is a row that lies; the browser's answer outranks the switch. Absent entirely
-where `Notification` does not exist. ⚠️ Offered while the browser is
+is a row that lies; the browser's answer outranks the switch. Absent where
+`Notification` does not exist — except an iPhone or iPad in a Safari tab
+(`navigator.standalone === false`), where it only exists for the studio opened
+from the Home Screen: there the bell is offered and its press says so, for the
+same reason as the next sentence. ⚠️ Offered while the browser is
 *blocking* them, which is the one place the studio explains a control instead
 of hiding it: unlike a greyed button in a bar, this one has a real answer to
 give, and somebody who has pressed a bell twice with nothing happening

@@ -25,10 +25,16 @@ const PREVIEW = 120;
 // the home screen included.
 export const notifySupported = () => typeof Notification !== 'undefined';
 
-// 'unsupported' | 'blocked' | 'on' | 'off'. `blocked` is the browser's answer
-// and outranks the stored preference: a yes here under a denied permission is
-// a switch that does nothing.
+// An iPhone or iPad in a Safari tab: Notification only exists for the studio
+// opened from the Home Screen. `navigator.standalone` is Apple's own flag,
+// false in exactly that tab and undefined in every other browser.
+const needsHomeScreen = () => !notifySupported() && globalThis.navigator?.standalone === false;
+
+// 'unsupported' | 'install' | 'blocked' | 'on' | 'off'. `blocked` is the
+// browser's answer and outranks the stored preference: a yes here under a
+// denied permission is a switch that does nothing.
 export function notifyState() {
+  if (needsHomeScreen()) return 'install';
   if (!notifySupported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'blocked';
   if (Notification.permission !== 'granted') return 'off';
@@ -41,6 +47,12 @@ export function notifyState() {
 // browser gives, permanently.
 export async function toggleNotify() {
   const state = notifyState();
+  // The same reason as blocked: the press has a real answer to give.
+  if (state === 'install') {
+    say('To be told when somebody says something, add the studio to your Home Screen '
+      + '(Share, then Add to Home Screen) and open it from there.', true);
+    return;
+  }
   if (state === 'blocked') {
     // The one place the studio explains a control instead of hiding it: this
     // has a real answer, and somebody pressing a bell twice with nothing

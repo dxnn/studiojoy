@@ -67,6 +67,24 @@ test('the browser outranks the switch', () => {
   assert.equal(notifyState(), 'blocked');
 });
 
+// An iPhone or iPad has notifications only for the studio opened from the
+// Home Screen. In a Safari tab the bell stays, to say so; anywhere else
+// without them it goes, and so does a Home Screen app on an iPadOS too old
+// to have them.
+test('a Safari tab on an iPad is told to use the Home Screen', () => {
+  studio();
+  delete globalThis.Notification;
+  try {
+    for (const [standalone, state] of [[false, 'install'], [undefined, 'unsupported'], [true, 'unsupported']]) {
+      Object.defineProperty(navigator, 'standalone', { configurable: true, value: standalone });
+      assert.equal(notifyState(), state, `standalone ${standalone}`);
+    }
+  } finally {
+    delete navigator.standalone;
+    globalThis.Notification = FakeNotification;
+  }
+});
+
 test('it says who, in which game, and what they said', () => {
   studio();
   notifyMessage(message());
