@@ -7,6 +7,7 @@
 // The pair is the same shape `web-push` generates, so one made by either
 // works with the other.
 import { makeKeys } from '../server/push.js';
+import { envFilePath } from './env.js';
 
 const subject = process.argv[2];
 if (!subject) {
@@ -23,7 +24,11 @@ if (!/^(mailto:|https:\/\/)/.test(subject)) {
 
 const { publicKey, privateKey } = await makeKeys();
 
-console.log('# Put these three in studio.env, then restart the studio.');
+// ⚠️ The whole path, never "studio.env": run from ~/apps/studio, that reads as
+// the file beside the code, which nothing reads — a studio sat a month with its
+// keys there and push off.
+console.log(`# Put these three in ${envFilePath()} on a server, the file pm2 hands the`);
+console.log('# studio, then: pm2 startOrReload ~/apps/studio/deploy/ecosystem.config.cjs --update-env');
 console.log('# ⚠️ Once a browser has subscribed, changing them means it stops');
 console.log('#    hearing anything — and nothing anywhere says so.');
 console.log(`VAPID_PUBLIC_KEY=${publicKey}`);

@@ -10,6 +10,8 @@ import { createRequire } from 'node:module';
 
 const { envFilePath, readEnv } = createRequire(import.meta.url)('../deploy/env-file.cjs');
 
+export { envFilePath };
+
 const DEFAULTS = { DB_PATH: 'gamestudio.db', GAMES_DIR: 'games' };
 
 // `from` is the env file when it supplied either path, so a script can say
