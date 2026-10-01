@@ -53,6 +53,11 @@ ignored as a second lock.
   hand-rolled driver alike. An agent writes these; a person runs them. What
   an agent *can* do is drive a throwaway studio through the Playwright MCP
   server, which is the operator's own process — see the last dev gotcha.
+- The scripts below find the database through `DB_PATH`, then the studio's
+  env file (`$STUDIO_ENV` or `~/apps/studio.env`), then `gamestudio.db` beside
+  the code (`bin/env.js`), and print `using <file>` when the file answered.
+  ⚠️ So on a machine that has that file, a script run without `DB_PATH` acts
+  on the real studio. This laptop has none (checked 2026-10-01).
 - `npm run adduser -- <email> "<Name>"` — makes an account without a studio
   running; the admin panel does the same from a browser.
 - `npm run deluser -- <email>` — ⚠️ the *only* way somebody leaves the studio:

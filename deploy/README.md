@@ -57,9 +57,10 @@ delete, one bit and their sessions with nothing thrown away, and it only
 happens here:
 
 ```sh
-DB_PATH=$HOME/apps/studio-data/db node bin/deluser.js them@example.com
-DB_PATH=$HOME/apps/studio-data/db node bin/restoreuser.js            # who is out
-DB_PATH=$HOME/apps/studio-data/db node bin/restoreuser.js them@example.com
+cd ~/apps/studio
+npm run deluser -- them@example.com
+npm run restoreuser                     # who is out
+npm run restoreuser -- them@example.com
 ```
 
 ⚠️ Their address stays theirs while they are out, so `adduser` will refuse it

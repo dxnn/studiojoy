@@ -3,6 +3,7 @@
 import { openDb } from '../server/db.js';
 import { createUser, normalizeEmail } from '../server/auth.js';
 import { promptHidden } from './prompt.js';
+import { paths } from './env.js';
 
 const [email, displayName] = process.argv.slice(2);
 
@@ -11,7 +12,9 @@ if (!email || !displayName) {
   process.exit(2);
 }
 
-const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
+// Allowed to make the database: on a laptop the first account comes before
+// the first `npm start`.
+const { dbPath } = paths();
 const db = openDb(dbPath);
 
 const normalized = normalizeEmail(email);

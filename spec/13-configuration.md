@@ -15,6 +15,13 @@
 | `VAPID_PRIVATE_KEY` | unset | ⚠️ a signing key. `npm run pushkeys -- mailto:you@example.com` makes the pair, **once** — a new pair silently stops every browser already subscribed from hearing anything |
 | `VAPID_SUBJECT` | unset | `mailto:` or `https:`, who a push service contacts if this studio misbehaves |
 
+The scripts in `bin/` take `DB_PATH` and `GAMES_DIR` from the environment,
+then from the studio's env file (`$STUDIO_ENV`, or `~/apps/studio.env`, the
+one pm2 hands the studio), then the defaults above, and name the file when it
+was the one that answered (`bin/env.js`). Only those two names are read from
+it. All but `adduser` refuse a database that does not exist rather than make
+an empty one.
+
 `node:sqlite` is experimental in Node 25, so the start script passes
 `--disable-warning=ExperimentalWarning`.
 

@@ -7,10 +7,10 @@
 // With no email, it lists who is currently removed.
 import { openDb } from '../server/db.js';
 import { normalizeEmail, restoreAccount } from '../server/auth.js';
+import { existingDb } from './env.js';
 
 const [email] = process.argv.slice(2);
-const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
-const db = openDb(dbPath);
+const db = openDb(existingDb());
 
 if (!email) {
   const removed = db

@@ -15,25 +15,10 @@
 // The values live outside the repository, in an env file the deploy never
 // overwrites, so a push can never carry a key and a checkout can never lose
 // one.
-const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
+const { envFilePath, readEnv } = require('./env-file.cjs');
 
-const ENV_FILE = process.env.STUDIO_ENV ?? path.join(os.homedir(), 'apps/studio.env');
-
-// KEY=value per line, `#` starts a comment. No quoting and no interpolation:
-// one program reads this file and one person writes it, so paths are absolute
-// and values are literal. See studio.env.example.
-function readEnv(file) {
-  const out = {};
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq > 0) out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
-  }
-  return out;
-}
+const ENV_FILE = envFilePath();
 
 module.exports = {
   apps: [{

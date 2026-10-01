@@ -5,7 +5,8 @@
 // studio, so the change reads in Versions like any other and reverts the
 // same way.
 //
-//   npm run sweep                      # against ./games and ./gamestudio.db
+//   npm run sweep                      # against ./games and ./gamestudio.db,
+//                                      # or the paths in the studio's env file
 //   DB_PATH=… GAMES_DIR=… npm run sweep
 //
 // Safe by the compatibility law (spec.md §4): a library version bump must
@@ -19,19 +20,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { sweepLibraries } from '../server/files/library.js';
+import { existingDb, studioPaths } from './env.js';
 
-const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
-const gamesDir = path.resolve(process.env.GAMES_DIR ?? 'games');
+const dbPath = existingDb();
+const gamesDir = path.resolve(studioPaths().gamesDir);
 const publicDir = path.resolve(import.meta.dirname, '..', 'public');
 
 // The reserved domain keeps these commits from ever reading as a person's —
 // the same trick agent commits use.
 const STUDIO = { name: 'Unbridled Joy', email: 'studio@gamestudio.local' };
-
-if (!fs.existsSync(dbPath)) {
-  console.error(`no database at ${dbPath} (set DB_PATH, or run from the studio's directory)`);
-  process.exit(1);
-}
 
 const db = new DatabaseSync(dbPath, { readOnly: true });
 const games = db.prepare(

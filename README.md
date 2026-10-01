@@ -181,8 +181,12 @@ the admin panel in the browser.
 
 ```sh
 cd ~/apps/studio
-DB_PATH=$HOME/apps/studio-data/db npm run adduser -- you@example.com "Your Name"
+npm run adduser -- you@example.com "Your Name"
 ```
+
+Every script here finds the database the same way the studio does, through
+`~/apps/studio.env`, and says so (`using /home/you/apps/studio.env`). A
+`DB_PATH` or `GAMES_DIR` set on the command line still wins.
 
 **6. Check it.** Sign in at your studio hostname and do the two checks in
 [After the first deploy](./deploy/README.md#after-the-first-deploy). Each
@@ -195,7 +199,7 @@ every game's copy of the studio's libraries forward:
 
 ```sh
 cd ~/apps/studio
-DB_PATH=$HOME/apps/studio-data/db GAMES_DIR=$HOME/apps/studio-data/games npm run sweep
+npm run sweep
 ```
 
 It touches only the `studio/` folder in each game, never the game's own files,
@@ -208,7 +212,7 @@ which is safe while the studio is running — copying the file by hand is not:
 
 ```sh
 cd ~/apps/studio
-DB_PATH=$HOME/apps/studio-data/db npm run backup -- ~/backups/studio-$(date +%F).db
+npm run backup -- ~/backups/studio-$(date +%F).db
 ```
 
 Back up `~/apps/studio-data/games` too, as ordinary files. Each game in it is
@@ -237,7 +241,7 @@ hostnames close that. spec/ §7 and §11 say exactly what one hostname costs.
   waiting list the admin decides.
 - Nobody is removed from the browser. `npm run deluser -- <email>` takes
   somebody out and keeps everything they made; `npm run restoreuser` brings
-  them back. On a server both need `DB_PATH`, like `adduser`.
+  them back.
 - People can also make their own helpers, each with a name, a personality
   and a thinking level, and talk to them in a chat of their own. Those helpers
   see no files. The builder is the only helper that changes a game.

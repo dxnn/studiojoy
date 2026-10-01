@@ -7,9 +7,10 @@
 //
 // With no slug, it lists what is archived.
 import { openDb } from '../server/db.js';
+import { existingDb } from './env.js';
 
 const [slug] = process.argv.slice(2);
-const db = openDb(process.env.DB_PATH ?? 'gamestudio.db');
+const db = openDb(existingDb());
 
 if (!slug) {
   const rows = db

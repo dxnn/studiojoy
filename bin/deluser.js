@@ -11,6 +11,7 @@
 // starting a second account for the same person.
 import { openDb } from '../server/db.js';
 import { normalizeEmail, isLastAdmin, removeAccount } from '../server/auth.js';
+import { existingDb } from './env.js';
 
 const [email] = process.argv.slice(2);
 
@@ -19,8 +20,7 @@ if (!email) {
   process.exit(2);
 }
 
-const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
-const db = openDb(dbPath);
+const db = openDb(existingDb());
 const normalized = normalizeEmail(email);
 
 const user = db

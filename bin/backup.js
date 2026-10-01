@@ -7,16 +7,13 @@
 // source — not even to run a migration.
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { existingDb } from './env.js';
 
-const dbPath = process.env.DB_PATH ?? 'gamestudio.db';
+const dbPath = existingDb();
 
 const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
 const dest = process.argv[2] ?? `${dbPath}.backup-${stamp}`;
 
-if (!fs.existsSync(dbPath)) {
-  console.error(`no database at ${dbPath} (set DB_PATH, or run from the studio's directory)`);
-  process.exit(1);
-}
 // VACUUM INTO refuses an existing file too; checking first gives the reason
 // in words rather than as an SQLite error code.
 if (fs.existsSync(dest)) {
