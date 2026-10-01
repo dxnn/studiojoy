@@ -36,7 +36,7 @@ class FakeNotification {
 globalThis.Notification = FakeNotification;
 
 const { S } = await import('../public/main.js');
-const { notifyState, notifyMessage, keyBytes } = await import('../public/notify.js');
+const { notifyState, notifyMessage, keyBytes, renewPush } = await import('../public/notify.js');
 
 function studio({ permission = 'granted', want = 'on', hidden = true } = {}) {
   FakeNotification.permission = permission;
@@ -126,6 +126,38 @@ test('it wears the studio icon, never the game’s', () => {
   studio();
   notifyMessage(message());
   assert.equal(shown[0].options.icon, '/icons/icon-192.png');
+});
+
+// The press is not the only time the studio subscribes: a browser loses its
+// subscription without saying so, and the bell goes on reading 🔔. So every
+// open with the switch on asks again, and one with it off asks nothing.
+test('an open with the switch on subscribes again', async () => {
+  const asked = [];
+  const subscription = { toJSON: () => ({ endpoint: 'https://push.test/1', keys: { p256dh: 'p', auth: 'a' } }) };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    asked.push(url);
+    return url === '/api/push/key'
+      ? { ok: true, json: async () => ({ public_key: 'BAAA' }) }
+      : { ok: true };
+  };
+  globalThis.PushManager = class {};
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: { ready: Promise.resolve({ pushManager: { subscribe: async () => subscription } }) },
+  });
+  try {
+    studio({ want: 'off' });
+    await renewPush();
+    assert.deepEqual(asked, []);
+    studio({ want: 'on' });
+    await renewPush();
+    assert.deepEqual(asked, ['/api/push/key', '/api/push/subscribe']);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete globalThis.PushManager;
+    delete navigator.serviceWorker;
+  }
 });
 
 // ⚠️ The VAPID key arrives as base64url and `pushManager.subscribe` wants

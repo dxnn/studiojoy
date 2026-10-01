@@ -545,10 +545,18 @@ places broadcast one, a push has to reach a browser with no connection at
 all, and the fourth place is the one that would forget. Never awaited — a
 slow push service must not hold up a reply landing in the thread.
 
-⚠️ **The service worker suppresses a push when a window is visible**, which
-is the one exemption `userVisibleOnly` allows: rung 1 stayed silent for
-exactly that case and the marks are already saying it. A hidden tab shows
-both, and the shared `tag` collapses them into one. ⚠️ **404 or 410 from the
+⚠️ **Every push shows a notification, a studio window on screen included.**
+Until 2026-10-01 the worker skipped one while a window was visible, taking
+that for the exemption `userVisibleOnly` allows. WebKit allows none: a push
+that shows nothing gets its subscription revoked, so every iPhone, iPad and
+Mac Safari would have lost push the first few times somebody spoke while
+it was open. In a studio this quiet the banner is wanted anyway — it is
+what is being said in the rooms you do not have open. A hidden tab shows
+rung 1's and the push's, and the shared `tag` collapses them into one.
+⚠️ **The studio subscribes again on every open with the bell on**
+(`renewPush`), because the bell reads permission and preference rather than
+the subscription and would go on saying 🔔 over one the browser had dropped.
+The server takes a repeat as an update to the same endpoint. ⚠️ **404 or 410 from the
 push service drops the row** — the browser threw the subscription away and
 every send after that is a request nobody will ever read. ⚠️ So does
 `npm run deluser`: a push reaches a browser rather than a session, so it is

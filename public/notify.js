@@ -99,6 +99,17 @@ async function subscribePush() {
   } catch { /* rung 1 still works, which is what the switch promised */ }
 }
 
+// Every open with the switch on subscribes again, so the press is not the
+// only time the studio asks. A subscription is the browser's to lose — WebKit
+// revokes one, a push service drops one, a studio gets its keys after the
+// press — and the bell reads permission and preference, not the
+// subscription, so it would go on saying 🔔 over nothing. Subscribing to what
+// is already there hands back the same endpoint, and the server takes it as
+// an update.
+export function renewPush() {
+  return notifyState() === 'on' ? subscribePush() : Promise.resolve();
+}
+
 async function unsubscribePush() {
   try {
     if (!('serviceWorker' in navigator)) return;

@@ -8,10 +8,6 @@ deliberately deferred.
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
-- ! keep web push alive on Apple devices: `sw.js` shows nothing for a push
-  while a studio window is visible, WebKit revokes a subscription for that,
-  and nothing subscribes again — the bell still reads on. Found 2026-10-01,
-  fix waiting on a choice (ideas/device-checks.md, push)
 - watch what the builder does with `look_at` and `look_at_game` now it can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"

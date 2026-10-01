@@ -22,14 +22,12 @@ self.addEventListener('push', (event) => {
     try { return event.data?.json() ?? {}; } catch { return {}; }
   })();
   event.waitUntil((async () => {
-    // ⚠️ The one time a push shows nothing: a window of this studio is
-    // actually on screen. `userVisibleOnly` is a promise to show something
-    // for every push, and browsers keep score — but a visible client is the
-    // exemption they all make, and it is the right one here, because rung 1
-    // stayed silent for exactly this case and the unread marks are already
-    // saying it in the pane.
-    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (open.some((client) => client.visibilityState === 'visible')) return;
+    // ⚠️ Every push shows one, a studio window on screen included.
+    // `userVisibleOnly` is a promise, and WebKit keeps it strictly: a push
+    // that shows nothing gets the subscription revoked
+    // (webkit.org/blog/12945), so skipping a visible window cost every iPhone,
+    // iPad and Mac Safari its push. A low-traffic studio wants the banner
+    // anyway — it is what somebody is saying in a room you do not have open.
     // Same tag as rung 1's, so a hidden tab that showed its own does not end
     // up with two: the second replaces the first.
     await self.registration.showNotification(said.title || 'The studio', {

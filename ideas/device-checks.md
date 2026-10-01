@@ -5,14 +5,13 @@ an installed PWA's notifications. Each was driven by a mouse or keys, or in a
 vm, and is waiting for somebody holding the thing. One sitting with a phone
 and the older iPad clears most of them.
 
-- **Push on an installed PWA** (a real push landed 2026-09-11, on a phone).
-  Whether the service worker's visible-window suppression is right on a phone
-  (a PWA in the app switcher may not be `visible`), and whether the shared
-  `tag` really does collapse rung 1's notification and the push into one on a
-  hidden tab rather than showing two. ⚠️ Found 2026-10-01: WebKit revokes a
-  push subscription whenever a push shows no notification, and the
-  suppression shows none — so on an iPhone, an iPad or Safari on a Mac it is
-  wrong, not merely unchecked.
+- **Push on an installed PWA**, once the server has its keys — ⚠️ it had none
+  until 2026-10-01, so what was seen on 2026-09-11 can only have been rung 1,
+  the open studio telling you itself. Whether a push arrives with the studio
+  closed, on an iPhone and on the older iPad, and whether the shared `tag`
+  really does collapse rung 1's notification and the push into one on a
+  hidden tab rather than showing two. (The worker's old visible-window
+  suppression is gone: WebKit revokes a subscription for it.)
 - **Knock it down** on a phone: play it, and build a pile in the world editor
   — whether a thumb can pull the sling without hiding the aim dots, and hit
   the size dot on a crate (both driven by a mouse only, 2026-09-22).

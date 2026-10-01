@@ -78,6 +78,11 @@ focused on that conversation, and this studio's broker has no notion of focus,
 so the *service worker* suppresses instead. That is better anyway — a
 connected stream is a tab that exists, not a tab anybody is reading.
 
+A third, 2026-10-01: the worker no longer suppresses either. WebKit revokes a
+subscription whose push shows nothing, a visible window or not, so nothing
+anywhere asks whether somebody is looking — every push is a banner, and the
+studio subscribes again on every open with the bell on (spec/ §6).
+
 Two pieces of crypto, both `node:crypto` webcrypto, both testable offline
 against the RFCs' own vectors, which matters because the alternative is
 testing against Google's servers:
