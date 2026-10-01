@@ -28,4 +28,13 @@
   colours behind it (§6) are the highlighting half of this item, done.
 - Asset pipeline: sprite sheets, audio conversion, minification.
 - Cross-project agent memory.
+- A licence on the *studio collection*. Decided 2026-09-02: it records none
+  and whoever drew a picture keeps the copyright, which is right for a few
+  trusted people. Worth asking again if the studio grows, if a published
+  game's art has to say where it came from, or if anybody wants to take art
+  out of here and use it elsewhere — "no licence" also means nobody has been
+  given permission (§3, ideas/studio-collection.md).
+- Moderating the studio collection with a queue. Today it is "an admin can
+  take anything out", which suits a few trusted people and would not suit
+  more. Same trigger as the licence.
 - `git push` to a remote so a game can be published elsewhere.
