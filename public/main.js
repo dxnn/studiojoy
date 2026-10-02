@@ -21,7 +21,7 @@ import {
 import { renderControlsEditor } from './controls-form.js';
 import { editorsFor, modesFor, allEditors } from './game-types.js';
 import { renderVersionsTab } from './versions.js';
-import { renderChat } from './chat.js';
+import { renderChat, renderPhoneHeader } from './chat.js';
 import { renderSidebar, wordmark } from './sidebar.js';
 import { dialogFor } from './dialogs.js';
 import {
@@ -1213,11 +1213,10 @@ function railGrip() {
 // the centre now.
 function renderRail() {
   if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
+  // On a phone the rail is a pane of its own, under the phone header, whose
+  // Close preview is the way back.
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
     railGrip(),
-    // On a phone the rail is a pane of its own, and this is the way back.
-    h('div', { class: 'pad row only-narrow' },
-      h('button', { class: 'quiet', text: '←', onclick: () => { S.narrowPane = 'chat'; render(); } })),
     renderPreview(),
     renderInspector());
 }
@@ -1371,12 +1370,15 @@ export function render() {
   // shell — the chat pane, its buttons, the composer, the drawer and the rail
   // read them and nothing else does. A game that names none of them leaves the
   // studio's own defaults standing, so a partial look is fine.
+  // The phone header is over the centre and the rail alike, and not over the
+  // games list, which has a bar of its own. Only narrow.css ever shows it.
+  const head = S.project && S.narrowPane !== 'games' ? renderPhoneHeader() : null;
   const app = h('div', {
-    class: `app${S.sidebar ? '' : ' side-closed'}${isChat() ? ' no-rail' : ''}`,
+    class: `app${S.sidebar ? '' : ' side-closed'}${isChat() ? ' no-rail' : ''}${head ? ' has-head' : ''}`,
     style: [`--rail:${S.railWidth}px`, ...LOOK_ROLES
       .filter((name) => S.look[name])
       .map((name) => `--look-${name}:${S.look[name]}`)].join(';'),
-  }, renderSidebar(), renderChat(), isChat() ? null : renderRail());
+  }, head, renderSidebar(), renderChat(), isChat() ? null : renderRail());
   root.append(app);
 
   // At the top, where the banner is at the bottom: this one is not a thing

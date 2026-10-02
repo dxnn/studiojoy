@@ -32,10 +32,6 @@ deliberately deferred.
 
 - try the studio on a real phone and the older iPad: the checks a headless
   browser cannot make (ideas/device-checks.md)
-- build the phone shell around views: the game's header held at the top, its
-  buttons folded away, and ← → that step through the modes. Wants a sketch in
-  ideas/ first; the rail's open question (CLAUDE.md) is half of it, and the
-  editor bars have no side gutter at 390px
 - ask, when a room is added to a game, whether it is a builder room or one for
   people only. ⚠️ Every room but `Humans only` is a builder room today
   (spec/ §3, §8), so the second answer undoes an invariant

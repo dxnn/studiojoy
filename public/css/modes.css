@@ -95,3 +95,45 @@
 }
 .modes .mode .called { margin-left: 6px; }
 .modes .mode .unread { margin-left: 6px; }
+
+/* The phone header (spec.md §17): the game's bar, and under it the view
+   changer — ‹, the mode you are on and what it is for, ›, and Preview. The
+   phone's form of the pills above, which do not fit across a phone. Shown by
+   narrow.css only; it is a grid row of the shell there, so it never scrolls
+   away. */
+.phone-header { display: none; flex-direction: column; min-width: 0; background: var(--bg); }
+.view-changer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+/* A thumb's width each, which is what a cycle pressed over and over needs. */
+.view-changer .view-step {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 24px;
+  line-height: 1;
+}
+.view-changer .view-step .called, .view-changer .view-step .unread { margin-left: 4px; }
+/* The name and the line under it: what lights up is what can be clicked, and
+   this is neither, so it has no hover. */
+.view-changer .view-now { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.view-changer .view-name { font-family: var(--ui); font-weight: 700; font-size: 17px; color: var(--text); }
+.view-changer .view-what {
+  max-width: 100%;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view-changer .view-preview { flex: 0 0 auto; min-height: 44px; }
+.view-changer .view-preview.on {
+  color: #fff;
+  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
+  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
+}

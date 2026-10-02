@@ -218,19 +218,22 @@
    button at its natural width, so on a phone the only thing that could give
    way was the name — which vanished to nothing and left a row of buttons
    belonging to a game you could no longer read the name of. Wrapped, the
-   actions drop to a second line and everything stays reachable. */
-.pane.chat > .bar {
+   actions drop to a second line and everything stays reachable. The phone
+   header wears the same bar, unwrapped: it holds only ☰, the name and the
+   ···, and the name is what gives way. */
+.pane.chat > .bar, .phone-header > .bar {
   flex-wrap: wrap;
   row-gap: 6px;
   min-height: 64px;
   border-bottom-color: color-mix(in oklab, var(--look-primary) 45%, transparent);
   background: linear-gradient(180deg, color-mix(in oklab, var(--look-primary) 30%, transparent), transparent);
 }
+.phone-header > .bar { flex-wrap: nowrap; min-height: 56px; }
 /* hero.png, when the game has one (a *reserved image*): the bar wears it
    under a wash of the game's own deep colour, dark enough that the name
    stays readable. It replaces the look tint above rather than stacking on
    it — two gradients over a photograph made mud. */
-.pane.chat > .bar.has-hero-image {
+.pane.chat > .bar.has-hero-image, .phone-header > .bar.has-hero-image {
   background:
     linear-gradient(180deg,
       color-mix(in oklab, var(--look-deep) 55%, transparent),

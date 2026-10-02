@@ -449,7 +449,11 @@ specified:
   ideas/calm-shell.md). A picture opens on one click, wherever it is pressed;
   the preview's `···` holds the shape to try the game in. ⚠️ The pills are
   named for the senses — Speak, See, Hear, Touch, Taste, Recall, Smell — and
-  nothing under them is (spec/ §6).
+  nothing under them is (spec/ §6). On a phone the bar and the pills are the
+  **phone header**: the game's name and `···` on one row, and the **view
+  changer**, ‹ mode › and Preview, holding still over the centre and the rail;
+  a pick whose fields are the rail's alone goes to the rail (spec/ §17).
+  Built 2026-10-02 and driven at 390px in the MCP browser, never on a finger.
 - Typing an `@` in the composer opens the menu of everybody it could reach,
   people over helpers, filtered by the server's own rule (§6). ⚠️ It reads its
   keys before the composer does, or Enter sends half a sentence.

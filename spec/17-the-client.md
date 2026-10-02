@@ -176,6 +176,26 @@ holds something git cannot recover.
 
 ### Panes
 
+- **A phone is views, one at a time, under a head that holds still.** At
+  860px and under the three panes take turns (`S.narrowPane`), and
+  `renderPhoneHeader` draws one **phone header** above whichever of the
+  centre and the rail is showing — a row of the shell's grid, so a long
+  editor or a field scrolled up for a keyboard moves the pane under it and
+  never the header. It is the game's bar on one row — ☰, the name, which is
+  what gives way, and the game's ··· — and the **view changer** under it: ‹
+  and › step through the
+  modes and wrap, the mode you are on is named between them with its `what`
+  under it (a pill's title, which a phone has no hover to read), and Preview
+  is the rail, lit and reading *Close preview* while it is up. The wide bar,
+  its published whisper and the pills are hidden at that width; an arrow
+  pressed on the rail goes to the next mode in the centre. ⚠️ A pick whose
+  fields live only in the rail — a character under See, a sound under Hear,
+  *Try this scene* — goes to the rail too, or on a phone it does nothing
+  anybody can see. ⚠️ No mode is taller than its pane: Write's guide, stage
+  and steps were, and its bar hung off the foot of the screen, so on a phone
+  that column is one scroller (`story-main`, named) with the bar held at its
+  foot. `test/phone-header.test.js` holds what each control says;
+  `test/ui/narrow.ui.js` holds the geometry.
 - `MEDIA_KINDS` in `public/files-tab.js` is the one list to extend when the
   studio should show a new kind of file.
 - A picture opens on **one** click under Pics as it always did under Code, so

@@ -63,8 +63,9 @@ async function sweep(t, template, modes) {
     const url = mode === 'chat' ? `${app.base}/p/tank` : `${app.base}/p/tank?mode=${mode}`;
     await page.goto(url);
     // The centre has painted. Without this a mode that is slow to render is
-    // measured empty, which passes and means nothing.
-    await page.locator('.modes .mode').first().waitFor();
+    // measured empty, which passes and means nothing. At this width the pills
+    // are the phone header's view changer.
+    await page.locator('.view-changer .view-name').waitFor();
     const { over, wide } = await sidewaysScroll(page);
     assert.equal(over, 0, `${mode} scrolls the page ${over}px sideways: ${wide.join(', ')}`);
   }
@@ -79,6 +80,39 @@ for (const [template, extra] of Object.entries(TYPED)) {
     await sweep(t, template, [...extra, ...EVERY_GAME]);
   });
 }
+
+// The phone header (spec/ §17): the game's bar is one row however long the
+// name, it is at the top of the screen in every mode, › comes back round to
+// where it started, and no mode is taller than its pane — Write's was, and
+// its Save-state bar sat off the foot of the screen where no finger reached.
+test('the phone header holds still over every mode, and › comes back round', async (t) => {
+  const { app, page } = await studio(t, 'visual-novel');
+  await app.client.json('PATCH', '/api/projects/tank', {
+    body: { name: 'A game with a name far too long for one row of a phone' },
+  });
+  await page.goto(`${app.base}/p/tank`);
+  const name = page.locator('.view-changer .view-name');
+  await name.waitFor();
+  const first = await name.textContent();
+  const seen = [];
+  do {
+    const at = await page.evaluate(() => {
+      const head = document.querySelector('.phone-header').getBoundingClientRect();
+      const bar = document.querySelector('.phone-header > .bar').getBoundingClientRect();
+      const pane = document.querySelector('.pane.show');
+      return { top: head.top, bar: bar.height, over: pane.scrollHeight - pane.clientHeight };
+    });
+    const mode = await name.textContent();
+    seen.push(mode);
+    assert.equal(at.top, 0, `${mode}: the head is at the top`);
+    assert.ok(at.bar < 64, `${mode}: the bar is one row, not ${at.bar}px`);
+    assert.ok(at.over <= 0, `${mode} is ${at.over}px taller than its pane`);
+    await page.locator('.view-changer .view-step').last().click();
+    await page.waitForFunction((was) => document.querySelector('.view-changer .view-name')?.textContent !== was, mode);
+  } while (await name.textContent() !== first && seen.length < 20);
+  assert.equal(await name.textContent(), first, `› came back round after ${seen.join(', ')}`);
+  assert.equal(seen.length, TYPED['visual-novel'].length + EVERY_GAME.length);
+});
 
 // The one surface reachable with no account, and the first thing a phone
 // sees. Its own test because it needs the cookie thrown away.

@@ -30,6 +30,13 @@
   .app > .pane.show { display: flex; }
   .pane + .pane { border-left: none; }
   .rail-grip { display: none; }
+  /* The phone header takes the bar's and the pills' place: a row of the grid
+     above the pane that is showing, so whatever that pane does under it — a
+     long editor, a field scrolled into view for a keyboard — the game's name
+     and the view changer hold still (spec.md §17). */
+  .app.has-head { grid-template-rows: auto minmax(0, 1fr); }
+  .phone-header { display: flex; }
+  .pane.chat > .bar.game-bar, .modes { display: none; }
   .messages { padding: 16px; }
   .composer { padding: 12px 16px 16px; }
   .pane.chat > .bar { padding: 10px 16px; }

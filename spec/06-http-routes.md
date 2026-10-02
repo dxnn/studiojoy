@@ -681,7 +681,10 @@ pictures, sounds, controls, the tree, the versions and the public face. A chat
 project has no row. **The pill you are on, pressed again, closes the open
 file** and leaves the mode: the way back to the cards, the rows or the tree
 without reaching for the bar's ✕. Not under Questions or Controls, where the
-file is the mode.
+file is the mode. **On a phone the row is the view changer** (§17): ‹ and › step
+through the same modes in the same order and wrap, the one you are on is
+named between them with its `what` under it, and Preview beside them opens
+the rail and closes it again.
 
 ⚠️ **The pills are named for the senses; nothing else is.** They read
 **Speak**, **See**, **Hear**, **Touch**, **Taste**, **Recall**, **Smell**,

@@ -772,6 +772,85 @@ function renderModes(p) {
   }, m.label, away(m) ? readMark(p) : null)));
 }
 
+// The bar over a game: the way to the games, its name and its ···. Over the
+// centre it also whispers whether the game is published; on a phone it is the
+// first row of the phone header, where there is no room for the whisper.
+function gameBar(p, { phone = false } = {}) {
+  // A game starts open to the studio, so the lock is the news: this one is
+  // its editors' alone. Set in the same dialog the padlock's own button
+  // opens, which is where its meaning is explained.
+  const locked = !isChat() && !p.open_edit;
+  // hero.png, when the game has one, backs the bar under a dark wash so the
+  // name stays readable. An object URL, so nothing user-typed is in the style.
+  return h('div', {
+    class: `bar game-bar${S.images.hero ? ' has-hero-image' : ''}`,
+    style: S.images.hero ? `--hero-image:url(${S.images.hero})` : null,
+  },
+    phone
+      ? h('button', { class: 'quiet', text: '☰', title: 'Games and helpers', onclick: () => { S.narrowPane = 'games'; render(); } })
+      : !S.sidebar && h('button', {
+        class: 'icon', text: '☰', title: 'Show games and helpers',
+        onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
+      }),
+    // A status, not a control: it does not light up and it does not click.
+    locked && h('span', {
+      class: 'lock', text: '🔒', 'aria-label': 'Closed',
+      title: `Only ${p.name}’s editors can change it`,
+    }),
+    h('div', { class: 'title', text: p.name }),
+    p.archived && h('span', { class: 'tag', text: 'archived' }),
+    h('div', { class: 'spacer' }),
+    // State, not a control: whether the game is published. What changes it
+    // is in the ··· and under Share.
+    phone || isChat() || p.archived ? null : h('span', {
+      class: 'whisper',
+      text: p.published ? 'published' : 'not published',
+    }),
+    renderMore(p));
+}
+
+// The phone header (spec.md §17): the game's bar, and under it the view
+// changer — the phone's form of the pills, eight of which do not fit across
+// 390px. Drawn once, above whichever pane is showing, so it holds still while
+// the panes change under it; the wide bar and pills are hidden at that width.
+export function renderPhoneHeader() {
+  const p = S.project;
+  return h('div', { class: 'phone-header' }, gameBar(p, { phone: true }), renderViewChanger(p));
+}
+
+// ‹ and › step through the modes and wrap, so either way round reaches all
+// of them. Between them, the mode you are on and what it is for: a pill says that in a
+// title, and a phone has no hover to read one by. Speak's mark, when somebody
+// is waiting in there, rides the arrow that reaches it sooner. Preview is the
+// rail, a pane of its own on a phone, and the same button closes it again.
+function renderViewChanger(p) {
+  const modes = modesFor(p);
+  if (modes.length < 2) return null;
+  const at = Math.max(0, modes.findIndex((m) => m.id === S.mode));
+  const waiting = S.mode !== 'chat' && marked(p) ? readMark(p) : null;
+  const leftward = at <= modes.length - at;
+  const step = (by, arrow) => {
+    const to = modes[(at + by + modes.length) % modes.length];
+    return h('button', {
+      class: 'quiet view-step', title: `Go to ${to.label}`, 'aria-label': `Go to ${to.label}`,
+      // ⚠️ Returned, not fired, as the pills' is (see syncUrl).
+      onclick: () => { S.narrowPane = 'chat'; return openMode(to.id); },
+    }, arrow, (by < 0) === leftward ? waiting : null);
+  };
+  const railUp = S.narrowPane === 'rail';
+  return h('div', { class: 'view-changer' },
+    step(-1, '‹'),
+    h('div', { class: 'view-now' },
+      h('span', { class: 'view-name', text: modes[at].label }),
+      h('span', { class: 'view-what', text: modes[at].what })),
+    step(1, '›'),
+    h('button', {
+      class: `quiet view-preview${railUp ? ' on' : ''}`,
+      text: railUp ? 'Close preview' : 'Preview',
+      onclick: () => { S.narrowPane = railUp ? 'chat' : 'rail'; render(); },
+    }));
+}
+
 // One pill per conversation, and at the right the things that are about this
 // conversation rather than about the game: the helpers listening in it, and
 // the + that calls another in. Making another chat is the game's ···; this
@@ -904,11 +983,6 @@ export function renderChat() {
   // be interpreted.
   const gap = helperGap();
 
-  // A game starts open to the studio, so the lock is the news: this one is
-  // its editors' alone. Set in the same dialog the padlock's own button
-  // opens, which is where its meaning is explained.
-  const locked = !isChat() && !p.open_edit;
-
   // The body of the pane is whatever the mode says (spec.md §6). The bar over
   // it and the row of modes stay whatever is showing; the chat's own row, the
   // thread and the composer are the chat mode's, and every other mode takes
@@ -916,33 +990,7 @@ export function renderChat() {
   const body = S.mode === 'chat' ? null : renderModeBody();
 
   return h('div', { class: `pane chat${S.narrowPane === 'chat' ? ' show' : ''}` },
-    // hero.png, when the game has one, backs the bar under a dark wash so the
-    // name stays readable. An object URL, so nothing user-typed is in the style.
-    h('div', {
-      class: `bar${S.images.hero ? ' has-hero-image' : ''}`,
-      style: S.images.hero ? `--hero-image:url(${S.images.hero})` : null,
-    },
-      h('button', { class: 'quiet only-narrow', text: '☰', onclick: () => { S.narrowPane = 'games'; render(); } }),
-      !S.sidebar && h('button', {
-        class: 'icon only-wide', text: '☰', title: 'Show games and helpers',
-        onclick: () => { S.sidebar = true; prefs.set('sidebar', 'open'); render(); },
-      }),
-      // A status, not a control: it does not light up and it does not click.
-      locked && h('span', {
-        class: 'lock', text: '🔒', 'aria-label': 'Closed',
-        title: `Only ${p.name}’s editors can change it`,
-      }),
-      h('div', { class: 'title', text: p.name }),
-      p.archived && h('span', { class: 'tag', text: 'archived' }),
-      h('div', { class: 'spacer' }),
-      // State, not a control: whether the game is published. What changes it
-      // is in the ··· and under Share.
-      isChat() || p.archived ? null : h('span', {
-        class: 'whisper',
-        text: p.published ? 'published' : 'not published',
-      }),
-      renderMore(p),
-      !isChat() && h('button', { class: 'quiet only-narrow', text: 'Preview', onclick: () => { S.narrowPane = 'rail'; render(); } })),
+    gameBar(p),
     renderModes(p),
     body ? null : renderChatTabs(p),
     // The arc, under the pills of the builder's room only (arc-card.js).
