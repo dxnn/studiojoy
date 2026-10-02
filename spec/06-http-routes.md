@@ -665,7 +665,14 @@ read-only in both. The heading of each opens Share, where the real editor
 lives; a summary is not where you go to change one. Each is absent rather
 than empty — no achievements defined, or a board that is off or has nothing
 on it, and that half simply is not there, the sidebar's rule about a group
-with nothing in it.
+with nothing in it. ⚠️ **Except achievements, for somebody who may change the
+game** (2026-10-02): a game with none shows a line saying what they are and
+**Make some with the builder**, which is also beside *+ Add an achievement*
+under Share. It opens the game's builder room called *Achievements* — making
+it the first time, Building when the game already has every room it may —
+with the ask waiting in the composer, unsent. An achievement is a rule over
+the moments a game says, and saying them is code, so the first ones are the
+builder's job rather than the form's.
 
 ⚠️ It was an icon strip with the name and the headcount on a `title` until
 2026-09-06, which is nothing at all on a touchscreen: the studio is used on

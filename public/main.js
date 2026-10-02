@@ -17,6 +17,7 @@ import { isFileDrag } from './upload.js';
 import { QUIZ_FILE } from './quiz-editor.js';
 import {
   loadAchievements, parkAchievements, renderAchievementsTab, loadCounts, countsFor,
+  makeAchievementsButton,
 } from './achievements-form.js';
 import { renderControlsEditor } from './controls-form.js';
 import { editorsFor, modesFor, allEditors } from './game-types.js';
@@ -1256,10 +1257,19 @@ const summaryHead = (label) => h('button', {
 // Every achievement the game has, with how many people hold each. It was an
 // icon strip with the words on a `title` before, which is nothing at all on a
 // touchscreen — the studio is used on phones, where there is no hover.
+// A game with none shows the way to make the first ones rather than an empty
+// heading, which would be furniture — and nothing at all to somebody who may
+// not change it.
 function renderAchievementsSummary() {
   if (!S.achievements || S.achievements.grown) return null;
   const { entries } = S.achievements.model;
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return frozen() ? null : h('div', { class: 'rail-section' },
+      summaryHead('Achievements'),
+      h('div', { class: 'rail-empty' },
+        h('span', { class: 'hint muted', text: 'None yet — things a player can earn by playing.' }),
+        makeAchievementsButton()));
+  }
   const counts = countsFor(S.slug);
   return h('div', { class: 'rail-section' },
     summaryHead('Achievements'),

@@ -339,11 +339,38 @@ export async function createChat(name) {
   const res = await api('POST', `/api/projects/${S.slug}/chats`, { name });
   if (!res.ok) {
     say(res.body?.error ?? 'Could not make that chat.', true);
-    return;
+    return false;
   }
   S.chats.push(res.body);
   await openChat(res.body.id);
   say(`${res.body.name} is ready. Helpers can be put in this one.`);
+  return true;
+}
+
+// An ask, dropped into the composer as the request it is — the kid can change
+// it or send it as it stands. Nothing is sent for them.
+export function askBuilder(text) {
+  composerBox.value = text;
+  composerBox.focus();
+  composerBox.setSelectionRange(text.length, text.length);
+  if (S.slug) S.unsent.set(S.slug, text);
+}
+
+// The way into achievements for a game that has none (spec.md §6). An
+// achievement is a rule over the moments a game says, and saying them is
+// code, so making the first ones is the builder's job: a builder room about
+// them — the one already made, if there is one — with the ask waiting in the
+// composer. A game with every room it may have gets the ask in Building.
+export const ACHIEVEMENTS_ROOM = 'Achievements';
+const ACHIEVEMENTS_ASK = 'Give this game some achievements: three to five things a player can earn '
+  + 'by playing it, like finishing a level or beating a score. Make the game say the moments they need.';
+
+export async function askForAchievements() {
+  S.narrowPane = 'chat';
+  const room = S.chats.find((c) => c.builder && c.name === ACHIEVEMENTS_ROOM);
+  if (room) await openChat(room.id);
+  else if (!(await createChat(ACHIEVEMENTS_ROOM))) await openChat(S.chats.find((c) => c.builder)?.id);
+  askBuilder(ACHIEVEMENTS_ASK);
 }
 
 // The project payload carries its own copy of each attached helper's details,

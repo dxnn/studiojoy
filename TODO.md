@@ -34,8 +34,6 @@ deliberately deferred.
   browser cannot make (ideas/device-checks.md)
 - an announcements room: one studio-wide room whose every message notifies
   everybody (spec/ §6's notifications and web push are what it rides on)
-- give a game with no achievements a way into making some — from the rail or
-  Share to a builder room about them, or to the achievements helper below
 - ask the builder for the one-game chores — fixes that belong to one game
   rather than to the studio (ideas/game-chores.md)
 - let a person lock a game file: the builder gets its API note, not its

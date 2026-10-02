@@ -28,6 +28,17 @@ import {
 import { momentsFor } from './telemetry.js';
 import { chooseFile, refreshFiles } from './files.js';
 import { writeEditorFile } from './editor-file.js';
+import { askForAchievements } from './chats.js';
+
+// The way to a game's first achievements, beside the form and in the empty
+// rail: a builder room about them with the ask waiting (chats.js). A button,
+// because it makes a room rather than looking at one.
+// ⚠️ Returned, not fired: it opens something (see syncUrl).
+export const makeAchievementsButton = () => h('button', {
+  class: 'quiet tiny', text: 'Make some with the builder',
+  title: 'Open a builder room about achievements, with the ask ready to send',
+  onclick: () => askForAchievements(),
+});
 
 // Which row is open, for which game — a different game opens closed.
 let opened = { slug: null, index: null };
@@ -378,15 +389,17 @@ function renderAchievementsForm(st) {
           text: `what a player can earn, kept forever · ${plural(entries.length, 'achievement')}`,
         })),
       ...entries.map(card),
-      h('button', {
-        class: 'quiet tiny', text: '+ Add an achievement', disabled: frozen(),
-        onclick: () => {
-          entries.push({ id: '', name: '', how: '', icon: '', when: null });
-          opened.index = entries.length - 1;
-          commit(st);
-          render();
-        },
-      }),
+      h('div', { class: 'row wrap' },
+        h('button', {
+          class: 'quiet tiny', text: '+ Add an achievement', disabled: frozen(),
+          onclick: () => {
+            entries.push({ id: '', name: '', how: '', icon: '', when: null });
+            opened.index = entries.length - 1;
+            commit(st);
+            render();
+          },
+        }),
+        entries.length || frozen() ? null : makeAchievementsButton()),
       ...checks.map((say) => h('p', { class: 'hint warn', text: `⚠ ${say}` }))),
     h('div', { class: 'editor-bar row' },
       h('span', { class: 'hint muted', id: 'ach-status', text: st.dirty ? 'Not saved yet' : 'Saved' }),

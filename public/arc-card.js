@@ -10,21 +10,13 @@
 
 import { h } from './dom.js';
 import {
-  S, api, say, render, prefs, frozen, composerBox, more, isChat,
+  S, api, say, render, prefs, frozen, more, isChat,
 } from './main.js';
 import { arcFor, checks } from './arc.js';
+import { askBuilder } from './chats.js';
 
 const key = () => `arc-${S.slug}`;
 const folded = () => prefs.get(key(), 'open') === 'closed';
-
-// An ask, dropped into the composer as the request it is — the kid can change
-// it or send it as it stands. Nothing is sent for them.
-function askBuilder(text) {
-  composerBox.value = text;
-  composerBox.focus();
-  composerBox.setSelectionRange(text.length, text.length);
-  if (S.slug) S.unsent.set(S.slug, text);
-}
 
 async function setStage(stage) {
   const res = await api('POST', `/api/projects/${S.slug}/stage`, { stage });
