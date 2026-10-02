@@ -79,6 +79,11 @@ deliberately deferred.
   vocabulary a hand-editor wants (ideas/control-schemes.md, "Picking one")
 - the pixel editor's next steps (ideas/pixel-editor.md): pinch to zoom (1);
   and selection and move, then mirror, flip, rotate and nudge (5–7)
+- stop a picture's own autosave saying "changed while you were working on
+  it": seen after every stroke in the MCP browser (2026-10-02), most likely
+  its own `files.changed` landing before the PUT's response clears
+  `S.draw.dirty` (`public/stream.js`). Once in the same run, a stroke made
+  within a second of a reload did not survive; not reproduced settled
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first
