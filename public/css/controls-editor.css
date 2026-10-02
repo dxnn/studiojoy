@@ -20,8 +20,9 @@
 }
 .ctl-shape.manner { margin-left: 18px; padding: 7px 12px; }
 /* Only the rows that are buttons light up, which here means every row but
-   the one the game already wears. */
-.ctl-shape:hover:not(.on) {
+   the one the game already wears — and none at all in a game you may not
+   change, where every row is a div. */
+button.ctl-shape:hover:not(.on) {
   background: var(--hover);
   border-color: var(--border-soft);
   color: inherit;
