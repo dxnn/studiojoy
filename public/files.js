@@ -264,16 +264,36 @@ export async function saveAndClose(then = null) {
   if (saved) await closeOpenFile(then);
 }
 
+// The paths this tab is saving right now. ⚠️ A save's own files.changed lands
+// around the moment its PUT is answered — measured 8 ms after the headers,
+// while the editor was still reading the body and so still held the work as
+// unsaved — and the stream took it for somebody else's, telling a person
+// their picture had changed under them after every stroke. Somebody else's
+// write in that same moment is still caught: every save carries If-Match, so
+// the next one is refused and says so.
+export const saving = new Set();
+
+// The open file's bytes, PUT, answered with the response and its body read.
+// The body is read *before* the path leaves `saving`: the caller records
+// `savedAt` straight after this resolves, with no event able to land between.
+// The text, pixel and sound editors all save through here.
+export async function putOpenFile(path, { headers, body }) {
+  saving.add(path);
+  try {
+    const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, { method: 'PUT', headers, body });
+    return { res, answer: await res.json().catch(() => null) };
+  } finally {
+    saving.delete(path);
+  }
+}
+
 // True when the file is saved, false when it is not — a conflict or a failure
 // — so "Save and close" knows whether closing would lose anything.
 export async function saveOpenFile({ force = false } = {}) {
   if (!S.open) return false;
   const headers = { 'content-type': 'text/plain' };
   if (!force && S.open.etag) headers['if-match'] = S.open.etag;
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(S.open.path)}`, {
-    method: 'PUT', headers, body: S.open.content,
-  });
-  const body = await res.json().catch(() => null);
+  const { res, answer: body } = await putOpenFile(S.open.path, { headers, body: S.open.content });
 
   if (res.status === 409) {
     // Someone — probably an agent — got there first. Offer the choice rather
@@ -292,6 +312,7 @@ export async function saveOpenFile({ force = false } = {}) {
     return false;
   }
   S.open.etag = body.etag;
+  S.open.savedAt = Date.now();
   S.open.dirty = false;
   S.previewNonce += 1;
   await refreshFiles();

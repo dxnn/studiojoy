@@ -13,7 +13,7 @@ import {
   S, send, say, render, encodePath, problem,
 } from './main.js';
 import {
-  refreshFiles, openFile, saveEditorSoon, opening,
+  refreshFiles, openFile, saveEditorSoon, opening, putOpenFile,
 } from './files.js';
 
 export const isSound = (open) => !!open?.mime?.startsWith('audio/');
@@ -53,10 +53,9 @@ export async function saveSound() {
   const { path } = S.open;
   const holding = S.sound;
   const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
-  const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
-    method: 'PUT', headers, body: new Blob([soundBytes(holding.params)], { type: 'audio/wav' }),
+  const { res, answer: body } = await putOpenFile(path, {
+    headers, body: new Blob([soundBytes(holding.params)], { type: 'audio/wav' }),
   });
-  const body = await res.json().catch(() => null);
   // Two sounds cannot be compared in a dialog any more than two pictures can,
   // and the numbers are the whole file, so this says what happened and touches
   // nothing.

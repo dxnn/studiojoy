@@ -21,7 +21,7 @@ import {
   S, send, say, render, encodePath, problem, frozen,
 } from './main.js';
 import {
-  openFile, opening, saveEditorSoon, refreshFiles,
+  openFile, opening, saveEditorSoon, refreshFiles, putOpenFile,
 } from './files.js';
 
 /* Drawing ------------------------------------------------------------------ */
@@ -330,10 +330,7 @@ export async function saveDrawing() {
 
   if (drew) {
     const headers = S.open.etag ? { 'if-match': S.open.etag } : {};
-    const res = await send(`/api/projects/${S.slug}/files/${encodePath(path)}`, {
-      method: 'PUT', headers, body: await pictureBlob(drawing.picture),
-    });
-    const body = await res.json().catch(() => null);
+    const { res, answer: body } = await putOpenFile(path, { headers, body: await pictureBlob(drawing.picture) });
     // The text conflict dialog offers to keep one side or the other. Two
     // pictures cannot be compared in a dialog, and nothing but a person writes a
     // PNG, so this says what happened and touches nothing.

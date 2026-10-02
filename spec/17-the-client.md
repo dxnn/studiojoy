@@ -161,6 +161,18 @@ has started; `startDrawing` and `startSound` belong to the open that called
 them. Without that, two clicks in the list left whichever request finished
 last on screen, which is how one picture ended up under another one's name.
 
+⚠️ **A save hears its own write.** A save's own `files.changed` lands around
+the moment its PUT is answered — measured 8 ms after the headers, while the
+editor was still reading the body and so still held the work as unsaved — and
+was taken for somebody else's: "changed while you were working on it" after
+every stroke of the pixel editor, seen 2026-10-02. Every save of the open file
+goes through `putOpenFile` (`files.js`), which holds the path in `saving`
+until the body is read, so the caller sets `savedAt` with no event able to
+land between; the handler takes a write as its own while the path is there or
+for five seconds after `savedAt`, and neither warns nor re-reads. Somebody
+else's write in that window is still caught, because every save carries
+If-Match and the next one is refused.
+
 ### Transport
 
 ⚠️ Nothing calls `fetch` directly. `send()` does, and answers with status 0

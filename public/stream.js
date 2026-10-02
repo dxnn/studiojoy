@@ -14,7 +14,7 @@ import { achievementsChanged } from './achievements-form.js';
 import { stickToBottom } from './chats.js';
 import {
   refreshFiles, ICON_IMAGE, CHAT_IMAGE, HERO_IMAGE, refreshIcon,
-  loadReservedImages, openFile, countVersions,
+  loadReservedImages, openFile, countVersions, saving,
 } from './files.js';
 import { LOOK_FILE, loadPalette } from './drawing.js';
 import { loadHistory } from './history.js';
@@ -445,13 +445,17 @@ function onEvent(name, data) {
       // reload below re-runs the game, and anything still broken says so
       // again.
       S.errors = [];
-      if (S.open && data.paths.includes(S.open.path)) {
+      // Our own save's write arrives this way too: while its PUT is still out
+      // (`saving`, files.js), or just after it was answered (`savedAt`). It
+      // is not news, and re-opening on it would restart the pixel editor —
+      // undo history and all — every two seconds.
+      const ours = S.open
+        && (saving.has(S.open.path) || Date.now() - (S.open.savedAt ?? 0) <= 5000);
+      if (S.open && data.paths.includes(S.open.path) && !ours) {
         if (S.open.dirty || S.draw?.dirty || S.sound?.dirty) {
           say(`${S.open.path} changed while you were working on it. What you have is still here — saving will ask before overwriting.`);
-        } else if (Date.now() - (S.open.savedAt ?? 0) > 5000) {
-          // Somebody else's write: re-read the file. Our own save's write
-          // arrives this way too, and re-opening on that would restart the
-          // pixel editor — undo history and all — every two seconds.
+        } else {
+          // Somebody else's write: re-read the file.
           openFile(S.open.path);
         }
       }
