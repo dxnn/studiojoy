@@ -362,6 +362,34 @@ export function floodFill(picture, x, y, rgba) {
   return changed;
 }
 
+// The fill's other half: every pixel the colour of the one clicked, joined to
+// it or not, which is how a green dragon goes purple in one go. Inside the clip
+// like every tool, so on one frame of a strip it means that frame and Whole
+// strip means all of them — it changes what is on screen and nothing else.
+export function replaceColour(picture, x, y, rgba) {
+  const target = pixelAt(picture, x, y);
+  if (!target) return 0;
+  let changed = 0;
+  for (let py = 0; py < picture.height; py += 1) {
+    for (let px = 0; px < picture.width; px += 1) {
+      if (matches(picture, px, py, target) && setPixel(picture, px, py, rgba)) changed += 1;
+    }
+  }
+  return changed;
+}
+
+// The lines between the squares as one SVG path in the picture's own units —
+// a vertical every `every` columns and a horizontal every `every` rows, the
+// outer edge left out because the picture's edge is drawn already. In the
+// picture's units, so it scales with the box for nothing and each line sits on
+// a square's edge at any zoom, Fit's fractional ones included.
+export function gridPath(width, height, every = 1) {
+  const parts = [];
+  for (let x = every; x < width; x += every) parts.push(`M${x} 0V${height}`);
+  for (let y = every; y < height; y += every) parts.push(`M0 ${y}H${width}`);
+  return parts.join('');
+}
+
 // One frame of a strip, lifted out as bytes — the clipboard behind
 // "Copy frame". `fw` is the frame's width; the height is the picture's.
 export function copyFrame(picture, fw, frame) {

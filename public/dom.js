@@ -24,8 +24,9 @@ export function h(tag, props, ...kids) {
 
 // h() makes HTML elements, and an <svg> built with createElement is inert —
 // SVG needs its own namespace. Small enough to keep separate rather than
-// teaching h() about namespaces it would use nowhere else.
-const SVG_NS = 'http://www.w3.org/2000/svg';
+// teaching h() about namespaces: the icons and the pixel editor's grid are
+// the only two users.
+export const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // Drawn in outline from currentColor, so a tool that is on inherits the filled
 // button's ink without a second copy of the icon.

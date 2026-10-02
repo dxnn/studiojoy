@@ -151,9 +151,12 @@ export const S = {
   // the tool and the brush, so leaning into one sprite and opening the next
   // keeps the magnification you were working at.
   // `filled` belongs to the rectangle and the ellipse alone — whether the
-  // middle is coloured in as well as the edge.
+  // middle is coloured in as well as the edge. `everywhere` is Fill's: every
+  // pixel of the clicked colour, not only the joined ones. `eights` is the
+  // brighter grid line every eighth square, once the grid is showing at all.
   drawPrefs: {
     tool: 'pencil', brush: 1, slot: 0, ghost: false, zoom: 'fit', filled: false,
+    everywhere: false, eights: false,
   },
   // The open project's colours, read from its own config/look.js so that
   // changing one is a change to the game with a version behind it, rather than

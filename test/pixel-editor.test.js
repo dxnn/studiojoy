@@ -7,7 +7,7 @@ import {
   PALETTE, PALETTE_COLUMNS, GREYS, RAINBOW, FUN, isColour,
   SIZES, BRUSHES, MAX_SIDE, MAX_DRAWN, UNDO_BYTES, CLEAR,
   blankPicture, copyPicture, pixelAt, setPixel, stamp, drawLine, linePoints, isCorner,
-  drawRect, drawEllipse, floodFill,
+  drawRect, drawEllipse, floodFill, replaceColour, gridPath,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isBlank, clampSide,
@@ -250,6 +250,45 @@ test('filling with the colour already there does nothing at all', () => {
 test('a fill outside the picture is not a crash', () => {
   const picture = blankPicture(4, 4);
   assert.equal(floodFill(picture, 9, 9, RED), 0);
+});
+
+test('replacing a colour reaches past a wall, and leaves the others alone', () => {
+  // Two blue patches with a red wall between them: a fill gets one, replacing
+  // gets both, and neither touches the wall or the see-through corner.
+  const picture = blankPicture(5, 2);
+  for (const x of [0, 1, 3, 4]) setPixel(picture, x, 0, BLUE);
+  setPixel(picture, 2, 0, RED);
+  beginStep(picture);
+  assert.equal(replaceColour(picture, 0, 0, GREEN), 4);
+  const step = endStep(picture);
+  assert.deepEqual(pixelAt(picture, 4, 0), GREEN, 'the far side of the wall');
+  assert.deepEqual(pixelAt(picture, 2, 0), RED, 'the wall itself');
+  assert.deepEqual(pixelAt(picture, 0, 1), [0, 0, 0, 0], 'a different colour');
+  // One gesture, so one Undo puts all four back.
+  applyStep(picture, step, true);
+  assert.deepEqual(pixelAt(picture, 4, 0), BLUE);
+  assert.equal(replaceColour(picture, 9, 9, GREEN), 0, 'outside is not a crash');
+});
+
+test('replacing a colour on one frame of a strip leaves the others alone', () => {
+  const strip = blankPicture(16, 8);
+  setPixel(strip, 1, 1, RED);
+  setPixel(strip, 9, 1, RED);
+  clipFrame(strip, 0, 8);
+  assert.equal(replaceColour(strip, 1, 1, BLUE), 1);
+  unclip(strip);
+  assert.deepEqual(pixelAt(strip, 9, 1), RED, 'the next frame keeps its red');
+  // And with nothing clipped — Whole strip — it reaches every frame.
+  assert.equal(replaceColour(strip, 9, 1, BLUE), 1);
+  assert.deepEqual(pixelAt(strip, 9, 1), BLUE);
+});
+
+test('the grid is the lines between squares, without the outer edge', () => {
+  assert.equal(gridPath(3, 2), 'M1 0V2M2 0V2M0 1H3');
+  assert.equal(gridPath(1, 1), '', 'one square has nothing between');
+  // Every eighth: a 16-wide picture has one, down the middle, and an 8-tall
+  // one has none across.
+  assert.equal(gridPath(16, 8, 8), 'M8 0V8');
 });
 
 test('a copy is a copy, not the same bytes under a new name', () => {

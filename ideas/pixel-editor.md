@@ -127,9 +127,15 @@ Seven things are missing outright:
 6. **Mirror drawing**, vertical and horizontal. Ten lines inside `stamp`.
 7. **Flip, rotate 90°, nudge one pixel.** All exact. Free rotation is not, and
    is out (below).
-8. **A grid**, on above about 8× zoom, with an optional every-8 guide.
+8. **A grid**, on above about 8× zoom, with an optional every-8 guide. Built
+   2026-10-02: from 8× (`GRID_FROM`), Fit included, with **Every 8** in the
+   bar beside the zoom. An SVG in the picture's own units with non-scaling
+   strokes, so every line is placed on a square's edge on its own.
 9. **Replace a colour** everywhere in the picture. The palette already edits in
-   place; this is the picture half of the same idea.
+   place; this is the picture half of the same idea. Built 2026-10-02 as
+   **Everywhere**, a switch on Fill beside the brush row, which is the bucket
+   with "joined to it" taken out — a tool of its own would have been a second
+   bucket. Clipped like every tool: one frame of a strip, or Whole strip.
 
 ### Tier 3 — worth having, not worth blocking on
 

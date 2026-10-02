@@ -78,8 +78,7 @@ deliberately deferred.
   prose lives only in the panel — the second is smaller and loses the
   vocabulary a hand-editor wants (ideas/control-schemes.md, "Picking one")
 - the pixel editor's next steps (ideas/pixel-editor.md): pinch to zoom (1);
-  selection and move, then mirror, flip, rotate and nudge (5–7); a grid above
-  about 8× zoom (8); and replacing a colour everywhere in a picture (9)
+  and selection and move, then mirror, flip, rotate and nudge (5–7)
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first

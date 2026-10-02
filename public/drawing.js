@@ -4,11 +4,11 @@
 // the pointer and toBlob stay here, for the same reason the sound editor's
 // numbers and its sliders are two files.
 
-import { h, iconButton } from './dom.js';
+import { h, iconButton, SVG_NS } from './dom.js';
 import {
   PALETTE, BRUSHES, MAX_SIDE, UNDO_BYTES, CLEAR,
   blankPicture, pictureFrom, pixelAt, stamp, drawLine, linePoints, isCorner,
-  drawRect, drawEllipse, floodFill,
+  drawRect, drawEllipse, floodFill, replaceColour, gridPath,
   beginStep, endStep, applyStep, stepBytes,
   clipFrame, unclip, copyFrame, pasteFrame,
   rgbaOf, hexOf, isColour,
@@ -53,6 +53,11 @@ const FILLABLE = new Set(['rect', 'ellipse']);
 // makes an editor look soft. Fit is the other level and is not in the list:
 // it is whatever the pane allows, and is where a picture opens.
 const ZOOMS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+
+// Screen pixels per square from which the grid shows. Under it a line one
+// screen pixel wide is too much of each square, and the grid hides the
+// picture it is there to help with.
+const GRID_FROM = 8;
 
 function pictureCanvas(picture) {
   const canvas = document.createElement('canvas');
@@ -410,6 +415,40 @@ export function renderDrawing() {
     lines.style.setProperty('--frames', frames);
   }
 
+  // The lines between the squares, once a square is big enough to see past
+  // them, and with Every 8 a brighter one every eighth square to count by.
+  // Display only, like the edge: one-screen-pixel strokes over the picture's
+  // own units, shown and hidden by sizeBox as the scale moves, and the button
+  // with them, since it does nothing while there is no grid.
+  const grid = document.createElementNS(SVG_NS, 'svg');
+  grid.setAttribute('class', 'pixel-grid');
+  grid.setAttribute('viewBox', `0 0 ${viewW} ${picture.height}`);
+  grid.setAttribute('preserveAspectRatio', 'none');
+  grid.setAttribute('aria-hidden', 'true');
+  grid.style.display = 'none';
+  const gridLines = (cls, every) => {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('class', cls);
+    path.setAttribute('d', gridPath(viewW, picture.height, every));
+    grid.append(path);
+    return path;
+  };
+  gridLines('squares', 1);
+  const eights = gridLines('eights', 8);
+  const showEights = () => { eights.style.display = S.drawPrefs.eights ? '' : 'none'; };
+  showEights();
+  const eightsBtn = h('button', {
+    class: `quiet tiny${S.drawPrefs.eights ? ' on' : ''}`,
+    text: 'Every 8',
+    title: 'A brighter line every 8 squares, to count them by',
+    hidden: true,
+    onclick: () => {
+      S.drawPrefs.eights = !S.drawPrefs.eights;
+      eightsBtn.classList.toggle('on', S.drawPrefs.eights);
+      showEights();
+    },
+  });
+
   // The shape being dragged out, on a canvas of its own over the picture. The
   // call that will land is the one that draws it — into a scratch picture the
   // size of what the canvas shows — so what somebody sees while dragging is
@@ -428,7 +467,7 @@ export function renderDrawing() {
   // spotOf has one rectangle to read. .media centres it while it is smaller
   // than the pane and scrolls it once it is bigger, which is the whole of
   // panning.
-  const pictureBox = h('div', { class: 'picture-box' }, canvas, preview, edge, lines);
+  const pictureBox = h('div', { class: 'picture-box' }, canvas, preview, grid, edge, lines);
   const media = h('div', { class: 'media grow' }, pictureBox);
 
   // Screen pixels per picture pixel. `fit` is as big as the pane allows —
@@ -446,6 +485,8 @@ export function renderDrawing() {
   const sizeBox = () => {
     const scale = scaleNow();
     if (!(scale > 0)) return;
+    grid.style.display = scale >= GRID_FROM ? '' : 'none';
+    eightsBtn.hidden = scale < GRID_FROM;
     // Hold the middle of the view still across a zoom, or pressing + walks off
     // towards the top-left corner of the picture.
     const was = [pictureBox.offsetWidth, pictureBox.offsetHeight];
@@ -670,7 +711,7 @@ export function renderDrawing() {
     try { canvas.setPointerCapture(event.pointerId); } catch { /* no capture */ }
     last = [x, y];
     if (S.drawPrefs.tool === 'fill') {
-      floodFill(picture, x, y, colour());
+      (S.drawPrefs.everywhere ? replaceColour : floodFill)(picture, x, y, colour());
       // A fill is over the moment it is done; there is no dragging it. Through
       // render() rather than paint() so Undo stops looking greyed out.
       last = null;
@@ -774,6 +815,14 @@ export function renderDrawing() {
       text: 'Fill it in',
       title: 'Colour the middle as well as the edge',
       onclick: () => { S.drawPrefs.filled = !S.drawPrefs.filled; render(); },
+    }) : null,
+    // Fill's alone, for the same reason: every pixel of the clicked colour
+    // rather than only the ones joined to it.
+    S.drawPrefs.tool === 'fill' ? h('button', {
+      class: `quiet tiny${S.drawPrefs.everywhere ? ' on' : ''}`,
+      text: 'Everywhere',
+      title: `Change every pixel of that colour in the ${frameMode ? 'frame' : 'picture'}, joined up or not`,
+      onclick: () => { S.drawPrefs.everywhere = !S.drawPrefs.everywhere; render(); },
     }) : null);
 
   // The game's colours, two rows of sixteen. Choosing one says both "draw with
@@ -911,7 +960,8 @@ export function renderDrawing() {
     zoomBtn('−', -1, 'Make the squares smaller'),
     zoomLabel,
     zoomBtn('+', 1, 'Make the squares bigger, to draw one pixel at a time'),
-    fitBtn);
+    fitBtn,
+    eightsBtn);
   showZoom();
 
   paint();

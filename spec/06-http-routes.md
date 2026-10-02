@@ -366,6 +366,10 @@ Twelve choices worth naming:
   the fill is the span between that boundary's own ends on each row — so
   turning it on cannot move the shape's edge by a pixel. The ellipse is
   Bresenham's bounding-box form, which gets odd and even diameters both right.
+  **Everywhere** (`S.drawPrefs.everywhere`, `replaceColour`) is Fill's alone in
+  the same way: every pixel of the clicked colour rather than only the ones
+  joined to it, one Undo. It goes through the clip like every tool, so on one
+  frame of a strip it means that frame and *Whole strip* means all of them.
 
 - **Zoom is Fit or a whole number of screen pixels per picture pixel**
   (`ZOOMS` in `drawing.js`, `S.drawPrefs.zoom`). Fit is as big as the pane
@@ -378,6 +382,12 @@ Twelve choices worth naming:
   than its pane is moved about, and a second finger landing ends the stroke
   the first one started rather than bending it. ⚠️ Ending it there must not
   render: a render replaces the canvas under the fingers still on it.
+  From 8 screen pixels a square (`GRID_FROM`), Fit included, a **grid** shows
+  the lines between squares, with **Every 8** in the bar beside the zoom for a
+  brighter line every eighth square — left out while there is no grid. It is
+  an SVG in the picture's own units (`gridPath`) with one-screen-pixel
+  strokes, so each line is placed on its own square's edge, at a fractional
+  Fit too, and nothing is sized by hand; display only, like the edge.
   The canvas's floor against the tools' is
   `clamp(min(150px, 25vh), calc(100vh - 470px), 320px)` — too small a floor
   and the canvas goes to nothing, which is no canvas at all since a pointer
