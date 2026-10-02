@@ -294,9 +294,6 @@
   box-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
 }
 .reaction-palette.placed { visibility: visible; }
-/* Your own messages sit on the right, so their palette hangs right too rather
-   than running off the pane. */
-.msg:not(.from-agent):not(.system) .reaction-palette { left: auto; right: 0; }
 .reaction-palette button {
   border: none;
   background: none;
