@@ -59,7 +59,8 @@ function personCard(person) {
   if (person.moods[0]) pictureInto(img, `${SPRITE_DIR}/${person.key}-${person.moods[0]}.png`);
   return h('div', {
     class: `card face${on ? ' on' : ''}`,
-    onclick: () => { S.pick = { kind: 'person', key: person.key }; render(); },
+    // Their fields are the rail's alone, a pane away on a phone: go there.
+    onclick: () => { S.pick = { kind: 'person', key: person.key }; S.narrowPane = 'rail'; render(); },
   },
   h('div', { class: 'cpic' }, img),
   h('div', { class: 'crow' }, h('div', { class: 'cname', text: person.name || person.key })),
@@ -197,7 +198,10 @@ export function renderHearMode() {
       class: `hear-row${on ? ' on' : ''}`,
       onclick: (e) => {
         if (e.target.closest('button')) return undefined;
-        return on ? closeOpenFile() : chooseFile(f.path);
+        if (on) return closeOpenFile();
+        // Its editor is the rail's alone, a pane away on a phone: go there.
+        S.narrowPane = 'rail';
+        return chooseFile(f.path);
       },
     },
     playButton(f.path),
