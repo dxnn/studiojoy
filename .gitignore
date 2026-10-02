@@ -12,6 +12,9 @@ node_modules/
 # The deployed env file holds the API key and lives on the server, outside the
 # work tree. deploy/studio.env.example is the committed template.
 deploy/*.env
+# Anywhere else too: the repository is public, and a studio.env beside the
+# code is one `git add` away from putting its keys on GitHub.
+*.env
 # probes/ is tracked — it is what spec/ §14 is made of — but the key those
 # scripts read is not. It stays in tmp/deepseek.key or $DEEPSEEK_API_KEY.
 probes/*.key
