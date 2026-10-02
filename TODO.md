@@ -32,6 +32,23 @@ deliberately deferred.
 
 - try the studio on a real phone and the older iPad: the checks a headless
   browser cannot make (ideas/device-checks.md)
+- build the phone shell around views: the game's header held at the top, its
+  buttons folded away, and ← → that step through the modes. Wants a sketch in
+  ideas/ first; the rail's open question (CLAUDE.md) is half of it, and the
+  editor bars have no side gutter at 390px
+- ask, when a room is added to a game, whether it is a builder room or one for
+  people only. ⚠️ Every room but `Humans only` is a builder room today
+  (spec/ §3, §8), so the second answer undoes an invariant
+- an announcements room: one studio-wide room whose every message notifies
+  everybody (spec/ §6's notifications and web push are what it rides on)
+- give a game with no achievements a way into making some — from the rail or
+  Share to a builder room about them, or to the achievements helper below
+- give every buttons-shape game a controller without asking: asterogueoids
+  binds no `pad:` at all. `input.js` could lend the arrow verbs the d-pad and
+  stick when a game names no pad (input 8)
+- lift the story's `renameField` (story-form.js) into the controls and
+  adventure name fields: they still commit half a word when a render takes
+  them away (spec/ §17)
 - ask the builder for the one-game chores — fixes that belong to one game
   rather than to the studio (ideas/game-chores.md)
 - let a person lock a game file: the builder gets its API note, not its
