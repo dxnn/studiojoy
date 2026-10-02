@@ -571,7 +571,11 @@ function placeMenu(button, menu) {
     const height = menu.offsetHeight;
     const below = r.bottom + 4 + height <= window.innerHeight;
     menu.style.top = `${below ? r.bottom + 4 : Math.max(4, r.top - 4 - height)}px`;
-    menu.style.right = `${Math.max(4, window.innerWidth - r.right)}px`;
+    // Its right edge under the button's, unless that runs off the left of the
+    // window — the game's ··· sits at the left of the bar on a phone.
+    const width = menu.offsetWidth;
+    menu.style.left = `${Math.max(4, Math.min(r.right - width, window.innerWidth - 4 - width))}px`;
+    menu.style.right = 'auto';
     menu.classList.add('placed');
   });
 }
