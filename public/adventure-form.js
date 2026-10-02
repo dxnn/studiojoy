@@ -903,7 +903,8 @@ export function renderAdventureEditor() {
     onfocusout: () => { if (S.adventure?.dirty) saveSoon(0); },
   },
   strip,
-  h('div', { class: 'story-main' },
+  // A scroller of its own on a phone (story-editor.css), so it has a name.
+  h('div', { class: 'story-main', 'data-scroll': 'adventure-main' },
     renderGuide(),
     buildStage(st, scene),
     h('div', {

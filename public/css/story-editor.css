@@ -33,6 +33,9 @@
 .strip-row .tail { display: flex; gap: 6px; }
 .strip-row .hint { font-size: 11.5px; white-space: nowrap; }
 .story-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* The code editor's bar has the same gutter; this one sat on the column's
+   edges, "Saved" against the strip and the last link against the rail. */
+.story-main > .editor-bar { padding: 9px 14px; border-top: 1px solid var(--border); }
 /* Drawn from the unsaved model: the picture behind, the portrait on it, the
    words along the bottom — the template's own layout at a third of the pane. */
 .stage {
@@ -131,4 +134,11 @@
 @media (max-width: 860px) {
   .story-editor { flex-direction: column; }
   .story-strip { flex: 0 0 auto; max-height: 34%; border-right: none; border-bottom: 1px solid var(--border); }
+  /* Under the strip, one scroller: the guide, the stage, the steps and the
+     bar. Each kept to itself, they came to more than a phone holds and the
+     bar fell off the foot of the pane, where no finger could reach it. The
+     bar keeps to the foot of the scroller. */
+  .story-main { min-height: 0; overflow-y: auto; }
+  .story-main > .steps { flex: none; overflow: visible; }
+  .story-main > .editor-bar { position: sticky; bottom: 0; background: var(--bg); }
 }
