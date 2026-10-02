@@ -24,9 +24,19 @@ test('code in backticks is meant character for character', () => {
   assert.equal(withEmoji('```\nconst s = ":wave:";\n```\n:wave:'), '```\nconst s = ":wave:";\n```\n👋');
 });
 
-test('the list is the thousand most used, every name one the pattern can match', () => {
+test('four of the thousand most used are left out, and one name of a fifth', () => {
+  // Kids use this studio (decided 2026-10-02). Asked of the emoji rather than
+  // the names, so no other name for one of them gets back in.
+  const emoji = new Set(Object.values(SHORTCODES));
+  for (const gone of ['🖕', '🔞', '🔫', '🚬']) assert.equal(emoji.has(gone), false, gone);
+  assert.equal(Object.hasOwn(SHORTCODES, 'shit'), false);
+  assert.equal(withEmoji(':poop: :hankey:'), '💩 💩', 'the poop emoji stays');
+  assert.equal(emoji.size, 996);
+});
+
+test('every name is one the pattern can match', () => {
   const names = Object.keys(SHORTCODES);
-  assert.equal(new Set(Object.values(SHORTCODES)).size, 1000);
+  assert.equal(names.length, 1029);
   for (const name of names) {
     assert.match(name, /^[a-z0-9_+-]+$/, name);
     assert.equal(withEmoji(`:${name}:`), SHORTCODES[name], name);

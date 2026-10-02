@@ -655,7 +655,10 @@ was mentionable used to be to guess it or go and click it in the sidebar.
 **A `:name:` in a message becomes its emoji on the way out**
 (`public/shortcodes.js`, decided 2026-10-02): the thousand emoji used most,
 by Unicode's 2021 frequency ranking, under every name GitHub's gemoji gives
-each — 1,035 names, typed into the file under gemoji's MIT notice. It happens
+each, typed into the file under gemoji's MIT notice. ⚠️ Less four, because
+kids use the studio: 🖕 🔞 🔫 🚬 under any name, and 💩 as `:poop:` and
+`:hankey:` but not its third — 996 emoji, 1,029 names, held by a test that
+asks of the emoji rather than the names. It happens
 in the browser, in `sendMessage`, before the pending bubble is drawn, so what
 shows while it sends is what was sent; the stored body holds the emoji and
 never the name, and the server takes it like any other text, cap included.

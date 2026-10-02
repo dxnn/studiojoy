@@ -4,10 +4,13 @@
 //
 // The thousand emoji people use most, by Unicode's 2021 frequency ranking
 // (home.unicode.org/emoji/emoji-frequency), under every name GitHub's gemoji
-// gives each — 1,035 names, most used first. Typed out rather than fetched,
-// so a message converts with no network and the list is the same for
-// everybody. Nothing is left out: every phone's emoji keyboard offers all of
-// these anyway, and a name only saves somebody finding one.
+// gives each, most used first. Typed out rather than fetched, so a message
+// converts with no network and the list is the same for everybody.
+//
+// ⚠️ Not quite all of them, because kids use this studio (decided
+// 2026-10-02): 🖕 🔞 🔫 🚬 are left out under every name, and 💩 is
+// `:poop:` and `:hankey:` but not its third name. That is 996 emoji under
+// 1,029 names. A test holds the line, so one cannot come back by a re-pull.
 //
 // The names are gemoji's (github.com/github/gemoji/blob/master/db/emoji.json):
 //
@@ -67,7 +70,7 @@ export const SHORTCODES = {
   "running": "🏃", "bouquet": "💐", "frowning_face": "☹️",
   "confetti_ball": "🎊", "cupid": "💘", "angry": "😠", "point_up": "☝️",
   "confused": "😕", "hibiscus": "🌺", "birthday": "🎂", "sunflower": "🌻",
-  "neutral_face": "😐", "middle_finger": "🖕", "fu": "🖕", "gift_heart": "💝",
+  "neutral_face": "😐", "gift_heart": "💝",
   "speak_no_evil": "🙊", "joy_cat": "😹", "speaking_head": "🗣️",
   "dizzy": "💫", "skull": "💀", "crown": "👑", "musical_note": "🎵",
   "crossed_fingers": "🤞", "stuck_out_tongue": "😛", "red_circle": "🔴",
@@ -99,7 +102,7 @@ export const SHORTCODES = {
   "snowflake": "❄️", "palm_tree": "🌴", "brazil": "🇧🇷", "bomb": "💣",
   "frog": "🐸", "love_letter": "💌", "round_pushpin": "📍",
   "wilted_flower": "🥀", "nauseated_face": "🤢", "tongue": "👅", "bulb": "💡",
-  "hankey": "💩", "poop": "💩", "shit": "💩", "interrobang": "⁉️",
+  "hankey": "💩", "poop": "💩", "interrobang": "⁉️",
   "open_hands": "👐", "camera_flash": "📸", "ghost": "👻",
   "zipper_mouth_face": "🤐", "vomiting_face": "🤮", "musical_score": "🎼",
   "writing_hand": "✍️", "triangular_flag_on_post": "🚩", "apple": "🍎",
@@ -115,7 +118,7 @@ export const SHORTCODES = {
   "tv": "📺", "thought_balloon": "💭", "cat": "🐱", "bee": "🐝",
   "honeybee": "🐝", "mexico": "🇲🇽", "fairy": "🧚", "top": "🔝",
   "loudspeaker": "📢", "camera": "📷", "dog2": "🐕", "guitar": "🎸",
-  "gun": "🔫", "raised_back_of_hand": "🤚", "lollipop": "🍭",
+  "raised_back_of_hand": "🤚", "lollipop": "🍭",
   "eggplant": "🍆", "syringe": "💉", "earth_americas": "🌎", "frowning": "😦",
   "cyclone": "🌀", "imp": "👿", "ballot_box_with_check": "☑️",
   "movie_camera": "🎥", "cloud_with_rain": "🌧️", "alien": "👽",
@@ -130,7 +133,7 @@ export const SHORTCODES = {
   "cartwheeling": "🤸", "full_moon_with_face": "🌝", "princess": "👸",
   "pizza": "🍕", "banana": "🍌", "icecream": "🍦", "white_circle": "⚪",
   "woman": "👩", "crying_cat_face": "😿", "fallen_leaf": "🍂",
-  "telephone_receiver": "📞", "alarm_clock": "⏰", "underage": "🔞",
+  "telephone_receiver": "📞", "alarm_clock": "⏰",
   "earth_africa": "🌍", "stars": "🌠", "scream_cat": "🙀",
   "black_small_square": "▪️", "cloud": "☁️", "japanese_ogre": "👹",
   "watermelon": "🍉", "hatched_chick": "🐥", "hot_pepper": "🌶️",
@@ -140,7 +143,7 @@ export const SHORTCODES = {
   "small_blue_diamond": "🔹", "tr": "🇹🇷", "1st_place_medal": "🥇",
   "it": "🇮🇹", "cookie": "🍪", "argentina": "🇦🇷", "stop_sign": "🛑",
   "snake": "🐍", "mortar_board": "🎓", "canada": "🇨🇦", "green_apple": "🍏",
-  "lion": "🦁", "kissing_cat": "😽", "smoking": "🚬", "meat_on_bone": "🍖",
+  "lion": "🦁", "kissing_cat": "😽", "meat_on_bone": "🍖",
   "fork_and_knife": "🍴", "sos": "🆘", "fist_right": "🤜", "popcorn": "🍿",
   "hamburger": "🍔", "memo": "📝", "pencil": "📝", "jp": "🇯🇵",
   "custard": "🍮", "grapes": "🍇", "two": "2️⃣", "house": "🏠",
