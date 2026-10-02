@@ -36,6 +36,15 @@ refusals stay where they are: the studio still keeps at least one admin
 (`isLastAdmin`, asked by the panel before it demotes and by `deluser`
 before it removes).
 
+⚠️ **`deluser -- <email> --scores` is the one real delete a person asks
+for.** It also takes every board row they posted, their personal bests and
+their achievements (`removePlayerScores` in `server/scores.js`), so a removed
+player leaves every board at once rather than row by row in each game's
+panel. `restoreuser` brings the account back and none of those; a backup is
+the only way to them. A score from before posting took signing in has no
+`user_id`, only a typed name, and stays. The flag also works on somebody
+already removed.
+
 The bit is read on one side of a single line. **Access** minds it: the login
 lookup, `userForToken`, `GET /api/users`, the admin panel's list, resolving an
 `@` to a person, and being added to a game as an author. **History** does not:
@@ -482,7 +491,8 @@ browser has one subscription, so a second person signing in on the same one
 takes the row over — which is right, since the first can no longer be reached
 there and two rows would send them somebody else's messages.
 
-⚠️ It is the one thing `npm run deluser` really **deletes**. Everything else
+⚠️ It is the one thing a plain `npm run deluser` really **deletes** (`--scores`
+deletes scores too, above). Everything else
 about a removed account stays (`users.deleted` is the door, §11) because it
 is a record of what they made; this is a capability rather than a record, and
 a push reaches a browser rather than a session, so a row left behind would
@@ -683,8 +693,8 @@ scoreboard has. The definitions are **not** here: they are the game's own
 removing one from the file leaves the rows and simply shows them nowhere
 until the id comes back. Renaming an id orphans everybody's, which is why the
 *achievements editor* derives an id from the name once and never lets it
-change. Backed up the same way as `scores`; `npm run deluser --scores` should
-take these with it when it is built (TODO.md).
+change. Backed up the same way as `scores`, and taken with them by
+`npm run deluser -- <email> --scores` (above).
 
 ⚠️ Forgeable exactly as a *score* is: the rule was met in the browser, which is
 the only witness, and a rule evaluated in game code is one anyone can satisfy

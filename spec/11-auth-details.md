@@ -27,7 +27,8 @@
   no button (§3 has why). `npm run deluser -- <email>` sets `users.deleted = 1`
   and drops their sessions, never a DELETE; `npm run restoreuser -- <email>`
   puts them back, and with no email it lists who is out. `deluser` refuses the
-  last admin, the same wall the panel keeps against demoting one.
+  last admin, the same wall the panel keeps against demoting one. `--scores`
+  also deletes their board rows, bests and achievements, for good (§3).
 - A removed account takes the unknown-email path at login: the same 401, the
   same dummy-hash derivation, so the form does not say who was taken out. A
   player account takes it at the *studio* door for the same reason — which

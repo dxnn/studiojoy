@@ -32,9 +32,6 @@ deliberately deferred.
 
 - try the studio on a real phone and the older iPad: the checks a headless
   browser cannot make (ideas/device-checks.md)
-- ask, when a room is added to a game, whether it is a builder room or one for
-  people only. ⚠️ Every room but `Humans only` is a builder room today
-  (spec/ §3, §8), so the second answer undoes an invariant
 - an announcements room: one studio-wide room whose every message notifies
   everybody (spec/ §6's notifications and web push are what it rides on)
 - give a game with no achievements a way into making some — from the rail or
@@ -98,9 +95,6 @@ deliberately deferred.
 - a fourth screens snippet: the choices list, from asteriskoids' upgrade
   cards — deferred from the snippets build as much bigger than board/rows,
   and it wants a real second game asking for it first
-- add `--scores` to `npm run deluser` so a removed player's rows leave every
-  board too — today they stay, and the panel deletes per row, per game
-  (ideas/scoreboard-trust.md, rung 1)
 - finish the achievements helper (ideas/achievements.md): run it live against
   a real game once, the last step of the build, and the rest is built and
   green; then make it a *microhelper*, now that the story's fill and drawn

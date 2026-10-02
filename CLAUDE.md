@@ -63,7 +63,8 @@ ignored as a second lock.
 - `npm run deluser -- <email>` — ⚠️ the *only* way somebody leaves the studio:
   no route, no button. A soft delete: `users.deleted = 1` and their sessions,
   never a DELETE. `npm run restoreuser -- <email>` is the undo; with no email
-  it lists who is out.
+  it lists who is out. ⚠️ Add `--scores` and their board rows, bests and
+  achievements really are deleted, which no restore gives back.
 - `npm run unarchive -- <slug>` — brings an archived game back from a
   terminal. The studio does it too now: Archive and Unarchive are both in the
   game's `···`, both the originator's alone, and archiving is never a

@@ -240,6 +240,48 @@ test('deluser removes and restoreuser puts back', async () => {
   db.close();
 });
 
+// ⚠️ The one flag that really deletes: their rows leave every board, their
+// bests and what they earned go too (spec/ §3), and nobody else's — nor a row
+// from before posting took signing in, which only has a typed name.
+test('deluser --scores takes their scores and achievements, and nobody else\'s', async () => {
+  const dbPath = seededDb(scratchDir('deluser'));
+  let db = openDb(dbPath);
+  const [dann, robin] = ['dann@example.com', 'kid@example.com']
+    .map((email) => db.prepare('SELECT id FROM users WHERE email = ?').get(email).id);
+  const now = new Date().toISOString();
+  db.prepare('INSERT INTO projects (id, slug, name, created_by, created_at) VALUES (1, ?, ?, ?, ?)')
+    .run('tank', 'Tank', dann, now);
+  const score = db.prepare('INSERT INTO scores (project_id, user_id, name, score, created_at) VALUES (1, ?, ?, ?, ?)');
+  score.run(robin, 'Robin', 90, now);
+  score.run(robin, 'Robin', 40, now);
+  score.run(dann, 'Dann', 70, now);
+  score.run(null, 'Robin', 10, now);
+  for (const who of [robin, dann]) {
+    db.prepare('INSERT INTO personal_bests (project_id, user_id, score, created_at) VALUES (1, ?, 1, ?)').run(who, now);
+    db.prepare('INSERT INTO achievements (project_id, user_id, achievement, created_at) VALUES (1, ?, ?, ?)').run(who, 'first', now);
+  }
+  db.close();
+
+  const out = await script(del, ['kid@example.com', '--scores'], dbPath);
+  assert.match(out.stdout, /removed Robin/);
+  assert.match(out.stdout, /2 board score\(s\), 1 personal best\(s\) and 1 achievement\(s\)/);
+  assert.match(out.stdout, /restoreuser brings the account back, not these/);
+
+  db = openDb(dbPath);
+  const left = (table) => db.prepare(`SELECT user_id FROM ${table} ORDER BY user_id`).all().map((r) => r.user_id);
+  assert.deepEqual(left('scores'), [null, dann], 'Dann\'s stays, and so does the typed one');
+  assert.deepEqual(left('personal_bests'), [dann]);
+  assert.deepEqual(left('achievements'), [dann]);
+  db.close();
+
+  // Somebody already out can still have their boards cleared; without the
+  // flag that is the old refusal.
+  await assert.rejects(script(del, ['kid@example.com'], dbPath), /already removed/);
+  const again = await script(del, ['kid@example.com', '--scores'], dbPath);
+  assert.doesNotMatch(again.stdout, /removed Robin/);
+  assert.match(again.stdout, /0 board score\(s\)/);
+});
+
 test('the scripts refuse the last admin, a second removal, and an unknown address', async () => {
   const dbPath = seededDb(scratchDir('deluser'));
 

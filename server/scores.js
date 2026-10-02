@@ -98,6 +98,20 @@ export function submitScore(db, projectId, player, body, now = new Date()) {
   });
 }
 
+// What `npm run deluser -- <email> --scores` takes with the account (spec.md
+// §3): every board row they posted, their personal bests and what they
+// earned. ⚠️ A real DELETE, where the removal itself is not: restoreuser
+// brings the person back and none of these, and a backup is the only way to
+// them. Rows from before posting took signing in carry no user — only the
+// name somebody typed — and stay.
+export function removePlayerScores(db, userId) {
+  return tx(db, () => ({
+    scores: db.prepare('DELETE FROM scores WHERE user_id = ?').run(userId).changes,
+    bests: db.prepare('DELETE FROM personal_bests WHERE user_id = ?').run(userId).changes,
+    achievements: db.prepare('DELETE FROM achievements WHERE user_id = ?').run(userId).changes,
+  }));
+}
+
 // Sliding window per key — a player's id for scores, an address for
 // sign-ups — counting every post rather than failures, which is why it is
 // not createLockout from auth.js. In-memory like the login lockouts

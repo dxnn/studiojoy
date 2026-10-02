@@ -66,9 +66,8 @@ better:
   sharing one ration of ten. The address limiter stays on sign-up and login,
   whose callers have no account yet, with the /64 fix.
 - **Moderation follows the deluser pattern.** Per-row and per-board deletion
-  in the rail's Scoreboard tab; `npm run deluser` takes the person out. Not
-  yet: a removed player's rows stay on every board. `deluser --scores` is a
-  TODO.md line.
+  in the rail's Scoreboard tab; `npm run deluser` takes the person out, and
+  `--scores` takes their rows off every board with them (built 2026-10-02).
 
 ## Rung 2 — plausibility, per session — not planned
 
