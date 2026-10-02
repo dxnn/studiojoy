@@ -45,6 +45,7 @@ function boot({ controls = CONTROLS, pads = [] } = {}) {
   const fire = (name, event) => (handlers.get(name) ?? []).forEach((fn) => fn(event));
   return {
     Input: sandbox.Input,
+    run: (code) => vm.runInContext(code, context),
     setPads(next) { state.pads = next; },
     key(name, down = true) {
       const event = { key: name, target: null, prevented: false, preventDefault() { this.prevented = true; } };
@@ -196,6 +197,72 @@ test('bindings written as a list work as well as a line', () => {
   g.key('q');
   g.Input.update();
   assert.equal(g.Input.held('left'), true);
+});
+
+// ⚠️ input 8: a game that names no controller button is lent one. Three of
+// the studio's games had keys and thumbs and nothing else, so a controller
+// did nothing at all in them.
+const UNPADDED = `
+const HIDDEN = ["debug"];
+const CONTROLS = {
+  player1: {
+    left: "key:arrowleft touch:left",
+    right: "key:arrowright touch:right",
+    thrust: "key:arrowup touch:thrust",
+    debug: "key:alt",
+    fire: "key:space toggle:fire",
+    shield: "key:s",
+    start: "key:enter",
+  },
+  player2: { left: "key:j", fire: "key:f" },
+};`;
+const pressing = (...indexes) => {
+  const p = pad();
+  for (const i of indexes) p.buttons[i] = button(true);
+  return p;
+};
+const heldNow = (g, verbs, player = 1) => verbs.filter((v) => g.Input.held(v, player));
+const VERBS = ['left', 'right', 'thrust', 'debug', 'fire', 'shield', 'start'];
+
+test('a game that names no controller is lent the usual one', () => {
+  const g = boot({ controls: UNPADDED });
+  const press = (...indexes) => { g.setPads([pressing(...indexes)]); g.Input.update(); return heldNow(g, VERBS); };
+  assert.deepEqual(press(14), ['left'], 'the d-pad steers');
+  assert.deepEqual(press(0), ['thrust', 'start'], 'A is the first verb that is not an arrow, and starts');
+  assert.deepEqual(press(7), ['thrust'], 'and so is the right trigger');
+  assert.deepEqual(press(1), ['fire'], 'B is the next, the hidden debug verb skipped');
+  assert.deepEqual(press(6), ['fire'], 'and so is the left trigger');
+  assert.deepEqual(press(2), ['shield'], 'X the one after, with no trigger');
+  assert.deepEqual(press(9), ['start'], 'Start starts');
+  g.setPads([pad({ axes: [-0.9, 0, 0, 0] })]);
+  g.Input.update();
+  assert.ok(g.Input.axis('left', 'right') < -0.8, 'and the left stick steers too');
+});
+
+test('player two is lent the second controller', () => {
+  const g = boot({ controls: UNPADDED });
+  g.setPads([pad(), pressing(0, 14)]);
+  g.Input.update();
+  assert.deepEqual(heldNow(g, ['left', 'fire'], 2), ['left', 'fire']);
+  assert.deepEqual(heldNow(g, VERBS, 1), [], 'and player one holds nothing');
+});
+
+test('one pad: binding anywhere and nothing is lent', () => {
+  const g = boot({ controls: UNPADDED.replace('key:s"', 'key:s pad:y"') });
+  g.setPads([pressing(0, 1, 14)]);
+  g.Input.update();
+  assert.deepEqual(heldNow(g, VERBS), [], 'A, B and the d-pad do nothing the game did not ask for');
+  g.setPads([pressing(3)]);
+  g.Input.update();
+  assert.deepEqual(heldNow(g, VERBS), ['shield'], 'what it did ask for works');
+});
+
+test('the lent buttons are said, and the game\'s own file is left as it was', () => {
+  const g = boot({ controls: UNPADDED });
+  const played = g.Input.bindings();
+  assert.equal(played.player1.fire, 'key:space toggle:fire pad:b pad:lt');
+  assert.equal(played.player1.debug, 'key:alt', 'a verb for making the game gets nothing');
+  assert.equal(g.run('CONTROLS.player1.fire'), 'key:space toggle:fire', 'the file is untouched');
 });
 
 test('a game with no controls file still plays', () => {

@@ -367,6 +367,26 @@ test('HIDDEN keeps the making-the-game verbs out of the hint', () => {
   );
 });
 
+// ⚠️ input 8 lends a controller to a game that names none, and the hint has
+// to name what the controller really does — so screens reads the bindings
+// through Input when it can, and the file as written when it is older.
+test('a controller the input library lends is in the hint too', () => {
+  const controls = 'const CONTROLS = { player1: { left: "key:left", right: "key:right", fire: "key:space" } };';
+  const pads = [{ axes: [0, 0, 0, 0], buttons: [] }];
+  assert.equal(boot({ controls, pads }).hint(), 'Arrows to move · Space to fire', 'without input 8, as before');
+  const sandbox = {
+    navigator: { getGamepads: () => pads },
+    matchMedia: () => ({ matches: false }),
+    document: { body: null },
+    addEventListener() {},
+    console,
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(`${controls}\n${read('studio-lib/input/input.js')}\n${SCREENS}`, sandbox);
+  assert.equal(sandbox.window.Screens.hint(), 'Arrows or the stick to move · Space or A to fire');
+});
+
 test('WORDS.howToPlay wins as written, on every device', () => {
   const words = 'const WORDS = { howToPlay: "steer with one finger" };';
   assert.equal(boot({ controls: SEED, words }).hint(), 'steer with one finger');

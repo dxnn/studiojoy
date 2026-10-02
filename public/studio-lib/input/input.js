@@ -26,6 +26,11 @@
 // autofire, an engine — and keep key:/pad: on the same verb, which stay
 // momentary. BUTTON_SIDE = "left" in config/controls.js mirrors the layout.
 //
+// A game whose bindings name no pad: at all is lent a controller: the arrow
+// verbs on the d-pad and left stick, every other verb on A, B, X, Y in the
+// order the file lists them (the first two on the right and left triggers
+// too), start on Start and A. Bind one pad: yourself and nothing is lent.
+//
 // config/controls.js may also declare SCHEME, the shape of the game on a
 // touch screen. "buttons" is the drawn-buttons shape above, and what no
 // SCHEME means. "one-button": a tap or a click anywhere is the button
@@ -97,11 +102,72 @@ const Input = (function () {
   // config/controls.js and this file are separate <script> tags, and a game
   // may not have the first one at all. Reading it through try/catch means a
   // missing or late config is a fallback rather than a broken game.
-  function bindings() {
+  function declared() {
     try {
       if (typeof CONTROLS === "object" && CONTROLS) return CONTROLS;
     } catch (e) { /* config/controls.js is not loaded */ }
     return FALLBACK;
+  }
+
+  // Verbs for making the game rather than playing it (a key that draws the
+  // hitboxes), which nothing should hand a controller button.
+  function hiddenVerbs() {
+    try {
+      if (Array.isArray(HIDDEN)) return HIDDEN;
+    } catch (e) { /* config/controls.js declares none */ }
+    return [];
+  }
+
+  // A game whose bindings name no controller button anywhere is dead on a
+  // controller, and three of the studio's were. So it is lent the usual
+  // shape: the arrow verbs the d-pad and the left stick, every other verb a
+  // face button in the order the file lists them — A, B, X, Y — the first two
+  // a trigger as well (right, then left), and start the Start button and A.
+  // Lent, never written: the file stays as it is, and a single pad: binding
+  // anywhere means the game has said how it is held, so then nothing is lent.
+  const LEND_ARROWS = ["left", "right", "up", "down"];
+  const LEND_FACE = ["a", "b", "x", "y"];
+  const LEND_TRIGGERS = ["rt", "lt"];
+  function lend(all) {
+    const players = Object.keys(all);
+    const padBound = players.some((who) => Object.keys(all[who] || {})
+      .some((verb) => listOf(all[who][verb]).some((b) => b.startsWith("pad:"))));
+    if (padBound) return all;
+    const hidden = hiddenVerbs();
+    const out = {};
+    for (const who of players) {
+      const verbs = all[who] || {};
+      const mine = {};
+      let face = 0;
+      for (const verb of Object.keys(verbs)) {
+        let more = [];
+        if (LEND_ARROWS.indexOf(verb) !== -1) more = ["pad:" + verb, "pad:stick-" + verb];
+        else if (verb === "start") more = ["pad:start", "pad:a"];
+        else if (hidden.indexOf(verb) === -1 && face < LEND_FACE.length) {
+          more = ["pad:" + LEND_FACE[face]];
+          if (face < LEND_TRIGGERS.length) more.push("pad:" + LEND_TRIGGERS[face]);
+          face += 1;
+        }
+        // A line, the way the file writes one, since the screens library's
+        // hint reads lines.
+        mine[verb] = listOf(verbs[verb]).concat(more).join(" ");
+      }
+      out[who] = mine;
+    }
+    return out;
+  }
+
+  // What the game is played with: its own bindings, and what is lent them.
+  // Worked out once per bindings object, since it is asked every frame.
+  let lentFrom = null;
+  let lent = null;
+  function bindings() {
+    const all = declared();
+    if (all !== lentFrom) {
+      lentFrom = all;
+      lent = lend(all);
+    }
+    return lent;
   }
 
   function deadzone() {
@@ -827,6 +893,10 @@ const Input = (function () {
     // How many controllers are plugged in — enough to offer two-player when
     // there are two, and to say "plug in a controller" when there are none.
     pads: () => pads.length,
+    // The bindings actually played, lent controller buttons included. For
+    // the screens library's how-to-play line, so it names what a controller
+    // really does; a game asks held and pressed instead.
+    bindings,
   };
 }());
 

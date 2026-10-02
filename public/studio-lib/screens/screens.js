@@ -82,11 +82,16 @@ const Screens = (function () {
     return cut < 0 ? "studio/" : src.slice(0, cut + 1);
   }());
 
+  // What player 1 is played with. The input library's own word when it has
+  // one (input 8), since a game that names no controller is lent one and the
+  // hint should say so; an older input, the file as written.
   function player1() {
-    if (typeof CONTROLS === "object" && CONTROLS && typeof CONTROLS.player1 === "object") {
-      return CONTROLS.player1;
+    if (typeof CONTROLS !== "object" || !CONTROLS || typeof CONTROLS.player1 !== "object") return null;
+    if (typeof Input === "object" && Input && typeof Input.bindings === "function") {
+      const played = Input.bindings();
+      if (played && typeof played.player1 === "object") return played.player1;
     }
-    return null;
+    return CONTROLS.player1;
   }
 
   function schemeName() {

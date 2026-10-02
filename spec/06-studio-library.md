@@ -341,6 +341,20 @@ zoomed game could not be pinched back out mid-run (2026-09-29). ⚠️ Not yet
 felt on a real iPad. `none` and a file with no `SCHEME` keep the browser's
 zoom, so a story or a quiz can still be enlarged to be read.
 
+**A game that names no controller is lent one** (input 8, 2026-10-02). Three
+games had keys and thumbs and no `pad:` at all, so a controller did nothing
+in them. When no `pad:` binding appears anywhere in a game's bindings, the
+arrow verbs get the d-pad and the left stick, every other verb a face button
+in the order the file lists them — A, B, X, Y — the first two the right and
+left triggers as well, and `start` gets Start and A; a verb in `HIDDEN` gets
+nothing. ⚠️ Lent, never written: the file stays as it is, and one `pad:`
+binding anywhere means the game has said how it is held, so nothing is lent
+at all. `Input.bindings()` hands back what is actually played, and screens
+16 reads its how-to-play line through it when the game holds input 8, so
+the hint names what the controller really does. No game's own code reads a
+controller (searched before it went in), so a lent button cannot be read
+twice.
+
 A template may fix its own scheme, and all three that ship do: the quiz and
 the visual novel say `none`, since buttons are pressed rather than steered,
 and the arcade template says `buttons`. So the dialog drops the question

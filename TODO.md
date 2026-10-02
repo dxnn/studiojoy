@@ -36,9 +36,6 @@ deliberately deferred.
   everybody (spec/ §6's notifications and web push are what it rides on)
 - give a game with no achievements a way into making some — from the rail or
   Share to a builder room about them, or to the achievements helper below
-- give every buttons-shape game a controller without asking: asterogueoids
-  binds no `pad:` at all. `input.js` could lend the arrow verbs the d-pad and
-  stick when a game names no pad (input 8)
 - ask the builder for the one-game chores — fixes that belong to one game
   rather than to the studio (ideas/game-chores.md)
 - let a person lock a game file: the builder gets its API note, not its
