@@ -65,11 +65,6 @@ deliberately deferred.
   with several moods, or the same animals redrawn — `npm test` checks the
   shape, and ⚠️ a portrait must never measure a whole multiple of its height
   or the sprites library animates it (spec/ §6)
-- the shipped backgrounds are pixel art at 65×36 to 256×150, and the visual
-  novel's `.picture` has no `image-rendering`, so they upscale softly.
-  `image-rendering: pixelated` in the template's `css/style.css` is the fix
-  and would suit every picture the studio's own editor makes — but it is a
-  template, so it only reaches new games and each existing one by hand
 - networked multiplayer: a turn-based room relay on the games origin — see
   ideas/next-five.md. The boundary rules it needs (no cookie, its own rate
   limit, caps) are settled and tested by the scoreboard now
