@@ -5,7 +5,7 @@
 
 import {
   S, api, say, send, render, showMode, frozen, loadProjects, encodePath,
-  problem, NO_CONNECTION,
+  problem, NO_CONNECTION, isChat,
 } from './main.js';
 import {
   isDrawable, startDrawing, flushPalette, saveDrawing,
@@ -18,8 +18,10 @@ import { dropArtIndex } from './story-guide.js';
 
 /* Files ---------------------------------------------------------------------- */
 
+// A chat project has no tree, so there is nothing to list: asked anyway — the
+// stream's reconnect asked on every first load — the server answers 409.
 export async function refreshFiles() {
-  if (!S.slug) return;
+  if (!S.slug || isChat()) return;
   const res = await api('GET', `/api/projects/${S.slug}/files`);
   if (res.ok) {
     S.files = res.body.files;
