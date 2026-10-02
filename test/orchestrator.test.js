@@ -378,6 +378,44 @@ test('a helper can read the studio library but not write it', async (t) => {
   assert.equal(fs.readFileSync(path.join(dir, 'studio', 'input.js'), 'utf8'), 'const Input = 1;');
 });
 
+// ⚠️ A config file is a form a person tunes, and the form opens only while
+// every value is plain. A builder wrote a computed lap count into one in
+// production (2026-10-02) and the form closed with nothing saying why, so the
+// tools refuse that write, while a plain edit, game code, and a file that was
+// already past the form all still go through.
+test('a helper cannot turn a config file into one the form cannot open', async (t) => {
+  const seen = [];
+  const plan = [
+    { name: 'patch_file', input: { path: 'config/play.js', old_text: 'const SPEED = 3;', new_text: 'const SPEED = 3 * 2;' } },
+    { name: 'write_file', input: { path: 'config/laps.js', content: 'const LAPS = TRACKS.length;\n' } },
+    { name: 'patch_file', input: { path: 'config/play.js', old_text: 'const SPEED = 3;', new_text: 'const SPEED = 4;' } },
+    { name: 'write_file', input: { path: 'js/laps.js', content: 'const LAPS = TRACKS.length;\n' } },
+    { name: 'patch_file', input: { path: 'config/old.js', old_text: 'Math.PI;', new_text: 'Math.PI; // a whole turn, halved' } },
+  ];
+  const llm = createFakeLlm((opts, turn) => {
+    const results = opts.messages.filter((m) => m.role === 'tool');
+    if (results.length > 0) seen.push(results.at(-1).content);
+    return turn < plan.length ? calls([plan[turn]]) : says('Done.');
+  });
+  const { app, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await app.client.json('PUT', '/api/projects/tank/files/config/play.js', { rawBody: '// how fast\nconst SPEED = 3;\n' });
+  await app.client.json('PUT', '/api/projects/tank/files/config/old.js', { rawBody: 'const HALF = Math.PI;\n' });
+
+  await send(app, 'make it faster');
+  await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
+
+  assert.match(seen[0], /refused: config\/play\.js would no longer open as a form/);
+  assert.match(seen[0], /js\/ file that reads them/, 'and says where the logic goes');
+  assert.match(seen[1], /refused: config\/laps\.js/, 'a new config file is held to it too');
+  assert.match(seen[2], /patched config\/play\.js/, 'a plain change is fine');
+  assert.match(seen[3], /created js\/laps\.js/, 'game code is not a config file');
+  assert.match(seen[4], /patched config\/old\.js/, 'a file already past the form is not frozen');
+  assert.equal(fs.readFileSync(path.join(dir, 'config', 'play.js'), 'utf8'), '// how fast\nconst SPEED = 4;\n');
+  assert.equal(fs.existsSync(path.join(dir, 'config', 'laps.js')), false);
+});
+
 // A library is named and sized, never sent: an engine an agent cannot edit is
 // also one it does not need in front of it, and sending it would eat the ambient
 // budget the game's own code competes for.

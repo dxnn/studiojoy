@@ -4,6 +4,25 @@ import { isTextPath } from '../http/static.js';
 import {
   readFileAt, writeFileAt, removeFileAt, assertCapacity, MAX_FILE_BYTES,
 } from '../files/tree.js';
+import { parseConfigFile, isConfigPath } from '../../public/config-file.js';
+
+// A config file is what a person tunes as a form, and the form opens only
+// while every value is a plain one (public/config-file.js). The preamble says
+// so, and a builder still wrote a computed lap count into one, which closed
+// that game's form with nothing anywhere saying why. So a write that takes a
+// file the form opens to one it cannot is refused, with the parser's reason
+// and where the logic goes instead. A file already past the form is left
+// writable: refusing it too would freeze a broken file rather than let it be
+// fixed.
+function configRefusal(rel, after, before) {
+  if (!isConfigPath(rel)) return null;
+  const now = parseConfigFile(after);
+  if (now.ok || (before !== null && !parseConfigFile(before).ok)) return null;
+  return `refused: ${rel} would no longer open as a form in the studio — ${now.reason}. `
+    + 'A config file holds plain values only: `const NAME = value;` with numbers, words, true/false '
+    + 'and lists or groups of those, and no maths, no calls and no other value\'s name. Keep the '
+    + 'plain values here and work anything else out in the js/ file that reads them.';
+}
 
 // Cap on what read_file hands back, so one call can't blow the context.
 const MAX_READ_BYTES = 128 * 1024;
@@ -178,7 +197,10 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     }
     return mutex.run(slug, async () => {
       await settlePending();
-      const existed = (await readFileAt(target.abs)) !== null;
+      const existing = await readFileAt(target.abs);
+      const existed = existing !== null;
+      const refusal = configRefusal(target.rel, content, existed ? existing.toString('utf8') : null);
+      if (refusal) return refusal;
       try {
         await assertCapacity(dir, { addingBytes: buffer.length, isNewFile: !existed });
       } catch (err) {
@@ -215,6 +237,8 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
       }
 
       const after = before.slice(0, first) + newText + before.slice(first + oldText.length);
+      const refusal = configRefusal(target.rel, after, before);
+      if (refusal) return refusal;
       const out = Buffer.from(after, 'utf8');
       if (out.length > MAX_FILE_BYTES) {
         return `refused: the result would be ${out.length} bytes, over the limit`;

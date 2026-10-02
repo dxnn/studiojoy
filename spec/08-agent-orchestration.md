@@ -709,6 +709,17 @@ Every tool validates its path per §4 and returns an error string to the
 model on violation rather than throwing — a confused agent gets a
 correction, not a dead turn.
 
+⚠️ **`write_file` and `patch_file` refuse to close a config file's form.** A
+write that would take a `config/*.js` the parser opens (`parseConfigFile`)
+to one it declines is refused with the parser's reason and where the logic
+goes instead — the js/ file that reads the values. A new config file is held
+to it too; one that was already past the form stays writable, so a broken
+file can be fixed rather than frozen. The preamble has said plain values
+only since config files existed, and a builder still wrote a computed lap
+count into one on 2026-10-02, which closed that game's form with nothing
+anywhere saying why; the refusal is the place it gets said. A person's own
+save is not checked: logic typed into a config file by hand is a choice.
+
 `look_at` is the one tool that hands back something other than a sentence:
 a label and the picture as DeepSeek's content parts, on the `role: 'tool'`
 result. ⚠️ It has to be there rather than in the file block, because an

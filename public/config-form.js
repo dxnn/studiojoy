@@ -9,8 +9,7 @@ import { saveOpenFile } from './files.js';
 
 /* Config form -------------------------------------------------------------- */
 
-// Only under config/, and only .js — the shape spec.md §8 asks agents for.
-export const isConfigPath = (p) => /^config\/[^/]+\.js$/.test(p);
+export { isConfigPath } from './config-file.js';
 
 const looksLikeColour = (v) => typeof v === 'string' && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(v);
 

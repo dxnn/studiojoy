@@ -16,7 +16,12 @@
 // splice, so callers apply one edit and re-parse — config files are small
 // enough that this is free.
 
-const IDENT = /[A-Za-z_$][A-Za-z0-9_$]*/y;
+// Only under config/, and only .js — the shape spec.md §8 asks agents for.
+// Here rather than beside the form so the server can ask it too: the file
+// tools refuse to turn one of these into something the form cannot open.
+export const isConfigPath = (p) => /^config\/[^/]+\.js$/.test(p);
+
+const IDENT =/[A-Za-z_$][A-Za-z0-9_$]*/y;
 const NUMBER = /-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
 
 class Refused extends Error {}
