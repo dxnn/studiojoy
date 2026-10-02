@@ -652,6 +652,18 @@ and a game this account may not change. An `@` is what makes a helper answer
 at all and what leaves a person a mark, and the only way to find out a name
 was mentionable used to be to guess it or go and click it in the sidebar.
 
+**A `:name:` in a message becomes its emoji on the way out**
+(`public/shortcodes.js`, decided 2026-10-02): the thousand emoji used most,
+by Unicode's 2021 frequency ranking, under every name GitHub's gemoji gives
+each — 1,035 names, typed into the file under gemoji's MIT notice. It happens
+in the browser, in `sendMessage`, before the pending bubble is drawn, so what
+shows while it sends is what was sent; the stored body holds the emoji and
+never the name, and the server takes it like any other text, cap included.
+Any case; never with a letter or digit against either side, so `10:30:45`
+and `1:100:1` stay as typed; never inside backticks, where code pasted for a
+helper is meant character for character. A reaction is untouched — its
+palette is a fixed twenty (§10).
+
 **Everything you can do to the whole game is behind one `···` beside its
 name** — Rename, Fork, Editors, Publish, Add chat, Archive, Unarchive —
 absent rather than greyed for anybody who may not press it: Fork is

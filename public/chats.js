@@ -10,6 +10,7 @@ import {
 } from './main.js';
 import { liveMapFor, pendingMapFor, applyMessage } from './stream.js';
 import { keepShot } from './telemetry.js';
+import { withEmoji } from './shortcodes.js';
 
 /* Being called by name ----------------------------------------------------- */
 
@@ -420,8 +421,10 @@ async function post(slug, chatId, localId, text) {
   say(res.body?.error ?? 'Could not send that.', true);
 }
 
+// `:wave:` becomes 👋 here, before the bubble goes on screen, so what shows
+// while it sends is what was sent.
 export function sendMessage(text) {
-  return post(S.slug, S.chat?.id, `local-${pendingCounter += 1}`, text);
+  return post(S.slug, S.chat?.id, `local-${pendingCounter += 1}`, withEmoji(text));
 }
 
 // A failed bubble is clicked to try again, in place: same localId, so it

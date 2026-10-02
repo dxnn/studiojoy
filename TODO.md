@@ -95,8 +95,6 @@ deliberately deferred.
 - ask the builder to move one real game onto the signed-in scoreboard flow
   (`/_me`, `{score}` posts, the sign-in link) and see how the preamble text
   holds up in practice
-- interpret `:wave:`-style emoji shortcodes in messages (deferred from the
-  reactions build; new-y has none to copy, so the map is ours to write)
 - replay the in-flight reply to a tab that connects mid-fire — the server
   holds the streamed text already; a reload today shows only what arrives
   after it (spec/ §9). The other half: a tab that reconnects refetches only
