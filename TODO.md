@@ -42,6 +42,11 @@ deliberately deferred.
 - give every buttons-shape game a controller without asking: asterogueoids
   binds no `pad:` at all. `input.js` could lend the arrow verbs the d-pad and
   stick when a game names no pad (input 8)
+- have `write_file` and `patch_file` refuse a `config/*.js` that
+  `parseConfigFile` declines, with the reason, so a helper moves the logic
+  into js/ itself. The preamble already says plain values only, and the
+  builder still wrote a computed `CHASE_LAPS` into wee-ooh-wee-ooh's play.js
+  on 2026-10-02, which closed its form and turned `npm test` red here
 - lift the story's `renameField` (story-form.js) into the controls and
   adventure name fields: they still commit half a word when a render takes
   them away (spec/ §17)
