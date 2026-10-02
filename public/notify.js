@@ -64,7 +64,10 @@ export async function toggleNotify() {
   if (state === 'on') {
     prefs.set('notify', 'off');
     render();
-    await unsubscribePush();
+    // Off is quieter, not silent: the announcements still reach a browser
+    // that has allowed it (spec.md §6), so the subscription is kept and
+    // marked rather than dropped.
+    await subscribePush({ announcementsOnly: true });
     return;
   }
   if (Notification.permission !== 'granted') {
@@ -89,7 +92,7 @@ export async function toggleNotify() {
 // what they had a moment ago, which is a browser that tells them things while
 // its tab is alive. Neither is worth a banner about a thing they did not ask
 // for by name (ideas/notifications.md).
-async function subscribePush() {
+async function subscribePush({ announcementsOnly = false } = {}) {
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     const key = await send('/api/push/key');
@@ -106,7 +109,7 @@ async function subscribePush() {
     await send('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(subscription.toJSON()),
+      body: JSON.stringify({ ...subscription.toJSON(), announcements_only: announcementsOnly }),
     });
   } catch { /* rung 1 still works, which is what the switch promised */ }
 }
@@ -117,26 +120,21 @@ async function subscribePush() {
 // press — and the bell reads permission and preference, not the
 // subscription, so it would go on saying 🔔 over nothing. Subscribing to what
 // is already there hands back the same endpoint, and the server takes it as
-// an update.
+// an update. A bell that is off renews too, for the announcements alone,
+// wherever the browser has said yes — which reaches everybody who ever
+// pressed the bell, including whoever turned it off before off meant this.
 export function renewPush() {
-  return notifyState() === 'on' ? subscribePush() : Promise.resolve();
+  const state = notifyState();
+  if (state === 'on') return subscribePush();
+  if (state === 'off' && allowed()) return subscribePush({ announcementsOnly: true });
+  return Promise.resolve();
 }
 
-async function unsubscribePush() {
-  try {
-    if (!('serviceWorker' in navigator)) return;
-    const reg = await navigator.serviceWorker.ready;
-    const subscription = await reg.pushManager.getSubscription();
-    if (!subscription) return;
-    const { endpoint } = subscription;
-    await subscription.unsubscribe();
-    await send('/api/push/unsubscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint }),
-    });
-  } catch { /* the row is dropped on its first 410 anyway */ }
-}
+// The browser has said yes, whatever the bell says.
+const allowed = () => notifySupported() && Notification.permission === 'granted';
+
+// A bell that is off, in a browser that will still carry the announcements.
+export const quietBell = () => notifyState() === 'off' && allowed();
 
 // The server's key travels as base64url and `pushManager.subscribe` wants the
 // bytes. ⚠️ `atob` is base64 proper, so the two URL-safe characters have to
@@ -154,12 +152,13 @@ export function keyBytes(base64url) {
 // A message landed somewhere you are not reading. Everything it needs is on
 // the event already (§9), so nothing here asks the studio anything.
 export function notifyMessage(data) {
-  if (notifyState() !== 'on') return;
+  const project = S.projects.find((p) => p.slug === data.project_slug);
+  // An announcement is told with the bell off too, where the browser allows.
+  if (notifyState() !== 'on' && !(project?.announce && allowed())) return;
   // Only while nobody is looking. The *marks* on the game, the chat and its
   // pill are what the studio says while you are here; a notification over the
   // top of them is saying it twice, and louder.
   if (!document.hidden) return;
-  const project = S.projects.find((p) => p.slug === data.project_slug);
   // A helper's name is the client's to look up; a person's arrives with the
   // message, because the studio has no user list of its own (§6).
   const who = data.user_name

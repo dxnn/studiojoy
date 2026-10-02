@@ -275,10 +275,14 @@
 .reaction.add:hover:not(:disabled) { color: var(--text); }
 
 /* The fixed palette, above the row it belongs to. */
+/* Fixed and placed by placeMenu (main.js), like a ··· menu: inside the thread
+   it was cut off over the first message, where nothing scrolls. Nowhere until
+   placed, so it never flashes at the corner of the window first. */
 .reaction-palette {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  visibility: hidden;
   z-index: 40;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -289,6 +293,7 @@
   background: var(--panel-2);
   box-shadow: 0 8px 24px oklch(0 0 0 / 0.45);
 }
+.reaction-palette.placed { visibility: visible; }
 /* Your own messages sit on the right, so their palette hangs right too rather
    than running off the pane. */
 .msg:not(.from-agent):not(.system) .reaction-palette { left: auto; right: 0; }

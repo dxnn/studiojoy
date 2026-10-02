@@ -6,7 +6,7 @@ import {
   S, render, prefs, api, openProject, SIDE_SEARCH, frozen,
 } from './main.js';
 import { attachAgent, mentionPerson, readMark } from './chats.js';
-import { notifyState, toggleNotify } from './notify.js';
+import { notifyState, toggleNotify, quietBell } from './notify.js';
 
 /* Render: sidebar --------------------------------------------------------- */
 
@@ -100,6 +100,7 @@ export function renderSidebar() {
         text: make.label,
         onclick: () => { S.dialog = { ...make.dialog }; render(); },
       })),
+    announcementsRow(),
     h('div', { class: 'side-search' }, search),
     tabs,
     // Named per tab: three lists behind one scroller, and restoring the games
@@ -128,6 +129,8 @@ export function renderSidebar() {
 const BELL = {
   on: { text: '🔔', title: 'The studio tells you when somebody says something. Press to stop.' },
   off: { text: '🔕', title: 'Tell me when somebody says something while I am away' },
+  // Off in a browser that has said yes: the announcements still come.
+  quiet: { text: '🔕', title: 'Only the announcements reach you while you are away. Press to hear everything.' },
   blocked: { text: '🔕', title: 'This browser is blocking notifications' },
   install: { text: '🔕', title: 'Add the studio to your Home Screen to be told things' },
 };
@@ -135,7 +138,7 @@ const BELL = {
 function bell() {
   const state = notifyState();
   if (state === 'unsupported') return null;
-  const { text, title } = BELL[state];
+  const { text, title } = BELL[quietBell() ? 'quiet' : state];
   return h('button', {
     class: `icon tiny bell${state === 'on' ? ' on' : ''}`,
     text,
@@ -238,11 +241,33 @@ function gameRows(matches) {
   return out.length ? out : nothing('No games yet. Make one!');
 }
 
+// The studio's announcements (spec/ §6): pinned over every tab and every
+// filter, because it is the studio talking to everybody rather than one more
+// conversation to look for. A row that opens on a click anywhere in it, like
+// a game's. It lights up while something in it is unread, on top of the mark
+// every row wears, so it does not read as just another busy room.
+function announcementsRow() {
+  const p = S.projects.find((x) => x.announce);
+  if (!p) return null;
+  const news = Boolean(p.mentions || p.unread);
+  return h('button', {
+    class: `item announce${p.slug === S.slug ? ' active' : ''}${news ? ' news' : ''}`,
+    title: `${p.name} — what the studio says to everybody`,
+    onclick: () => { S.narrowPane = 'chat'; return openProject(p.slug); },
+  },
+  h('div', { class: 'item-name' },
+    h('span', { class: 'announce-mark', text: '📣', 'aria-hidden': 'true' }),
+    h('span', { class: 'iname', text: p.name }),
+    readMark(p)),
+  h('div', { class: 'item-sub', text: p.preview || 'Nothing said yet' }));
+}
+
 // A chat is a game with the game taken out: the same thread and the same
-// helpers, no files and no preview.
+// helpers, no files and no preview. The announcements are pinned above
+// instead of listed here.
 function chatRows(matches) {
   const rows = S.projects
-    .filter((p) => p.kind === 'chat' && matches(p.name))
+    .filter((p) => p.kind === 'chat' && !p.announce && matches(p.name))
     .map((p) => h('div', { class: `srow${p.slug === S.slug ? ' sel' : ''}` },
       h('button', {
         class: 'hname', text: p.name, title: p.name,

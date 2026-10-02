@@ -373,6 +373,13 @@ specified:
   stops every browser already subscribed from hearing anything. Three
   `VAPID_*` in the environment or none; without them the routes are 404 and
   only a live tab is told. Needs a secure origin.
+- **The announcements** (`server/announcements.js`, §3, §6): one chat
+  project with `announce = 1`, pinned over the sidebar, written by an admin
+  and read and reacted to by everybody. ⚠️ The bell off no longer
+  unsubscribes: it keeps the browser for the announcements alone
+  (`announcements_only`), so they reach everybody whose browser ever said
+  yes. Built 2026-10-02 and driven in the MCP browser; no real push service
+  has carried one yet.
 - Six studio libraries — input, sound, sprites, screens, moments,
   achievements — the **core set**, copied into every game at creation and
   raised by `npm run sweep` (§4). An **extra** goes only where a template

@@ -40,7 +40,10 @@
 The studio has exactly one role: `users.admin`, which is about running the
 studio — accounts, names, passwords, allowances, the studio-wide budget — and
 nothing about games. An admin has no more right to somebody's game than
-anybody else; authorship is a separate question with a separate answer.
+anybody else; authorship is a separate question with a separate answer. The
+one room it does decide is the studio's **announcements** (§3): only an admin
+writes in it or changes it, through `canEdit` like every other change, and
+everybody else reads it and reacts.
 
 **Studio access** — `users.studio_access`, which every account had implicitly
 before the bit existed — gets you into the studio and lets you **read** all

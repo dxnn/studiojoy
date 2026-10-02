@@ -190,6 +190,24 @@
 .item.active .item-name { color: #fff; }
 .item.active .item-sub { color: color-mix(in oklab, var(--accent) 45%, white); }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
+/* The studio's announcements, pinned over the tabs: outside the list, so its
+   own inset, and outlined in the studio's own cyan because it is the studio
+   talking. Brighter while something in it is unread — its mark, on top of the
+   dot every row wears. */
+.pane.side > .item.announce {
+  width: calc(100% - 20px);
+  margin: 0 10px 8px;
+  border: 1px dashed color-mix(in oklab, var(--accent) 45%, transparent);
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+.item.announce .announce-mark { flex-shrink: 0; }
+.item.announce.news {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.item.announce.news .item-sub { color: var(--text); }
 
 .srow {
   display: flex;

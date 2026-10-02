@@ -537,6 +537,24 @@ hand-rolled in `server/push.js` against the RFCs' own worked examples,
 because `new-y` gets it from the `web-push` package and this studio has no
 runtime dependency at all.
 
+⚠️ **The announcements reach a bell that is off** (2026-10-02). Off is
+quieter rather than silent: pressing the bell off subscribes the browser
+again with `announcements_only: true` instead of unsubscribing it, every open
+renews that wherever the browser has said yes, and an announcement is shown
+in a hidden tab with the bell off too. So an announcement goes to every
+subscription and anything else to the bell-on ones (`audience` in
+`server/notify.js`). The bell says so in its title. A browser that never said
+yes is the one place an announcement cannot reach, past its mark.
+
+**The announcements are pinned over the sidebar** — above the search box and
+the tabs, outside every list and every filter, with 📣 in front of the name
+and the last thing said under it — because it is the studio talking to
+everybody rather than another conversation to look for. It opens like any
+chat project; it lights up in the studio's cyan while something in it is
+unread, over the mark every row wears. Its composer is an admin's: anybody
+else reads *Only an admin writes here. You can still react.*, and there is no
+`+` for a helper and no Archive in its `···`.
+
 ⚠️ **No keys in the environment is a 404 on all three**, and the client reads
 that as "nobody set push up here" and says nothing: a studio without them
 still tells everybody whose tab is alive. ⚠️ The audience is **every studio

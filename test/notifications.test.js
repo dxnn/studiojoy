@@ -118,6 +118,21 @@ test('nothing while the switch is off, or the browser is blocking', () => {
   assert.deepEqual(shown, []);
 });
 
+// ⚠️ The one thing the switch being off does not stop (spec/ §6): what is
+// said in the announcements, wherever the browser allows it.
+test('an announcement is told with the switch off, and not past a blocking browser', () => {
+  const news = message({ project_slug: 'announcements', chat_id: 1, body: 'Pizza on Friday' });
+  const withRoom = () => { S.projects.push({ slug: 'announcements', name: 'Announcements', kind: 'chat', announce: true }); };
+  studio({ want: 'off' });
+  withRoom();
+  notifyMessage(news);
+  assert.deepEqual(shown.map((n) => n.title), ['Announcements']);
+  studio({ want: 'off', permission: 'denied' });
+  withRoom();
+  notifyMessage(news);
+  assert.deepEqual(shown, []);
+});
+
 // One line that keeps changing, not four lines. The tag is the conversation,
 // so two chats in one game stay two of them.
 test('a burst from one conversation collapses into one', () => {
@@ -148,13 +163,17 @@ test('it wears the studio icon, never the game’s', () => {
 
 // The press is not the only time the studio subscribes: a browser loses its
 // subscription without saying so, and the bell goes on reading 🔔. So every
-// open with the switch on asks again, and one with it off asks nothing.
-test('an open with the switch on subscribes again', async () => {
+// open asks again — with the switch on for everything, with it off for the
+// announcements alone where the browser has said yes, and nothing at all in a
+// browser that never has.
+test('an open subscribes again: everything, the announcements, or nothing', async () => {
   const asked = [];
+  const bodies = [];
   const subscription = { toJSON: () => ({ endpoint: 'https://push.test/1', keys: { p256dh: 'p', auth: 'a' } }) };
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, options) => {
     asked.push(url);
+    if (options?.body) bodies.push(JSON.parse(options.body));
     return url === '/api/push/key'
       ? { ok: true, json: async () => ({ public_key: 'BAAA' }) }
       : { ok: true };
@@ -165,12 +184,16 @@ test('an open with the switch on subscribes again', async () => {
     value: { ready: Promise.resolve({ pushManager: { subscribe: async () => subscription } }) },
   });
   try {
+    studio({ want: 'off', permission: 'default' });
+    await renewPush();
+    assert.deepEqual(asked, [], 'never said yes: nothing');
     studio({ want: 'off' });
     await renewPush();
-    assert.deepEqual(asked, []);
+    assert.deepEqual(asked, ['/api/push/key', '/api/push/subscribe']);
+    assert.equal(bodies.at(-1).announcements_only, true, 'off still carries the announcements');
     studio({ want: 'on' });
     await renewPush();
-    assert.deepEqual(asked, ['/api/push/key', '/api/push/subscribe']);
+    assert.equal(bodies.at(-1).announcements_only, false, 'on carries everything');
   } finally {
     globalThis.fetch = realFetch;
     delete globalThis.PushManager;

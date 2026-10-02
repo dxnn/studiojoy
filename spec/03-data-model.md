@@ -179,6 +179,16 @@ the builder's by construction (§8).
 | `created_at` | TEXT NOT NULL | |
 | `updated_at` | TEXT | when the game last changed: its tree or its row, never its chat. What the sidebar sorts each group on (§6) |
 | `stage` | INTEGER NOT NULL DEFAULT 0 | how many **stamps** the game holds on its **arc** (§6, `public/arc.js`): a person's judgement, moved one at a time by `POST /stage`. A column and never a file, so no `write_file` can move it |
+| `announce` | INTEGER NOT NULL DEFAULT 0 | set on exactly one row: the studio's **announcements**, a chat project (below) |
+
+**The announcements** (`server/announcements.js`, 2026-10-02) are one chat
+project with `announce = 1`: one room, `bots = 0`, made once the studio has an
+admin to have made it — when it starts, and when its first account is made —
+with the slug `announcements` unless a game already has it. ⚠️ Only an admin
+writes in it or changes it (`canEdit`, and the message route's own refusal,
+since a room with no helpers is otherwise everyone's to talk in); nobody
+archives it; everybody reads it and reacts. The flag, not the name, is what
+makes it the announcements, so an admin renaming it changes nothing else.
 
 `updated_at` is stamped from one hook on the broker (`watchChanges`, the
 same place web push hangs) on every `files.changed` and `project.updated`:
@@ -484,6 +494,7 @@ broadcast, never for a message the reader wrote themselves.
 | `p256dh` | TEXT NOT NULL | the browser's public key, base64url — what a message is encrypted to |
 | `auth` | TEXT NOT NULL | sixteen bytes of its secret, base64url |
 | `created_at` | TEXT NOT NULL | |
+| `announcements_only` | INTEGER NOT NULL DEFAULT 0 | the bell is off in that browser: it is told what is said in the **announcements** and nothing else |
 
 One row per browser that has pressed the bell and been given permission (§6,
 `server/notify.js`). ⚠️ `endpoint` is UNIQUE and not `(user_id, endpoint)`: a
@@ -504,8 +515,11 @@ its side.
 ⚠️ Nothing here records whether somebody *wants* notifications. That is a
 browser preference (`gs.notify`) and not a column, because permission is per
 browser: a row saying yes on a laptop that has denied it is a row that lies.
-Having a row here means a browser asked; the switch being off means it never
-subscribed, or unsubscribed.
+Having a row here means a browser asked. ⚠️ The switch being off no longer
+means it unsubscribed (2026-10-02): off keeps the row with
+`announcements_only = 1`, so the announcements still reach it, and every open
+of a browser that has said yes renews one of the two kinds. Only a browser
+that never said yes has no row.
 
 ### `message_writes`
 

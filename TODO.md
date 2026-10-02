@@ -32,8 +32,6 @@ deliberately deferred.
 
 - try the studio on a real phone and the older iPad: the checks a headless
   browser cannot make (ideas/device-checks.md)
-- an announcements room: one studio-wide room whose every message notifies
-  everybody (spec/ §6's notifications and web push are what it rides on)
 - ask the builder for the one-game chores — fixes that belong to one game
   rather than to the studio (ideas/game-chores.md)
 - let a person lock a game file: the builder gets its API note, not its

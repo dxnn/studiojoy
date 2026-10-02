@@ -365,6 +365,9 @@ export const frozen = () => !S.project || S.project.archived || !S.project.can_e
 // somebody who cannot change a thing here can still say something in it.
 export const canTalk = () => {
   if (!S.project || S.project.archived) return false;
+  // The announcements are an admin's to say: the one room with no helpers
+  // that is not everyone's to talk in (server/announcements.js).
+  if (S.project.announce) return S.project.can_edit;
   return S.chat?.bots === false || !frozen();
 };
 
@@ -565,7 +568,9 @@ export function more(key, items, { label = 'More', small = true } = {}) {
 // list, and a row near the foot of the pane opens upward instead of into the
 // fold. Hidden until placed, so it never flashes at the corner first.
 let menuOpenedAt = 0;
-function placeMenu(button, menu) {
+// The reaction palette is placed the same way, for the same reason: inside
+// the thread it was cut off over the first message, where nothing scrolls.
+export function placeMenu(button, menu) {
   requestAnimationFrame(() => {
     if (!button.isConnected || !menu.isConnected) return;
     const r = button.getBoundingClientRect();

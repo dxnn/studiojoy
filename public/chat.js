@@ -8,7 +8,7 @@ import {
   S, render, prefs, isChat, agentName, urlAs, openProject,
   composerBox, sendComposer, send, api, say, sizeText,
   openMode, showMode, renderModeBody, frozen, canTalk, nearQuota,
-  more,
+  more, placeMenu,
 } from './main.js';
 import { toolLabel, thinkingFor } from './stream.js';
 import { loadDiff, loadHistory, historyNeedsLoad } from './history.js';
@@ -320,17 +320,18 @@ function reactionsRow(msg) {
         },
       })))
     : null;
-  return h('div', { class: 'reactions' },
-    chips,
-    h('button', {
-      class: 'reaction add', text: '+', title: 'React with an emoji',
-      onclick: (e) => {
-        e.stopPropagation();
-        S.reactionPicker = S.reactionPicker === msg.id ? null : msg.id;
-        render();
-      },
-    }),
-    palette);
+  const add = h('button', {
+    class: 'reaction add', text: '+', title: 'React with an emoji',
+    onclick: (e) => {
+      e.stopPropagation();
+      S.reactionPicker = S.reactionPicker === msg.id ? null : msg.id;
+      render();
+    },
+  });
+  // Fixed to the window beside its +, like a ··· menu: inside the scroller it
+  // opened upward and the first message's palette lost its top row.
+  if (palette) placeMenu(add, palette);
+  return h('div', { class: 'reactions' }, chips, add, palette);
 }
 
 // A plan card: the Builder's one reply for a plan (spec.md §8) — a checklist
@@ -744,7 +745,7 @@ function renderMore(p) {
     rooms && !frozen() && S.chats.length < MAX_CHATS && item('Add chat…', 'new-chat', {
       title: 'Start another chat in this game',
     }),
-    p.originator && !p.archived && !p.published && item('Archive…', 'archive', {
+    p.originator && !p.archived && !p.published && !p.announce && item('Archive…', 'archive', {
       danger: true, title: 'Put this game away — you can unarchive it again',
     }),
     p.originator && p.archived && {
@@ -890,7 +891,8 @@ export function renderChatTabs(p) {
   // A person's helper goes in a chat project and nowhere in a game: every
   // room there is the humans' or the Builder's, so the + is a chat project's
   // alone (spec.md §3).
-  const addHelper = !frozen() && !rooms;
+  // Not into the announcements, whose one room takes no helper at all.
+  const addHelper = !frozen() && !rooms && !p.announce;
   // The Building a game is born with is furniture — the words the studio uses
   // for it, no rename — like Humans only; a builder room somebody added is
   // named by them and renamed by them.
@@ -966,9 +968,11 @@ export function renderChat() {
   // ⚠️ The composer follows the chat, not the game — see canTalk().
   const talkable = canTalk();
   const box = composerBox;
-  box.placeholder = p.archived
-    ? 'This game is finished (archived).'
-    : (talkable ? 'Ask for something…' : `Only ${p.name}’s editors can write here.`);
+  box.placeholder = p.announce
+    ? (talkable ? 'Tell the whole studio something…' : 'Only an admin writes here. You can still react.')
+    : p.archived
+      ? 'This game is finished (archived).'
+      : (talkable ? 'Ask for something…' : `Only ${p.name}’s editors can write here.`);
   box.disabled = !talkable;
 
   // Said only when there is something to say. The standing tip that used to
