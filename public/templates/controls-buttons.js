@@ -24,7 +24,7 @@ const CONTROLS = {
   player1: {
     left: "key:left key:a pad:left pad:stick-left touch:left", // turn left
     right: "key:right key:d pad:right pad:stick-right touch:right", // turn right
-    thrust: "key:up key:w pad:up pad:stick-up touch:THRUST", // push the engine
+    thrust: "key:up key:w pad:up pad:stick-up pad:b touch:THRUST", // push the engine
     fire: "key:space pad:a toggle:FIRE", // latches: tap on, tap off
     start: "key:enter pad:start touch:THRUST", // begin, or play again
   },
@@ -33,7 +33,7 @@ const CONTROLS = {
   player2: {
     left: "key:j pad:left pad:stick-left", // turn left
     right: "key:l pad:right pad:stick-right", // turn right
-    thrust: "key:i pad:up pad:stick-up", // push the engine
+    thrust: "key:i pad:up pad:stick-up pad:b", // push the engine
     fire: "key:f pad:a", // fire
     start: "key:enter pad:start", // begin, or play again
   },
