@@ -934,6 +934,8 @@ export function renderStoryEditor() {
         S.tryScene = scene.key;
         S.previewOpen = true;
         S.previewNonce += 1;
+        // On a phone the preview is the rail, a pane away: go there.
+        S.narrowPane = 'rail';
         render();
       },
     }) : null);

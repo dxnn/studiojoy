@@ -996,7 +996,10 @@ Unsaved edits park per game on leaving and return while the file's etag
 still matches, so a mis-click in the sidebar can't cost a scene; a changed
 file drops them with a word. ⚠️ A reload after a save keeps the story on
 screen until the new one is read, so the address isn't written without its
-scene as a spurious history entry.
+scene as a spurious history entry. It keeps the person whose card is open
+too: a save's own `files.changed` often lands after its PUT has answered,
+and the re-read closed the card mid-edit. On a phone *Try this scene* also
+goes to the rail, where the preview is.
 
 **The title screen** is a row above the scenes — the one thing here that
 isn't a scene. Its two lines are `config/words.js`'s, read and spliced back
