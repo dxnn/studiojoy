@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  install, all, withClass, pressable, hasClass,
+  install, all, withClass, pressable, hasClass, conventionBreaks, goldIn, press,
 } from './dom-stand-in.js';
 
 // ⚠️ Before main.js, which reads `document` on the way in.
@@ -157,8 +157,21 @@ test('the inspector belongs to the picture that is open', () => {
 });
 
 test('gold is a number and nothing else', () => {
+  // Which rules wear gold is the stylesheet's say (dom-stand-in.js), and
+  // nothing in Pics is a number.
   const tree = pics([picture('assets/images/tree.png'), picture(HERO_IMAGE)]);
-  for (const node of all(tree)) {
-    assert.equal(hasClass(node, 'num'), false, 'nothing in Pics is a number');
-  }
+  assert.deepEqual(goldIn(tree), []);
+});
+
+test('Pics keeps the conventions every surface keeps', () => {
+  const files = [picture('assets/images/tree.png'), picture('assets/sprites/ship.png'), picture(HERO_IMAGE)];
+  assert.deepEqual(conventionBreaks(pics(files)), []);
+  assert.deepEqual(conventionBreaks(pics(files, { canEdit: false })), []);
+});
+
+test('a picture card opens by handing back its promise', async () => {
+  const [card] = withClass(pics([picture('assets/images/tree.png')]), 'card');
+  const out = press(card);
+  assert.equal(typeof out?.then, 'function', 'returned, not fired');
+  await out;
 });

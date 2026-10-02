@@ -109,12 +109,6 @@ deliberately deferred.
   change that keeps outrunning it and getting planned means it is too tight,
   a "small" that fills it every time means the sizing is calling big things
   small (spec/ §8, `SMALL_TURNS`)
-- hold the other surfaces to the conventions the way Controls is now
-  (test/conventions.test.js): the story editor, the achievements editor,
-  Pics, Hear, Share and the mode row itself — a `render` call and the same
-  four assertions each. ⚠️ Two of the four rules still have nothing checking
-  them: every `.scroll` has a `data-scroll` name, and an `onclick` that opens
-  something returns its promise (callable, so assertable)
 - keep the stylesheet honest on its own: a rule for a class nothing renders any
   more. ⚠️ Two ways to get this wrong, both met on 2026-09-03: a substring
   match hides a dead class behind a live *id* (`story-choice` inside

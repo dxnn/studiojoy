@@ -10,10 +10,18 @@ to fire it — ask the server who you are, open the stream — so `npm test`
 could not load any file that renders, and the *three conventions* could only
 ever be checked by eye in a browser. They are tests now
 (`test/conventions.test.js`) over a hand-rolled DOM stand-in
-(`test/dom-stand-in.js`, ~100 lines of code): what lights up is what can be
+(`test/dom-stand-in.js`, under 300 lines with its comments): what lights up is what can be
 clicked, nothing is greyed where a row would have to explain why, one thing
-open at a time in the row it belongs to, and gold only on a number. Pics is the second surface held to
-them (`test/pics.test.js`), and the @ menu is checked the same way
+open at a time in the row it belongs to, and gold only on a number. Three of
+them every surface keeps, and `conventionBreaks` reads them off
+`public/css/` rather than a list by hand: a node a `:hover` rule lights up
+is pressable, every `.scroll` has a `data-scroll` name, and whatever a
+`var(--num)` rule colours reads as a number. `press` hands back what an
+onclick returned, so an opener is asked for its promise. Controls, Pics,
+Hear, Share (the achievements editor and the board), Versions, the story
+editor and the mode row are held to them (`test/pics.test.js` for Pics), and
+the first run found Controls' shape rows lighting up in a game nobody could
+change. The @ menu is checked the same way
 (`test/at-menu.test.js`) — through the composer's own keydown handler rather
 than its own function, or the two would pass having never been wired
 together. ⚠️ Each

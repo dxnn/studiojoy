@@ -759,7 +759,8 @@ function renderMore(p) {
 // pill per surface the centre can show, the chat first. A chat project is one
 // room with nothing to switch to, so it has no row. The mark on Chat says
 // somebody called you in a conversation behind whatever mode is up.
-function renderModes(p) {
+// Exported for test/conventions.test.js.
+export function renderModes(p) {
   const modes = modesFor(p);
   if (modes.length < 2) return null;
   // Chat carries the game's mark only while another surface is up: in front
