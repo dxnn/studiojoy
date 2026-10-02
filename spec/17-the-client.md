@@ -41,12 +41,19 @@ is gone unless it is snapshotted and put back.
   rebuilt field comes back with what the file said before the typing; the
   quiz's and the achievements' fields do the same. ⚠️ A field that turns what
   is typed into something else — a controls name's spaces into dashes, an
-  adventure's thing into a key — still writes on `change`, since doing it
-  mid-word takes the space before the next word arrives: it keeps its caret
-  through a render and loses what was typed since it was last left. And
-  nothing is taken from a field's words as they are typed — an
-  achievement's id comes from its name on Save — because Chrome blurs the
-  field a render takes away, so leaving a field is no sign it is finished.
+  adventure's thing into a key, a story's scene or mood name — still writes
+  on `change`, since doing it mid-word takes the space before the next word
+  arrives. ⚠️ But Chrome fires a field's `change` and then its `blur` when a
+  render takes it away, synchronously and while it is still in the page
+  (measured 2026-10-02), so such a field commits whatever half a word it
+  holds at that moment, and an emptied one comes back as its stand-in: a
+  new mood read "mood" again when its own autosave landed. The story's
+  renames keep what is typed in `S.story.typing` and look at `change` and
+  `blur` only once the render is over, ignoring both when a field with the
+  same id came straight back under the fingers; the controls and adventure
+  names do not yet. And nothing is taken from a field's words as they are
+  typed — an achievement's id comes from its name on Save — because leaving
+  a field is no sign it is finished.
   The dialog's fields need none of this: the dialog is one node, re-appended.
 - **Every scroller's position.** A `.scroll` container needs a `data-scroll`
   name or it jumps to the top on the next render.

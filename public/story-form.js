@@ -192,6 +192,11 @@ export async function loadStory() {
   };
   selectScene(was?.scene ?? read.scenes[0]?.key, was?.scene ? was.step : 'scene');
   S.story.title = Boolean(was?.title);
+  // The person being looked at stays, as the scene does, and so does a name
+  // half-typed over one of theirs: our own save's files.changed often lands
+  // after the PUT has answered, and the re-read closed their card mid-word.
+  if (read.cast.some((p) => p.key === was?.person)) S.story.person = was.person;
+  S.story.typing = was?.typing ?? null;
 }
 
 // Called on the way out of a game, before the slug moves.
@@ -415,6 +420,34 @@ const field = (id, value, placeholder, on = {}) => {
   });
   input.value = value;
   return input;
+};
+// A rename commits when the field is left, so until then the model holds the
+// old name. What is typed waits in `typing`, kept only while the field still
+// stands for the name it was typed over. ⚠️ A render taking the field away
+// mid-word fires its change and its blur — Chrome, synchronously, while it is
+// still in the page — so the autosave landing two seconds after `+ Add a
+// mood` renamed it to half a word, or to "mood" again when the field had
+// just been emptied. Both are looked at once the render is over: a field
+// that came straight back under the fingers was a render, not somebody
+// leaving. And a field rebuilt mid-word sends no change when it is left
+// (nobody typed in *it*), which is why leaving it commits too.
+const renameField = (id, from, placeholder, commit) => {
+  const st = S.story;
+  const left = (e) => {
+    const el = e.currentTarget;
+    setTimeout(() => {
+      if (S.story !== st || st.typing?.id !== id) return;
+      if (!el.isConnected && document.activeElement?.id === id) return;
+      const { text } = st.typing;
+      st.typing = null;
+      commit(text);
+    });
+  };
+  return field(id, st.typing?.id === id && st.typing.from === from ? st.typing.text : from, placeholder, {
+    oninput: (e) => { st.typing = { id, from, text: e.currentTarget.value }; },
+    onchange: left,
+    onblur: left,
+  });
 };
 const pick = (options, value, onchange, extra = {}) => h(
   'select', { onchange, disabled: frozen(), ...extra },
@@ -963,14 +996,12 @@ export function renderStoryInspector() {
   const at = scenes.indexOf(scene);
   const from = leadingTo(model, scene.key);
   return box(head('Scene', scene.key),
-    fieldRow('Name', field('story-name', scene.key, 'a short name', {
-      onchange: (e) => {
-        const want = freshKey(e.currentTarget.value, keys.filter((k) => k !== scene.key));
-        renameScene(model, scene.key, want);
-        st.scene = want;
-        touched();
-        render();
-      },
+    fieldRow('Name', renameField('story-name', scene.key, 'a short name', (text) => {
+      const want = freshKey(text, keys.filter((k) => k !== scene.key));
+      renameScene(model, scene.key, want);
+      st.scene = want;
+      touched();
+      render();
     })),
     fieldRow('Comes from', from.length
       ? h('div', { class: 'row wrap' }, ...from.map((k) => h('button', {
@@ -1028,13 +1059,10 @@ export function renderPersonInspector(person, { close = null } = {}) {
     const path = portraitPath(person.key, mood);
     return h('div', { class: 'mood-row row' },
       thumb(path),
-      field(`story-mood-${mi}`, mood, 'a mood', {
-        onchange: (e) => {
-          const want = freshKey(e.currentTarget.value, person.moods.filter((m) => m !== mood), 'mood');
-          renameMood(model, person.key, mood, want);
-          touched();
-          render();
-        },
+      renameField(`story-mood-${person.key}-${mi}`, mood, 'a mood', (text) => {
+        renameMood(model, person.key, mood, freshKey(text, person.moods.filter((m) => m !== mood), 'mood'));
+        touched();
+        render();
       }),
       has.has(path)
         ? h('button', { class: 'link tiny', text: 'Draw', title: `Open ${path} to draw on`, onclick: () => chooseFile(path) })
@@ -1098,6 +1126,10 @@ export function renderPersonInspector(person, { close = null } = {}) {
           person.moods.push(freshKey('', person.moods, 'mood'));
           touched();
           render();
+          // Selected, so the first letter typed replaces the stand-in name.
+          const name = document.getElementById(`story-mood-${person.key}-${person.moods.length - 1}`);
+          name?.focus();
+          name?.select();
         },
       })));
 }
