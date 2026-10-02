@@ -36,6 +36,7 @@ import {
   artShelf, artCredit, asPng, plainCard,
 } from './story-guide.js';
 import { writeFiles, IMAGE_DIR, SOUND_DIR } from './upload.js';
+import { typedField } from './typed.js';
 import { pictureInto, cachedFileUrl } from './story-form.js';
 
 export { ADVENTURE_FILE };
@@ -248,6 +249,12 @@ const field = (id, value, placeholder, on = {}) => {
   });
   input.value = value;
   return input;
+};
+// A field that becomes a key commits when it is left, and what is typed until
+// then survives a render (typed.js).
+const renameField = (id, from, placeholder, commit) => {
+  const typed = typedField(id, from, commit);
+  return field(id, typed.value, placeholder, typed.on);
 };
 const pick = (options, value, onchange, extra = {}) => h(
   'select', { onchange, disabled: frozen(), ...extra },
@@ -824,8 +831,8 @@ export function renderAdventureEditor() {
           spot.kind === 'go' ? h('button', {
             class: 'link tiny', text: '→', title: `Open ${spot.go}`, disabled: !keys.includes(spot.go), onclick: () => go(spot.go),
           }) : null,
-          spot.kind === 'take' ? field('adventure-take', spot.take, 'the thing', {
-            onchange: (e) => { spot.take = freshKey(e.currentTarget.value, [], 'thing'); touched(); render(); },
+          spot.kind === 'take' ? renameField('adventure-take', spot.take, 'the thing', (text) => {
+            spot.take = freshKey(text, [], 'thing'); touched(); render();
           }) : null,
           spot.kind === 'take' ? h('label', { class: 'row hint' },
             h('input', {
@@ -838,8 +845,8 @@ export function renderAdventureEditor() {
           pick([['', 'always'], ...switches.filter((s) => s !== spot.set).map((s) => [s, s])], spot.need,
             (e) => { spot.need = e.currentTarget.value; touched(); render(); }),
           h('span', { class: 'hint muted', text: 'remembers' }),
-          field('adventure-set', spot.set, 'nothing', {
-            onchange: (e) => { spot.set = e.currentTarget.value.trim().replace(/\s+/g, '_'); touched(); render(); },
+          renameField('adventure-set', spot.set, 'nothing', (text) => {
+            spot.set = text.trim().replace(/\s+/g, '_'); touched(); render();
           }),
           sounds.length || spot.sound ? h('span', { class: 'hint muted', text: 'sound' }) : null,
           sounds.length || spot.sound ? pick([['', 'none'], ...[...new Set([spot.sound, ...sounds])].filter(Boolean).map((s) => [s, s])], spot.sound,
@@ -982,14 +989,12 @@ export function renderAdventureInspector() {
   const from = leadingTo(m, scene.key);
   const size = sizes.get(scene.picture);
   return box(head('Scene', scene.key),
-    fieldRow('Name', field('adventure-name', scene.key, 'a short name', {
-      onchange: (e) => {
-        const want = freshKey(e.currentTarget.value, keys.filter((k) => k !== scene.key));
-        renameScene(m, scene.key, want);
-        st.scene = want;
-        touched();
-        render();
-      },
+    fieldRow('Name', renameField('adventure-name', scene.key, 'a short name', (text) => {
+      const want = freshKey(text, keys.filter((k) => k !== scene.key));
+      renameScene(m, scene.key, want);
+      st.scene = want;
+      touched();
+      render();
     })),
     fieldRow('Comes from', from.length
       ? h('div', { class: 'row wrap' }, ...from.map((k) => h('button', { class: 'link tiny mono', text: k, onclick: () => go(k) })))

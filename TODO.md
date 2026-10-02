@@ -42,9 +42,6 @@ deliberately deferred.
 - give every buttons-shape game a controller without asking: asterogueoids
   binds no `pad:` at all. `input.js` could lend the arrow verbs the d-pad and
   stick when a game names no pad (input 8)
-- lift the story's `renameField` (story-form.js) into the controls and
-  adventure name fields: they still commit half a word when a render takes
-  them away (spec/ §17)
 - ask the builder for the one-game chores — fixes that belong to one game
   rather than to the studio (ideas/game-chores.md)
 - let a person lock a game file: the builder gets its API note, not its

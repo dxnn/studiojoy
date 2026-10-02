@@ -34,6 +34,7 @@ import { writeEditorFile } from './editor-file.js';
 import { createPictureAt } from './drawing.js';
 import { renderGuide, artCredit } from './story-guide.js';
 import { writeFiles } from './upload.js';
+import { typedField } from './typed.js';
 
 export const STORY_FILE = 'config/story.js';
 
@@ -192,11 +193,10 @@ export async function loadStory() {
   };
   selectScene(was?.scene ?? read.scenes[0]?.key, was?.scene ? was.step : 'scene');
   S.story.title = Boolean(was?.title);
-  // The person being looked at stays, as the scene does, and so does a name
-  // half-typed over one of theirs: our own save's files.changed often lands
-  // after the PUT has answered, and the re-read closed their card mid-word.
+  // The person being looked at stays, as the scene does: our own save's
+  // files.changed often lands after the PUT has answered, and the re-read
+  // closed their card mid-word.
   if (read.cast.some((p) => p.key === was?.person)) S.story.person = was.person;
-  S.story.typing = was?.typing ?? null;
 }
 
 // Called on the way out of a game, before the slug moves.
@@ -421,33 +421,11 @@ const field = (id, value, placeholder, on = {}) => {
   input.value = value;
   return input;
 };
-// A rename commits when the field is left, so until then the model holds the
-// old name. What is typed waits in `typing`, kept only while the field still
-// stands for the name it was typed over. ⚠️ A render taking the field away
-// mid-word fires its change and its blur — Chrome, synchronously, while it is
-// still in the page — so the autosave landing two seconds after `+ Add a
-// mood` renamed it to half a word, or to "mood" again when the field had
-// just been emptied. Both are looked at once the render is over: a field
-// that came straight back under the fingers was a render, not somebody
-// leaving. And a field rebuilt mid-word sends no change when it is left
-// (nobody typed in *it*), which is why leaving it commits too.
+// A rename commits when the field is left, and what is typed until then
+// survives a render (typed.js).
 const renameField = (id, from, placeholder, commit) => {
-  const st = S.story;
-  const left = (e) => {
-    const el = e.currentTarget;
-    setTimeout(() => {
-      if (S.story !== st || st.typing?.id !== id) return;
-      if (!el.isConnected && document.activeElement?.id === id) return;
-      const { text } = st.typing;
-      st.typing = null;
-      commit(text);
-    });
-  };
-  return field(id, st.typing?.id === id && st.typing.from === from ? st.typing.text : from, placeholder, {
-    oninput: (e) => { st.typing = { id, from, text: e.currentTarget.value }; },
-    onchange: left,
-    onblur: left,
-  });
+  const typed = typedField(id, from, commit);
+  return field(id, typed.value, placeholder, typed.on);
 };
 const pick = (options, value, onchange, extra = {}) => h(
   'select', { onchange, disabled: frozen(), ...extra },

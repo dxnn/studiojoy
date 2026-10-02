@@ -47,11 +47,15 @@ is gone unless it is snapshotted and put back.
   render takes it away, synchronously and while it is still in the page
   (measured 2026-10-02), so such a field commits whatever half a word it
   holds at that moment, and an emptied one comes back as its stand-in: a
-  new mood read "mood" again when its own autosave landed. The story's
-  renames keep what is typed in `S.story.typing` and look at `change` and
-  `blur` only once the render is over, ignoring both when a field with the
-  same id came straight back under the fingers; the controls and adventure
-  names do not yet. And nothing is taken from a field's words as they are
+  new mood read "mood" again when its own autosave landed. So every one of
+  them — the story's scene and mood names, the adventure's scene, thing and
+  switch names, a drawn button's name in Controls — goes through
+  `typedField` (`public/typed.js`): what is typed waits there, shown again by
+  the rebuilt field while it stands for the same value in the same game, and
+  `change` and `blur` are looked at only once the render is over, ignored
+  when a field with the same id came straight back under the fingers. A
+  rebuilt field sends no `change` when it is left, so leaving commits too.
+  `test/typed.test.js` holds it. And nothing is taken from a field's words as they are
   typed — an achievement's id comes from its name on Save — because leaving
   a field is no sign it is finished.
   The dialog's fields need none of this: the dialog is one node, re-appended.

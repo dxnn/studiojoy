@@ -23,6 +23,7 @@ import {
 } from './main.js';
 import { renderOpenFile } from './files-tab.js';
 import { saveOpenFileSoon } from './files.js';
+import { typedField } from './typed.js';
 
 function commit(text) {
   if (text === null) {
@@ -183,17 +184,17 @@ export function renderControlsForm(model) {
       const why = deadReason(shape, b);
       // Written when it is left rather than as it is typed: it becomes a
       // binding's name, spaces turned to dashes, and doing that mid-word would
-      // turn "big jump" into "big-" before the second word arrived. One verb
-      // is open at a time, so its rows' ids are the studio's only ones.
-      const name = drawn ? h('input', {
-        class: 'cfg-text ctl-name', id: `ctl-name-${i}`,
-        onchange: (e) => {
-          const typed = e.currentTarget.value.trim().replace(/\s+/g, '-');
-          if (typed) swap(i, `${b.kind}:${typed}`);
-          else e.currentTarget.value = b.name;
-        },
+      // turn "big jump" into "big-" before the second word arrived. What is
+      // typed until then survives a render (typed.js). One verb is open at a
+      // time, so its rows' ids are the studio's only ones.
+      const typed = drawn ? typedField(`ctl-name-${i}`, b.name, (text) => {
+        const named = text.trim().replace(/\s+/g, '-');
+        // Emptied and left: the name it had comes back.
+        if (named) swap(i, `${b.kind}:${named}`);
+        else render();
       }) : null;
-      if (name) name.value = b.name;
+      const name = typed ? h('input', { class: 'cfg-text ctl-name', id: `ctl-name-${i}`, ...typed.on }) : null;
+      if (name) name.value = typed.value;
       return h('div', { class: 'ctl-binding row' },
         h('span', { class: `ctl-chip mono${why ? ' dead' : ''}`, text: b.raw }),
         name,
