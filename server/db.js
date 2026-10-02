@@ -557,6 +557,12 @@ export function openDb(dbPath) {
   addColumnIfMissing(db, 'plans', 'begun', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'plans', 'edited', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'plans', 'built_by', 'INTEGER');
+  // The studio's announcements: the one chat project with this set (spec/ §3,
+  // server/announcements.js), made once there is an admin to have made it.
+  addColumnIfMissing(db, 'projects', 'announce', 'INTEGER NOT NULL DEFAULT 0');
+  // A browser whose bell is off still hears the announcements, so its
+  // subscription is kept and marked rather than dropped (spec/ §6).
+  addColumnIfMissing(db, 'push_subscriptions', 'announcements_only', 'INTEGER NOT NULL DEFAULT 0');
   return db;
 }
 

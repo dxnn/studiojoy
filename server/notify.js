@@ -19,16 +19,21 @@ const MAX_BODY = 120;
 
 // The row a browser gets to keep. Nothing else about it is stored, and the
 // keys are the browser's own — the studio cannot read its own pushes back.
-export function subscribe(db, userId, { endpoint, p256dh, auth }, now = new Date()) {
+// `announcementsOnly` is a bell that is off: the browser is kept, and told
+// only what is said in the announcements.
+export function subscribe(db, userId, {
+  endpoint, p256dh, auth, announcementsOnly = false,
+}, now = new Date()) {
   db.prepare(
-    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)
-       VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, announcements_only)
+       VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(endpoint) DO UPDATE SET
        user_id = excluded.user_id,
        p256dh = excluded.p256dh,
        auth = excluded.auth,
-       created_at = excluded.created_at`,
-  ).run(userId, endpoint, p256dh, auth, now.toISOString());
+       created_at = excluded.created_at,
+       announcements_only = excluded.announcements_only`,
+  ).run(userId, endpoint, p256dh, auth, now.toISOString(), announcementsOnly ? 1 : 0);
 }
 
 // ⚠️ Scoped to the caller, so knowing somebody else's endpoint is not a way
@@ -41,13 +46,15 @@ export function unsubscribe(db, userId, endpoint) {
 
 // Everybody still in the studio who has asked, except whoever spoke. A player
 // has no studio doors (`studio_access`), and a removed account has none at
-// all — belt as well as braces, since removal drops these rows outright.
-export function audience(db, exceptUserId) {
+// all — belt as well as braces, since removal drops these rows outright. A
+// browser whose bell is off hears the announcements and nothing else.
+export function audience(db, exceptUserId, { announcement = false } = {}) {
   return db.prepare(
     `SELECT s.id, s.endpoint, s.p256dh, s.auth
        FROM push_subscriptions s JOIN users u ON u.id = s.user_id
-      WHERE u.deleted = 0 AND u.studio_access = 1 AND s.user_id IS NOT ?`,
-  ).all(exceptUserId ?? null);
+      WHERE u.deleted = 0 AND u.studio_access = 1 AND s.user_id IS NOT ?
+        AND (? = 1 OR s.announcements_only = 0)`,
+  ).all(exceptUserId ?? null, announcement ? 1 : 0);
 }
 
 // What the browser is told. The same words rung 1 puts together in the
@@ -79,7 +86,9 @@ export function messageText(db, message) {
 // that is a request nobody will ever read.
 export async function tell(db, config, message, fetcher = fetch) {
   if (!config) return 0;
-  const rows = audience(db, message.user_id);
+  const announcement = db
+    .prepare('SELECT announce FROM projects WHERE slug = ?').get(message.project_slug)?.announce === 1;
+  const rows = audience(db, message.user_id, { announcement });
   if (rows.length === 0) return 0;
   const payload = JSON.stringify(messageText(db, message));
   let sent = 0;

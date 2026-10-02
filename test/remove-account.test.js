@@ -249,16 +249,16 @@ test('deluser --scores takes their scores and achievements, and nobody else\'s',
   const [dann, robin] = ['dann@example.com', 'kid@example.com']
     .map((email) => db.prepare('SELECT id FROM users WHERE email = ?').get(email).id);
   const now = new Date().toISOString();
-  db.prepare('INSERT INTO projects (id, slug, name, created_by, created_at) VALUES (1, ?, ?, ?, ?)')
-    .run('tank', 'Tank', dann, now);
-  const score = db.prepare('INSERT INTO scores (project_id, user_id, name, score, created_at) VALUES (1, ?, ?, ?, ?)');
-  score.run(robin, 'Robin', 90, now);
-  score.run(robin, 'Robin', 40, now);
-  score.run(dann, 'Dann', 70, now);
-  score.run(null, 'Robin', 10, now);
+  const tank = db.prepare('INSERT INTO projects (slug, name, created_by, created_at) VALUES (?, ?, ?, ?)')
+    .run('tank', 'Tank', dann, now).lastInsertRowid;
+  const score = db.prepare('INSERT INTO scores (project_id, user_id, name, score, created_at) VALUES (?, ?, ?, ?, ?)');
+  score.run(tank, robin, 'Robin', 90, now);
+  score.run(tank, robin, 'Robin', 40, now);
+  score.run(tank, dann, 'Dann', 70, now);
+  score.run(tank, null, 'Robin', 10, now);
   for (const who of [robin, dann]) {
-    db.prepare('INSERT INTO personal_bests (project_id, user_id, score, created_at) VALUES (1, ?, 1, ?)').run(who, now);
-    db.prepare('INSERT INTO achievements (project_id, user_id, achievement, created_at) VALUES (1, ?, ?, ?)').run(who, 'first', now);
+    db.prepare('INSERT INTO personal_bests (project_id, user_id, score, created_at) VALUES (?, ?, 1, ?)').run(tank, who, now);
+    db.prepare('INSERT INTO achievements (project_id, user_id, achievement, created_at) VALUES (?, ?, ?, ?)').run(tank, who, 'first', now);
   }
   db.close();
 

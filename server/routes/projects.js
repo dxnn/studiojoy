@@ -28,6 +28,7 @@ import {
 import { unseenInProject, unseenInChat } from '../mentions.js';
 import { projectHasUnread, chatHasUnread } from '../reads.js';
 import { arcFor } from '../../public/arc.js';
+import { isAnnouncements } from '../announcements.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -79,6 +80,9 @@ function projectPublic(ctx, row, user = null) {
     // archiving (§11), and the ··· needs to know before offering it.
     originator: user ? row.created_by === user.id : false,
     can_edit: user ? canEdit(db, row, user) : false,
+    // The studio's announcements: pinned over the sidebar, written by an
+    // admin, heard by everybody (server/announcements.js).
+    announce: row.announce === 1,
     created_by: row.created_by,
     created_at: row.created_at,
     // When the game last changed — its tree or its row, never its chat — and
@@ -560,6 +564,8 @@ export function projectRoutes(r) {
   r.post('/api/projects/:slug/archive', async (ctx) => {
     const project = originatorsProject(ctx, 'archive');
     if (project.archived) throw new HttpError(409, 'project is archived');
+    // The studio's own room, not anybody's project to put away.
+    if (isAnnouncements(project)) throw new HttpError(409, 'the announcements stay');
     if (project.published) {
       throw new HttpError(409, `${project.name} is published — unpublish it first`);
     }

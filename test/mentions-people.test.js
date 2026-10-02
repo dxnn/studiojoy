@@ -76,7 +76,8 @@ test('the mark says which conversation, and reading that one clears it', async (
   assert.deepEqual(after.chats.map((c) => c.mentions), [1, 0, 0]);
 
   // And it is Robin's to clear: Dann reading it changes nothing over there.
-  await app.client.json('POST', '/api/projects/tank/chats/1/seen');
+  const home = after.chats[0].id;
+  assert.equal((await app.client.json('POST', `/api/projects/tank/chats/${home}/seen`)).status, 204);
   assert.equal(await marks(theirs), 1);
 });
 
@@ -108,8 +109,9 @@ test('the sidebar list carries each person their own marks', async (t) => {
   const { app, theirs } = await two(t);
   await say(app.client, '@Robin have a look');
 
-  const mine = (await app.client.json('GET', '/api/projects')).body;
-  const yours = (await theirs.json('GET', '/api/projects')).body;
+  // The studio's announcements are in every list, pinned apart.
+  const mine = (await app.client.json('GET', '/api/projects')).body.filter((p) => !p.announce);
+  const yours = (await theirs.json('GET', '/api/projects')).body.filter((p) => !p.announce);
   assert.deepEqual(mine.map((p) => p.mentions), [0]);
   assert.deepEqual(yours.map((p) => p.mentions), [1]);
 });

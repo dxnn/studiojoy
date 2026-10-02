@@ -17,6 +17,10 @@
 //   Whatever its `open_edit` says — nothing reads it for a chat.
 // - **The author list itself is authors-only, even when the game is open.**
 //   Open means anybody may work on it, not that anybody may decide who does.
+//
+// And one chat project is the exception to the second: **the studio's
+// announcements are an admin's** (server/announcements.js) — everybody reads
+// and reacts, an admin says and changes.
 
 import { HttpError } from './http/respond.js';
 
@@ -24,9 +28,11 @@ export const isAuthor = (db, projectId, userId) => Boolean(db
   .prepare('SELECT 1 FROM project_authors WHERE project_id = ? AND user_id = ?')
   .get(projectId, userId));
 
-export const canEdit = (db, project, user) => project.kind === 'chat'
-  || project.open_edit === 1
-  || isAuthor(db, project.id, user.id);
+export const canEdit = (db, project, user) => (project.announce === 1
+  ? user.admin === 1
+  : project.kind === 'chat'
+    || project.open_edit === 1
+    || isAuthor(db, project.id, user.id));
 
 // Somebody removed from the studio keeps their `project_authors` row — that
 // is what `npm run restoreuser` gives back — but is not listed as an editor,

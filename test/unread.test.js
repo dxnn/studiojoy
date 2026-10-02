@@ -75,7 +75,8 @@ test('unread says which conversation, and reading that one clears it', async (t)
 test('reading is yours alone', async (t) => {
   const { app, theirs } = await two(t);
   await say(app.client, 'hello');
-  await app.client.json('POST', '/api/projects/tank/chats/1/seen');
+  const home = (await app.client.json('GET', '/api/projects/tank')).body.chats[0].id;
+  assert.equal((await app.client.json('POST', `/api/projects/tank/chats/${home}/seen`)).status, 204);
   assert.equal(await unread(theirs), true, 'Dann reading it changes nothing for Robin');
 });
 
@@ -87,7 +88,7 @@ test('a mention also leaves the generic flag, and reading clears both', async (t
   assert.equal(before.mentions, 1);
   assert.equal(before.unread, true);
 
-  await theirs.json('POST', '/api/projects/tank/chats/1/seen');
+  assert.equal((await theirs.json('POST', `/api/projects/tank/chats/${before.chats[0].id}/seen`)).status, 204);
   const after = (await theirs.json('GET', '/api/projects/tank')).body;
   assert.equal(after.mentions, 0);
   assert.equal(after.unread, false);
@@ -97,8 +98,9 @@ test('the sidebar list carries each person their own unread flag', async (t) => 
   const { app, theirs } = await two(t);
   await say(app.client, 'take a look');
 
-  const mine = (await app.client.json('GET', '/api/projects')).body;
-  const yours = (await theirs.json('GET', '/api/projects')).body;
+  // The studio's announcements are in every list, pinned apart.
+  const mine = (await app.client.json('GET', '/api/projects')).body.filter((p) => !p.announce);
+  const yours = (await theirs.json('GET', '/api/projects')).body.filter((p) => !p.announce);
   assert.deepEqual(mine.map((p) => p.unread), [false]);
   assert.deepEqual(yours.map((p) => p.unread), [true]);
 });

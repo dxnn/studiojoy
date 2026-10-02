@@ -6,6 +6,7 @@ import { checkProjectPath } from '../files/paths.js';
 import { requireProject, messagePublic, requireString } from './helpers.js';
 import { requireChat, homeChat, takesHelpers } from '../chats.js';
 import { canEdit } from '../authors.js';
+import { isAnnouncements } from '../announcements.js';
 import { mentionedUsers, recordMentions, callAgentsIn } from '../mentions.js';
 
 const MAX_MESSAGE_BYTES = 32 * 1024;
@@ -49,6 +50,11 @@ export function messageRoutes(r) {
     // other chat is where the work happens, so it takes the game's own rule.
     if (chat.bots === 1 && !canEdit(ctx.db, project, user)) {
       throw new HttpError(403, `${project.name} is not yours to change — you can still talk in ${homeChat(ctx.db, project.id).name}`);
+    }
+    // The announcements are said by an admin and read by everybody: the one
+    // room with no helpers that is not everyone's to talk in.
+    if (isAnnouncements(project) && !canEdit(ctx.db, project, user)) {
+      throw new HttpError(403, 'only an admin says things in the announcements — you can still react');
     }
 
     if (typeof body.body !== 'string') throw new HttpError(400, 'body must be a string');

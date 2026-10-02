@@ -3,6 +3,7 @@ import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
 import { DEFAULT_DAILY_TOKENS } from './budget.js';
 import { forbiddenCharKind } from './util/text.js';
+import { ensureAnnouncements } from './announcements.js';
 
 // scrypt parameters from spec.md §11. Stored format carries them so an
 // existing hash keeps verifying if these are ever raised.
@@ -309,6 +310,8 @@ export function createUser(db, { email, password, displayName }, now = new Date(
     normalized, hashPassword(password), name, first ? 1 : 0,
     DEFAULT_DAILY_TOKENS, now.toISOString(),
   );
+  // The studio's first admin is who its announcements were made by.
+  if (first) ensureAnnouncements(db, now.toISOString());
   return db.prepare(
     'SELECT id, email, display_name, admin, daily_tokens, created_at FROM users WHERE id = ?',
   ).get(info.lastInsertRowid);

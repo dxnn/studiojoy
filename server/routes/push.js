@@ -39,7 +39,11 @@ export function pushRoutes(r) {
     if (!short(keys?.p256dh, MAX_KEY) || !short(keys?.auth, MAX_KEY)) {
       throw new HttpError(400, 'keys.p256dh and keys.auth are required');
     }
-    subscribe(ctx.db, user.id, { endpoint, p256dh: keys.p256dh, auth: keys.auth });
+    // A bell that is off keeps the browser for the announcements alone.
+    subscribe(ctx.db, user.id, {
+      endpoint, p256dh: keys.p256dh, auth: keys.auth,
+      announcementsOnly: body.announcements_only === true,
+    });
     noContent(ctx.res);
   });
 

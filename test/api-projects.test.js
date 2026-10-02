@@ -494,8 +494,10 @@ test('the list is newest first and carries a preview', async (t) => {
 
   const res = await app.client.json('GET', '/api/projects');
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.map((p) => p.slug), ['second', 'first']);
-  assert.equal(res.body[0].preview, '');
+  // The studio's announcements are in every studio's list, pinned apart.
+  const games = res.body.filter((p) => !p.announce);
+  assert.deepEqual(games.map((p) => p.slug), ['second', 'first']);
+  assert.equal(games[0].preview, '');
 });
 
 test('the list says which games hold an icon.png', async (t) => {
