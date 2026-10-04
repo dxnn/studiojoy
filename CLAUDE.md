@@ -57,7 +57,10 @@ ignored as a second lock.
   env file (`$STUDIO_ENV` or `~/apps/studio.env`), then `gamestudio.db` beside
   the code (`bin/env.js`), and print `using <file>` when the file answered.
   ⚠️ So on a machine that has that file, a script run without `DB_PATH` acts
-  on the real studio. This laptop has none (checked 2026-10-01).
+  on the real studio. This laptop has none (checked 2026-10-01) — ⚠️ but it
+  has the retired `gamestudio.db`, which still lists 12 games, and `./games`
+  holds the production mirrors, so a script run here acts on those mirrors
+  without saying so: `npm run sweep` did, 2026-10-04.
 - `npm run adduser -- <email> "<Name>"` — makes an account without a studio
   running; the admin panel does the same from a browser.
 - `npm run deluser -- <email>` — ⚠️ the *only* way somebody leaves the studio:
@@ -413,10 +416,9 @@ specified:
   is what the preview player's **Pin** and **Back** save and put back. The
   seven templates keep their run in it, and ⚠️ none takes a way in from its
   own address — *Try this scene* and *Try it* lay their fields over State
-  through the savepoint, so a player cannot skip ahead. ⚠️ Every existing
-  game has been moved by hand, one commit in its own `games/<slug>/` repo,
-  and none is pushed: each needs the server's sweep first, or it stops at
-  its first `State` (ideas/state-migration.md, the order and the ledger). A
+  through the savepoint, so a player cannot skip ahead. Every existing game
+  was moved by hand and is live (2026-10-04, ideas/state-migration.md) —
+  ⚠️ except eight archived ones, whose library commit is still to push. A
   game without State says it cannot be pinned. An **extra** goes only where a template
   names it or a person adds it, and the sweep never adds one. Two exist:
   **physics**, a façade over vendored planck.js, and **render3d**, one over

@@ -129,9 +129,10 @@ deliberately deferred.
 - let a game register the moments it says, so its achievements can be set
   against the whole list without a playthrough first; the preview still
   reports the ones it hears (decided 2026-10-04; ideas/achievements.md)
-- ! push the 58 State migrations up to the server, in the order
-  ideas/state-migration.md gives: deploy, sweep, rebase, then push — a game
-  pushed before the sweep stops at its first `State`
+- ! push the eight archived games' library commits
+  (`deploy/sync-games.sh user@host push`): their State migration went up
+  without `studio/state.js`, and an archived game is still playable
+  (ideas/state-migration.md)
 - ask the robot whether a game is too hard: a hundred runs from the pin at
   16×, hidden, each from its own seed, summed up in one line in the rail —
   and the same hundred again after a tweak (ideas/dreams.md §4, item 5)

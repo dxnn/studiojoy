@@ -5,7 +5,18 @@ by hand, one commit in each game's own repo, rather than by asking each kid's
 builder. This page is the runbook for landing those commits, and the ledger
 of what each game got.
 
-**Done 2026-10-04, not yet pushed.** All 58 game pages in `games/` load State:
+**Pushed 2026-10-04 — all but eight archived games' libraries.** The sweep
+skips archived games, so the eight archived ones that took the migration went
+up loading a `studio/state.js` they did not have: bloop-s-quest,
+bloop-s-quest-two-the-questening, elijah-racer, fight,
+link-s-amazing-adventure, racer-oyz, the-life-of-link, vroom-vroom. Archived
+games stay playable, so their pages stopped at the first `State`. Repaired in
+the mirrors with the sweep's own code — one studio-authored library commit
+each, byte for byte the `studio/` the throwaway tested them on — and waiting
+on `deploy/sync-games.sh user@host push`. (which-letter-are-you, archived
+too, was swept by accident on the laptop and is fine.)
+
+All 58 game pages in `games/` load State:
 56 games moved, and the two untouched blank pages given the tag. Every repo is
 clean, and no commit touches `studio/`. Every game boots in the throwaway with
 no page error and no State warning, and every one was played, pinned, played
@@ -74,14 +85,15 @@ The commits need `studio/state.js` in each game, which only the sweep on the
 server puts there. **A game pushed before the sweep stops at its first
 `State`** — the story never starts, the canvas never draws.
 
-1. Deploy the studio as usual: `git push prod main`.
-2. On the server, `npm run sweep`. Every game should say `added state`,
-   some with library raises beside it.
-3. On the server, `npm run unarchive` with no slug, which lists the archived
-   games. The sweep skips those, so they would get the commit without the
-   library. Tell me the list, and I move their commit onto a side branch
-   (`state-migration`) so the push leaves them alone; they get it when they
-   are reopened, with a sweep after.
+1. On the laptop, deploy the studio: `git push oci-studio main`.
+2. **On the server**, `npm run sweep`. Every game should say `added state`,
+   some with library raises beside it. ⚠️ Not on the laptop: there it finds
+   the retired `gamestudio.db` and sweeps whichever mirrors in `./games` that
+   lists.
+3. **On the server**, `npm run unarchive` with no slug, which lists the
+   archived games. The sweep skips those, so they would get the commit
+   without the library. (What happened instead, above: they went up, and were
+   given the library from the mirrors after.)
 4. Here, `deploy/sync-games.sh user@host pull`. Every migrated game reports
    `diverged (1 behind, 1 ahead)` — the server's sweep commit and the
    migration — or 2 ahead where a fix or a robot rides with it. `3d-ball-game` and `knock-down` have no remote here: `pull`
