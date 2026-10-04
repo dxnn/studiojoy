@@ -6,10 +6,17 @@ builder. This page is the runbook for landing those commits, and the ledger
 of what each game got.
 
 **Done 2026-10-04, not yet pushed.** All 58 game pages in `games/` load State:
-56 games moved, and the two untouched blank pages given the tag. Each repo is
-clean and exactly one commit ahead of its server copy, and no commit touches
-`studio/`. Every game boots in the throwaway with no page error and no State
-warning, and every one was played, pinned, played on and put back.
+56 games moved, and the two untouched blank pages given the tag. Every repo is
+clean, and no commit touches `studio/`. Every game boots in the throwaway with
+no page error and no State warning, and every one was played, pinned, played
+on and put back.
+
+Riding the same push, each its own commit on top of the migration (Dann,
+2026-10-04): five old bugs fixed — math-blaster, doki-doki-monster-run-chase,
+math-conqueror, flip-for-what, floof-forest-forever — and the template's
+robot taught to the eleven games still matching their template — the four
+stock stories, 3d-ball-game, llama-calculus, which-letter-are-you, fight,
+knock-down, run, yunobo-dance. So a game is one or two commits ahead.
 
 ## Look at these first
 
@@ -30,13 +37,14 @@ Where a migration made a judgement call, or changed more than the move:
 - **please-don-t-bomb-me** — its own `State` object is gone.
 - **wee-ooh-wee-ooh** — one change beyond the move, in its track listener.
 
-Bugs that were already there and that a kid will meet, found along the way
-and left alone (details in the ledger): bloop-s-quest's dialogue panel never
-draws; math-blaster's boss rounds score NaN; doki-doki-monster-run-chase's
-Krill round throws every frame; math-conqueror crashes on towers 6–7 now and
-then; flip-for-what throws on every part placed; floof-forest-forever's
-"Acorn saver" can never be earned; a second jam in jam-jamboree starts with
-the pickers stuck. And about half the games ask for sounds that do not exist.
+Bugs that were already there and that a kid will meet, found along the way.
+Fixed, one line each: math-blaster's boss rounds scored NaN;
+doki-doki-monster-run-chase's Krill round threw every frame (and would then
+have kept a red bump flash up); math-conqueror crashed on towers 6–7 now and
+then; flip-for-what threw on every part placed; floof-forest-forever's
+"Acorn saver" could never be earned. Still there: bloop-s-quest's dialogue
+panel never draws, a second jam in jam-jamboree starts with the pickers
+stuck, and about half the games ask for sounds that do not exist.
 
 ## What a migration is
 
@@ -76,7 +84,7 @@ server puts there. **A game pushed before the sweep stops at its first
    are reopened, with a sweep after.
 4. Here, `deploy/sync-games.sh user@host pull`. Every migrated game reports
    `diverged (1 behind, 1 ahead)` — the server's sweep commit and the
-   migration. `3d-ball-game` and `knock-down` have no remote here: `pull`
+   migration — or 2 ahead where a fix or a robot rides with it. `3d-ball-game` and `knock-down` have no remote here: `pull`
    links each one the server has, and one it does not have was only ever
    local, so its commit simply stays here.
 5. Put each migration on top of the sweep. Either ask me to, or in fish:
