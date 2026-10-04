@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { scratchDir } from './helpers.js';
-import { studioPaths, whereDbPath } from '../bin/env.js';
+import { saying, studioPaths, whereDbPath } from '../bin/env.js';
 
 function envFile(text) {
   const file = path.join(scratchDir('env'), 'studio.env');
@@ -42,6 +42,19 @@ test('STUDIO_ENV names the file, the same as it does for pm2', () => {
 test('no file is a laptop: the defaults beside the code', () => {
   const missing = path.join(scratchDir('env'), 'studio.env');
   assert.deepEqual(studioPaths({}, missing), { dbPath: 'gamestudio.db', gamesDir: 'games', from: null });
+});
+
+// The first line of every script: both paths, whole, and where they came
+// from — the laptop's defaults included, since those are a real database and
+// the production mirrors.
+test('a script says what it is about to touch, defaults included', () => {
+  const file = envFile('DB_PATH=/srv/data/db\nGAMES_DIR=/srv/data/games\n');
+  assert.equal(saying(studioPaths({}, file)), `using /srv/data/db and /srv/data/games (from ${file})`);
+  const missing = path.join(scratchDir('env'), 'studio.env');
+  assert.equal(
+    saying(studioPaths({}, missing)),
+    `using ${path.resolve('gamestudio.db')} and ${path.resolve('games')} (no env file)`,
+  );
 });
 
 // What a script says when it finds no database: which of the three places

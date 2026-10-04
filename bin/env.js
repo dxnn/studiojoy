@@ -6,6 +6,7 @@
 // database the studio never reads. Only the two paths come from the file,
 // never the key.
 import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const { envFilePath, readEnv } = createRequire(import.meta.url)('../deploy/env-file.cjs');
@@ -23,9 +24,19 @@ export function studioPaths(env = process.env, file = envFilePath(env)) {
   return { dbPath: pick('DB_PATH'), gamesDir: pick('GAMES_DIR'), from: fromFile ? file : null };
 }
 
+// What a script is about to touch, said before it touches anything, whichever
+// of the three places answered — so a script run in the wrong place says so
+// first. On the laptop the defaults find a retired database that still lists
+// games, and ./games holds the production mirrors: a sweep run there by
+// mistake (2026-10-04) committed into them without a word.
+export function saying({ dbPath, gamesDir, from }) {
+  const where = from ? `from ${from}` : 'no env file';
+  return `using ${path.resolve(dbPath)} and ${path.resolve(gamesDir)} (${where})`;
+}
+
 export function paths() {
   const found = studioPaths();
-  if (found.from) console.error(`using ${found.from}`);
+  console.error(saying(found));
   return found;
 }
 
