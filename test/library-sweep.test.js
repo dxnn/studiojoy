@@ -119,7 +119,9 @@ test("a copy newer than the studio's is left alone", async () => {
   );
 });
 
-test('the script sweeps every live game and skips archived ones', async () => {
+// Archived games too: one is still playable, and eight once took a move onto
+// State that needed a library the sweep had skipped them for.
+test('the script sweeps every game, archived ones included, and says where it is', async () => {
   const root = scratchDir('sweep-bin');
   const gamesDir = path.join(root, 'games');
   const dbPath = path.join(root, 'studio.db');
@@ -139,15 +141,13 @@ test('the script sweeps every live game and skips archived ones', async () => {
   await oldGame(path.join(gamesDir, 'frozen'), { files: { 'index.html': 'x' } });
 
   const script = path.join(import.meta.dirname, '..', 'bin', 'sweep.js');
-  const { stdout } = await run('node', [script], {
+  const { stdout, stderr } = await run('node', [script], {
     env: { ...process.env, DB_PATH: dbPath, GAMES_DIR: gamesDir },
   });
+  assert.match(stderr, new RegExp(`using ${dbPath} and ${gamesDir}`), 'what it touches, before it does');
   assert.match(stdout, /stale: added /);
-  assert.match(stdout, /frozen: skipped \(archived\)/);
-  assert.match(stdout, /2 games: 1 brought up to date, 0 already current, 1 archived, 0 failed/);
-  assert.ok(fs.existsSync(path.join(gamesDir, 'stale/studio/screens.js')));
-  assert.equal(
-    fs.existsSync(path.join(gamesDir, 'frozen/studio/screens.js')), false,
-    'an archived game is not touched',
-  );
+  assert.match(stdout, /frozen: added /);
+  assert.match(stdout, /2 games: 2 brought up to date, 0 already current, 0 failed/);
+  assert.ok(fs.existsSync(path.join(gamesDir, 'stale/studio/state.js')));
+  assert.ok(fs.existsSync(path.join(gamesDir, 'frozen/studio/state.js')), 'an archived game is swept too');
 });

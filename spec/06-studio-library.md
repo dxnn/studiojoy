@@ -261,9 +261,11 @@ touched; `<script>` tags stay the page-writer's job.
 ⚠️ What makes the sweep safe is the **compatibility law**: a library version
 N+1 must run every game that ran N, or it's a new library under a new name,
 not a version bump. The escape hatch is the fleet's size — few enough to fix
-by hand if the law ever breaks. Two refusals guard the edges: a manifest
+by hand if the law ever breaks. One refusal guards the edge: a manifest
 newer than the studio's own is left alone (a rolled-back studio, not a game
-to fix), and an archived game is skipped, catching up on its next reopening.
+to fix). An archived game is swept like any other since 2026-10-04 — it is
+still playable, and eight of them took their move onto State without the
+library it needed while the sweep skipped them.
 
 The **physics library** (`studio/physics.js`, the first extra, 2026-09-22) is
 a **façade**: the studio's own file, carrying its note, over a vendored

@@ -93,8 +93,10 @@ ignored as a second lock.
   its pictures exactly where they are and the rest of the pull still lands.
 - `npm run sweep` — bring every game's studio library up to date: missing
   libraries added, held ones raised, the game's own files never touched.
-  One studio-authored commit per game; archived games skipped. Run it on
-  the machine holding the games, ideally while the studio is quiet.
+  One studio-authored commit per game, archived games included (they stay
+  playable). Run it on the machine holding the games, ideally while the
+  studio is quiet — every `bin/` script now says which database and games
+  folder it is about to touch, first.
 
 Ports default to 8100 (studio) and 8101 (games). 
 

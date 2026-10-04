@@ -10,8 +10,11 @@
 //   DB_PATH=… GAMES_DIR=… npm run sweep
 //
 // Safe by the compatibility law (spec.md §4): a library version bump must
-// run every game the old version ran. Archived games are skipped and catch
-// up on the first sweep after they are reopened. Best run while the studio
+// run every game the old version ran. Archived games are swept too: an
+// archived game is still playable, and its own code can need a library only
+// a sweep brings — eight archived games took their move onto State without
+// studio/state.js and stopped at their first line of it (2026-10-04,
+// ideas/state-migration.md). Best run while the studio
 // is quiet: a game being written at the same moment fails its commit
 // cleanly — run the sweep again. A game open in a browser does not notice
 // until it is next opened; the commit lands outside the server, so there is
@@ -32,21 +35,15 @@ const STUDIO = { name: 'Unbridled Joy', email: 'studio@gamestudio.local' };
 
 const db = new DatabaseSync(dbPath, { readOnly: true });
 const games = db.prepare(
-  "SELECT slug, archived FROM projects WHERE kind = 'game' ORDER BY slug",
+  "SELECT slug FROM projects WHERE kind = 'game' ORDER BY slug",
 ).all();
 db.close();
 
 let swept = 0;
 let current = 0;
-let skipped = 0;
 let failed = 0;
 
 for (const game of games) {
-  if (game.archived === 1) {
-    console.log(`${game.slug}: skipped (archived)`);
-    skipped += 1;
-    continue;
-  }
   const dir = path.join(gamesDir, game.slug);
   if (!fs.existsSync(dir)) {
     console.log(`${game.slug}: ! no working tree at ${dir}`);
@@ -72,7 +69,6 @@ for (const game of games) {
 }
 
 console.log(
-  `${games.length} games: ${swept} brought up to date, ${current} already current, `
-  + `${skipped} archived, ${failed} failed`,
+  `${games.length} games: ${swept} brought up to date, ${current} already current, ${failed} failed`,
 );
 if (failed > 0) process.exit(1);
