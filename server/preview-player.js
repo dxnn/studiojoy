@@ -514,11 +514,9 @@ export const PREVIEW_PLAYER_JS = `(function () {
     }
   }
 
-  // A tap at a point of the page, as a finger or a mouse makes one.
-  function tapAt(x, y) {
+  // A tap on a thing at a point of the page, as a finger or a mouse makes one.
+  function tapOn(at, x, y) {
     try {
-      var at = document.elementFromPoint(x, y);
-      if (!at) return;
       var how = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 };
       var Pointer = window.PointerEvent || MouseEvent;
       at.dispatchEvent(new Pointer('pointerdown', how));
@@ -529,15 +527,16 @@ export const PREVIEW_PLAYER_JS = `(function () {
     } catch (err) { /* nothing there to tap */ }
   }
 
-  // A thing on the page is tapped in its middle, so a game that reads where a
-  // tap landed reads the thing; { x, y } is tapped where it says.
+  // A thing the robot chose is tapped itself, in its middle — so a game that
+  // reads where a tap landed reads the thing, and a button a small preview
+  // has cut in half is still pressed. { x, y } taps whatever is there.
   function tap(what) {
     if (what && typeof what.getBoundingClientRect === 'function') {
       var r = what.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) tapAt(r.left + r.width / 2, r.top + r.height / 2);
-      else if (typeof what.click === 'function') what.click();
+      tapOn(what, r.left + r.width / 2, r.top + r.height / 2);
     } else if (what && typeof what.x === 'number' && typeof what.y === 'number') {
-      tapAt(what.x, what.y);
+      var at = document.elementFromPoint(what.x, what.y);
+      if (at) tapOn(at, what.x, what.y);
     }
   }
 

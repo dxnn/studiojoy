@@ -352,13 +352,19 @@ test('the robot presses Start on a title screen after a beat', () => {
   const p = boot({ doc: pg.doc });
   p.run(CONTROLS);
   loop(p);
-  pg.setStart({ getBoundingClientRect: () => ({ left: 0, top: 0, width: 40, height: 20 }) });
+  // Half off the bottom of a small preview, where nothing is under its
+  // middle: the robot presses the button itself.
+  pg.setStart({
+    getBoundingClientRect: () => ({ left: 0, top: 300, width: 40, height: 20 }),
+    dispatchEvent: (e) => pg.sent.push(`start ${e.type}`),
+  });
   p.studio({ robot: true });
   for (let i = 0; i < 89; i += 1) p.frame(TICK);
-  assert.ok(!pg.sent.includes('click'), 'the screen is left up a moment');
+  assert.ok(!pg.sent.includes('start click'), 'the screen is left up a moment');
   assert.equal(pg.held(), '', 'with nothing held under it');
   p.frame(TICK);
-  assert.deepEqual(pg.sent.slice(-5), ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
+  assert.deepEqual(pg.sent.slice(-5),
+    ['start pointerdown', 'start mousedown', 'start pointerup', 'start mouseup', 'start click']);
 });
 
 test('a game teaches the robot with Robot.play, handed State each frame', () => {

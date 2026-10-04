@@ -1855,7 +1855,9 @@ run, and keeps playing through a save's reload. Its hands are key events —
 player one's verbs in `config/controls.js`, each sent as its first key
 (`FALLBACK`'s arrows, Space and Enter without one) — which the input library
 and a game's own listeners hear alike, and taps with the coordinates a
-finger would give, dispatched on whatever is under the point. Untaught, it
+finger would give — on the thing itself when the robot chose one, in its
+middle, so a button a small preview has cut in half is still pressed, and on
+whatever is under the point when it chose a point. Untaught, it
 holds a few verbs at a time for a spell each, never both ways of a pair, with
 Start now and then and a tap mid-page every four seconds; where `SCHEME` is
 `none` and the page shows a button, it taps one of those instead. On a
