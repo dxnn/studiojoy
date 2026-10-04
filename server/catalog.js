@@ -144,8 +144,9 @@ const has = (n) => n !== null && n !== undefined;
 // hero.png behind when it has that (the `hero` class and `--hero` variable
 // are load-bearing — tests assert them), and its numbers stacked at the right: the board's best score in gold when the game
 // keeps one, and — signed in — your own best and your trophies against what
-// the game defines (ideas/front-page-players.md, rung 1). Under the card, the
-// link to everybody's: its own control, because the whole card opens the game.
+// the game defines (ideas/front-page-players.md, rung 1) — and, in gold too,
+// the joy still there to earn in it (server/joy.js). Under the card, the link
+// to everybody's: its own control, because the whole card opens the game.
 const card = (g) => {
   const slug = escapeHtml(g.slug);
   const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
@@ -154,6 +155,7 @@ const card = (g) => {
     has(g.top) ? `<span class="top"><small>top score</small> ${num(g.top)}</span>` : '',
     has(g.best) ? `<span class="best"><small>your best</small> ${num(g.best)}</span>` : '',
     g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
+    has(g.joy) ? `<span class="joy"><small>joy to earn</small> ${num(g.joy)}</span>` : '',
   ].join('');
   return `<li><a href="/${slug}/"${hero}><span class="name">${icon}${escapeHtml(g.name)}</span>`
     + `${nums ? `<span class="nums">${nums}</span>` : ''}</a>`
@@ -161,8 +163,9 @@ const card = (g) => {
 };
 
 export function catalogPage({ games, player = null }) {
+  const joy = player && player.joy ? ` <span class="joy">${num(player.joy)} <small>joy</small></span>` : '';
   const who = player
-    ? `<span class="me">${escapeHtml(player.alias)}</span>
+    ? `<span class="me">${escapeHtml(player.alias)}</span>${joy}
       <button id="signout" class="quiet">Sign out</button>`
     : `<button id="signin-go">Sign in</button>
       <button id="join-go" class="quiet">Ask to join</button>`;
@@ -255,7 +258,7 @@ export function catalogPage({ games, player = null }) {
   /* The numbers, stacked at the card's foot: scores in gold, the trophy count
      in the page's own ink, because a count is a number but not a score. */
   .nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-  .top, .best { color: var(--gold); font-weight: 700; white-space: nowrap; font-size: 15px; }
+  .top, .best, .joy { color: var(--gold); font-weight: 700; white-space: nowrap; font-size: 15px; }
   .got { color: var(--text); font-weight: 600; white-space: nowrap; font-size: 13px; }
   .nums small { color: var(--muted); font-weight: 500; font-size: 12px; margin-right: 4px; }
   /* Under the card, the way to everybody's numbers: a link, because it looks
@@ -366,6 +369,7 @@ export function playersPage({
     + `<span class="icon">${a.icon ? escapeHtml(a.icon) : '★'}</span>`
     + `<span class="what"><span class="tname">${escapeHtml(a.name)}</span>`
     + `${a.how ? `<span class="how">${escapeHtml(a.how)}</span>` : ''}</span>`
+    + `${a.joy ? `<span class="joy">${num(a.joy)} <small>joy</small></span>` : ''}`
     + `<span class="holders">${a.names.length ? a.names.map(escapeHtml).join(', ') : '<em>nobody yet</em>'}</span></li>`)
     .join('\n      ');
 
@@ -397,8 +401,10 @@ export function playersPage({
   li.me .who, li.got .tname { color: var(--cyan-hi); }
   .rank { flex: 0 0 2.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
   .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  /* Gold is a score and nothing else on this page. */
-  .score { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  /* Gold is a number worth looking at — a score, and the joy a trophy gives
+     — and nothing else on this page. */
+  .score, .joy { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .joy { flex: 0 0 auto; white-space: nowrap; }
   .icon { flex: 0 0 1.6em; font-size: 18px; text-align: center; }
   .what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .tname { font-weight: 600; }

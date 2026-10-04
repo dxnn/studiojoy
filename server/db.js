@@ -367,6 +367,27 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions (user_id)`,
+
+  // Chips and joy, the studio's own currency (server/joy.js, spec.md §3): one
+  // row per change, and every balance a sum over them — a person's stash of
+  // chips, their joy, the joy an achievement gives — so an undo is one more
+  // row rather than an edit. `why` is what made the row: `week` (an author's
+  // weekly chips), `put` (chips put on an achievement) or `earned` (joy for
+  // earning one). `project_id` and `achievement` say which, for the last two.
+  // ⚠️ Rows only: no file anywhere holds chips or joy, so no helper's
+  // write_file can make either.
+  `CREATE TABLE IF NOT EXISTS ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users,
+    currency TEXT NOT NULL CHECK (currency IN ('chips', 'joy')),
+    delta INTEGER NOT NULL,
+    why TEXT NOT NULL,
+    project_id INTEGER REFERENCES projects,
+    achievement TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger (user_id, currency)`,
+  `CREATE INDEX IF NOT EXISTS idx_ledger_achievement ON ledger (project_id, achievement)`,
 ];
 
 export function openDb(dbPath) {
@@ -477,6 +498,10 @@ export function openDb(dbPath) {
   // still comes up with an alias rather than a hole on a board.
   fillDefaultAliases(db);
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_alias ON users (alias COLLATE NOCASE)');
+  // The Monday (UTC, YYYY-MM-DD) of the last week whose chips this person has
+  // been given, so the weeks since are added the next time anything asks —
+  // the budget's lazy rollover (server/joy.js). Null until the first time.
+  addColumnIfMissing(db, 'users', 'chips_week', 'TEXT');
   // On, any account in the studio may change this project; off, only its
   // authors. The column's default is the safe one, and every game a person
   // makes overrides it to open at the INSERT — a database written before this

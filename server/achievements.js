@@ -7,6 +7,8 @@ import { readFileAt } from './files/tree.js';
 // form cannot disagree about which entries exist (spec.md §16).
 import { parseConfigFile } from '../public/config-file.js';
 import { readAchievements } from '../public/achievement-shape.js';
+import { tx } from './db.js';
+import { joyOn, payJoy } from './joy.js';
 
 // Achievements: the games origin's third write (spec.md §3, §6). The
 // definitions are the game's own file, config/achievements.js, read from the
@@ -54,33 +56,39 @@ function heldBy(db, projectId, userId) {
 }
 
 // The list for a game page: every definition with `got` — when the signed-in
-// player earned it, or null. Null throughout when nobody is signed in.
+// player earned it, or null; null throughout when nobody is signed in — and
+// the `joy` it gives whoever earns it (server/joy.js).
 export async function listAchievements(db, project, dir, userId) {
   const defined = await definedAchievements(dir);
   const held = heldBy(db, project.id, userId);
-  return defined.map((a) => ({ ...a, got: held.get(a.id) ?? null }));
+  const joy = joyOn(db, project.id);
+  return defined.map((a) => ({ ...a, got: held.get(a.id) ?? null, joy: joy.get(a.id) ?? 0 }));
 }
 
 // One unlock. 404 for an id the file does not define — the file is the truth,
 // so a rule a helper removed is refused from then on, and the rows it left
-// are simply shown nowhere. `new` says whether this was the first time.
+// are simply shown nowhere. `new` says whether this was the first time, and
+// `joy` what it paid — only ever on the first time, in the same transaction.
 export async function unlockAchievement(db, project, dir, userId, body, now = new Date()) {
   const id = body?.id;
   if (typeof id !== 'string') throw new HttpError(400, 'id must be text');
   const defined = await definedAchievements(dir);
   if (!defined.some((a) => a.id === id)) throw new HttpError(404, 'no such achievement');
-  const { changes } = db
-    .prepare(
-      `INSERT OR IGNORE INTO achievements (project_id, user_id, achievement, created_at)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .run(project.id, userId, id, now.toISOString());
-  return { new: Number(changes) === 1 };
+  return tx(db, () => {
+    const { changes } = db
+      .prepare(
+        `INSERT OR IGNORE INTO achievements (project_id, user_id, achievement, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(project.id, userId, id, now.toISOString());
+    const first = Number(changes) === 1;
+    return { new: first, joy: first ? payJoy(db, project, userId, id, now) : 0 };
+  });
 }
 
-// The studio side: each definition with how many players hold it, in file
-// order — the editor's structural read. Rows whose id the file no longer
-// defines are not counted anywhere until the id comes back.
+// The studio side: each definition with how many players hold it and the joy
+// it gives, in file order — the editor's structural read. Rows whose id the
+// file no longer defines are not counted anywhere until the id comes back.
 export async function achievementCounts(db, project, dir) {
   const defined = await definedAchievements(dir);
   const rows = db
@@ -90,5 +98,6 @@ export async function achievementCounts(db, project, dir) {
     )
     .all(project.id);
   const counts = new Map(rows.map((r) => [r.achievement, Number(r.players)]));
-  return defined.map((a) => ({ ...a, players: counts.get(a.id) ?? 0 }));
+  const joy = joyOn(db, project.id);
+  return defined.map((a) => ({ ...a, players: counts.get(a.id) ?? 0, joy: joy.get(a.id) ?? 0 }));
 }

@@ -43,15 +43,22 @@ export const makeAchievementsButton = () => (S.project?.type === 'design' ? null
 
 // Which row is open, for which game — a different game opens closed.
 let opened = { slug: null, index: null };
-// Holders per id, per game, fetched once a tab open and painted in place.
-const counts = new Map(); // slug -> { players: Map(id -> n), at }
+// Holders and joy per id, per game, and the reader's own stash of chips and
+// whether they may put them here — fetched once a tab open, painted in place.
+const counts = new Map(); // slug -> { players, joy: Map(id -> n), stash, canPut, at }
 const COUNTS_FRESH_MS = 30 * 1000;
 let countNodes = new Map(); // id -> the span showing the count
+let joyNodes = new Map(); // id -> the gold span showing the joy it gives
 // Unsaved edits, parked per game on the way out and put back on return while
 // the file is still the one they were made on — the story editor's bargain.
 const parked = new Map(); // slug -> { model, etag }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// What an achievement's joy can be set to here (Dann, 2026-10-04). The
+// interface's limit only — the studio takes any whole number of chips — so
+// changing it is this line.
+const JOY_LEVELS = [1, 5, 10, 20];
 
 /* Loading and saving --------------------------------------------------------- */
 
@@ -186,10 +193,20 @@ const field = (id, value, placeholder, oninput, extra = {}) => {
 
 const countText = (n) => (n === undefined ? '' : n === 0 ? 'nobody yet' : plural(n, 'player'));
 
+const joyText = (n) => (n ? `${n} joy` : '');
+
 function paintCounts(slug) {
   const have = counts.get(slug);
   if (!have) return;
   for (const [id, node] of countNodes) node.textContent = countText(have.players.get(id) ?? 0);
+  for (const [id, node] of joyNodes) paintJoy(node, have.joy.get(id));
+}
+
+// Gold only while there is a number in it: an achievement with no chips on
+// it shows nothing there at all.
+function paintJoy(node, n) {
+  node.textContent = joyText(n);
+  node.className = n ? 'ach-joy' : '';
 }
 
 // The rail's default summary reads the same counts, snapshotted at game-open
@@ -199,13 +216,37 @@ export const countsFor = (slug) => counts.get(slug)?.players;
 export async function loadCounts(slug) {
   const have = counts.get(slug);
   if (have && Date.now() - have.at < COUNTS_FRESH_MS) return;
-  counts.set(slug, { players: have?.players ?? new Map(), at: Date.now() });
+  counts.set(slug, {
+    players: have?.players ?? new Map(), joy: have?.joy ?? new Map(),
+    stash: have?.stash ?? null, canPut: have?.canPut ?? false, at: Date.now(),
+  });
   const res = await api('GET', `/api/projects/${slug}/achievements`);
   if (!res.ok || !Array.isArray(res.body?.achievements)) return;
+  const could = have?.canPut;
   counts.set(slug, {
-    players: new Map(res.body.achievements.map((a) => [a.id, a.players])), at: Date.now(),
+    players: new Map(res.body.achievements.map((a) => [a.id, a.players])),
+    joy: new Map(res.body.achievements.map((a) => [a.id, a.joy ?? 0])),
+    stash: res.body.stash ?? null,
+    canPut: res.body.can_put === true,
+    at: Date.now(),
   });
   paintCounts(slug);
+  // Whether chips can go on is a control, not a number: an open row grows
+  // or loses it, and only a render does that.
+  if (could !== (res.body.can_put === true) && S.slug === slug) render();
+}
+
+// Chips from the stash onto one achievement, for good (server/joy.js).
+async function putChips(slug, a, chips) {
+  const res = await api('POST', `/api/projects/${slug}/achievements/${encodePath(a.id)}/chips`, { chips });
+  if (!res.ok) { say(res.body?.error ?? NO_CONNECTION, true); return; }
+  const have = counts.get(slug);
+  if (have) {
+    have.joy.set(a.id, res.body.joy);
+    have.stash = res.body.stash;
+  }
+  say(`“${a.name}” gives ${res.body.joy} joy now, to everybody who earns it.`);
+  render();
 }
 
 // The tab's body: the form, or the reason there is not one.
@@ -243,6 +284,7 @@ function renderAchievementsForm(st) {
   const checks = achievementChecks(model, heard, counts.get(slug)?.players);
   if (opened.slug !== slug) opened = { slug, index: null };
   countNodes = new Map();
+  joyNodes = new Map();
   loadCounts(slug);
 
   const ruleText = (a) => {
@@ -313,11 +355,54 @@ function renderAchievementsForm(st) {
       moment, test, value);
   };
 
+  // What it gives, and — for one of a published game's editors with chips in
+  // their stash — the way to raise it (server/joy.js). Chips stay where they
+  // are put, so the words say so before a button is pressed.
+  const joyRow = (a) => {
+    const have = counts.get(slug);
+    const gives = have?.joy.get(a.id) ?? 0;
+    const note = (text) => h('span', { class: 'hint muted', text });
+    let more = [];
+    if (!a.id) {
+      more = [note('Save it first, and then chips can go on it.')];
+    } else if (!S.project.published) {
+      more = [note('Publish the game and its editors can put chips on this: each chip is one joy for everybody who earns it.')];
+    } else if (have?.canPut) {
+      // The levels above where it is now that the stash can reach, each
+      // putting on exactly the chips it takes to get there.
+      const higher = JOY_LEVELS.filter((level) => level > gives);
+      const reachable = higher.filter((level) => level - gives <= have.stash);
+      more = reachable.length
+        ? [
+          note('Make it'),
+          ...reachable.map((level) => h('button', {
+            class: 'quiet tiny', text: `${level} joy`,
+            title: `Puts ${level - gives} ${level - gives === 1 ? 'chip' : 'chips'} on it from your stash`,
+            onclick: () => putChips(slug, a, level - gives),
+          })),
+          note(`${have.stash} in your stash · they stay on it for good`),
+        ]
+        : [note(!higher.length
+          ? `${gives} joy is the most an achievement gives.`
+          : `${have.stash} in your stash — not enough for ${higher[0]} joy yet. Ten more chips come every Monday.`)];
+    }
+    return [
+      h('div', { class: 'row ach-joy-row' },
+        h('span', { class: 'cfg-name mono', text: 'Joy' }),
+        h('span', { class: 'hint', text: gives ? `Gives ${gives} joy to everybody who earns it.` : 'Gives no joy yet.' })),
+      more.length ? h('div', { class: 'row wrap ach-chips-row' }, ...more) : null,
+    ];
+  };
+
   const card = (a, i) => {
     const isOpen = opened.index === i;
     const problems = own(a);
     const count = h('span', { class: 'hint muted ach-count', text: countText(counts.get(slug)?.players.get(a.id)) });
     if (a.id) countNodes.set(a.id, count);
+    // What it gives whoever earns it, in gold: a number worth looking at.
+    const joy = h('span');
+    paintJoy(joy, counts.get(slug)?.joy.get(a.id));
+    if (a.id) joyNodes.set(a.id, joy);
     const head = h('div', {
       class: 'ach-row',
       onclick: () => { opened.index = isOpen ? null : i; render(); },
@@ -326,6 +411,7 @@ function renderAchievementsForm(st) {
     h('span', { class: `aname${a.name ? '' : ' muted'}`, text: a.name || '(no name yet)' }),
     problems.length ? h('span', { class: 'hint warn', text: '⚠', title: problems.join('\n') }) : null,
     h('span', { class: 'hint muted', text: ruleText(a) }),
+    joy,
     count);
     if (!isOpen) return h('div', { class: 'ach-card' }, head);
 
@@ -357,6 +443,7 @@ function renderAchievementsForm(st) {
           ? `The game has said: ${[...heard.keys()].join(' · ')}`
           : 'Play the game in the preview and the moments it says show up here.',
       }),
+      ...joyRow(a),
       h('div', { class: 'row' },
         idNode,
         h('div', { class: 'spacer' }),

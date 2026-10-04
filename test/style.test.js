@@ -100,6 +100,8 @@ const GOLD_TEXT = new Map([
   ['.tokens .low', 'a token count, nearly out'],
   ['.tokens button.link:hover:not(:disabled)', 'the token count itself, under the pointer'],
   ['.commit .meta .sha', 'a version, mixed toward muted'],
+  ['.ach-joy', 'the joy an achievement gives whoever earns it'],
+  ['.me-joy', 'your own joy and chips'],
 ]);
 
 test('gold paints a number and nothing else', () => {

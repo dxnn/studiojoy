@@ -29,6 +29,8 @@ import {
   playerCookie, clearedPlayerCookie, createSignup,
 } from './players.js';
 import { catalogPage, playersPage } from './catalog.js';
+import { joyOf, joyOn } from './joy.js';
+import { isAuthor } from './authors.js';
 
 const ENTRY_FILE = 'index.html';
 // Login and sign-up bodies: three short strings.
@@ -93,7 +95,7 @@ export function createGamesApp({
     const slug = checkSlug(raw);
     if (!slug.ok) throw new HttpError(404, 'not found');
     const project = db
-      .prepare('SELECT id, slug, name, kind, scores_on FROM projects WHERE slug = ?')
+      .prepare('SELECT id, slug, name, kind, scores_on, published FROM projects WHERE slug = ?')
       .get(slug.slug);
     if (!project || project.kind === 'chat') throw new HttpError(404, 'not found');
     return project;
@@ -152,9 +154,16 @@ export function createGamesApp({
     const entries = [];
     for (const g of rows) {
       const dir = path.join(root, g.slug);
-      const defined = player ? await definedAchievements(dir) : [];
+      const defined = await definedAchievements(dir);
       const mine = earned.get(g.id) ?? new Set();
       const [latest] = await logCommits(dir, { limit: 1 });
+      // The joy still there to earn (server/joy.js): signed in, what you have
+      // not earned yet — none in a game you author, which pays you nothing —
+      // and signed out, everything the game gives. The catalog's whole pull.
+      const joy = joyOn(db, g.id);
+      const toEarn = player && isAuthor(db, g.id, player.id) ? 0 : defined
+        .filter((a) => !mine.has(a.id))
+        .reduce((n, a) => n + (joy.get(a.id) ?? 0), 0);
       entries.push({
         card: {
           slug: g.slug,
@@ -163,9 +172,10 @@ export function createGamesApp({
           hero: fs.existsSync(path.join(dir, 'hero.png')),
           icon: fs.existsSync(path.join(dir, 'icon.png')),
           best: bests.get(g.id) ?? null,
-          achievements: defined.length
+          achievements: player && defined.length
             ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
             : null,
+          joy: toEarn || null,
         },
         playCount: g.play_count,
         fresh: latest ? Date.now() - Date.parse(latest.at) < NEW_GAME_WINDOW_MS : false,
@@ -187,7 +197,9 @@ export function createGamesApp({
       .sort((a, b) => b.playCount - a.playCount);
     const games = [...featured, ...rest].map((e) => e.card);
 
-    return sendPage(ctx, catalogPage({ games, player }));
+    return sendPage(ctx, catalogPage({
+      games, player: player ? { ...player, joy: joyOf(db, player.id) } : null,
+    }));
   });
 
   // The two studio-authored pages share one posture: the catalog's headers
@@ -257,10 +269,12 @@ export function createGamesApp({
         WHERE a.project_id = ? AND u.deleted = 0
         ORDER BY a.created_at LIMIT 2000`,
     ).all(game.id);
+    const joy = joyOn(db, game.id);
     const achievements = (await definedAchievements(path.join(root, game.slug))).map((a) => ({
       ...a,
       names: holders.filter((h) => h.achievement === a.id).map((h) => h.name),
       mine: Boolean(player) && holders.some((h) => h.achievement === a.id && h.user_id === player.id),
+      joy: joy.get(a.id) ?? 0,
     }));
     return sendPage(ctx, playersPage({
       game, player, board, bests, achievements,

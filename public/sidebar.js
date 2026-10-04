@@ -111,11 +111,18 @@ export function renderSidebar() {
           : crewRows(matches)),
     h('div', { class: 'who' },
       h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
-      // Your own settings — the alias, for now — behind your own name.
+      // Your own settings — the alias, and your joy and chips — behind your
+      // own name. Asked again on the way in, since joy is earned on the games
+      // site while the studio sits open.
       h('button', {
         class: 'name', text: S.me.display_name,
         title: `Your settings. Scoreboards call you ${S.me.alias}.`,
-        onclick: () => { S.dialog = { kind: 'me' }; render(); },
+        onclick: async () => {
+          const res = await api('GET', '/api/me');
+          if (res.ok) Object.assign(S.me, { joy: res.body.joy, stash: res.body.stash });
+          S.dialog = { kind: 'me' };
+          render();
+        },
       }),
       bell(),
       h('button', {

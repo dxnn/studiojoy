@@ -192,27 +192,34 @@ const Achievements = (function () {
     return Promise.race([asked, waited]);
   }());
 
-  // Tells the studio. "kept" when it is this player's now, "signin" when
-  // nobody is signed in, "" for anything else — with one warning, because a
-  // player who saw the toast will wonder tomorrow where it went.
+  // Tells the studio. `state` is "kept" when it is this player's now,
+  // "signin" when nobody is signed in, "" for anything else — with one
+  // warning, because a player who saw the toast will wonder tomorrow where it
+  // went. `joy` is what the studio paid for it: the chips its makers put on
+  // it, the first time somebody who did not make the game earns it.
   function save(id) {
-    if (offline()) return Promise.resolve("");
+    if (offline()) return Promise.resolve({ state: "", joy: 0 });
     return fetch(route(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: id }),
     })
       .then(function (res) {
-        if (res.status === 401) return "signin";
+        if (res.status === 401) return { state: "signin", joy: 0 };
         if (!res.ok) {
           warnOnce("save", 'the studio did not keep "' + id + '" (' + res.status + ")");
-          return "";
+          return { state: "", joy: 0 };
         }
-        return "kept";
+        return res.json()
+          .then(function (body) {
+            const joy = body && typeof body.joy === "number" && body.joy > 0 ? body.joy : 0;
+            return { state: "kept", joy: joy };
+          })
+          .catch(function () { return { state: "kept", joy: 0 }; });
       })
       .catch(function () {
         warnOnce("save", 'the studio did not keep "' + id + '"');
-        return "";
+        return { state: "", joy: 0 };
       });
   }
 
@@ -256,6 +263,9 @@ const Achievements = (function () {
     + "body :where(.achievements-how){font-size:13px;line-height:1.3;color:var(--achievements-muted)}"
     + "body :where(.achievements-keep){grid-column:1/-1;margin-top:6px;font-size:12px;"
     + "color:var(--achievements-accent)}"
+    // The joy it paid is a number worth looking at, so the studio's gold.
+    + "body :where(.achievements-joy){grid-column:1/-1;margin-top:6px;font-size:13px;"
+    + "font-weight:700;color:oklch(0.85 0.15 95)}"
     + "@keyframes achievements-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}";
 
   let styleDone = false;
@@ -341,10 +351,11 @@ const Achievements = (function () {
       if (held.has(rule.id)) return;
       const toast = show(rule);
       tell(rule);
-      save(rule.id).then(function (state) {
-        if (state === "signin" && toast) {
+      save(rule.id).then(function (saved) {
+        if (saved.state === "signin" && toast) {
           toast.append(el("span", "achievements-keep", "Sign in on the front page to keep it"));
         }
+        if (saved.joy > 0 && toast) toast.append(el("span", "achievements-joy", "+" + saved.joy + " joy"));
       });
     });
   }

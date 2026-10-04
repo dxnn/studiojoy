@@ -631,7 +631,26 @@ clock it can lean on, and the game's situation as data.
 
 ## 5. Points
 
-**Status: queued.**
+**Status: built 2026-10-04** (`server/joy.js`, spec/ §3). The editor offers
+1, 5, 10 or 20 joy per achievement — Dann's limit, in the interface only, "we'll
+change this later".
+
+### Decided (Dann, 2026-10-04)
+
+- **A bounty, not a pool.** An achievement gives its joy to *everyone* who
+  earns it. Inflationary, and that is fine.
+- **Two words.** Authors get **chips** — 10 a week — and put them on
+  achievements; an achievement with 5 chips on it gives **joy** 5 to anyone
+  who earns it. Joy is what you get, and later spend (§6).
+- **The stash** holds a person's unspent chips, up to 50; past that, a week's
+  chips are not added.
+- **Chips put on an achievement stay there** — unpublishing a game or
+  deleting the achievement sends nothing back.
+- **The joy number is on the achievement**, in gold: the deliberate yes to
+  doneness.md's rule, since it is a number a player earns.
+
+The proposal below was the pool; the decisions above replace its steps 1–3
+and 7, and its "where it shows" stands.
 
 ### How I read it
 
@@ -667,6 +686,76 @@ a published game wants anyway.
   `stage`'s reason.
 - A ledger of rows (who, how many, why, when) rather than a balance column.
 - A balance is a number worth looking at, so gold is right for it.
+
+### What the code says (checked 2026-10-04)
+
+- An earned achievement is one row, `achievements (project_id, user_id,
+  achievement, created_at)`, written the first time a player meets the rule —
+  posted by the game, through the achievements library, to the games origin.
+  Once per person per achievement, forever: the primary key says so.
+- Only an account earns: a *player account* or a studio one signed in on the
+  games origin. The preview never does — the preview player answers the
+  post itself (talk 3), so neither a person testing nor the robot (talk 4)
+  can earn anything.
+- `projects.published` is a column, so "only while published" is one test at
+  the moment of earning. *Authors* are `project_authors`; an *open* game can
+  be changed by anybody, but its authors are still a list.
+- Achievement definitions live in the game's own `config/achievements.js`,
+  which a helper writes. Points cannot live there — anything a `write_file`
+  can set, anybody's helper can set.
+- ⚠️ **The word.** *Allowance* is taken: it is a person's daily token budget
+  for their helpers. And "points", "coins", "gems" and "stars" are already
+  what the games themselves count — a kid's score is *points*, Roll a ball
+  has coins, fun-slide has gems. The studio's own currency needs a word no
+  game uses.
+- The studio has about fifteen accounts; authors are the ones with studio
+  access. Small enough that *accountable* is the right posture, as it is for
+  the boards.
+
+### The proposal
+
+The pool, with a per-player price — because it keeps both promises: the
+number of points in the studio is exactly what was handed out, and a player
+looking at an achievement knows exactly what it will pay.
+
+1. **Every author gets a weekly handful** to give away — say 50 — into a
+   **purse**. Unspent, it rolls over for four weeks and no further: a purse
+   holds at most a month's.
+2. **An author puts points on an achievement** of a published game they
+   author, from the purse: *5 each, for 6 players* takes 30 out at once. The
+   achievements editor gets a row for it, showing what is left and the
+   purse. Only that game's authors — not everybody an open game lets in.
+3. **A player who earns it takes the 5** into their **wallet**, while any
+   are left — the first six, which is the "only new achievements count"
+   idea grown up: early players are rewarded, and the author decides how
+   many. Never on a game you author, never while it is unpublished, and
+   never for an achievement earned before the points were put on it.
+4. **The wallet buys avatar things** (§6). Only earned points can be spent,
+   and only purse points can be given — so nobody can pay themselves.
+5. **Where it shows:** a toast on the unlock (*+5*); the achievement's price
+   and what is left, on the players page and in the game's achievement list;
+   on the catalog card, what *you* could still earn in that game — which is
+   the macro game's whole pull; the wallet in the studio's name modal and on
+   the games origin. All gold.
+6. **One ledger** — who, how much, why (`purse`, `put`, `earned`,
+   `returned`, `spent`), which game and achievement, when — and balances are
+   sums over it. An admin undoing a forged earn is one more row, and the
+   points go back where they came from.
+7. **What is left on an achievement goes back to the purse** when the game
+   is unpublished or the achievement deleted — subject to the four-week cap.
+
+### Where it pulls
+
+- doneness.md's rule against a number on a stamp: this is a number on an
+  achievement, which a player *earns* — the gold that rule protects is
+  exactly this kind of number. Worth the deliberate yes.
+- ⚠️ A forged unlock now takes real points out of somebody's put. Accountable
+  rather than prevented: every earn is a row with a name on it, and the
+  undo is a row too.
+- Two kids trading easy achievements on each other's games is possible and,
+  at fifteen accounts, a conversation rather than a code problem.
+- The weekly amount, the cap and avatar prices set the economy together;
+  talk 6 picks the price, and an admin can change all three.
 
 ## 6. Avatars
 

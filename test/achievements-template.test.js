@@ -164,6 +164,22 @@ test('a rule with no test is met the first time the moment is said, once', async
   assert.deepEqual(JSON.parse(g.calls[1].init.body), { id: 'first-run' }, 'the id and nothing else');
 });
 
+// The joy the studio paid for it (server/joy.js): a gold line on the toast,
+// and none when it paid nothing.
+test('a toast says the joy it paid, when it paid some', async () => {
+  const g = boot({ routes: { [ROCKS]: { body: { achievements: [], joy: 5 } } } });
+  await settle();
+  g.Moments.say('run-over');
+  await settle();
+  assert.equal(textOf(toasts(g)[0], 'achievements-joy'), '+5 joy');
+
+  const none = boot({ routes: nobodyHeld });
+  await settle();
+  none.Moments.say('run-over');
+  await settle();
+  assert.equal(textOf(toasts(none)[0], 'achievements-joy'), null);
+});
+
 // The award said on the window, for the screens library's game-over list and
 // for a game that wants to know: the rule's four public parts, once per award,
 // and said whether or not the studio kept it.

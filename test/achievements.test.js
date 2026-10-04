@@ -44,17 +44,17 @@ test('the list is the file, in its order, with got for whoever is signed in', as
   assert.equal(anon.status, 200);
   assert.equal(anon.headers.get('cache-control'), 'no-store');
   assert.deepEqual(anon.body.achievements, [
-    { id: 'first-run', name: 'First run', how: 'Finish a run', icon: '🚀', got: null },
-    { id: 'halfway', name: 'Halfway there', how: 'Reach level 5', icon: null, got: null },
-    { id: 'secret', name: 'Secret room', how: 'Find it', icon: null, got: null },
+    { id: 'first-run', name: 'First run', how: 'Finish a run', icon: '🚀', got: null, joy: 0 },
+    { id: 'halfway', name: 'Halfway there', how: 'Reach level 5', icon: null, got: null, joy: 0 },
+    { id: 'secret', name: 'Secret room', how: 'Find it', icon: null, got: null, joy: 0 },
   ], 'the entry outside the shape is not there');
 
   const first = await unlock(games, 'first-run');
   assert.equal(first.status, 201);
-  assert.deepEqual(first.body, { new: true });
+  assert.deepEqual(first.body, { new: true, joy: 0 });
   const again = await unlock(games, 'first-run');
   assert.equal(again.status, 201);
-  assert.deepEqual(again.body, { new: false }, 'earning it twice is nothing');
+  assert.deepEqual(again.body, { new: false, joy: 0 }, 'earning it twice is nothing');
 
   const mine = await list(games);
   assert.match(mine.body.achievements[0].got, /^\d{4}-\d{2}-\d{2}T/, 'when Pat earned it');
@@ -132,7 +132,7 @@ test('removing a definition hides its rows; putting it back shows them again', a
   await put(app, FILE);
   const back = await list(games);
   assert.ok(back.body.achievements[0].got, 'and it is Pat\'s again the moment the id is back');
-  assert.deepEqual((await unlock(games, 'first-run')).body, { new: false });
+  assert.deepEqual((await unlock(games, 'first-run')).body, { new: false, joy: 0 });
 });
 
 test('a game without the file has no achievements, and one that is not a list has none', async (t) => {
@@ -171,7 +171,7 @@ test('only a game has achievements', async (t) => {
 test('an archived game still hands them out, because it is still playable', async (t) => {
   const { app, games } = await studio(t);
   await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
-  assert.deepEqual((await unlock(games, 'first-run')).body, { new: true });
+  assert.deepEqual((await unlock(games, 'first-run')).body, { new: true, joy: 0 });
   assert.equal((await app.client.json('GET', '/api/projects/tank/achievements')).body.achievements[0].players, 1);
 });
 

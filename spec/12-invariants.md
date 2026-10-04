@@ -18,6 +18,11 @@ Tests enforce each of these.
 - The preview is never on a board: the preview player answers a score or an
   achievement posted with `fetch` or `sendBeacon` inside the page, and those
   requests never reach the games origin (§6).
+- Joy is made in one place: the first time somebody earns an achievement of a
+  published game they are not an editor of, in the transaction that writes
+  the `achievements` row, as much as the chips on it. Chips are made in one
+  place: the weekly grant, into a stash that never passes 50. Both are
+  `ledger` rows and nothing else — no file holds either (§3). ⚠️
 - The robot plays only in the preview: a game's `js/robot.js` is put on the
   page by the preview's wrapper alone, never by a game's own `index.html`
   served to a player, and its rolling savepoints never replace the person's

@@ -7,6 +7,7 @@ import {
   requireAuth, SESSION_COOKIE, MAX_EMAIL_CHARS,
 } from '../auth.js';
 import { setAlias } from '../alias.js';
+import { joyOf, stashOf } from '../joy.js';
 import { clientIp } from './helpers.js';
 
 export function authRoutes(r) {
@@ -102,6 +103,11 @@ export function authRoutes(r) {
       // spent: shown to them, not only to whoever set it.
       daily_tokens: user.daily_tokens ?? null,
       spent_today: userSpentToday(ctx.db, user.id),
+      // The studio's own currency (server/joy.js): the joy you have earned,
+      // and the chips in your stash to put on your games' achievements — any
+      // weeks you are owed added on the way.
+      joy: joyOf(ctx.db, user.id),
+      stash: stashOf(ctx.db, user.id),
       games_url: ctx.gamesUrl,
     });
   });

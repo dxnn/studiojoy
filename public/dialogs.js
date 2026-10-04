@@ -1221,15 +1221,21 @@ export function dialogFor(d) {
         h('button', { class: 'filled', text: 'Done', onclick: close })));
   }
 
-  // Your own settings, from your name in the sidebar's bottom row. Only the
-  // alias so far: the name every scoreboard shows, and the only one the games
-  // site ever says. A player without the studio has no way here, and asks an
-  // admin — a route on the games site would be one any game could call.
+  // Your own settings, from your name in the sidebar's bottom row: your joy
+  // and chips (server/joy.js), and the alias — the name every scoreboard
+  // shows, and the only one the games site ever says. A player without the
+  // studio has no way here, and asks an admin — a route on the games site
+  // would be one any game could call.
   if (d.kind === 'me') {
     const alias = h('input', { maxlength: '24' });
     alias.value = S.me.alias ?? '';
     const err = h('p', { class: 'error' });
     return wrap('Your settings',
+      h('p', { class: 'me-joy', text: `${S.me.joy ?? 0} joy · ${S.me.stash ?? 0} chips` }),
+      h('p', {
+        class: 'hint muted',
+        text: 'Joy comes from earning achievements in other people’s games. Chips are yours to put on your own games’ achievements, under Smell: each chip is one joy for everybody who earns it. Ten more chips come every Monday, and your stash holds 50.',
+      }),
       h('label', { text: 'Your alias' }), alias,
       h('p', {
         class: 'hint muted',

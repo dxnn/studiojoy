@@ -39,7 +39,8 @@ address: a list of names needn't be a list of emails to do its job.
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}`. Each row is its alias as `name` and the account's name as `real`, for Share's *Show real names* — this origin only |
 | DELETE | `/api/projects/:slug/scores` | — | delete them all; there is no undo — scores are not files. ⚠️ The board's only deletion: one row has no route, deliberately |
-| GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
+| GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it and the joy it gives: `{achievements: [{id, name, how, icon, players, joy}], stash, can_put}` — `stash` the reader's own chips (any weeks owed added first), `can_put` whether they are one of this game's editors and it is published; a read, so anybody in the studio; the *achievements editor*'s structural read |
+| POST | `/api/projects/:slug/achievements/:id/chips` | `{chips}` | chips from the reader's stash onto one achievement, for good (server/joy.js): 201 `{joy, stash}` — the joy it gives now and what is left; 400 for anything but a whole number from 1; 403 for somebody not one of its editors; 404 for an id the file does not define; 409 when the game is not published or the stash is short |
 | GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
 | POST | `/api/collection?kind=&name=&who=&mood=` | raw PNG bytes | add a picture, ≤ 2 MB. Refuses anything but a PNG, a background that is not landscape, and ⚠️ a portrait whose width is a whole multiple of its height; a sprite may be any shape, a strip included. Broadcasts `collection.changed` |
 | GET | `/api/collection/:id` | — | the bytes. The one studio read that may be cached hard (`immutable`): a row's bytes never change |
@@ -1769,8 +1770,8 @@ is where the level is seen as the game draws it.
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
 | POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's alias; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
-| GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in |
-| POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool}` when it counts; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
+| GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got, joy}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in — and `joy` what it gives whoever earns it |
+| POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool, joy}` when it counts, `joy` what it paid — only the first time, only in a published game, never to one of its editors; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
 
 The `/_achievements` routes are the origin's **third write** and sit in the
 scoreboard's posture: a plain 404 for anything that is not a game's, no cookie

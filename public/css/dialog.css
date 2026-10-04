@@ -161,3 +161,5 @@
 }
 .dialog .modify-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .dialog .modify-row label { margin: 0; }
+/* Your joy and chips, in your settings: numbers worth looking at, so gold. */
+.me-joy { color: var(--num); font-weight: 700; font-size: 18px; margin: 0; }

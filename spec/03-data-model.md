@@ -12,6 +12,7 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `password_hash` | TEXT NOT NULL | scrypt, includes salt + params |
 | `display_name` | TEXT NOT NULL | shown in the studio and used as the git author name; ≤ 100 chars, and every door that sets one refuses the path validator's control and format characters (§4). ⚠️ Never said by the games origin — that is `alias` |
 | `alias` | TEXT, unique `COLLATE NOCASE` | what every scoreboard shows and the only name the games origin says; `Alias <id>` until somebody picks one (`server/alias.js`) |
+| `chips_week` | TEXT | the Monday (UTC, `YYYY-MM-DD`) of the last week whose chips this person has been given; null until the first time anything reads their stash (`ledger`, below) |
 | `created_at` | TEXT NOT NULL | |
 
 A row here is an account, and it comes in two kinds: with `studio_access = 1`
@@ -735,6 +736,40 @@ change. Backed up the same way as `scores`, and taken with them by
 the only witness, and a rule evaluated in game code is one anyone can satisfy
 from devtools. The server never sees a *moment* — only the unlock a rule
 produced — and accepts it for the same reason it accepts a score.
+
+### `ledger`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `user_id` | INTEGER NOT NULL → users | whose chips or joy |
+| `currency` | TEXT NOT NULL | `chips` or `joy` (CHECK) |
+| `delta` | INTEGER NOT NULL | how many, in or out |
+| `why` | TEXT NOT NULL | `week` (an author's weekly chips), `put` (chips onto an achievement), `earned` (joy for earning one) |
+| `project_id` | INTEGER → projects | the game, for `put` and `earned` |
+| `achievement` | TEXT | the achievement's id, the same |
+| `created_at` | TEXT NOT NULL | |
+
+Chips and joy, the studio's own currency (`server/joy.js`, ideas/dreams.md
+§5, since 2026-10-04). Every balance is a sum over these rows — a person's
+**stash** of chips, their **joy**, the joy an achievement gives (the chips
+put on it) — so a change is a row and an undo would be one more. Everybody
+with studio access is given 10 chips a week into a stash that holds 50, added
+lazily, like the budget's rollover: `users.chips_week` is the Monday (UTC) of
+the last week given, and the weeks since are added the next time anything
+reads the stash, only as far as fifty. Chips are put on an achievement of a
+published game the person authors and stay there, whatever happens to the
+game or the achievement. An achievement gives as much joy as it has chips to
+everybody who earns it — a bounty, inflationary on purpose (Dann) — paid in
+the same transaction as the `achievements` row, so only the first time,
+never to one of the game's editors, and never while it is unpublished. The
+achievements editor offers only 1, 5, 10 or 20 joy — each button the chips it
+takes to get there from where it is — which is the interface's limit alone:
+the route takes any whole number (Dann, "we'll change this later").
+
+⚠️ The unlock that pays it is the browser's word (above), so a forged one
+makes joy: accountable, every earn a row with a name on it. ⚠️ No file holds
+chips or joy, so no `write_file` can make either.
 
 ### `collection_art`
 

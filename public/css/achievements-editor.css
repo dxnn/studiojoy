@@ -26,7 +26,11 @@
 /* Squeezed, the rule gives way first and the name after it; the marker and
    the player count never do. */
 .ach-row .hint { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 4 auto; }
-.ach-row .warn, .ach-row .ach-count { flex-shrink: 0; }
+.ach-row .warn, .ach-row .ach-count, .ach-row .ach-joy { flex-shrink: 0; }
+/* The joy an achievement gives is a number worth looking at, so gold. */
+.ach-joy { color: var(--num); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.ach-open .ach-chips-row { flex-wrap: wrap; }
+.ach-chips-row button { white-space: nowrap; }
 .ach-open { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
 .ach-open .row { flex-wrap: nowrap; }
 .ach-open .cfg-text { flex: 1; min-width: 4rem; }
