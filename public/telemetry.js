@@ -66,7 +66,7 @@ function noteMoments(list) {
   paintMoments();
 }
 
-function gamesOrigin() {
+export function gamesOrigin() {
   if (!S.project?.play_url) return null;
   try {
     return new URL(S.project.play_url).origin;

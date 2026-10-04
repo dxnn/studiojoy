@@ -19,6 +19,8 @@
 // code that actually caused it rather than whatever HEAD happens to be when
 // the report lands.
 
+import { previewPlayerScript } from './preview-player.js';
+
 export const WRAPPER_PATH = '_studio.html';
 
 const VERSION_MARK = '__STUDIO_VERSION__';
@@ -210,11 +212,13 @@ function reporterScript(version) {
   return `<script>${REPORTER_JS.replace(VERSION_MARK, safeVersion(version))}</script>`;
 }
 
-// The game's own index.html with the reporter put in front of it. Placed
-// inside <head> when there is one and after the doctype otherwise, because it
-// has to run before the game's first script to catch an error in it.
+// The game's own index.html with the reporter put in front of it, and the
+// preview player after the reporter (preview-player.js). Placed inside <head>
+// when there is one and after the doctype otherwise, because both have to run
+// before the game's first script: one to catch an error in it, the other to
+// own its clock before it asks for one.
 export function wrapHtml(html, version) {
-  const script = `\n${reporterScript(version)}\n`;
+  const script = `\n${reporterScript(version)}\n${previewPlayerScript()}\n`;
   const lower = html.toLowerCase();
   for (const opener of ['<head', '<!doctype']) {
     const at = lower.indexOf(opener);

@@ -1,0 +1,140 @@
+// The preview player as it runs inside the preview (server/preview-player.js):
+// run in a vm with the window it expects faked — a real frame the test fires
+// by hand, a real clock the test moves, a fetch that records what reached it.
+// It owns the game's time and answers the boards itself, and both are held
+// here, because a game in the preview can see neither happening.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { PREVIEW_PLAYER_JS } from '../server/preview-player.js';
+
+const ORIGIN = 'http://games.test';
+
+function boot({ framed = true } = {}) {
+  const posts = [];
+  const handlers = new Map();
+  const reached = [];
+  let real = 1000;
+  let frame = null;
+  const sandbox = {
+    location: { pathname: '/tank/_studio.html', href: `${ORIGIN}/tank/_studio.html`, origin: ORIGIN },
+    requestAnimationFrame: (fn) => { frame = fn; return 1; },
+    cancelAnimationFrame: () => {},
+    performance: { now: () => real },
+    addEventListener: (type, fn) => { handlers.set(type, fn); },
+    fetch: (input, init) => {
+      reached.push({ url: String(input), method: init?.method ?? 'GET' });
+      const body = String(input).includes('/_achievements/')
+        ? { achievements: [{ id: 'first', got: '2026-10-01T00:00:00.000Z' }] }
+        : { scores: [] };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    },
+    navigator: { sendBeacon: (url) => { reached.push({ url: String(url), method: 'BEACON' }); return true; } },
+    Response,
+    URL,
+  };
+  sandbox.window = sandbox;
+  sandbox.parent = framed ? { postMessage: (msg) => posts.push(JSON.parse(JSON.stringify(msg))) } : sandbox;
+  vm.createContext(sandbox);
+  const originalRandom = vm.runInContext('Math.random', sandbox);
+  vm.runInContext(PREVIEW_PLAYER_JS, sandbox);
+  return {
+    sandbox,
+    posts,
+    reached,
+    originalRandom,
+    // A real frame, `ms` after the last one.
+    frame: (ms) => { real += ms; frame(real); },
+    studio: (data) => handlers.get('message')?.({ source: sandbox.parent, data: { gamestudio: 'player', ...data } }),
+    run: (code) => vm.runInContext(code, sandbox),
+  };
+}
+
+// A game's loop: asks for a frame, and is handed the clock's time.
+function loop(p) {
+  const seen = [];
+  p.sandbox.seen = seen;
+  p.run('(function go(t) { if (t !== undefined) seen.push(t); requestAnimationFrame(go); })()');
+  return seen;
+}
+
+test('the game runs on the player\'s clock, which pauses, steps and slows', () => {
+  const p = boot();
+  const seen = loop(p);
+  const start = p.run('performance.now()');
+  p.frame(100);
+  assert.deepEqual(seen, [start + 100], 'a real frame moves the clock by what really passed');
+
+  p.studio({ paused: true });
+  p.frame(100);
+  p.frame(100);
+  assert.equal(seen.length, 1, 'paused, the game is not called');
+  assert.equal(p.run('performance.now()'), start + 100, 'and its time stands still');
+
+  p.studio({ step: true });
+  p.frame(100);
+  assert.equal(seen.length, 2);
+  assert.ok(Math.abs(seen[1] - (start + 100 + 1000 / 60)) < 1e-9, 'one step is one frame, however long the real one');
+
+  p.studio({ paused: false, speed: 0.5 });
+  p.frame(100);
+  assert.ok(Math.abs(seen[2] - (seen[1] + 50)) < 1e-9, 'at half speed, half the time');
+  p.studio({ speed: 7 });
+  p.frame(100);
+  assert.ok(Math.abs(seen[3] - (seen[2] + 50)) < 1e-9, 'a speed it does not offer is ignored');
+});
+
+test('a game whose frame throws stops nothing but itself', () => {
+  const p = boot();
+  p.run('requestAnimationFrame(function () { throw new Error("boom"); })');
+  assert.throws(() => p.frame(16), /boom/, 'the game\'s own error, for the reporter to file');
+  const seen = loop(p);
+  p.frame(16);
+  assert.equal(seen.length, 1, 'the next frame still comes');
+});
+
+test('chance is the player\'s own stream', () => {
+  const p = boot();
+  assert.notEqual(p.run('Math.random'), p.originalRandom);
+  const draws = p.run('[Math.random(), Math.random(), Math.random()]');
+  assert.ok(draws.every((n) => n >= 0 && n < 1));
+  assert.equal(new Set(draws).size, 3);
+});
+
+test('the preview is never on a board, and is a player called Preview', async (t) => {
+  const p = boot();
+  const json = async (code) => {
+    const res = await p.run(code);
+    return { status: res.status, body: await res.json() };
+  };
+  assert.deepEqual(
+    await json('fetch("/_scores/tank", { method: "POST", body: "{}" })'),
+    { status: 201, body: { rank: null, preview: true } },
+  );
+  assert.deepEqual(
+    await json('fetch("/_achievements/tank", { method: "POST", body: "{}" })'),
+    { status: 201, body: { new: true, preview: true } },
+  );
+  assert.deepEqual(await json('fetch("/_me")'), { status: 200, body: { user: { name: 'Preview' } } });
+  assert.equal(p.reached.length, 0, 'none of those left the page');
+
+  // What this player has earned: the definitions, and nothing yet.
+  const earned = await json('fetch("/_achievements/tank")');
+  assert.equal(earned.body.achievements[0].got, null);
+  // The board itself is read as it is, and anything else passes.
+  await p.run('fetch("/_scores/tank?limit=10")');
+  await p.run('fetch("https://elsewhere.test/_scores/tank", { method: "POST" })');
+  assert.deepEqual(p.reached.map((r) => r.url), [
+    '/_achievements/tank', '/_scores/tank?limit=10', 'https://elsewhere.test/_scores/tank',
+  ]);
+
+  assert.equal(p.run('navigator.sendBeacon("/_scores/tank", "{}")'), true);
+  assert.equal(p.reached.length, 3, 'a beacon to the board is swallowed too');
+});
+
+test('it asks the studio for its settings, and only when framed', () => {
+  assert.deepEqual(boot().posts, [{ what: 'ready', gamestudio: 'player-ready', slug: 'tank' }]);
+  const alone = boot({ framed: false });
+  assert.deepEqual(alone.posts, []);
+  assert.equal(alone.run('Math.random'), alone.originalRandom, 'opened on its own, it changes nothing');
+});

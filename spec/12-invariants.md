@@ -15,6 +15,9 @@ Tests enforce each of these.
 - The games origin never says an account's `display_name` — only its
   `alias`, on every board, page and answer about a person — and has no route
   that changes either (§3, §7). ⚠️
+- The preview is never on a board: the preview player answers a score or an
+  achievement posted with `fetch` or `sendBeacon` inside the page, and those
+  requests never reach the games origin (§6).
 - An `achievements` row is never deleted by any route, and the definitions
   behind it live only in the game's `config/achievements.js`, read per request
   and never in a table: removing a definition hides its rows, it does not drop

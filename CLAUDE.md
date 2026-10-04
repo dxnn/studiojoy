@@ -151,6 +151,10 @@ walk into, each paid for once already.
 - A score, a personal best and an achievement are rows in SQLite, never files:
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache.
+- ⚠️ The preview is the **preview player** (`server/preview-player.js`,
+  spec/ §6): always debugging, never on a board. It owns the game's clock and
+  random numbers, and answers `/_scores`, `/_achievements` and `/_me` inside
+  the page — `fetch` and `sendBeacon` only.
 - A reasoning trace is never persisted and never replayed into a later fire.
   The one time one enters a request is the thinking cap's hand-on — the same
   fire, once, as text — and the receipt keeps a placeholder for it (spec/ §8).

@@ -290,8 +290,10 @@ its key in `studio.env` beside DeepSeek's.
 
 ## 3. Live tweaks
 
-**Status: discussing (2026-10-04).** Dann's ask, then *The proposal*, are
-at the end of this section; what sits between is the first sketch.
+**Status: the preview player built 2026-10-04** (its clock, pause, step and
+speed, never on a board); **State** proposed, waiting on a yes; tweaks and
+savepoints after it. *Decided* and *State* are at the end of this section;
+what sits between is how it was worked out.
 
 ### What exists
 
@@ -405,6 +407,59 @@ player**: always debugging, never on a board.
   objects are not.
 - A score posted from the preview today is a real one; after this, a maker
   testing the board sees it not move.
+
+### Decided (Dann, 2026-10-04)
+
+- **One State for every game** instead of `Run`, `Race`, `Level`: a studio
+  library with a simple API. It makes pinning easy, gives a save file for
+  free, and gives the builder one place to put state rather than closures.
+  Pins find it **automatically** — no line per game beyond using State.
+- **Tweaks are try-only until Save**, kept simple, and **kept across
+  reloads**.
+- **The rail is for tweaking and debugging, exclusively**: the game's config
+  files under the preview.
+- **One savepoint** — Pin again replaces it. The code says `savepoint`; the
+  buttons say Pin, since `pinned` is already the code's word for a file a
+  message points at.
+- The DOM games and jumping to a stage: a TODO line, to look into.
+
+### State (proposed, waiting on a yes)
+
+A core library, `studio/state.js`, global `State` — the game's data *is* the
+object, and its four calls are hidden from the data:
+
+```js
+State.reset({ score: 0, lives: 3, ship: { x: 480, y: 540 }, rocks: [] }); // a new run
+State.score += 10;               // read and change it like any object
+State.rocks.push({ x: 100, y: 0 });
+
+const file = State.save();       // the whole run, as text: a save file
+State.load(file);                // and back to it
+
+// for a library with state of its own — the physics bodies
+State.include("physics", save, load);
+```
+
+The rules the builder is given, as the game shape's line:
+
+- Everything that changes while the game is played lives in `State` — never
+  in a variable of the game's own, a closure or a class.
+- Plain data only: numbers, words, true and false, lists and groups of
+  those. No functions, pictures, canvases or library objects — a picture is
+  drawn by name, and a physics body is the physics library's.
+- Reach through it every time (`State.ship.x`): a load replaces the pieces,
+  so a piece kept in a variable of your own is left behind.
+
+A **savepoint** is `State.save()` with the preview player's clock and random
+stream; **Back to pin** is `State.load()` and both rewound, the tweaks kept.
+Text, so the studio can hold it through a reload. The four canvas templates
+move onto it; existing games keep working, and one without State says so
+under the preview, with an ask for the builder.
+
+**Tweaks**, once State is in: the config files under the preview as fields;
+a change goes into the running game and is kept in this browser for this
+game — put back into every new page of the preview before the game's own code
+runs — until **Save** writes the files or **Undo the tweaks** drops them.
 
 ## 4. A bot that plays
 

@@ -12,7 +12,8 @@ function boot({ framed = true } = {}) {
   const handlers = new Map();
   const timers = [];
   const html = wrapHtml('<!doctype html><html><head></head><body></body></html>', 'abc123');
-  const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
+  // The first script is the reporter; the preview player follows it.
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const sandbox = {
     location: { pathname: '/tank/index.html' },
     console: { error() {} },

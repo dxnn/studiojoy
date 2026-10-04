@@ -1748,7 +1748,7 @@ is where the level is seen as the game draws it.
 | POST | `/_logout` | delete the player session, clear the cookie |
 | POST | `/_signup` | `{name, email, password}` → a `signups` row (§3), rate-limited per IP; answers 202 `{waiting: true}` whether or not it wrote, so the form never says what an address is to this studio |
 | GET, HEAD | `/robots.txt` | `Disallow: /` for every crawler: the games are for whoever was sent the link and the boards were never meant for the whole internet, and a hostname with a certificate is in public logs whether it is linked or not. No slug holds a dot, so no game can shadow it |
-| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
+| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8), and after it the **preview player** (`server/preview-player.js`, below); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
@@ -1778,6 +1778,26 @@ The studio shows it as the Scoreboard part of Share, in aliases like
 everywhere else, with *Show real names* — a link, since it changes how the
 list reads and not the board — flipping it to who is behind each one and
 back. That is the studio's to know and never the games origin's (§7).
+
+**The preview player** (since 2026-10-04, ideas/dreams.md §3). The studio's
+preview is a player of its own, different from anybody playing the game:
+always debugging and never on a board — no switch, and only there. The script
+injected after the reporter owns the game's time: the timestamps
+`requestAnimationFrame` hands it, `performance.now()` and `Math.random()` (a
+seeded stream with a state of its own) all come from it, so the preview's
+foot can **pause** a game, step it **one frame on** (exactly 1/60 s) and run
+it at **½×** or **¼×** — every canvas game, unchanged. Paused and speed are
+per game in the tab and survive a reload: a new page posts `player-ready`
+and the studio answers with them. A game's own callback that throws is let
+through, so the reporter still files it against the game's line. It answers
+the boards itself, in the page: a `POST` to `/_scores` is `{rank: null,
+preview: true}` and to `/_achievements` `{new: true, preview: true}` — the
+game-over screen shows, an achievement toasts every time it is met — `/_me`
+is a player called **Preview**, and asking what this player has earned
+answers nothing yet. ⚠️ Only `fetch` and `sendBeacon` are answered; a game's
+own `XMLHttpRequest` to a board still reaches it. A line under the preview
+says its scores and achievements never count. Not yet: live tweaks and
+savepoints, which wait on the **State** library (ideas/dreams.md §3).
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.

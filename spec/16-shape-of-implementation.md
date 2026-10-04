@@ -44,6 +44,7 @@ server/
     text.js       codepoint ranges rather than a regex, so no invisible bytes
     time.js       the next UTC midnight, for the budget's lazy rollover
   reporter.js     the injected script, and the wrapper it goes into (§8)
+  preview-player.js  the second one: the preview's own clock, chance and boards (§6)
   runtime.js      what the running game reported, per project
   scores.js       the scoreboard: top, submit, the shared rate limiter
   achievements.js the earned rows, and the defs read from config/achievements.js

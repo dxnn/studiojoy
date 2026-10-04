@@ -44,6 +44,7 @@ import {
   readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
 } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
+import { renderPlayerControls } from './preview-player.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
 import { listenForNotifications, renewPush } from './notify.js';
@@ -212,6 +213,9 @@ export const S = {
   // somebody typing into a studio that cannot hear them.
   connected: true,
   previewNonce: 0,
+  // What the preview player is doing (preview-player.js): its own clock, run
+  // or paused, at a speed. Per game — opening one starts it running.
+  player: { paused: false, speed: 1 },
   // "Try this scene" in the story editor: the scene the preview opens into.
   // Read only while an editor is up, and cleared with the game.
   tryScene: null,
@@ -867,6 +871,9 @@ export async function openProject(slug, { view = null } = {}) {
   for (const e of allEditors()) e.reset?.();
   S.achievements = null;
   S.tryScene = null;
+  // Another game starts its preview running; the same one opened again —
+  // Make it, another tab's change — keeps what it was doing.
+  if (slug !== S.slug) S.player = { paused: false, speed: 1 };
 
   if (!slug) {
     S.slug = null;
@@ -1160,6 +1167,9 @@ function renderPreview() {
     previewSlot,
     S.previewOpen
       ? h('div', { class: 'preview-foot' },
+        // The preview is its own player (preview-player.js): its clock is the
+        // studio's to stop, and nothing it scores reaches a board.
+        ...renderPlayerControls(),
         best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
         h('div', { class: 'spacer' }),
         // The preview is a thing, so what changes it is in its ···: the shape
@@ -1176,6 +1186,12 @@ function renderPreview() {
         openInTab(false),
         h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
       : null,
+    // Said once, under the game, because a maker testing the board will
+    // otherwise wonder where their score went.
+    S.previewOpen ? h('p', {
+      class: 'hint muted preview-note',
+      text: 'The preview is its own player: its scores and achievements never count.',
+    }) : null,
     // Folded: one row. The same control that hid it brings it back — Hide ▲
     // and Show ▼ are one button in two states, in the place the eye already
     // is — and the whole row is a way in too, because it lights up. Open comes

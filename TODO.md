@@ -122,3 +122,8 @@ deliberately deferred.
   called from the server with its key in `studio.env` (ideas/dreams.md §2)
 - bring Game Design's cards back after Make it — a spec editor over
   `SPEC.md`, a different thing from the cards (ideas/dreams.md §2)
+- look into what the preview player means for the games without a frame
+  loop — the quiz, the story, the adventure: whether they should be able to
+  jump to a stage at all (the story's and the adventure's `?scene=` does
+  today, for *Try this scene*), and what a savepoint is for one
+  (ideas/dreams.md §3)
