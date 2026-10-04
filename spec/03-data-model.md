@@ -227,7 +227,10 @@ no file block in their context (§8). The column is added by
 `type` is set at creation from the template and copied by a fork; a blank page
 is null and stays so. A column rather than a file in the tree on purpose: a
 helper must not be able to change which editors somebody sees with a
-`write_file`. ⚠️ A game from before the column is marked `''` by the
+`write_file`. ⚠️ One value is not a template's: `'design'`, a game born in
+**Game Design** (§6, `server/design.js`) — what New game makes — whose one
+editor is the cards. It is the one type that ever changes, once, when a person
+presses Make it: to the template chosen, or to null. ⚠️ A game from before the column is marked `''` by the
 migration — not yet looked at — and `projectPublic` answers it once from the
 game's own tree, the type whose heart file (§6) it holds, writing the answer
 back, null included. So a free-form game that later gains a `config/story.js`
@@ -309,7 +312,11 @@ in the studio may change it. It is an author's decision — see §11.
 One conversation inside a project. Every game is born with two: `Humans only`
 (`bots = 0`), which is the one a bare GET opens on, and `Building`
 (`builder = 1`), a builder room, with the builder already in it — and the
-one a new game is answered with, so the first thing typed is answered. Every
+one a new game is answered with, so the first thing typed is answered. A game
+born in Game Design (type `'design'`) has `Humans only` alone until Make it
+opens `Building` — there is nothing decided yet to build — and ⚠️ the boot
+migration that hands every project a room for helpers (`intoChats`) passes it
+by. Every
 chat added to a game (`Add chat…`) is another builder room under the name it
 was given — a place to build the next thing, the builder seated at once. A
 game may have up to 20. ⚠️ Since 2026-09-15 a game has **no room for a

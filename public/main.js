@@ -111,6 +111,10 @@ export const S = {
   // reason}, or null (track-form.js). Explicit Save, so `dirty` is what the
   // Save button reads.
   track: null,
+  // Game Design's while the open game is still in it: {text, asking, other,
+  // start, draft, busy, making}, SPEC.md being `text`, or null
+  // (game-design-form.js).
+  design: null,
   // The achievements editor's state once Share has been opened: {text, etag, model,
   // dirty}, {grown: reason} when the file will not read as achievements, or
   // null (achievements-form.js).

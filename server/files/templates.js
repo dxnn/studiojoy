@@ -90,6 +90,15 @@ export async function scaffoldStart(dir, publicDir, name, author) {
 }
 
 export async function scaffoldTemplate(dir, publicDir, name, author) {
+  const written = await copyTemplate(dir, publicDir, name);
+  if (written.length === 0) return null;
+  return commitPaths(dir, written.sort(), `start from the ${name} template`, author);
+}
+
+// The template's tree written over the game's, uncommitted: what the paths
+// were, so a caller doing more than this — Game Design's Make it — commits
+// the whole of it as one version.
+export async function copyTemplate(dir, publicDir, name) {
   if (!listTemplates(publicDir)[name]) throw new Error(`no such template: ${name}`);
   const root = path.join(publicDir, 'game-templates', name);
   const written = [];
@@ -107,6 +116,5 @@ export async function scaffoldTemplate(dir, publicDir, name, author) {
     }
   };
   await walk('');
-  if (written.length === 0) return null;
-  return commitPaths(dir, written.sort(), `start from the ${name} template`, author);
+  return written;
 }

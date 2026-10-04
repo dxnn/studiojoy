@@ -23,6 +23,22 @@
 .guide.ready { flex-direction: row; align-items: center; flex-wrap: wrap; }
 .guide.ready .guide-ask { font-weight: 500; font-size: 13px; color: var(--muted); }
 
+/* Game Design (game-design-form.js): the same card, as the whole pane — what
+   has been answered over it, one row each, and How it's made under it. */
+.design { display: flex; flex-direction: column; }
+.design > .hint { margin: 0; }
+.design-answers { padding: 4px 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+.design-answer { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr auto; gap: 10px; align-items: baseline; }
+.design-q { font-size: 12px; color: var(--muted); }
+.design-a { overflow-wrap: anywhere; }
+.design-choices button { white-space: normal; text-align: left; }
+.guide.design-make { border-top: 1px solid var(--border); }
+.design-pick strong { font-weight: 600; }
+@media (max-width: 560px) {
+  .design-answer { grid-template-columns: 1fr auto; }
+  .design-answer .design-q { grid-column: 1 / -1; }
+}
+
 /* The standard set's shelf: one row that scrolls sideways however many
    pictures the set grows to, rather than a grid that pushes the buttons off
    the bottom of the card. Empty until the index lands, and empty for good

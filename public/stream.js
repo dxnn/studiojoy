@@ -3,7 +3,7 @@
 // dispatch of everything the server pushes onto it.
 
 import {
-  S, api, render, say, urlAs, loadProjects, loadMe, setConnected, sizeText,
+  S, api, render, say, urlAs, loadProjects, loadMe, setConnected, sizeText, openProject,
 } from './main.js';
 import { dropArtIndex } from './story-guide.js';
 import { applyReactionDelta } from './chat.js';
@@ -284,6 +284,12 @@ function onEvent(name, data) {
     case 'project.updated':
       loadProjects().then(render);
       if (mine(data) && S.project) {
+        // Made in another tab (Game Design's Make it): a new type is new
+        // editors, new modes and a Building, so the game is opened again.
+        if (data.type !== undefined && data.type !== S.project.type && !S.design?.making) {
+          urlAs('replace', () => openProject(S.slug)).then(render);
+          return;
+        }
         S.project.name = data.name ?? S.project.name;
         if (data.archived !== undefined) S.project.archived = data.archived;
         if (data.scores_on !== undefined) S.project.scores_on = data.scores_on;

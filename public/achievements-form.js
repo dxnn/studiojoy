@@ -33,12 +33,13 @@ import { askForAchievements } from './chats.js';
 // The way to a game's first achievements, beside the form and in the empty
 // rail: a builder room about them with the ask waiting (chats.js). A button,
 // because it makes a room rather than looking at one.
-// ⚠️ Returned, not fired: it opens something (see syncUrl).
-export const makeAchievementsButton = () => h('button', {
+// ⚠️ Returned, not fired: it opens something (see syncUrl). Absent while the
+// game is in Game Design, which has no builder until Make it.
+export const makeAchievementsButton = () => (S.project?.type === 'design' ? null : h('button', {
   class: 'quiet tiny', text: 'Make some with the builder',
   title: 'Open a builder room about achievements, with the ask ready to send',
   onclick: () => askForAchievements(),
-});
+}));
 
 // Which row is open, for which game — a different game opens closed.
 let opened = { slug: null, index: null };

@@ -27,7 +27,7 @@ import { commitPaths } from './git.js';
 // game already holds, and the *extras* named in `want` — a template's
 // `libraries` at creation, or the one a person adds. The sweep passes no
 // `want`, so it raises what a game holds and never hands a quiz an engine.
-async function installMissing(dir, publicDir, { seedFrom = {}, want = [] } = {}) {
+export async function installMissing(dir, publicDir, { seedFrom = {}, want = [] } = {}) {
   const read = (...parts) => fs.promises.readFile(path.join(publicDir, ...parts));
   const index = JSON.parse(await read('studio-lib', 'index.json'));
 

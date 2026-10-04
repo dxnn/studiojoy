@@ -44,6 +44,8 @@ import { isLevelPath } from './level-editor.js';
 import { isStoryPath } from './story-editor.js';
 import { isAdventurePath } from './adventure-editor.js';
 import { isTrackPath } from './track-editor.js';
+import { renderGameDesign, loadDesign, designChanged } from './game-design-form.js';
+import { DESIGN_FILE } from './game-design.js';
 import { S } from './main.js';
 
 // Beyond `render`, an editor over a file of its own says how the studio
@@ -75,6 +77,20 @@ const sceneView = (st) => {
 };
 
 export const GAME_TYPES = {
+  // Not a template: a game born in Game Design, until Make it gives it one
+  // (server/design.js). Its one editor is the cards, over SPEC.md.
+  design: {
+    editors: [{
+      id: 'design',
+      label: 'Game Design',
+      what: 'A few questions before anything is built, and then how it is made',
+      render: renderGameDesign,
+      isPath: (p) => p === DESIGN_FILE,
+      load: () => loadDesign(),
+      changed: () => designChanged(),
+      reset: () => { S.design = null; },
+    }],
+  },
   'visual-novel': {
     editors: [{
       id: 'story',
@@ -197,10 +213,12 @@ const SHARE_MODE = {
 // Hear, Controls, Code, Versions and Share. Controls sits after the two that
 // are about what a game is made of and before the tree, because it is about
 // how the game is played rather than what is in it. The order is the old
-// one — the labels moved, the row did not.
+// one — the labels moved, the row did not. A game in Game Design has no
+// Controls: how it is held is one of the cards, and Make it writes the file.
 export const modesFor = (project) => (!project || project.kind === 'chat'
   ? [CHAT_MODE]
   : [
     CHAT_MODE, ...editorsFor(project.type),
-    PICS_MODE, HEAR_MODE, CONTROLS_MODE, CODE_MODE, VERSIONS_MODE, SHARE_MODE,
-  ]);
+    PICS_MODE, HEAR_MODE, project.type === 'design' ? null : CONTROLS_MODE,
+    CODE_MODE, VERSIONS_MODE, SHARE_MODE,
+  ].filter(Boolean));

@@ -172,109 +172,41 @@ export function dialogFor(d) {
     return node;
   };
 
+  // A new game is a name and nothing else: what it is, how it is held and
+  // which template it starts from are Game Design's cards, asked in the game
+  // itself (game-design-form.js, spec/ §6). A chat is a name too.
   if (d.kind === 'new-project') {
     const chat = d.chat === true;
     const name = h('input', { placeholder: chat ? 'Silly ideas' : 'Space Racer' });
     const err = h('p', { class: 'error' });
-
-    // How the game is held: its control scheme, picked here the way the type
-    // is (spec.md §4). Unlike the type it can be changed afterwards, so this
-    // is a starting point rather than the last word on it.
-    const howHint = h('p', { class: 'hint muted' });
-    const how = h('select', {
-      onchange: () => { howHint.textContent = how.selectedOptions[0]?.dataset.what ?? ''; },
-    });
-    // A template that says which shape it is — the quiz and the story are
-    // pressed rather than steered — hides the row instead of offering a
-    // choice that would be overruled.
-    const howRow = h('div', {}, h('label', { text: 'How is it played?' }), how, howHint);
-
-    // A starter tree instead of a blank page. The list arrives after the
-    // dialog is built — the node persists, so the options land in place.
-    const fromHint = h('p', { class: 'hint muted' });
-    const from = h('select', {
-      onchange: () => {
-        fromHint.textContent = from.selectedOptions[0]?.dataset.what ?? '';
-        howRow.hidden = !!from.selectedOptions[0]?.dataset.scheme;
-      },
-    }, h('option', { value: '', text: 'A blank page' }));
-    if (!chat) {
-      send('/game-templates/index.json').then(async (res) => {
-        if (!res.ok) return;
-        const { templates } = await res.json();
-        for (const [key, t] of Object.entries(templates ?? {})) {
-          const option = h('option', { value: key, text: t.title });
-          option.dataset.what = t.what;
-          // The file the new game opens on: the one a person edits to change
-          // the game. A template with an editor of its own puts you in it.
-          if (t.heart) option.dataset.heart = t.heart;
-          // A template that fixes how it is played takes the question away.
-          if (t.scheme) option.dataset.scheme = t.scheme;
-          from.append(option);
-        }
-      });
-    }
-    if (!chat) {
-      send('/templates/index.json').then(async (res) => {
-        if (!res.ok) return;
-        const { offer, families, schemes, default: seeded } = await res.json();
-        for (const key of offer ?? []) {
-          // An entry naming a family stands for the family: it is offered in
-          // the family's own words, and its first manner is what the game
-          // starts as. Narrowing that down is the panel's job, because
-          // SCHEME is always one concrete shape.
-          const family = families?.[key];
-          const value = family ? family.of?.[0] : key;
-          if (!schemes?.[value]) continue;
-          const option = h('option', { value, text: (family ?? schemes[value]).title });
-          option.dataset.what = (family ?? schemes[value]).what;
-          how.append(option);
-        }
-        if (seeded && schemes?.[seeded]) how.value = seeded;
-        howHint.textContent = how.selectedOptions[0]?.dataset.what ?? '';
-      });
-    }
-
     return wrap(chat ? 'New chat' : 'New game',
       h('label', { text: 'What is it called?' }), name,
-      chat ? null : h('label', { text: 'Start from' }),
-      chat ? null : from,
-      chat ? null : fromHint,
-      chat ? null : howRow,
-      chat ? h('p', { class: 'hint muted', text: 'A chat is just for talking — no files, no game. One room, and you can call helpers into it by name.' }) : null,
+      h('p', {
+        class: 'hint muted',
+        text: chat
+          ? 'A chat is just for talking — no files, no game. One room, and you can call helpers into it by name.'
+          : 'Next come a few questions about what the game is, before anything is built.',
+      }),
       err,
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'filled', text: 'Make it',
+        class: 'filled', text: chat ? 'Make it' : 'Start designing',
         onclick: async () => {
-          const body = { name: name.value.trim(), kind: chat ? 'chat' : 'game' };
-          if (!chat && from.value) body.template = from.value;
-          // Nothing sent while the row is away: the template's own is what
-          // the server falls back to, and saying it here twice could only
-          // disagree with it.
-          if (!chat && !howRow.hidden && how.value) body.scheme = how.value;
-          const heart = chat ? null : (from.selectedOptions[0]?.dataset.heart ?? null);
+          const body = chat
+            ? { name: name.value.trim(), kind: 'chat' }
+            : { name: name.value.trim(), kind: 'game', design: true };
           const res = await api('POST', '/api/projects', body);
           if (!res.ok) { err.textContent = res.body?.error ?? 'Could not make that.'; return; }
           close();
           await loadProjects();
-          // The answer says which conversation to open on — Building when the
-          // starter helper is waiting there, the human-only one otherwise, and
-          // for a chat project the one room it has. A new project has nothing
-          // remembered about it, so without this a game would land on its
-          // front door with nobody in the room.
-          //
-          // A template also opens where the game is made: a type with an
-          // editor opens in that mode — its heart stays in Code's list rather
-          // than opening there too, because two surfaces for one file is one
-          // too many — and a template with a heart and no editor opens the
-          // heart under Code, the quiz's form. Both steps under one hold, or
-          // arriving would leave two entries behind and Back would land in
-          // the empty half of it.
+          // The answer says which conversation to open on — the human-only
+          // one for a game in Game Design, the one room of a chat project —
+          // and a game opens on its type's first editor, which is the cards.
+          // Under one hold, or arriving would leave two entries behind and
+          // Back would land in the empty half of it.
           const editor = editorsFor(res.body.type)[0]?.id ?? null;
-          await urlAs('hold', async () => {
-            await openProject(res.body.slug, { view: { chat: res.body.chat?.id, mode: editor } });
-            if (heart && !editor) await openFile(heart);
-          });
+          await urlAs('hold', () => openProject(res.body.slug, {
+            view: { chat: res.body.chat?.id, mode: editor },
+          }));
           render();
         },
       })));

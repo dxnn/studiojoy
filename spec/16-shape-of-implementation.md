@@ -25,6 +25,7 @@ server/
   mentions.js     one rule resolves a helper's name and a person's (§8)
   builder.js      the builder: the studio's own agents row, its room in every
                   game, and the upgrade that gives existing games one
+  design.js       Game Design's Make it: the tree it writes, uncommitted
   plans.js        a plan's row: pieces, status, the pause on open
   broker.js       SSE fan-out to every tab, and watchMessages — the one hook
                   every message.new goes through, wherever it was made
@@ -104,6 +105,8 @@ public/
   story-guide.js  controls-form.js
                   one pane or feature each, importing the core from main.js
   game-types.js   which editors a game's type puts in the centre pane (§6)
+  game-design.js  Game Design's cards over SPEC.md and the table they pick from;
+                  pure and tested. game-design-form.js is the pane
   config-file.js  patch.js  pixel-editor.js  sound-maker.js  highlight.js
   achievements-editor.js  achievement-shape.js  quiz-editor.js  story-editor.js
   controls-editor.js

@@ -33,7 +33,8 @@ address: a list of names needn't be a list of emails to do its job.
 | method | path | body | effect |
 |---|---|---|---|
 | GET | `/api/projects` | — | all projects incl. archived, with last-message preview; each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
-| POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, and a chat project's one room |
+| POST | `/api/projects` | `{name, slug?, kind?, template?, scheme?, design?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. `design: true` — what New game sends — is a game born in **Game Design**: type `'design'`, the blank page, the default scheme, and `Humans only` alone; 400 beside a template or a scheme, which the cards decide. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, `Humans only` for a game in Game Design, and a chat project's one room |
+| POST | `/api/projects/:slug/design` | `{template?, scheme?, libraries?}` | Game Design's **Make it**, an editor's, once (409 after): the template's tree over the blank page — or none — the scheme's seed, the extras, and `SPEC.md` as the answers over the template's own spec, every heading of that one level down; all one commit, `make it: <title>`, the pending commit landed first. A template decides its own scheme and extras, as at creation; without one they are the body's, checked against the two indexes. Then the type is set, `Building` opened with the builder, and the answer is the project with `chats` and `chat` (`Building`) |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
 | GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}`. Each row is its alias as `name` and the account's name as `real`, for Share's *Show real names* — this origin only |
@@ -618,7 +619,9 @@ ideas/doneness.md): how done a game is, apart from whether it is out. A game
 collects **stamps** in the order its type sets: seven for the arcade, eight
 for a visual novel — story where the loop is, reading aloud where tuning is —
 five for a quiz, and a blank game takes the arcade's seven with the question a
-template would have answered in front, which is the eight a new game shows.
+template would have answered in front — whose check, a `SPEC.md`, Game Design
+has usually ticked already. A game still in Game Design has no `Building`, so
+no card.
 The card numbers them from their position — *Step 3* — so no stamp's name
 carries a number of its own. ⚠️ The stamps themselves — their ids,
 their order and every word on them — are `public/arc.js` and are not repeated
@@ -825,7 +828,7 @@ itself like the story does.
 opens on arriving, no ✕, saves itself. Two halves.
 
 The **shape** is one wide row per thing the studio offers, in the registry's
-order and words — the same four New game asks about (§4) — with the
+order and words — the same ones Game Design's *How do you play it?* offers (§4) — with the
 *arcade* family opening into its three manners underneath while the game
 wears one: one open at a time, in its row. The row already worn is cyan and
 *not a button* — a greyed-out row is a question it can't answer — nor is
@@ -933,11 +936,44 @@ extra, what each does, the manifest, the compatibility law, the sweep, and
 picking a game's control scheme — are documented separately, in
 spec/06-studio-library.md.
 
+### Game Design
+
+New game asks a name and nothing else (decided 2026-10-04, ideas/dreams.md
+§2): the game is born in **Game Design**, type `'design'` (§3), holding the
+blank page, the default control scheme, and `Humans only` — no `Building`,
+since nothing is decided yet to build — and it opens on its one editor, the
+**Game Design** pill (`game-design-form.js` over `game-design.js`). Its modes
+leave out Controls: how the game is held is one of the cards.
+
+The pane is the story guide's posture as a whole page. One card at a time,
+the next read off `SPEC.md`, each answer that card's `## ` section of it, so
+the cards work on a spec somebody has been editing by hand and the only state
+is the file. *Not sure yet* is always an answer. The six every game is asked:
+**What do you do?** (seven choices, one per template, and *Something else…*),
+**Who are you?**, **Where does it happen?**, **What are you trying to do?**,
+**What gets in your way?**, **How does it end?** — and when the first answer
+names no template, three more: **How do you play it?** (the six schemes in a
+kid's words), **Flat or 3D?** and **Do things fall and bounce?** (the two
+extras). What has been answered sits over the card, a row each with
+*Change*.
+
+Under them, **How it's made**: what Make it would make, from a table — the
+first answer's template, or a blank page with the free-form cards' scheme and
+engines — no model anywhere. *Start from* overrules it with any template or a
+blank page. The button reads *Skip to making it* until every card is answered
+and **Make it** after; both are `POST /api/projects/:slug/design`, which
+writes it all as one version, opens `Building`, and the game opens where a
+game of its kind opens (its editor, else `Building` with a template's heart
+under Code). Another tab sees the type change on `project.updated` and opens
+the game again. A spec editor for coming back to the cards later is a
+different thing and not built. Jev — a typed-decision model — for reading a
+*Something else…* answer is planned, not built.
+
 ### Game templates
 
-A **game template** is a starter tree: New game offers "Start from", and the
-chosen template's files are copied in server-side right after the library
-scaffold, as one commit. From then on they are the game's own — no version,
+A **game template** is a starter tree: Game Design's *How it's made* picks
+one (or the API's `template`), and the chosen template's files are copied in
+server-side right after the library scaffold, as one commit. From then on they are the game's own — no version,
 no updates — unlike a library, since genre code must stay editable: "add a
 timer to my quiz" has to land in files a helper can change, not behind the
 `studio/` write-wall. Not a fork either: a fork copies history and attached

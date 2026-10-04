@@ -183,7 +183,10 @@ walk into, each paid for once already.
   key on an answer, a scene or a rule costs somebody their editor. The
   preamble says so, and the shape modules are shared rather than restated.
 - ⚠️ A game's type is `projects.type`, a column rather than a file, so no
-  `write_file` can change which editors somebody sees.
+  `write_file` can change which editors somebody sees. `'design'` is a game
+  still in **Game Design**: the one type that changes, once, by Make it — and
+  it has no `Building` until then, which the boot migration (`intoChats`)
+  must keep passing by.
 - ⚠️ The studio library's **compatibility law** (spec/ §4): a library version
   N+1 must run every game that ran N. `npm run sweep` raises every game at
   once and cannot know better; break it and the fix is by hand, game by game.
@@ -324,7 +327,13 @@ direction stops working.
 Complete, green, and running on a real server. What exists, with where it is
 specified:
 
-- Projects are games or chats. A game is born with `Humans only` and
+- **Game Design** (§6, built 2026-10-04): New game asks a name, and the game
+  is born in Game Design — cards asked one at a time into `SPEC.md`, then
+  *How it's made* picks a template or none from a table and **Make it**
+  (or *Skip to making it*) writes it all as one version and opens
+  `Building`. Driven through the MCP browser at 1280 and 390, never on a
+  finger. Jev for reading a *Something else…* answer is planned, not built.
+- Projects are games or chats. A game is made with `Humans only` and
   `Building`, and every chat added to it is another **builder room** — the
   studio's helper seated, nobody else's let in — so a game is where the
   Builder is; a chat project is one room, and the one place a person's

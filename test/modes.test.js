@@ -47,6 +47,14 @@ test('a type\'s editors sit after the chat, keeping their plain names', () => {
   assert.equal(editorsFor(null).length, 0, 'a free-form game brings none');
 });
 
+// A game born in Game Design opens on the cards, and has no Controls: how it
+// is held is one of them, and Make it writes the file.
+test('a game in Game Design has the cards and no Controls', () => {
+  assert.deepEqual(idsOf(game('design')), ['chat', 'design', 'pics', 'hear', 'code', 'versions', 'share']);
+  assert.deepEqual(labelsOf(game('design')).slice(0, 2), ['Speak', 'Game Design']);
+  assert.equal(editorsFor('design')[0].id, 'design', 'so it is what a new game opens on');
+});
+
 // Every type a template makes has its editor registered, and an editor over a
 // file of its own is the type's heart — so the studio opens a new game in it.
 test('every template with a heart it edits has that editor registered', async () => {

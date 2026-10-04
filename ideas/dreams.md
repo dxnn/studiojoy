@@ -136,8 +136,12 @@ from the admin panel instead keeps that list as it is.
 
 ## 2. One way in: design first, then how it is made
 
-**Status: discussing (2026-10-04).** The worked-out version is *The proposal*
-at the end of this section; what sits between is the first sketch.
+**Status: built 2026-10-04**, without Jev; spec/ §6 *Game Design* is the
+record. Decided: the cards live in the game; every card is asked, with *Skip
+to making it* always there; the cards take the place of `Building` until the
+game is made; Jev later; the pill says **Game Design**. A spec editor that
+brings the cards back after Make it is a different thing, not built. What
+sits below is how it was worked out.
 
 ### What exists
 

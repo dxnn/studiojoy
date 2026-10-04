@@ -308,9 +308,10 @@ they're buttons somebody chose. `seeds` in the index marks that distinction.
 
 #### Picking the control scheme
 
-Which `config/controls.js` a game is seeded with is chosen at creation, like
-its type — New game asks **How is it played?** beside "Start from" — but the
-two stay unalike after that: a type is a column (`projects.type`), so no
+Which `config/controls.js` a game is seeded with is chosen with its template,
+like its type — Game Design's **How do you play it?** card for a game no
+template makes, Make it writing the seed (§6), and `scheme` on
+`POST /api/projects` for the API — but the two stay unalike after that: a type is a column (`projects.type`), so no
 `write_file` can change which editors somebody sees; a scheme has to be a
 file, since `input.js` reads `SCHEME` at runtime, which is also why it alone
 stays changeable afterwards.

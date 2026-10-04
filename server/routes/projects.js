@@ -5,12 +5,15 @@ import { readJson } from '../http/body.js';
 import { requireAuth } from '../auth.js';
 import { checkSlug, slugify, requireSlug } from '../files/paths.js';
 import {
-  initRepo, isRepo, forkRepo, currentSha,
+  initRepo, isRepo, forkRepo, currentSha, commitPaths,
 } from '../files/git.js';
-import { scaffoldLibraries } from '../files/library.js';
+import { scaffoldLibraries, listExtras } from '../files/library.js';
 import {
   listTemplates, scaffoldTemplate, scaffoldStart, typeFromTree,
 } from '../files/templates.js';
+import { versionNew } from '../files/pending.js';
+import { DESIGN_TYPE, makeTree } from '../design.js';
+import { makeBuilderRoom } from '../builder.js';
 import { listSchemes, defaultScheme, schemeSeed } from '../files/schemes.js';
 import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
@@ -20,7 +23,7 @@ import {
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
 import {
-  startChats, startRoom, listChats, requireChat, chatPublic,
+  startChats, startDesign, startRoom, listChats, requireChat, chatPublic,
 } from '../chats.js';
 import {
   addAuthor, removeAuthor, listAuthors, canEdit, isAuthor, requireAuthor,
@@ -142,6 +145,14 @@ export function projectRoutes(r) {
         throw new HttpError(400, `no such template: ${template}`);
       }
     }
+    // Born in Game Design instead (server/design.js): the blank page and the
+    // human-only room, its template, scheme and Building left to Make it. What
+    // New game asks for; a template or a scheme alongside it is a decision
+    // the design is there to make.
+    const design = optionalBool(body.design, 'design') ?? false;
+    if (design && (kind !== 'game' || template !== null || body.scheme)) {
+      throw new HttpError(400, 'a game in Game Design has no template or scheme yet');
+    }
 
     // The control scheme — the shape of the game on a screen — chosen here
     // the way the type is (spec.md §4). Unlike the type it lands in a file
@@ -214,15 +225,16 @@ export function projectRoutes(r) {
         `INSERT INTO projects (slug, name, kind, type, created_by, created_at, open_edit, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(slug, name, kind, template, user.id, now, openEdit, now);
+      .run(slug, name, kind, design ? DESIGN_TYPE : template, user.id, now, openEdit, now);
     const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(info.lastInsertRowid);
     // A game gets two conversations from the start: the human-only one, and
     // Building with the builder already in it — a game with nowhere to ask for
     // anything would need a second click before it could be used at all. A
-    // chat project gets the one room it is.
-    const work = kind === 'chat'
-      ? startRoom(ctx.db, row.id, name, now)
-      : startChats(ctx.db, row.id, user.id, now);
+    // chat project gets the one room it is, and a game in Game Design the
+    // human-only one until Make it.
+    const work = kind === 'chat' ? startRoom(ctx.db, row.id, name, now)
+      : design ? startDesign(ctx.db, row.id, now)
+        : startChats(ctx.db, row.id, user.id, now);
     // The person who made it is its first author: everything else about
     // authorship starts from somebody being able to say who else is in.
     addAuthor(ctx.db, row.id, user.id, user.id, now);
@@ -349,6 +361,66 @@ export function projectRoutes(r) {
     json(ctx.res, 200, updated);
   });
 
+  // Game Design's Make it (server/design.js, spec/ §6): a game born in Game
+  // Design made into one, once — a template over its blank page or none, the
+  // control scheme's seed, the extras, the two specs merged, all as one
+  // version; then the type set and Building opened with the builder in it.
+  // Skip is the same press, sooner. A template decides its own scheme and
+  // extras, the way it does at creation; without one they are the body's.
+  r.post('/api/projects/:slug/design', async (ctx) => {
+    const user = requireAuth(ctx);
+    const project = requireProject(ctx, { write: true, files: true });
+    const body = await readJson(ctx.req);
+    const template = body.template ? String(body.template) : null;
+    const chosen = template ? listTemplates(ctx.publicDir)[template] : null;
+    if (template && !chosen) throw new HttpError(400, `no such template: ${template}`);
+    const asked = body.scheme ? String(body.scheme) : null;
+    if (asked && !listSchemes(ctx.publicDir)[asked]) {
+      throw new HttpError(400, `no such control scheme: ${asked}`);
+    }
+    const extras = Array.isArray(body.libraries) ? body.libraries.map(String) : [];
+    for (const name of extras) {
+      if (!Object.hasOwn(listExtras(ctx.publicDir), name)) {
+        throw new HttpError(400, `no such library to add: ${name}`);
+      }
+    }
+    const scheme = chosen?.scheme ?? asked ?? defaultScheme(ctx.publicDir);
+    const libraries = chosen ? chosen.libraries ?? [] : extras;
+    const dir = projectDirFor(ctx, project);
+
+    // The type is read again inside the mutex: two presses at once make one game.
+    const building = await ctx.mutex.run(project.slug, async () => {
+      const current = ctx.db.prepare('SELECT type FROM projects WHERE id = ?').get(project.id);
+      if (current.type !== DESIGN_TYPE) throw new HttpError(409, 'this game has already been made');
+      await ctx.pending.settleLocked(project.slug);
+      const written = await makeTree(dir, ctx.publicDir, { template, scheme, libraries });
+      const sha = written.length
+        ? await commitPaths(dir, written, `make it${chosen ? `: ${chosen.title}` : ''}`, authorFor(user))
+        : null;
+      const room = tx(ctx.db, () => {
+        ctx.db.prepare('UPDATE projects SET type = ?, updated_at = ? WHERE id = ?')
+          .run(template, new Date().toISOString(), project.id);
+        return makeBuilderRoom(ctx.db, project.id, user.id);
+      });
+      if (sha) {
+        ctx.broker.broadcast('files.changed', { project_slug: project.slug, paths: written });
+        versionNew(ctx.broker, project.slug, sha, written);
+      }
+      return room;
+    });
+
+    const row = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id);
+    ctx.broker.broadcast('chats.changed', { project_slug: project.slug });
+    ctx.broker.broadcast('project.updated', {
+      slug: row.slug, name: row.name, type: row.type, archived: false,
+    });
+    json(ctx.res, 200, {
+      ...projectPublic(ctx, row, user),
+      chats: listChats(ctx.db, row.id).map(chatPublic),
+      chat: chatPublic(building),
+    });
+  });
+
   // The scoreboard's admin side, on this origin because moderation needs a
   // person: the games listener never reads a cookie, so nothing over there
   // can be allowed to delete. All of it works on an archived game — still
@@ -425,8 +497,10 @@ export function projectRoutes(r) {
       const id = Number(info.lastInsertRowid);
       // The copy starts with the same two chats every game gets, and a fresh
       // thread in each: a fork is the files and the helpers, not the
-      // conversation that produced them.
-      const work = startChats(ctx.db, id, user.id, now);
+      // conversation that produced them. A copy of a game still in Game
+      // Design is still in it, with its one room.
+      const work = source.type === DESIGN_TYPE ? startDesign(ctx.db, id, now)
+        : startChats(ctx.db, id, user.id, now);
       // A copy is the copier's game. Whoever wrote the original is named in
       // its history, which is where that belongs.
       addAuthor(ctx.db, id, user.id, user.id, now);

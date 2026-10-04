@@ -117,3 +117,8 @@ deliberately deferred.
   has them — ideas/knockdown-levels.md, three questions waiting
 - decide how a free-form game reaches three.js and a 3D physics engine —
   ideas/open-engines.md, three questions waiting
+- read a Game Design *Something else…* answer with Jev: the answers as
+  `state`, a `choice` over the eight starts and two `noul`s for the extras,
+  called from the server with its key in `studio.env` (ideas/dreams.md §2)
+- bring Game Design's cards back after Make it — a spec editor over
+  `SPEC.md`, a different thing from the cards (ideas/dreams.md §2)

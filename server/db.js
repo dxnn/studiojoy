@@ -602,11 +602,13 @@ const CARRIED_CHAT = 'Building';
 // talked in yet with nowhere a helper could ever be put — the two conditions
 // below are about what moves, never about whether the chat exists.
 function intoChats(db) {
+  // ⚠️ Not a game in Game Design: it has its human-only room and no other
+  // until Make it (server/design.js), and this runs on every boot.
   const projects = db.prepare(
     `SELECT p.id, p.created_at,
             (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) AS chats,
             (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id AND c.bots = 1) AS bot_chats
-       FROM projects p`,
+       FROM projects p WHERE p.type IS NOT 'design'`,
   ).all();
   const old = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_agents'").all();
   const hasOld = old.length > 0;

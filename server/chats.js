@@ -47,6 +47,13 @@ export function startChats(db, projectId, userId, now = new Date().toISOString()
   return makeBuilderRoom(db, projectId, userId, now);
 }
 
+// Called once, when a game is made in Game Design (server/design.js): the
+// human-only chat and nothing else. Building comes with Make it — until then
+// there is nothing decided for the builder to build.
+export const startDesign = (db, projectId, now = new Date().toISOString()) => createChat(
+  db, projectId, { name: HOME_CHAT, bots: 0, now },
+);
+
 // Called once, when a chat project is made: the one room it has. Helpers are
 // allowed in it — a room nobody can be called into is not what somebody means
 // by starting a chat — and it wears the project's name, which is the only

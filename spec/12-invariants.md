@@ -64,6 +64,9 @@ Tests enforce each of these.
   is for the game whose originator has been removed).
 - A project's git repository has at least one commit from the moment the
   project exists.
+- A game's `type` is written at creation and changed once after, by Make it,
+  from `'design'` — never by a file write. A game in Game Design has no
+  builder room until then, and a restart does not give it one (§3, §6).
 - The sweep adds a core library a game lacks and raises every one it holds,
   and never adds an extra; an extra reaches a game only from its template's
   `libraries` at creation or `POST /api/projects/:slug/libraries`, named by
