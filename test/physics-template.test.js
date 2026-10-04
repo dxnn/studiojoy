@@ -21,6 +21,15 @@ function load() {
   return { Physics: ctx.Physics, warnings };
 }
 
+// The page with State on it too (studio/state.js), as every game has now.
+function loadWithState() {
+  const ctx = vm.createContext({ console: { warn() {} } });
+  vm.runInContext(PLANCK, ctx);
+  vm.runInContext(fs.readFileSync(new URL('../public/studio-lib/state/state.js', import.meta.url), 'utf8'), ctx);
+  vm.runInContext(`${PHYSICS}\nthis.Physics = Physics; this.State = State;`, ctx);
+  return { Physics: ctx.Physics, State: ctx.State };
+}
+
 const settle = (Physics, seconds, dt = 1 / 60) => {
   for (let i = Math.round(seconds / dt); i > 0; i -= 1) Physics.step(dt);
 };
@@ -44,6 +53,40 @@ test('a body is built from a config entry, in pixels and degrees, keeping its ow
   assert.equal(Physics.at(300, 215), box, 'a turned box, hit in its own frame');
   assert.equal(Physics.at(500, 105), ball);
   assert.equal(Physics.at(10, 10), null);
+});
+
+// A pin in the preview is State.save(); the bodies have to come back with it,
+// a removed one included, moving the way they were.
+test('every body rides in a State save and comes back where it was', () => {
+  const { Physics, State } = loadWithState();
+  Physics.world({ gravity: 900 });
+  Physics.build([GROUND, { kind: 'target', at: [700, 560], size: 14 }]);
+  const ball = Physics.add({ kind: 'shot', at: [100, 400], size: 10 });
+  Physics.fling(ball, 500, -300);
+  settle(Physics, 0.25);
+  const file = State.save();
+  const was = Physics.all().map((b) => [b.kind, Math.round(b.x), Math.round(b.y)]);
+
+  settle(Physics, 1);
+  Physics.remove(Physics.all().find((b) => b.kind === 'target'));
+  State.load(file);
+  assert.deepEqual(Physics.all().map((b) => [b.kind, Math.round(b.x), Math.round(b.y)]), was);
+  const shot = Physics.all().find((b) => b.kind === 'shot');
+  assert.ok(shot.vx > 400, `still flying: vx ${shot.vx}`);
+  assert.notEqual(shot, ball, 'a new body — the old one is gone with the old world');
+});
+
+test('tune changes the world\'s feel live, without building it again', () => {
+  const { Physics } = load();
+  Physics.world({ gravity: 900 });
+  const [ball] = Physics.build([{ kind: 'ball', at: [100, 0], size: 5 }]);
+  settle(Physics, 0.5);
+  const heavy = ball.y;
+  Physics.world({ gravity: 900 });
+  const [again] = Physics.build([{ kind: 'ball', at: [100, 0], size: 5 }]);
+  Physics.tune({ gravity: 300 });
+  settle(Physics, 0.5);
+  assert.ok(again.y < heavy / 2, `a third of the gravity falls a third as far: ${again.y} vs ${heavy}`);
 });
 
 test('a tower stands, comes to rest, and the world says so', () => {

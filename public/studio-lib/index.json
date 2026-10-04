@@ -115,7 +115,7 @@
       "scripts": ["config/achievements.js", "studio/achievements.js"]
     },
     "physics": {
-      "version": 1,
+      "version": 2,
       "core": false,
       "what": "Things that fall, stack, roll, bounce and knock each other over — boxes and balls in the game's own pixels, built from a list in config/, on a steady clock so a tower falls the same way everywhere. planck.js underneath (Box2D, MIT).",
       "shape": [

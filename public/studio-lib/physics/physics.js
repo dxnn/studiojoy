@@ -4,6 +4,7 @@
 // way in to it; the game's own code may use the `planck` global too.
 //
 //   Physics.world({ gravity: 900, bounce: 0.2, friction: 0.6 }); // optional
+//   Physics.tune({ gravity: PLAY.GRAVITY }); // the same, live — every frame is fine
 //   const bodies = Physics.build(BODIES);  // every entry of a config list
 //   const ball = Physics.add({ kind: "ball", at: [150, 430], size: 14 });
 //   Physics.fling(ball, 600, -400);        // its speed now, pixels a second
@@ -30,6 +31,10 @@
 // called after the step, never inside it, so it may add or remove bodies;
 // `speed` is how hard the two met, pixels a second along the push between
 // them. Nothing here draws: the game draws each body where it is.
+//
+// The bodies ride in every State save (studio/state.js), so a pin in the
+// preview puts each one back where it was. Keep no body in State yourself:
+// find them with Physics.all() and their kind.
 //
 // Those calls are the whole of it. There is no body type to pick, no fixture
 // and no metres: size and still say it all. index.html loads
@@ -74,7 +79,70 @@ const Physics = (function () {
 
   function worldNow() {
     if (!world && P) make();
+    enlist();
     return world;
+  }
+
+  // Every body as plain data — the entry it was built from and where it is
+  // going — so State can save it with the game's own, and put it back.
+  function save() {
+    return {
+      spare: spare,
+      bodies: bodies.map(function (b) {
+        return {
+          thing: b.thing, x: b.x, y: b.y, angle: b.angle, vx: b.vx, vy: b.vy,
+          spin: b._b.getAngularVelocity(), awake: b._b.isAwake(),
+        };
+      }),
+    };
+  }
+
+  // The world emptied and every saved body built again where it was, at the
+  // speed it had. New objects: a game that kept an old one is holding nothing.
+  function load(saved) {
+    if (!worldNow() || !saved || !Array.isArray(saved.bodies)) return;
+    for (const b of bodies.slice()) remove(b);
+    hits = [];
+    spare = num(saved.spare, 0);
+    for (const s of saved.bodies) {
+      const b = add(s.thing);
+      if (!b) continue;
+      b._b.setTransform(P.Vec2(num(s.x, 0) / SCALE, num(s.y, 0) / SCALE), num(s.angle, 0));
+      b._b.setLinearVelocity(P.Vec2(num(s.vx, 0) / SCALE, num(s.vy, 0) / SCALE));
+      b._b.setAngularVelocity(num(s.spin, 0));
+      b._b.setAwake(s.awake !== false);
+      sync(b);
+    }
+  }
+
+  // Kept with State's saves from the first body on. Late rather than at load,
+  // because studio/state.js may come after this file on the page.
+  let enlisted = false;
+  function enlist() {
+    if (enlisted || typeof State === "undefined" || !State.include) return;
+    State.include("physics", save, load);
+    enlisted = true;
+  }
+
+  // The world's feel changed without building it again: gravity at once, and
+  // bounce and friction on every body that does not say its own.
+  function tune(opts) {
+    const next = {
+      gravity: num(opts?.gravity, settings.gravity),
+      bounce: num(opts?.bounce, settings.bounce),
+      friction: num(opts?.friction, settings.friction),
+    };
+    const was = settings;
+    settings = next;
+    if (!worldNow()) return;
+    if (next.gravity !== was.gravity) world.setGravity(P.Vec2(0, next.gravity / SCALE));
+    if (next.bounce === was.bounce && next.friction === was.friction) return;
+    for (const b of bodies) {
+      for (let f = b._b.getFixtureList(); f; f = f.getNext()) {
+        f.setRestitution(num(b.thing?.bounce, next.bounce));
+        f.setFriction(num(b.thing?.friction, next.friction));
+      }
+    }
   }
 
   function sync(b) {
@@ -171,7 +239,9 @@ const Physics = (function () {
       hits = [];
       spare = 0;
       if (P) make();
+      enlist();
     },
+    tune: tune,
     build: function (list) {
       return (Array.isArray(list) ? list : []).map(add).filter(Boolean);
     },
