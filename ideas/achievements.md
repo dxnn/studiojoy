@@ -127,8 +127,8 @@ CREATE TABLE achievements (
 )
 ```
 
-Permanent means permanent: no route deletes a row, no button, no per-row ✕
-like the scoreboard has. Removing a definition from the file leaves the rows;
+Permanent means permanent: no route deletes a row and no button does, not
+even a whole-game clear like the scoreboard's. Removing a definition from the file leaves the rows;
 they are simply shown nowhere until the id comes back. `deluser --scores`
 (TODO.md) should take these with it when it is built.
 

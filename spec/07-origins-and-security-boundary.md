@@ -64,9 +64,10 @@ out, since an unlinked hostname is in certificate logs all the same.
 origin, so game A can post to game B's board as its player — and no credential
 kept in the browser could have been scoped either, since game A could as well
 have asked for game B's token. The row names the player, not the game's
-author; per-row deletion under Share is the answer, and the only
-real scoping would be an origin per game, a deployment change nobody has
-needed (ideas/scoreboard-trust.md).
+author; the answers are clearing that board under Share — whole, since one
+row has no route (§6) — and `npm run deluser -- <email> --scores` for the
+player, and the only real scoping would be an origin per game, a deployment
+change nobody has needed (ideas/scoreboard-trust.md).
 
 In production the two listeners sit behind separate hostnames
 (`studio.example.com`, `games.example.com`), and `GAMES_URL` names the games

@@ -56,8 +56,8 @@ before it removes).
 ⚠️ **`deluser -- <email> --scores` is the one real delete a person asks
 for.** It also takes every board row they posted, their personal bests and
 their achievements (`removePlayerScores` in `server/scores.js`), so a removed
-player leaves every board at once rather than row by row in each game's
-panel. `restoreuser` brings the account back and none of those; a backup is
+player leaves every board at once, where a game's panel can only clear its
+own board whole. `restoreuser` brings the account back and none of those; a backup is
 the only way to them. The flag also works on somebody already removed.
 
 The bit is read on one side of a single line. **Access** minds it: the login
@@ -715,8 +715,8 @@ inside the running game and served back by the games origin (§6). Like
 `scores`, it lives here rather than in the working tree, for the same reason
 (above). Unlike a score it is the same kind of thing as a *personal best*:
 `INSERT OR IGNORE` on the composite key, so earning one twice is a no-op, and
-⚠️ **permanent** — no route deletes a row, no button, no per-row ✕ like the
-scoreboard has. The definitions are **not** here: they are the game's own
+⚠️ **permanent** — no route deletes a row and no button does, not even a
+whole-game clear like the scoreboard's. The definitions are **not** here: they are the game's own
 `config/achievements.js`, read from the working tree per request (§6), so
 removing one from the file leaves the rows and simply shows them nowhere
 until the id comes back. Renaming an id orphans everybody's, which is why the
