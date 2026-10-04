@@ -413,9 +413,11 @@ specified:
   is what the preview player's **Pin** and **Back** save and put back. The
   seven templates keep their run in it, and ⚠️ none takes a way in from its
   own address — *Try this scene* and *Try it* lay their fields over State
-  through the savepoint, so a player cannot skip ahead. Every existing game
-  is still to move, by hand (TODO.md), and a game without State says it
-  cannot be pinned. An **extra** goes only where a template
+  through the savepoint, so a player cannot skip ahead. ⚠️ Every existing
+  game has been moved by hand, one commit in its own `games/<slug>/` repo,
+  and none is pushed: each needs the server's sweep first, or it stops at
+  its first `State` (ideas/state-migration.md, the order and the ledger). A
+  game without State says it cannot be pinned. An **extra** goes only where a template
   names it or a person adds it, and the sweep never adds one. Two exist:
   **physics**, a façade over vendored planck.js, and **render3d**, one over
   vendored three.js — ⚠️ a module, so a game using it has its own code as a

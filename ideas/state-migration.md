@@ -5,6 +5,39 @@ by hand, one commit in each game's own repo, rather than by asking each kid's
 builder. This page is the runbook for landing those commits, and the ledger
 of what each game got.
 
+**Done 2026-10-04, not yet pushed.** All 58 game pages in `games/` load State:
+56 games moved, and the two untouched blank pages given the tag. Each repo is
+clean and exactly one commit ahead of its server copy, and no commit touches
+`studio/`. Every game boots in the throwaway with no page error and no State
+warning, and every one was played, pinned, played on and put back.
+
+## Look at these first
+
+Where a migration made a judgement call, or changed more than the move:
+
+- **flip-for-what** — rebuilt around its coin toss and draft; a page game,
+  checked by reading the page rather than by feel.
+- **math-guided-assault** — its overlays are rebuilt from State; a Back into
+  a battle replays the battle.
+- **floof-forest-forever** — the forest's beat now stops when the game's loop
+  does, which a kid will feel.
+- **baking-blam** — three clock deadlines became countdowns.
+- **mipha-beefa** — restructured most; its stars stay in localStorage, so a
+  Back and the stars can disagree.
+- **asterogueoids** — bucks and the next sky stay in localStorage.
+- **math-conqueror** — Back to a fall posts that run's score again (preview
+  only).
+- **please-don-t-bomb-me** — its own `State` object is gone.
+- **wee-ooh-wee-ooh** — one change beyond the move, in its track listener.
+
+Bugs that were already there and that a kid will meet, found along the way
+and left alone (details in the ledger): bloop-s-quest's dialogue panel never
+draws; math-blaster's boss rounds score NaN; doki-doki-monster-run-chase's
+Krill round throws every frame; math-conqueror crashes on towers 6–7 now and
+then; flip-for-what throws on every part placed; floof-forest-forever's
+"Acorn saver" can never be earned; a second jam in jam-jamboree starts with
+the pickers stuck. And about half the games ask for sounds that do not exist.
+
 ## What a migration is
 
 - One commit in `games/<slug>/`, authored like the earlier hand commits
@@ -43,7 +76,9 @@ server puts there. **A game pushed before the sweep stops at its first
    are reopened, with a sweep after.
 4. Here, `deploy/sync-games.sh user@host pull`. Every migrated game reports
    `diverged (1 behind, 1 ahead)` — the server's sweep commit and the
-   migration — and `3d-ball-game`, which has no remote here, gets linked.
+   migration. `3d-ball-game` and `knock-down` have no remote here: `pull`
+   links each one the server has, and one it does not have was only ever
+   local, so its commit simply stays here.
 5. Put each migration on top of the sweep. Either ask me to, or in fish:
 
    ```fish
@@ -103,6 +138,16 @@ the builder wrote. *stock* means it took the current template's code whole.
 | math-conqueror | builder | the tower run, the princess | ⚠️ Back to a fall beat posts that run's score again (inside the preview only). `exactNamesOf` reassigns a `const` and throws on towers 6–7 after 300 failed draws — old, real, rare |
 | amazing | builder | the whole hunt, about 32 KB a save | one config change: the mouse's speed is read from `world.speed`, so a tweak reaches it live |
 | monsters-vs-monkeys | builder | monke, monsters, coconuts, allies, lives | the allies' gap and colours moved to a `const ALLY_TRAITS`. All three lives go in 4 s with no input; the world is 3,600 wide on a 960 canvas with no camera, so 4 of 11 monster lanes are never on screen — old |
+| ktest-game | builder | the chess game: position, moves, clocks, the move waiting on promotion | the widest rewrite of its batch: `pendingPromotion` now holds the move, so a Back reopens the chooser. The move list reads "1. 1. e4 e5" — old |
+| the-best-game | builder | its `Game` became State; the jokes on screen too | a load onto a title or game-over moment reopens that screen, never posting again |
+| fun-slide | builder | the whole sitting: slides, gems, coins, power-ups | the game never saves on purpose, so its progress is the run and a Back rewinds it |
+| doki-doki-monster-run-chase | builder | everything a round changes, both halves; the Krill's age as a countdown | each round resets only its own half, as before. ⚠️ `BE_KRILL_EYE_GLOW` is not in config, so every Krill frame throws (hidden by the game's own catch): no chips, world bar or place banner in a Krill round — old. Fixing it uncovers `bumpT` never reset |
+| hehehe | builder | its lowercase `state` became State; `playing` added | small change: after a Back to before Start, the pets make their cheerful noise under the title. The drone music only plays in the first garden; a hunter straight below a hedge never moves — old |
+| math-guided-assault | builder | the climb, the boss path as an index, and which overlay is up | ⚠️ the biggest restructure of its batch: overlays rebuilt from `State.scene`, their timers cancelled on a load. A Back into a battle replays it from its start, sounds and all. The boss path is drawn from the whole sheet whatever the tower — old |
+| asteriskoids | builder | the run, the ship, bullets, rocks, sparks, the upgrade cards on offer | the objects keep their methods, their data moved to State. A laser firing as a level clears stays frozen behind the chooser — old, and comes back the same after a Back |
+| asterogueoids | builder | as asteriskoids, plus the companions, the risk bar and which sky | ⚠️ judgement calls: bucks, purchases and the next sky stay in localStorage (so a Back and a second finish banks twice — preview only); `State.level` added so a Back across a fly-on shows the right sky; a load reopens its title or game-over screen without posting. Never played through a long natural run |
+| vroom-vroom | builder | its `G` became State: the run, the ship, the robots, bullets, rocks | the objects keep their methods, their data moved to State. The bank is localStorage, so going back past a level clear and clearing again banks twice — preview only. One robot is always built, hidden, even unowned; a laser can stay drawn behind the title — old |
+| vroooooooom | builder | as vroom-vroom, plus its poison mist and the Trash Can | one more change: a companion no longer carries its config object, which would have gone into every save |
 | aliens | builder | the apple and the worm, the race | the win's pause was a clock reading, now a State countdown. No `assets/` at all, so it plays silent — old |
 | scary | builder | its lowercase `state` became State | music turned on or off by a load is new, and unheard: the music file is missing. No `assets/` — old. The hunting pet's turn to face you never applies (`p.fx` on the player) — old |
 | redwolf-radness | builder | the player, the NPCs, the caption | all of it inline in index.html. A "Space: …" bubble shows from 4.5 tiles but Space works from 3 — old |
