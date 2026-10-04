@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
-import { tx } from './db.js';
+import { tx, fillDefaultAliases } from './db.js';
 import { DEFAULT_DAILY_TOKENS } from './budget.js';
 import { forbiddenCharKind } from './util/text.js';
 import { ensureAnnouncements } from './announcements.js';
@@ -109,7 +109,7 @@ export function deleteSession(db, token) {
 export function userForToken(db, token) {
   if (!token) return null;
   return db.prepare(
-    `SELECT u.id, u.email, u.display_name, u.admin, u.daily_tokens, u.created_at
+    `SELECT u.id, u.email, u.display_name, u.alias, u.admin, u.daily_tokens, u.created_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ? AND u.deleted = 0 AND u.studio_access = 1`,
   ).get(token) ?? null;
@@ -310,9 +310,10 @@ export function createUser(db, { email, password, displayName }, now = new Date(
     normalized, hashPassword(password), name, first ? 1 : 0,
     DEFAULT_DAILY_TOKENS, now.toISOString(),
   );
+  fillDefaultAliases(db);
   // The studio's first admin is who its announcements were made by.
   if (first) ensureAnnouncements(db, now.toISOString());
   return db.prepare(
-    'SELECT id, email, display_name, admin, daily_tokens, created_at FROM users WHERE id = ?',
+    'SELECT id, email, display_name, alias, admin, daily_tokens, created_at FROM users WHERE id = ?',
   ).get(info.lastInsertRowid);
 }

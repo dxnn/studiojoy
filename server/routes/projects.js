@@ -356,10 +356,13 @@ export function projectRoutes(r) {
   r.get('/api/projects/:slug/scores', (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx);
+    // `name` is the alias the board shows; `real` is the account's name, for
+    // the studio's own toggle — this origin, and never the other (alias.js).
     const scores = ctx.db
       .prepare(
-        `SELECT id, name, score, created_at FROM scores
-          WHERE project_id = ? ORDER BY score DESC, id`,
+        `SELECT s.id, s.name, u.display_name AS real, s.score, s.created_at
+           FROM scores s LEFT JOIN users u ON u.id = s.user_id
+          WHERE s.project_id = ? ORDER BY s.score DESC, s.id`,
       )
       .all(project.id);
     json(ctx.res, 200, { scores, scores_on: project.scores_on === 1 });

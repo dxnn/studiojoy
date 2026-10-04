@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, signIn, playerSignIn, startGames } from './helpers.js';
 import { MAX_SCORE_ROWS, SCORE_POSTS_PER_MINUTE } from '../server/scores.js';
+import { setAlias } from '../server/alias.js';
 
 // A studio plus its public listener, with Pat signed in as a player — a
 // score does not count without a sign-in now, and the name on the board is
-// the account's. Most tests raise the rate limit out of the way; the ones
-// about the rate limit use the default.
+// the account's alias, Ace. Most tests raise the rate limit out of the way;
+// the ones about the rate limit use the default.
 async function board(t, opts = { scoreRate: { max: 1000 } }) {
   const app = await setup();
   t.after(() => app.close());
@@ -14,18 +15,18 @@ async function board(t, opts = { scoreRate: { max: 1000 } }) {
   const games = await startGames(app, opts);
   t.after(() => games.close());
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank', slug: 'tank' } });
-  await playerSignIn(app, games);
+  await playerSignIn(app, games, { alias: 'Ace' });
   return { app, games };
 }
 
 // Two more players on their own cookie jars, for the tests about rank and
-// whose name lands on a row.
+// whose alias lands on a row: Sam is Rocket, Kim is Comet.
 async function morePlayers(app, games) {
   const sam = await playerSignIn(app, games, {
-    email: 'sam@example.com', displayName: 'Sam', client: games.newClient(),
+    email: 'sam@example.com', displayName: 'Sam', alias: 'Rocket', client: games.newClient(),
   });
   const kim = await playerSignIn(app, games, {
-    email: 'kim@example.com', displayName: 'Kim', client: games.newClient(),
+    email: 'kim@example.com', displayName: 'Kim', alias: 'Comet', client: games.newClient(),
   });
   return { sam, kim };
 }
@@ -34,7 +35,7 @@ const post = (games, body, client = games.client) =>
   client.json('POST', '/_scores/tank', { body });
 const top = (games, q = '') => games.client.json('GET', `/_scores/tank${q}`);
 
-test('scores post, rank, and come back best first under account names', async (t) => {
+test('scores post, rank, and come back best first under aliases', async (t) => {
   const { app, games } = await board(t);
   const { sam, kim } = await morePlayers(app, games);
 
@@ -50,9 +51,9 @@ test('scores post, rank, and come back best first under account names', async (t
   const { status, body } = await top(games);
   assert.equal(status, 200);
   assert.deepEqual(body.scores, [
-    { name: 'Sam', score: 250 },
-    { name: 'Pat', score: 100 },
-    { name: 'Kim', score: 100 },
+    { name: 'Rocket', score: 250 },
+    { name: 'Ace', score: 100 },
+    { name: 'Comet', score: 100 },
   ]);
 });
 
@@ -65,14 +66,14 @@ test('a post without a sign-in is refused and stores nothing', async (t) => {
   assert.deepEqual((await top(games)).body.scores, []);
 });
 
-test('the name is the account\'s; whatever the body says is ignored', async (t) => {
+test('the name is the account\'s alias; whatever the body says is ignored', async (t) => {
   const { games } = await board(t);
   const res = await post(games, { name: 'Forged McPhony', score: 5 });
   assert.equal(res.status, 201);
-  assert.deepEqual((await top(games)).body.scores, [{ name: 'Pat', score: 5 }]);
+  assert.deepEqual((await top(games)).body.scores, [{ name: 'Ace', score: 5 }]);
 });
 
-test('a long account name is squeezed to the board\'s width, not refused', async (t) => {
+test('an account that never picked an alias is on the board as its starting one', async (t) => {
   const { app, games } = await board(t);
   const wide = await playerSignIn(app, games, {
     email: 'wide@example.com',
@@ -80,22 +81,17 @@ test('a long account name is squeezed to the board\'s width, not refused', async
     client: games.newClient(),
   });
   assert.equal((await post(games, { score: 1 }, wide)).status, 201);
-  const { body } = await top(games);
-  assert.equal(body.scores[0].name.length, 24);
-  assert.equal(body.scores[0].name, 'Bartholomew Montgomery I');
+  const { id } = app.db.prepare('SELECT id FROM users WHERE email = ?').get('wide@example.com');
+  assert.deepEqual((await top(games)).body.scores, [{ name: `Alias ${id}`, score: 1 }]);
 });
 
-// Every door refuses these now; a name stored before the door checked still
-// reaches the board, and loses them on the way.
-test('a stored name loses its invisible characters on the board', async (t) => {
+test('a new alias moves the player\'s rows on the board with it', async (t) => {
   const { app, games } = await board(t);
-  // A bidi override, a zero-width space and a soft hyphen, as codepoints so
-  // no invisible byte sits in this file.
-  const [rlo, zwsp, shy] = [0x202e, 0x200b, 0x00ad].map((c) => String.fromCodePoint(c));
-  app.db.prepare('UPDATE users SET display_name = ? WHERE email = ?')
-    .run(`P${rlo}at${zwsp} ${shy}X`, 'pat@example.com');
-  assert.equal((await post(games, { score: 9 })).status, 201);
-  assert.deepEqual((await top(games)).body.scores, [{ name: 'Pat X', score: 9 }]);
+  await post(games, { score: 9 });
+  await post(games, { score: 3 });
+  const pat = app.db.prepare('SELECT * FROM users WHERE email = ?').get('pat@example.com');
+  setAlias(app.db, pat, 'Ace Again');
+  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Ace Again', 'Ace Again']);
 });
 
 test('the board answers ten by default and ?limit= is clamped, never an error', async (t) => {
@@ -164,7 +160,7 @@ test('a personal best is kept per player, above the board\'s pruning', async (t)
     { name: 'Pat', score: 60 },
   ], 'Pat\'s best survives being pruned off the board');
   const onBoard = await top(games, `?limit=${MAX_SCORE_ROWS}`);
-  assert.ok(onBoard.body.scores.every((s) => s.name === 'Sam'), 'the board itself moved on');
+  assert.ok(onBoard.body.scores.every((s) => s.name === 'Rocket'), 'the board itself moved on');
 });
 
 test('a bad score is a 400 that says why', async (t) => {
@@ -224,7 +220,7 @@ test('an archived game still keeps score, because it is still playable', async (
   await app.client.json('POST', '/api/projects/tank/archive', { body: {} });
 
   assert.equal((await post(games, { score: 7 })).status, 201);
-  assert.deepEqual((await top(games)).body.scores, [{ name: 'Pat', score: 7 }]);
+  assert.deepEqual((await top(games)).body.scores, [{ name: 'Ace', score: 7 }]);
 });
 
 // Per player, not per address: two siblings on one wifi each get their own
@@ -304,7 +300,7 @@ test('a switched-off scoreboard is 404 both ways, and keeps its rows', async (t)
   await app.client.json('PATCH', '/api/projects/tank', { body: { scores_on: true } });
   const back = await top(games);
   assert.equal(back.status, 200);
-  assert.deepEqual(back.body.scores, [{ name: 'Pat', score: 100 }]);
+  assert.deepEqual(back.body.scores, [{ name: 'Ace', score: 100 }]);
 });
 
 test('the studio lists and clears scores, and cannot delete one', async (t) => {
@@ -316,7 +312,9 @@ test('the studio lists and clears scores, and cannot delete one', async (t) => {
 
   const list = await app.client.json('GET', '/api/projects/tank/scores');
   assert.equal(list.status, 200);
-  assert.deepEqual(list.body.scores.map((s) => s.name), ['Sam', 'Pat', 'Kim'], 'best first');
+  assert.deepEqual(list.body.scores.map((s) => s.name), ['Rocket', 'Ace', 'Comet'], 'best first');
+  // The studio may see who is behind an alias; the games origin never says.
+  assert.deepEqual(list.body.scores.map((s) => s.real), ['Sam', 'Pat', 'Kim'], 'and whose');
   assert.ok(list.body.scores.every((s) => s.id && s.created_at), 'ids and times, for the admin');
 
   // One row cannot be picked off the board: there is no route behind it.
@@ -324,7 +322,7 @@ test('the studio lists and clears scores, and cannot delete one', async (t) => {
   const one = await app.client.request('DELETE', `/api/projects/tank/scores/${pat.id}`);
   assert.equal(one.status, 404);
   await one.text();
-  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Sam', 'Pat', 'Kim']);
+  assert.deepEqual((await top(games)).body.scores.map((s) => s.name), ['Rocket', 'Ace', 'Comet']);
 
   const cleared = await app.client.request('DELETE', '/api/projects/tank/scores');
   assert.equal(cleared.status, 204);

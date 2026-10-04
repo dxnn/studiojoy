@@ -1139,6 +1139,16 @@ export function dialogFor(d) {
           }).then(paint),
         });
         name.value = person.display_name;
+        // What every scoreboard shows instead of the name — set here for a
+        // player, who has no studio to set their own in.
+        const alias = h('input', {
+          title: 'Their alias: what every scoreboard shows instead of their name',
+          'aria-label': `${person.display_name}’s alias`,
+          onchange: () => studioChange('PATCH', `/users/${person.id}`, {
+            alias: alias.value.trim(),
+          }).then(paint),
+        });
+        alias.value = person.alias;
         const allowance = h('input', {
           type: 'number', min: '0', class: 'cfg-num',
           placeholder: 'no limit',
@@ -1173,6 +1183,7 @@ export function dialogFor(d) {
         // what leaving means. There is no route behind it either (spec.md §11).
         return h('div', { class: 'person' },
           name,
+          alias,
           // The address is what they sign in with, and the one thing on the
           // row that tells two people with the same name apart.
           h('span', { class: 'hint muted mono', title: 'Signs in as', text: person.email }),
@@ -1191,7 +1202,7 @@ export function dialogFor(d) {
             }).then(paint),
           }),
           // The toggle between the two kinds of account. Off, they sign in on
-          // the games site and their scores wear their name — the studio's
+          // the games site and their scores wear their alias — the studio's
           // door, crew list and games say nothing about them. The server
           // refuses to take the studio from an admin.
           h('button', {
@@ -1272,10 +1283,37 @@ export function dialogFor(d) {
     if (!S.admin) loadStudio().then(paint);
     paint();
     return wide('Studio settings',
-      h('p', { class: 'hint muted', text: 'In the studio means reading every game and talking in every “Humans only”; games only means playing and posting scores under their name. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
+      h('p', { class: 'hint muted', text: 'The second box is their alias, which every scoreboard shows instead of their name. In the studio means reading every game and talking in every “Humans only”; games only means playing and posting scores under their alias. A daily limit is how many tokens that person’s helpers may spend; leave it empty for no limit of their own.' }),
       box,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
+  }
+
+  // Your own settings, from your name in the sidebar's bottom row. Only the
+  // alias so far: the name every scoreboard shows, and the only one the games
+  // site ever says. A player without the studio has no way here, and asks an
+  // admin — a route on the games site would be one any game could call.
+  if (d.kind === 'me') {
+    const alias = h('input', { maxlength: '24' });
+    alias.value = S.me.alias ?? '';
+    const err = h('p', { class: 'error' });
+    return wrap('Your settings',
+      h('label', { text: 'Your alias' }), alias,
+      h('p', {
+        class: 'hint muted',
+        text: 'Every scoreboard shows this instead of your name, and the games site never says your name at all. Anything but your real name — and nobody else can have the same one.',
+      }),
+      err,
+      h('div', { class: 'actions' }, cancel, h('button', {
+        class: 'filled', text: 'Save',
+        onclick: async () => {
+          const res = await api('PATCH', '/api/me', { alias: alias.value });
+          if (!res.ok) { err.textContent = res.body?.error ?? 'Could not change it.'; return; }
+          S.me.alias = res.body.alias;
+          close();
+          say(`Every scoreboard calls you ${res.body.alias} now.`);
+        },
+      })));
   }
 
   // Publishing is one click away in the bar, so the button there is a status

@@ -54,11 +54,13 @@ export const scoresOn = () => S.project.scores_on !== false && S.project.scores_
 
 // The board itself, rows or the reason there are none. Share's section and
 // the rail's summary paint from this: two lists of the same scores that could
-// disagree is two lists to keep right.
+// disagree is two lists to keep right. Each row is its alias, as everywhere,
+// or the person behind it when the studio has asked (`real` comes only from
+// the studio origin's own route).
 export function renderScoreList() {
   const rows = (S.scores ?? []).map((s, i) => h('div', { class: 'score-row' },
     h('span', { class: 'rank', text: `#${i + 1}` }),
-    h('span', { class: 'sname', text: s.name }),
+    h('span', { class: 'sname', text: S.realNames && s.real ? s.real : s.name }),
     h('span', { class: 'sval mono', text: s.score.toLocaleString() }),
     h('span', { class: 'swhen', text: agoText(s.created_at) })));
   return rows.length ? h('div', { class: 'score-list' }, ...rows) : h('div', {
@@ -77,6 +79,12 @@ export function renderScoreboardTab() {
         text: on ? 'Turn the scoreboard off' : 'Turn the scoreboard back on',
         onclick: () => toggleScores(!on),
       }),
+      // A link: it changes how the list reads, not the board.
+      S.scores?.length ? h('button', {
+        class: 'link',
+        text: S.realNames ? 'Show aliases' : 'Show real names',
+        onclick: () => { S.realNames = !S.realNames; render(); },
+      }) : null,
       h('div', { class: 'spacer' }),
       S.scores?.length ? h('button', {
         class: 'danger tiny', text: 'Delete all scores',

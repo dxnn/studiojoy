@@ -38,7 +38,7 @@
 ### Who may change what
 
 The studio has exactly one role: `users.admin`, which is about running the
-studio — accounts, names, passwords, allowances, the studio-wide budget — and
+studio — accounts, names, aliases, passwords, allowances, the studio-wide budget — and
 nothing about games. An admin has no more right to somebody's game than
 anybody else; authorship is a separate question with a separate answer. The
 one room it does decide is the studio's **announcements** (§3): only an admin
@@ -50,9 +50,11 @@ before the bit existed — gets you into the studio and lets you **read** all
 of it: every game, every version, every conversation, every file. That is
 deliberate — the studio's people are a handful who know each other, and a
 studio where you cannot see how somebody's game works is not a studio. A
-player account has none of that: it is a name on scoreboards and a games-
+player account has none of that: it is an alias on scoreboards and a games-
 origin login, and inside the studio it exists only as a row in the admin
-panel, where the toggle can make it either kind.
+panel, where the toggle can make it either kind. An alias is anybody's own to
+change from the studio and an admin's to change for anybody — so a player's
+is an admin's — and nobody's from the games origin (§3, §7).
 
 **Changing** a game takes being one of its **authors** — the person who made
 it, plus anyone an author has added — or the game being **open**, which its

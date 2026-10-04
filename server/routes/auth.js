@@ -6,6 +6,7 @@ import {
   deleteSession, sessionCookie, clearedSessionCookie, parseCookies,
   requireAuth, SESSION_COOKIE, MAX_EMAIL_CHARS,
 } from '../auth.js';
+import { setAlias } from '../alias.js';
 import { clientIp } from './helpers.js';
 
 export function authRoutes(r) {
@@ -93,6 +94,7 @@ export function authRoutes(r) {
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      alias: user.alias,
       // The studio's only role, so the interface knows whether to offer the
       // panel. Every route behind it checks for itself.
       admin: user.admin === 1,
@@ -102,5 +104,16 @@ export function authRoutes(r) {
       spent_today: userSpentToday(ctx.db, user.id),
       games_url: ctx.gamesUrl,
     });
+  });
+
+  // Your own settings: today only the alias. ⚠️ Here and in the admin panel,
+  // and nowhere on the games origin — a route there would be one any game's
+  // code could call with a signed-in player's cookie attached (spec/ §7), so
+  // a player without the studio asks an admin instead.
+  r.patch('/api/me', async (ctx) => {
+    const user = requireAuth(ctx);
+    const body = await readJson(ctx.req);
+    if (body.alias === undefined) throw new HttpError(400, 'nothing to change');
+    json(ctx.res, 200, { alias: setAlias(ctx.db, user, body.alias) });
   });
 }

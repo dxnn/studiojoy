@@ -162,7 +162,7 @@ const card = (g) => {
 
 export function catalogPage({ games, player = null }) {
   const who = player
-    ? `<span class="me">${escapeHtml(player.display_name)}</span>
+    ? `<span class="me">${escapeHtml(player.alias)}</span>
       <button id="signout" class="quiet">Sign out</button>`
     : `<button id="signin-go">Sign in</button>
       <button id="join-go" class="quiet">Ask to join</button>`;
@@ -190,7 +190,7 @@ export function catalogPage({ games, player = null }) {
   <dialog id="signup">
     <form method="dialog">
       <h2>Ask to join</h2>
-      <p class="hint">Your name is what the scoreboards will show.</p>
+      <p class="hint">Only the studio sees your name. The scoreboards show an alias instead — ask whoever lets you in for the one you want.</p>
       <label for="su-name">Your name</label>
       <input id="su-name" maxlength="100" required>
       <label for="su-email">Email</label>
@@ -292,7 +292,7 @@ export function catalogPage({ games, player = null }) {
     </header>
     <p class="tag">Games made by us. Click one and play it.</p>
     ${games.length ? `<ul>\n      ${cards}\n    </ul>` : '<p class="empty">No games yet.</p>'}
-    ${player ? '' : '<p class="note">Sign in and every score you get goes on the board under your name — and each game here says how you are doing.</p>'}
+    ${player ? '' : '<p class="note">Sign in and every score you get goes on the board under your alias — and each game here says how you are doing.</p>'}
   </main>
 
   ${dialogs}
@@ -413,7 +413,7 @@ export function playersPage({
     <header>
       <a class="home" href="/">${BRAND}</a>
       <span class="space"></span>
-      ${player ? `<span class="me">${escapeHtml(player.display_name)}</span>` : ''}
+      ${player ? `<span class="me">${escapeHtml(player.alias)}</span>` : ''}
     </header>
     <h2 class="game"><a href="/${slug}/">${name}</a></h2>
     <p class="tag">Everyone who has played, and how they did.</p>

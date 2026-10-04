@@ -211,6 +211,15 @@ export function createGamesApp({
   // other studio-authored path here, so none of them can ever be shadowed by
   // a game's slug (checkSlug forbids `_`).
   r.get('/_manifest.json', (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'games-manifest.json')));
+  // Nothing here is for a search engine: the games are for the people who
+  // were sent the link, and the boards were never meant to be read by the
+  // whole internet (ideas/scoreboard-trust.md). An unlinked hostname is not a
+  // hidden one — a certificate puts it in public logs. Not underscored, since
+  // a crawler only ever asks this one path, and no slug can hold a dot.
+  r.get('/robots.txt', (ctx) => {
+    ctx.res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    ctx.res.end(ctx.req.method === 'HEAD' ? undefined : 'User-agent: *\nDisallow: /\n');
+  });
   r.get('/_sw.js', (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'sw.js')));
   for (const name of ['icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png']) {
     r.get(`/_icons/${name}`, (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'icons', name)));
@@ -222,8 +231,8 @@ export function createGamesApp({
   // off — a moderated board is not public in either direction, the same rule
   // as both _scores routes — and the trophies stay, because earned is forever.
   // The viewer's own rows are marked, which is the only thing the player
-  // cookie does here. Removed accounts are joined out; rows posted before the
-  // sign-in carry their own name and no user, and show as they were posted.
+  // cookie does here. Removed accounts are joined out. Everybody is their
+  // alias, never their name (alias.js).
   r.get('/:slug/_players', async (ctx) => {
     const game = gameForSlug(ctx.params.slug);
     const player = currentPlayer(ctx);
@@ -236,14 +245,14 @@ export function createGamesApp({
       : [];
     const bests = on
       ? db.prepare(
-        `SELECT b.user_id, b.score, u.display_name AS name
+        `SELECT b.user_id, b.score, u.alias AS name
            FROM personal_bests b JOIN users u ON u.id = b.user_id
           WHERE b.project_id = ? AND u.deleted = 0
           ORDER BY b.score DESC, b.created_at LIMIT 500`,
       ).all(game.id)
       : [];
     const holders = db.prepare(
-      `SELECT a.achievement, a.user_id, u.display_name AS name
+      `SELECT a.achievement, a.user_id, u.alias AS name
          FROM achievements a JOIN users u ON u.id = a.user_id
         WHERE a.project_id = ? AND u.deleted = 0
         ORDER BY a.created_at LIMIT 2000`,
@@ -260,11 +269,12 @@ export function createGamesApp({
 
   // Who is signed in, for game code: {user: {name}} or {user: null}, never
   // an error — a game asking is how it decides whether to offer the sign-in
-  // link or post the score.
+  // link or post the score. ⚠️ `name` carries the alias: every game and the
+  // screens library read that key, so the key stays and its value changed.
   r.get('/_me', (ctx) => {
     const player = currentPlayer(ctx);
     ctx.res.setHeader('Cache-Control', 'no-store');
-    json(ctx.res, 200, { user: player ? { name: player.display_name } : null });
+    json(ctx.res, 200, { user: player ? { name: player.alias } : null });
   });
 
   // The same accounts as the studio, deliberately not the same session: what
@@ -287,7 +297,7 @@ export function createGamesApp({
     }
 
     const user = db
-      .prepare('SELECT id, display_name, password_hash FROM users WHERE email = ? AND deleted = 0')
+      .prepare('SELECT id, alias, password_hash FROM users WHERE email = ? AND deleted = 0')
       .get(email);
     const ok = user
       ? verifyPassword(password, user.password_hash)
@@ -302,7 +312,7 @@ export function createGamesApp({
     emailLockout.succeed(email);
     const token = createPlayerSession(db, user.id);
     ctx.res.setHeader('Set-Cookie', playerCookie(token, { secure: secureCookies }));
-    json(ctx.res, 200, { user: { name: user.display_name } });
+    json(ctx.res, 200, { user: { name: user.alias } });
   });
 
   r.post('/_logout', (ctx) => {

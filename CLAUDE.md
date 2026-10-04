@@ -137,6 +137,10 @@ walk into, each paid for once already.
 - ⚠️ Two headers on the catalog are load-bearing — `frame-ancestors 'none'`
   and `COOP: same-origin` — because a password form now shares an origin with
   LLM-written game code.
+- ⚠️ The games origin never says an account's name, only its **alias**
+  (`server/alias.js`, spec/ §7): a player there is an id and an alias and
+  nothing more, and no route there changes either, since any game's code
+  could drive it with its player's cookie. The wire key is still `name`.
 - Write-and-commit is serialised per project through `files/mutex.js`.
 - ⚠️ A save is written at once and committed later, as the project's **pending
   commit** (`files/pending.js`, spec/ §5). Anything that commits directly, or

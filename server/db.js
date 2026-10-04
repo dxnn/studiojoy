@@ -458,8 +458,25 @@ export function openDb(dbPath) {
   // pattern as projects.open_edit.
   addColumnIfMissing(db, 'users', 'studio_access', 'INTEGER NOT NULL DEFAULT 1');
   // Who posted a score, now that posting takes being signed in. Null on every
-  // row from before — those names were typed and are kept as typed.
+  // row from before, and those rows went when aliases came (below).
   addColumnIfMissing(db, 'scores', 'user_id', 'INTEGER REFERENCES users');
+  // The name every scoreboard shows, and the only one the games origin ever
+  // says (server/alias.js, spec/ §3). Arriving, it takes account names off
+  // every board: a signed-in player's rows carry a copy of the name, which
+  // becomes the alias, and the rows from before the sign-in — names typed by
+  // whoever played, with no account to give an alias — are deleted.
+  addColumnIfMissing(db, 'users', 'alias', 'TEXT', (d) => tx(d, () => {
+    fillDefaultAliases(d);
+    d.prepare(
+      `UPDATE scores SET name = (SELECT alias FROM users u WHERE u.id = scores.user_id)
+        WHERE user_id IS NOT NULL`,
+    ).run();
+    d.prepare('DELETE FROM scores WHERE user_id IS NULL').run();
+  }));
+  // On every boot as well as the first: an account made by a path that forgot
+  // still comes up with an alias rather than a hole on a board.
+  fillDefaultAliases(db);
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_alias ON users (alias COLLATE NOCASE)');
   // On, any account in the studio may change this project; off, only its
   // authors. The column's default is the safe one, and every game a person
   // makes overrides it to open at the INSERT — a database written before this
@@ -723,6 +740,13 @@ export function tx(db, fn) {
   } finally {
     inTx.delete(db);
   }
+}
+
+// Every account without an alias gets its starting one, `Alias <id>` — the
+// words alias.js keeps for that account alone. Called wherever a `users` row
+// is made, and on every boot.
+export function fillDefaultAliases(db) {
+  db.prepare("UPDATE users SET alias = 'Alias ' || id WHERE alias IS NULL").run();
 }
 
 export function addColumnIfMissing(db, table, column, spec, onAdded) {

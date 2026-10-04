@@ -1,6 +1,5 @@
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';
-import { stripForbidden } from './util/text.js';
 
 // The scoreboard: the games origin's one write (spec.md §6). Posting takes
 // being signed in now, and the name on the row is the account's — but every
@@ -12,7 +11,6 @@ import { stripForbidden } from './util/text.js';
 // LLM-written game code, which is no secret. What signing in ends is the
 // name being anybody's — a forged score is an accepted cost, a forged
 // person is not (ideas/next-five.md).
-const MAX_NAME_CHARS = 24;
 export const MAX_SCORE_ROWS = 100; // rows kept per game, best first
 const DEFAULT_TOP = 10;
 export const SCORE_POSTS_PER_MINUTE = 10;
@@ -36,18 +34,14 @@ export function topScores(db, projectId, rawLimit) {
 // Returns the entry's rank, or null when it did not make the board. Bigger
 // is always better; a game that counts time down posts the negative.
 //
-// The name is the player's own and nothing in the body can change it — a
-// body that still carries one (every game from before) has it ignored, which
-// is kinder than failing the games that already work. It is squeezed to the
-// board's width here rather than refused: the account's name was validated
-// when it was made, and a scoreboard is no place to bounce somebody for the
-// length of their name. Still bounded on the way out, and stripped of the
-// control and format characters every door now refuses — a name from before
-// the door checked could carry a bidi override, which reads as another name
-// on a board a game renders (the preamble says textContent, never innerHTML).
+// The name on the row is the player's alias and nothing in the body can
+// change it — a body that still carries one (every game from before) has it
+// ignored, which is kinder than failing the games that already work. The
+// alias was checked at its one door (alias.js): the board's width, and none
+// of the characters that read as another name. The row keeps a copy so a
+// board is one read, and setAlias moves the copies with it.
 export function submitScore(db, projectId, player, body, now = new Date()) {
-  const name = stripForbidden(player.display_name)
-    .trim().slice(0, MAX_NAME_CHARS).trimEnd() || 'Player';
+  const name = player.alias;
   const { score } = body;
   if (!Number.isSafeInteger(score)) {
     throw new HttpError(400, 'score must be a whole number');

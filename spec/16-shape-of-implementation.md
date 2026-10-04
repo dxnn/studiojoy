@@ -18,6 +18,7 @@ server/
   db.js           MIGRATIONS array + addColumnIfMissing + tx()
   auth.js         scrypt, studio sessions, requireAuth, remove/restore account
   players.js      the player cookie, player_sessions, the waiting list
+  alias.js        an account's alias: the one door that checks and sets it
   authors.js      who may change a game: canEdit, requireAuthor (§11)
   chats.js        a conversation inside a project; requireChat,
                   assertBotsAllowed, and the per-chat caps

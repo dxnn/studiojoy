@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { HttpError } from './http/respond.js';
-import { tx } from './db.js';
+import { tx, fillDefaultAliases } from './db.js';
 import { forbiddenCharKind } from './util/text.js';
 import {
   hashPassword, normalizeEmail, parseCookies,
@@ -39,10 +39,14 @@ export function deletePlayerSession(db, token) {
 // Any account that is still in — studio access or not — is a player. The age
 // check is the expiry: the cookie's Max-Age matches it, but a copied token
 // has no cookie jar, so the row itself has to age out.
+//
+// ⚠️ A player is an id and an alias, and never the account's name: this is
+// the games origin's whole idea of who somebody is, so nothing there can say
+// a name it was never handed (server/alias.js, spec/ §7).
 export function playerForToken(db, token, now = new Date()) {
   if (!token) return null;
   const row = db.prepare(
-    `SELECT u.id, u.display_name, s.created_at
+    `SELECT u.id, u.alias, s.created_at
        FROM player_sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ? AND u.deleted = 0`,
   ).get(token);
@@ -51,7 +55,7 @@ export function playerForToken(db, token, now = new Date()) {
     deletePlayerSession(db, token);
     return null;
   }
-  return { id: row.id, display_name: row.display_name };
+  return { id: row.id, alias: row.alias };
 }
 
 export function currentPlayer(ctx) {
@@ -141,6 +145,7 @@ export function approveSignup(db, signupId, adminId, now = new Date()) {
       `INSERT INTO users (email, password_hash, display_name, admin, studio_access, created_at)
        VALUES (?, ?, ?, 0, 0, ?)`,
     ).run(signup.email, signup.password_hash, signup.display_name, now.toISOString());
+    fillDefaultAliases(db);
     db.prepare(
       `UPDATE signups SET approved_by = ?, approved_at = ?, approved_user_id = ?
         WHERE id = ?`,

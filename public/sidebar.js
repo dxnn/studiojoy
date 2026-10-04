@@ -111,7 +111,12 @@ export function renderSidebar() {
           : crewRows(matches)),
     h('div', { class: 'who' },
       h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
-      h('div', { class: 'name', text: S.me.display_name }),
+      // Your own settings — the alias, for now — behind your own name.
+      h('button', {
+        class: 'name', text: S.me.display_name,
+        title: `Your settings. Scoreboards call you ${S.me.alias}.`,
+        onclick: () => { S.dialog = { kind: 'me' }; render(); },
+      }),
       bell(),
       h('button', {
         class: 'quiet tiny', text: 'Sign out',

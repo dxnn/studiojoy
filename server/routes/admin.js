@@ -13,6 +13,7 @@ import {
   requireAuth, createUser, setPassword, normalizeEmail, isLastAdmin, MIN_PASSWORD_CHARS,
 } from '../auth.js';
 import { waitingSignups, approveSignup, refuseSignup } from '../players.js';
+import { setAlias } from '../alias.js';
 import { requireString, optionalBool } from './helpers.js';
 import { forbiddenCharKind } from '../util/text.js';
 import {
@@ -42,6 +43,7 @@ const personPublic = (db, row) => ({
   id: row.id,
   email: row.email,
   display_name: row.display_name,
+  alias: row.alias,
   admin: row.admin === 1,
   studio_access: row.studio_access === 1,
   daily_tokens: row.daily_tokens ?? null,
@@ -107,8 +109,8 @@ export function adminRoutes(r) {
     json(ctx.res, 201, personPublic(ctx.db, row));
   });
 
-  // Rename, set an allowance, make somebody an admin, change a password. Each
-  // field is optional; what is absent is left alone.
+  // Rename, set an alias, set an allowance, make somebody an admin, change a
+  // password. Each field is optional; what is absent is left alone.
   r.patch('/api/admin/users/:id', async (ctx) => {
     requireAdmin(ctx);
     const id = Number(ctx.params.id);
@@ -122,6 +124,12 @@ export function adminRoutes(r) {
       const unprintable = forbiddenCharKind(name);
       if (unprintable) throw new HttpError(400, `display_name has ${unprintable} in it`);
       ctx.db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(name, id);
+    }
+    // After the name, so an alias is checked against the name it will sit
+    // beside. The same door as the person's own (alias.js) — an admin may set
+    // anybody's, which is how a player without the studio gets one.
+    if (body.alias !== undefined) {
+      setAlias(ctx.db, ctx.db.prepare('SELECT * FROM users WHERE id = ?').get(id), body.alias);
     }
     const tokens = optionalTokens(body.daily_tokens, 'daily_tokens');
     if (tokens !== undefined) {

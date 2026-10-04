@@ -10,15 +10,32 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `id` | INTEGER PK | |
 | `email` | TEXT UNIQUE NOT NULL | login handle |
 | `password_hash` | TEXT NOT NULL | scrypt, includes salt + params |
-| `display_name` | TEXT NOT NULL | shown in UI and used as the git author name; ≤ 100 chars, and every door that sets one refuses the path validator's control and format characters (§4) — it is a scoreboard name |
+| `display_name` | TEXT NOT NULL | shown in the studio and used as the git author name; ≤ 100 chars, and every door that sets one refuses the path validator's control and format characters (§4). ⚠️ Never said by the games origin — that is `alias` |
+| `alias` | TEXT, unique `COLLATE NOCASE` | what every scoreboard shows and the only name the games origin says; `Alias <id>` until somebody picks one (`server/alias.js`) |
 | `created_at` | TEXT NOT NULL | |
 
 A row here is an account, and it comes in two kinds: with `studio_access = 1`
 (and `deleted = 0`) it is **studio access** — the studio's door opens to it —
 and with the bit off it is a **player account**: the games origin signs it in,
-its scores wear its name (§6), and every studio door is shut. Every account
+its scores wear its alias (§6), and every studio door is shut. Every account
 from before the bit existed is a studio one; what the waiting list makes is a
 player.
+
+⚠️ **The alias is the account's public name, and the name never crosses.**
+Every account is made holding `Alias <id>` (`fillDefaultAliases`, at both
+places a row is made and on every boot); ids are never reused, so that is
+unique by construction. A person changes theirs from their own name in the
+studio's sidebar (`PATCH /api/me`), an admin anybody's in the panel — so a
+player, who has no studio, asks an admin — and both go through one door,
+`setAlias`, which refuses: nothing, more than 24 characters (a board row's
+width), the control and format characters names refuse, the person's own
+name or its first word, `Alias <n>` for anybody's `n` but their own, and one
+another account already holds, ignoring case. A guard, not a wall: `Sam123`
+goes through. There is no route for it on the games origin: one there could
+be called by any game's code with a signed-in player's cookie attached (§7).
+Arriving (2026-10-04), the column rewrote every signed-in player's board rows
+to `Alias <id>` and deleted the rows from before sign-in, which held typed
+names and had no account to give an alias.
 
 ⚠️ **Taking somebody out of the studio never deletes the row.** It sets
 `deleted = 1` and drops their sessions, and touches nothing else. Their
@@ -41,9 +58,7 @@ for.** It also takes every board row they posted, their personal bests and
 their achievements (`removePlayerScores` in `server/scores.js`), so a removed
 player leaves every board at once rather than row by row in each game's
 panel. `restoreuser` brings the account back and none of those; a backup is
-the only way to them. A score from before posting took signing in has no
-`user_id`, only a typed name, and stays. The flag also works on somebody
-already removed.
+the only way to them. The flag also works on somebody already removed.
 
 The bit is read on one side of a single line. **Access** minds it: the login
 lookup, `userForToken`, `GET /api/users`, the admin panel's list, resolving an
@@ -100,7 +115,7 @@ take both kinds, the toggle only the studio's.
 |---|---|---|
 | `id` | INTEGER PK | |
 | `email` | TEXT UNIQUE NOT NULL | |
-| `display_name` | TEXT NOT NULL | ≤ 100 chars, no control or format characters (the path validator's class, §4) — it will be a scoreboard name |
+| `display_name` | TEXT NOT NULL | ≤ 100 chars, no control or format characters (the path validator's class, §4) — the account's name, which only the studio sees; the account starts with `Alias <id>` on the boards |
 | `password_hash` | TEXT NOT NULL | scrypt, hashed at sign-up so approval needs nobody present |
 | `created_at` | TEXT NOT NULL | |
 | `approved_by` / `approved_at` / `approved_user_id` | | who let them in, when, and the account it made |
@@ -647,16 +662,15 @@ sending what the canvas measures.
 |---|---|---|
 | `id` | INTEGER PK | ties rank by it: earlier post wins |
 | `project_id` | INTEGER NOT NULL → projects | |
-| `user_id` | INTEGER → users | who posted it; NULL on every row from before sign-in existed |
-| `name` | TEXT NOT NULL | the poster's account name, squeezed to 24 chars, control and format characters stripped — the doors refuse them now, the strip covers names stored before they did |
+| `user_id` | INTEGER → users | who posted it; nullable only because the column came later — the rows from before sign-in went when aliases came (`users`) |
+| `name` | TEXT NOT NULL | a copy of the poster's **alias**, so a board is one read; `setAlias` moves the copies with it |
 | `score` | INTEGER NOT NULL | a JS-safe integer; bigger is better |
 | `created_at` | TEXT NOT NULL | |
 
 A game's scoreboard, posted **by a signed-in player** from inside the running
-game and served back by the games origin (§6). The name is the account's —
-whatever a body still carries is ignored, which keeps every game written
-before the sign-in working the moment its player signs in. Rows from before
-keep the names they were posted under, `user_id` NULL. Pruned to the best 100
+game and served back by the games origin (§6). The name is the account's
+alias — whatever a body still carries is ignored, which keeps every game
+written before the sign-in working the moment its player signs in. Pruned to the best 100
 per project on every insert, so the table is bounded by construction — and a
 post a full board already outranks is answered `rank: null` without being
 written, the personal best still raised. It

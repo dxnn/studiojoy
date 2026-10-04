@@ -42,11 +42,23 @@ studio frames games, never the catalog, so nothing legitimate breaks) and
 `Cross-Origin-Opener-Policy: same-origin`, which severs the opener handle so
 `window.open('/')` from a game hands back a window it cannot touch. What a
 game *can* still do is drive the three authenticated routes with its
-player's cookie — post a score as them, read their first name at `/_me`,
+player's cookie — post a score as them, read their alias at `/_me`,
 log them out — which is the accepted floor: a game already speaks for its
 player, and the token opens nothing anywhere else. The player cookie is
 `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Max-Age` 90 days, like
 the studio's but expiring (§11).
+
+⚠️ **The games origin never says an account's name — only its alias** (§3).
+The boundary is drawn in the data rather than in each page: what this origin
+knows of a signed-in player is an id and an alias (`playerForToken`), board
+rows hold the alias, and the players page joins aliases, so there is no name
+here for a page or a game to leak. The studio says the name, as it always
+did. The floor above is also why an alias is changed only on the studio
+origin: a route here would be one more door every game could drive with its
+player's cookie, and *rename this player* is not a door to leave a game. A
+test walks every answer this origin gives about people and looks for the
+name in each (`test/alias.test.js`). `robots.txt` asks every crawler to stay
+out, since an unlinked hostname is in certificate logs all the same.
 
 ⚠️ Nor is the cookie scoped to the game that is open. Every game shares this
 origin, so game A can post to game B's board as its player — and no credential

@@ -31,9 +31,3 @@ export function forbiddenCharKind(s) {
   }
   return null;
 }
-
-// The same characters taken out rather than refused, for a name that was
-// stored before the door checked.
-export function stripForbidden(s) {
-  return [...s].filter((ch) => forbiddenCharKind(ch) === null).join('');
-}

@@ -49,7 +49,27 @@ play it again — done in a minute instead of a sitting.
 
 ## 1. Who the public sees
 
-**Status: discussing.**
+**Status: built 2026-10-04.** spec/ §3 and §7 are the record now.
+
+### Decided
+
+- **Aliases**, not code names or initials. Every board shows the alias,
+  public and studio alike; the games origin never says an account's name; the
+  studio's chats keep the name. A studio scoreboard can be flipped to show
+  real names.
+- **Typed by the person**, defaulting to `Alias <n>` with `n` the account's
+  id (never reused: `AUTOINCREMENT`, and accounts are never deleted). Admins
+  set one in the panel like a name.
+- **Changed only from the studio** — your own name in the sidebar's bottom
+  row opens *Your settings* — never from the front page. A player asks an
+  admin.
+- **Unique**, ignoring case; **not your own name** or its first word.
+- **The rows from before sign-in are deleted**: typed names, no account to
+  give an alias. Only `bloop-s-quest` called the board before sign-in landed
+  (2026-08-31, one day before), so at most a day of one game's rows.
+- `robots.txt` disallows everything on the games origin.
+
+What follows is the sketch as it stood before these answers.
 
 ### What is public today (checked 2026-10-04)
 

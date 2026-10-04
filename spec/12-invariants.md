@@ -12,6 +12,9 @@ Tests enforce each of these.
   and achievements; its writes are
   scoreboard, personal-best, achievement and waiting-list rows: bounded
   tables, never a working tree. ⚠️
+- The games origin never says an account's `display_name` — only its
+  `alias`, on every board, page and answer about a person — and has no route
+  that changes either (§3, §7). ⚠️
 - An `achievements` row is never deleted by any route, and the definitions
   behind it live only in the game's `config/achievements.js`, read per request
   and never in a table: removing a definition hides its rows, it does not drop

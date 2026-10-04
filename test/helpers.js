@@ -9,6 +9,7 @@ import { createBroker } from '../server/broker.js';
 import { createMutex } from '../server/files/mutex.js';
 import { createPending } from '../server/files/pending.js';
 import { createUser } from '../server/auth.js';
+import { setAlias } from '../server/alias.js';
 
 // Fixtures live in the OS temp directory, not the repo. Two reasons: a test
 // run shouldn't leave anything in the working tree, and the development
@@ -263,12 +264,12 @@ export async function signIn(fixture, {
 // is new; pass `client: games.newClient()` for a second player on their own
 // cookie jar. The account is a studio one — the games origin takes any kind.
 export async function playerSignIn(fixture, games, {
-  email = 'pat@example.com', password = 'hunter2', displayName = 'Pat',
+  email = 'pat@example.com', password = 'hunter2', displayName = 'Pat', alias,
   client = games.client,
 } = {}) {
-  if (!fixture.db.prepare('SELECT id FROM users WHERE email = ?').get(email)) {
-    createUser(fixture.db, { email, password, displayName });
-  }
+  const user = fixture.db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+    ?? createUser(fixture.db, { email, password, displayName });
+  if (alias) setAlias(fixture.db, user, alias);
   const res = await client.post('/_login', { email, password });
   if (res.status !== 200) throw new Error(`player login failed: ${res.status}`);
   await res.text();

@@ -29,6 +29,9 @@ test('a player signs in, is somebody at /_me, and signs out', async (t) => {
   assert.deepEqual(nobody.body, { user: null });
   assert.equal(nobody.headers.get('cache-control'), 'no-store');
 
+  // Somebody here is their alias, never their name — and the key a game
+  // reads is still `name`, so no game had to change.
+  await app.client.json('PATCH', '/api/me', { body: { alias: 'Captain' } });
   const res = await games.client.request('POST', '/_login', {
     body: { email: 'dann@example.com', password: 'hunter2' },
   });
@@ -38,10 +41,10 @@ test('a player signs in, is somebody at /_me, and signs out', async (t) => {
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /SameSite=Lax/);
   assert.match(cookie, /Max-Age=/, 'player sessions expire');
-  assert.deepEqual(await res.json(), { user: { name: 'Dann' } });
+  assert.deepEqual(await res.json(), { user: { name: 'Captain' } });
 
   const somebody = await games.client.json('GET', '/_me');
-  assert.deepEqual(somebody.body, { user: { name: 'Dann' } });
+  assert.deepEqual(somebody.body, { user: { name: 'Captain' } });
 
   const out = await games.client.request('POST', '/_logout', { body: {} });
   assert.equal(out.status, 204);
@@ -232,14 +235,16 @@ test('approval makes a player account: games origin yes, studio no', async (t) =
   assert.equal(approved.status, 201);
   assert.equal(approved.body.studio_access, false);
   assert.equal(approved.body.admin, false);
+  assert.equal(approved.body.alias, `Alias ${approved.body.id}`, 'born with its starting alias');
 
-  // The password they chose at sign-up works on the games origin…
+  // The password they chose at sign-up works on the games origin, which
+  // knows them by that alias and never by the name they typed…
   const robin = games.newClient();
   const play = await robin.json('POST', '/_login', {
     body: { email: 'robin@example.com', password: 'secret7' },
   });
   assert.equal(play.status, 200);
-  assert.deepEqual(play.body, { user: { name: 'Robin Fox' } });
+  assert.deepEqual(play.body, { user: { name: `Alias ${approved.body.id}` } });
 
   // …and not on the studio, whose crew list does not know them.
   const studio = app.newClient();
@@ -322,10 +327,11 @@ test('the catalog signs its player in and out, and defends its form', async (t) 
   assert.match(anon, /Sign in/);
   assert.match(anon, /Ask to join/);
 
-  await playerSignIn(app, games, { email: 'dann@example.com', displayName: 'Dann' });
+  await playerSignIn(app, games, { email: 'dann@example.com', alias: 'Captain' });
   const home = await games.client.request('GET', '/');
   const html = await home.text();
-  assert.match(html, /Dann/, 'the signed-in name is on the page');
+  assert.match(html, /Captain/, 'the signed-in alias is on the page');
+  assert.doesNotMatch(html, /Dann/, 'and the name is not');
   assert.match(html, /Sign out/);
   assert.doesNotMatch(html, /Ask to join/);
 });
@@ -402,12 +408,12 @@ test('a game\'s players page shows everybody\'s board, bests and trophies, and m
     headers: { 'content-type': 'application/octet-stream' },
   });
 
-  const dann = await playerSignIn(app, games, { email: 'dann@example.com', displayName: 'Dann' });
+  const dann = await playerSignIn(app, games, { email: 'dann@example.com', alias: 'Captain' });
   await dann.json('POST', '/_scores/tank', { body: { score: 4520 } });
   await dann.json('POST', '/_scores/tank', { body: { score: 300 } });
   await dann.json('POST', '/_achievements/tank', { body: { id: 'first' } });
   const pat = await playerSignIn(app, games, {
-    email: 'pat@example.com', displayName: 'Pat <b>', client: games.newClient(),
+    email: 'pat@example.com', displayName: 'Pat', alias: 'Ace <b>', client: games.newClient(),
   });
   await pat.json('POST', '/_scores/tank', { body: { score: 1000 } });
 
@@ -417,8 +423,9 @@ test('a game\'s players page shows everybody\'s board, bests and trophies, and m
   assert.equal(res.headers.get('cache-control'), 'no-store');
   const html = await res.text();
   assert.match(html, /Tank &amp; &lt;Chips&gt;/, 'the game\'s name, escaped');
-  assert.match(html, /Pat &lt;b&gt;/, 'a player\'s name, escaped');
-  assert.doesNotMatch(html, /Pat <b>/);
+  assert.match(html, /Ace &lt;b&gt;/, 'a player\'s alias, escaped');
+  assert.doesNotMatch(html, /Ace <b>/);
+  assert.doesNotMatch(html, /Dann|Pat/, 'board, bests and trophies say aliases only');
   // The board: three runs, best first; the bests: one row each. The people
   // come first and the hundred runs last.
   assert.match(html, /Top 100/);

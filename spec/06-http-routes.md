@@ -16,7 +16,8 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 |---|---|---|---|
 | POST | `/api/login` | `{email, password}` | set cookie, return user |
 | POST | `/api/logout` | — | delete session, clear cookie |
-| GET | `/api/me` | — | current user |
+| GET | `/api/me` | — | current user, `alias` included |
+| PATCH | `/api/me` | `{alias}` | your own settings — only the alias so far, through `setAlias` (§3); a refusal is a 400 saying why. Opened from your own name in the sidebar's bottom row (*Your settings*). ⚠️ No twin on the games origin (§7) |
 | GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
 
 There is no signup route **on this origin**: studio accounts come from
@@ -35,7 +36,7 @@ address: a list of names needn't be a list of emails to do its job.
 | POST | `/api/projects` | `{name, slug?, kind?, template?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, and a chat project's one room |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
 | PATCH | `/api/projects/:slug` | `{name?, scores_on?}` | rename (display name only), and the scoreboard switch; a rename needs the project open, the switch is moderation and works archived |
-| GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}` |
+| GET | `/api/projects/:slug/scores` | — | every kept score with id and time, best first, plus the switch: `{scores, scores_on}`. Each row is its alias as `name` and the account's name as `real`, for Share's *Show real names* — this origin only |
 | DELETE | `/api/projects/:slug/scores` | — | delete them all; there is no undo — scores are not files. ⚠️ The board's only deletion: one row has no route, deliberately |
 | GET | `/api/projects/:slug/achievements` | — | each definition in `config/achievements.js` with how many players hold it: `{achievements: [{id, name, how, icon, players}]}`; a read, so anybody in the studio; the *achievements editor*'s structural read |
 | GET | `/api/collection` | — | the *studio collection*: `{art: [{id, file, kind, name, who?, mood?, by, made_here, mine, created_at}]}`. ⚠️ No `licence` on any of them — see §3 |
@@ -69,7 +70,7 @@ any account (§11).
 |---|---|---|---|
 | GET | `/api/admin/studio` | — | the people, what each has spent today, the studio-wide budget, and `waiting` — the undecided sign-ups |
 | POST | `/api/admin/users` | `{email, display_name, password, daily_tokens?}` | add an account |
-| PATCH | `/api/admin/users/:id` | any of `display_name`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
+| PATCH | `/api/admin/users/:id` | any of `display_name`, `alias`, `daily_tokens`, `admin`, `studio_access`, `password` | change one; the alias goes through the same `setAlias` as a person's own, after any new name; the bit off ends their studio sessions, off-for-an-admin is 409, a password change ends both kinds of session |
 | POST | `/api/admin/signups/:id/approve` | — | the waiting list's yes: makes the player account, marks the row; 404 once decided |
 | POST | `/api/admin/signups/:id/refuse` | — | the waiting list's no: marks the row and keeps it (§3) |
 | PATCH | `/api/admin/studio` | `{daily_token_budget}` | the wall around everybody. (`starter_agent_id` used to ride here too; the *builder* made it moot, §3) |
@@ -1703,18 +1704,19 @@ is where the level is seen as the game draws it.
 
 | method | path | effect |
 |---|---|---|
-| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `icon.png` before its name and its `hero.png` behind, when its tree holds them (§6), the hero under a dark wash, and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, name and sign-out for the signed-in. Under each card, *Scores & trophies* links to the game's players page. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
-| GET, HEAD | `/:slug/_players` | the game's **players page** (`catalog.js`): one *personal best* per person, the game's achievements with who holds each — *nobody yet* when nobody does — and under those the board's top 100, the viewer's own rows marked in cyan. Nothing about scores while the game's `scores_on` is off (a moderated board is not public in either direction, as for both `_scores` routes); the trophies stay, because earned is forever. Removed accounts are joined out; a run posted before the sign-in shows under the name it was posted with. A plain 404 for anything that is not a game's. Same headers as the catalog: no form here, but one posture for the two studio-authored pages |
+| GET, HEAD | `/` | the catalog: the studio's front door, in its own dark dress — wordmark, halftone, hairline. Published games as cards, names escaped, each wearing its `icon.png` before its name and its `hero.png` behind, when its tree holds them (§6), the hero under a dark wash, and its board's best score in gold; signed in, each card also says how *you* are doing — your *personal best* (gold, a score) and your trophies against what the game's `config/achievements.js` defines (`★ 3 of 7`, not gold: a count is not a score), counting only ids the file still defines. Sign-in and ask-to-join for the signed-out, alias and sign-out for the signed-in. Under each card, *Scores & trophies* links to the game's players page. ⚠️ Sent with `frame-ancestors 'none'` and `COOP: same-origin` (§7) |
+| GET, HEAD | `/:slug/_players` | the game's **players page** (`catalog.js`): one *personal best* per person, the game's achievements with who holds each — *nobody yet* when nobody does — and under those the board's top 100, the viewer's own rows marked in cyan. Nothing about scores while the game's `scores_on` is off (a moderated board is not public in either direction, as for both `_scores` routes); the trophies stay, because earned is forever. Everybody on it is their alias, board, bests and trophy holders alike; removed accounts are joined out. A plain 404 for anything that is not a game's. Same headers as the catalog: no form here, but one posture for the two studio-authored pages |
 | GET, HEAD | `/:slug/_assets` | what the game has in `assets/`, live from disk: `{files: [{path, size, mime}]}` sorted by path, nothing outside `assets/` and never a path the validator refuses. `no-store`, like the game's own files, because live is the point. A plain 404 for anything that is not a game's. The preamble names it (§8), so a game can find its own pictures and sounds without a hand-kept list |
-| GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error |
-| POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
+| GET | `/_me` | who is signed in, for game code: `{user: {name}}` or `{user: null}`, never an error. ⚠️ `name` is the **alias**: the key every game and the screens library read stayed, its value changed (§3) |
+| POST | `/_login` | `{email, password}` → set the `player` cookie, answer `{user: {name}}`, `name` the alias as above. Any account still in, either kind; same lockouts, dummy-hash path and undisclosing 401 as `/api/login` (§11) |
 | POST | `/_logout` | delete the player session, clear the cookie |
 | POST | `/_signup` | `{name, email, password}` → a `signups` row (§3), rate-limited per IP; answers 202 `{waiting: true}` whether or not it wrote, so the form never says what an address is to this studio |
+| GET, HEAD | `/robots.txt` | `Disallow: /` for every crawler: the games are for whoever was sent the link and the boards were never meant for the whole internet, and a hostname with a certificate is in public logs whether it is linked or not. No slug holds a dot, so no game can shadow it |
 | GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8); 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
-| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's own name; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's alias; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
 | GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in |
 | POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool}` when it counts; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
 
@@ -1736,7 +1738,10 @@ rows are kept — the switch, the admin's list, and delete-all live on the
 studio origin under `/api`, because moderation is running the studio. A board
 is moderated whole: **one score cannot be deleted**, by anybody, anywhere —
 there is no route and no button, so the moves are switch it off or clear it.
-The studio shows it as the Scoreboard part of Share.
+The studio shows it as the Scoreboard part of Share, in aliases like
+everywhere else, with *Show real names* — a link, since it changes how the
+list reads and not the board — flipping it to who is behind each one and
+back. That is the studio's to know and never the games origin's (§7).
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.

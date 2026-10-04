@@ -185,6 +185,9 @@ export const S = {
   // The open game's kept scores, for the Scoreboard tab. Null until the tab
   // loads them; refetched every time the tab opens.
   scores: null,
+  // Whether the studio's boards show who is behind each alias. A way of
+  // looking, held for the visit and never in the address.
+  realNames: false,
   // Set when a commit lands, so the versions list reloads instead of showing
   // whatever it happened to fetch first.
   historyStale: false,
