@@ -130,4 +130,9 @@ deliberately deferred.
   against the whole list without a playthrough first; the preview still
   reports the ones it hears (decided 2026-10-04; ideas/achievements.md)
 - move the existing games onto State by hand, in `games/<slug>/` and up to
-  the server — not by asking each kid's builder (decided 2026-10-04)
+  the server — not by asking each kid's builder (decided 2026-10-04;
+  ideas/state-migration.md, whose order matters)
+- let the story editor open a story holding steps it does not know — a
+  game's own `{ flash: true }` or `{ video: … }` line, carried through a save
+  untouched — so a game like qiby-fam-days gets its editor and *Try this
+  scene* back (decided 2026-10-04)
