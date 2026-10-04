@@ -290,7 +290,8 @@ its key in `studio.env` beside DeepSeek's.
 
 ## 3. Live tweaks
 
-**Status: queued.**
+**Status: discussing (2026-10-04).** Dann's ask, then *The proposal*, are
+at the end of this section; what sits between is the first sketch.
 
 ### What exists
 
@@ -321,6 +322,89 @@ its key in `studio.env` beside DeepSeek's.
 
 Not suggested: real code hot swap with the state kept. Every game would have
 to serialise its own state, and a helper-written one will not.
+
+### What Dann asked for (2026-10-04)
+
+> A "debug" mode for every game, where I can "pin" a game state, tweak
+> values, then jump back to that pinned state and try it.
+>
+> Debug only applies to the preview game, and is always on there and only
+> there. High scores and achievements no longer apply to the preview. So the
+> preview is a different kind of player.
+
+So the preview stops being "the game, in a frame" and becomes **the preview
+player**: always debugging, never on a board.
+
+### What the code says (checked 2026-10-04)
+
+- Every template keeps a run in **one top-level variable** — `let Run`
+  (arcade, rollball, with `Here`), `let Race` (racing), `let Level`
+  (knockdown) — loops on `requestAnimationFrame`, takes `dt` from its
+  timestamp clamped to 0.05 s, and spawns with `Math.random`.
+- A top-level `let` or `const` in a classic script is not a property of
+  `window`, but script injected into the same page reaches it through an
+  indirect `eval`, to read it and to put a value back. The games origin sends
+  no CSP that refuses `eval`.
+- The physics library keeps its world and bodies inside itself (`world`,
+  `bodies` in `studio/physics.js`), so a pin of the game's variables alone
+  would hold references to bodies that kept moving. It needs a save and a
+  restore of its own — a new version adding two calls, inside the
+  compatibility law.
+- The reporter is already injected first into `_studio.html` and already
+  talks to the studio by `postMessage`; the studio already parses config
+  without running it.
+- Today a preview run posts scores and earns achievements like any other,
+  under whoever is signed in on the games origin.
+
+### The proposal
+
+1. **The preview player owns time.** The script injected into the wrapper
+   hands the game a clock and a random-number stream of its own: the
+   timestamps `requestAnimationFrame` passes, `performance.now()` and
+   `Math.random()` all come from it. So **Pause**, **Step** one frame and
+   **½×/¼×** work on every canvas game with no game's help — and the random
+   stream can be put back, so the same meteors fall again.
+2. **The preview player is not on any board.** Its posts to `/_scores` and
+   `/_achievements` are answered inside the page and never sent — the game
+   sees "did not make the board", an achievement still toasts every time it
+   is met, so a maker can watch one fire twice — and asking what this player
+   holds answers "nothing yet". `/_me` says the player is **Preview**.
+   Moments still reach the studio.
+3. **Tweaks land live.** A change to a `config/` file the preview can take
+   does not reload it: the studio parses the new values and posts them in,
+   and they are written into the live objects (`PLAY.GRAVITY = 600`). A file
+   it cannot take — a plain `const SPEED = 4`, or anything outside
+   `config/` — reloads as today.
+4. **Pin and Back to pin.** A pin holds the game's top-level variables — the
+   names declared at the top of its own `js/` files, which the studio can
+   read; never `config/` (those are the tweaks) and never `studio/` — copied
+   where they are plain data and kept by reference where they are not; each
+   library's own state through its hook (the physics bodies); the clock; the
+   random stream. **Back to pin** puts all of it back and keeps the tweaks.
+
+```
+┌ preview ───────────────────────────────────┐
+│                  (the game)                │
+├────────────────────────────────────────────┤
+│ ⏸  ⏭  1× ▾          📌 Pin   ↩ Back to pin │
+│ Pinned 0:14 in — the preview is not on     │
+│ any board                                  │
+└────────────────────────────────────────────┘
+```
+
+### Where it pulls
+
+- A game that keeps its state inside a closure, a class or a module has no
+  top-level names to pin. The templates pin as they are; for a helper-written
+  game the game shape would ask for the run in top-level variables, and an
+  explicit call is the way out for a game that cannot.
+- The DOM games — the story, the quiz, the adventure — have no frame loop, so
+  pause and step mean little there; they already jump with `?scene=`.
+- A pin is the page's memory. A reload — a code change — loses it unless the
+  pin is made of plain data the studio keeps, which references to live
+  objects are not.
+- A score posted from the preview today is a real one; after this, a maker
+  testing the board sees it not move.
 
 ## 4. A bot that plays
 
