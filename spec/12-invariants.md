@@ -18,6 +18,10 @@ Tests enforce each of these.
 - The preview is never on a board: the preview player answers a score or an
   achievement posted with `fetch` or `sendBeacon` inside the page, and those
   requests never reach the games origin (§6).
+- The robot plays only in the preview: a game's `js/robot.js` is put on the
+  page by the preview's wrapper alone, never by a game's own `index.html`
+  served to a player, and its rolling savepoints never replace the person's
+  pin (§6).
 - An `achievements` row is never deleted by any route, and the definitions
   behind it live only in the game's `config/achievements.js`, read per request
   and never in a table: removing a definition hides its rows, it does not drop

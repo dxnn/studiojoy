@@ -217,15 +217,28 @@ function reporterScript(version) {
 // when there is one and after the doctype otherwise, because both have to run
 // before the game's first script: one to catch an error in it, the other to
 // own its clock before it asks for one.
-export function wrapHtml(html, version) {
+//
+// A game that teaches the robot has its js/robot.js put at the very end, after
+// the game's own scripts: here and nowhere else, so nobody playing the game
+// ever loads it.
+export const ROBOT_FILE = 'js/robot.js';
+
+export function wrapHtml(html, version, { robot = false } = {}) {
   const script = `\n${reporterScript(version)}\n${previewPlayerScript()}\n`;
-  const lower = html.toLowerCase();
+  const page = robot ? withRobot(html) : html;
+  const lower = page.toLowerCase();
   for (const opener of ['<head', '<!doctype']) {
     const at = lower.indexOf(opener);
     if (at === -1) continue;
-    const close = html.indexOf('>', at);
+    const close = page.indexOf('>', at);
     if (close === -1) continue;
-    return html.slice(0, close + 1) + script + html.slice(close + 1);
+    return page.slice(0, close + 1) + script + page.slice(close + 1);
   }
-  return script + html;
+  return script + page;
+}
+
+function withRobot(html) {
+  const tag = `<script src="${ROBOT_FILE}"></script>\n`;
+  const at = html.toLowerCase().lastIndexOf('</body>');
+  return at === -1 ? `${html}\n${tag}` : html.slice(0, at) + tag + html.slice(at);
 }

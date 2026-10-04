@@ -43,7 +43,7 @@ import {
   readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
 } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
-import { renderPlayerControls } from './preview-player.js';
+import { renderPlayerControls, renderRobotNote } from './preview-player.js';
 import { renderTweaks } from './tweaks.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
@@ -214,10 +214,11 @@ export const S = {
   connected: true,
   previewNonce: 0,
   // What the preview player is doing (preview-player.js): its own clock, run
-  // or paused, at a speed. Per game — opening one starts it running.
+  // or paused, at a speed, and the robot playing or not. Per game — opening
+  // one starts it running, with nobody but you at the keys.
   // `trying` is an editor's Try: where the preview is put on every new page
-  // while that editor is showing.
-  player: { paused: false, speed: 1, trying: null },
+  // while that editor is showing. `broke` is what the robot found.
+  player: { paused: false, speed: 1, robot: false, trying: null, broke: null },
   autoscroll: true,
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
@@ -871,7 +872,7 @@ export async function openProject(slug, { view = null } = {}) {
   S.achievements = null;
   // Another game starts its preview running; the same one opened again —
   // Make it, another tab's change — keeps what it was doing.
-  if (slug !== S.slug) S.player = { paused: false, speed: 1, trying: null };
+  if (slug !== S.slug) S.player = { paused: false, speed: 1, robot: false, trying: null, broke: null };
 
   if (!slug) {
     S.slug = null;
@@ -1178,11 +1179,12 @@ function renderPreview() {
         h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
       : null,
     // Said once, under the game, because a maker testing the board will
-    // otherwise wonder where their score went.
-    S.previewOpen ? h('p', {
+    // otherwise wonder where their score went — unless the robot has just
+    // broken the game, which matters more.
+    S.previewOpen ? (renderRobotNote() ?? h('p', {
       class: 'hint muted preview-note',
       text: 'The preview is its own player: its scores and achievements never count.',
-    }) : null,
+    })) : null,
     // Folded: one row. The same control that hid it brings it back — Hide ▲
     // and Show ▼ are one button in two states, in the place the eye already
     // is — and the whole row is a way in too, because it lights up. Open comes

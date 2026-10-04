@@ -1,8 +1,8 @@
 // The preview player's controls (server/preview-player.js, ideas/dreams.md
-// §3): the preview is always that player — its own clock, never on a board —
-// and these say what it is doing: running or paused, one frame on, how fast.
-// Per tab and per game, sent again whenever the preview loads, since a reload
-// is a new page that knows nothing.
+// §3 and §4): the preview is always that player — its own clock, never on a
+// board — and these say what it is doing: running or paused, one frame on,
+// how fast, and whether the robot is playing. Per tab and per game, sent again
+// whenever the preview loads, since a reload is a new page that knows nothing.
 
 import { h } from './dom.js';
 import { S, render, say, previewWindow } from './main.js';
@@ -21,8 +21,8 @@ const UNPINNED = {
   'not-a-save': 'That pin is from a game shaped differently from this one now.',
 };
 
-const SPEEDS = [1, 0.5, 0.25];
-const SPEED_WORDS = { 1: '1×', 0.5: '½×', 0.25: '¼×' };
+const SPEEDS = [1, 0.5, 0.25, 4, 16];
+const SPEED_WORDS = { 1: '1×', 0.5: '½×', 0.25: '¼×', 4: '4×', 16: '16×' };
 
 function tell(data) {
   const frame = previewWindow();
@@ -41,7 +41,11 @@ function settle({ loaded = false } = {}) {
   const trying = S.player.trying;
   const jump = loaded && trying?.mode === S.mode ? trying.fields : null;
   tell({
-    paused: S.player.paused, speed: S.player.speed, tweaks: liveTweaks(), ...(jump ? { jump } : {}),
+    paused: S.player.paused,
+    speed: S.player.speed,
+    robot: S.player.robot,
+    tweaks: liveTweaks(),
+    ...(jump ? { jump } : {}),
   });
 }
 
@@ -70,11 +74,47 @@ window.addEventListener('message', (event) => {
   if (!data || data.slug !== S.slug) return;
   if (data.gamestudio === 'player-ready') settle({ loaded: true });
   if (data.gamestudio === 'player-pinned' && typeof data.savepoint?.file === 'string') {
-    savepoints.set(S.slug, { file: data.savepoint.file, seed: Number(data.savepoint.seed) || 0 });
+    savepoints.set(S.slug, {
+      file: data.savepoint.file, seed: Number(data.savepoint.seed) || 0, robot: data.savepoint.robot ?? null,
+    });
     render();
   }
   if (data.gamestudio === 'player-unpinned') say(UNPINNED[data.reason] ?? UNPINNED['no-state'], true);
+  // The robot stopped in the game: a person's hands took over, its teacher
+  // went wrong, or the game broke — when it brings the moment before.
+  if (data.gamestudio === 'player-robot' && data.on === false && data.reason !== 'studio') {
+    S.player.robot = false;
+    if (data.reason === 'broke') {
+      const savepoint = typeof data.savepoint?.file === 'string' ? data.savepoint : null;
+      S.player.broke = { message: String(data.message ?? ''), savepoint };
+    }
+    if (data.reason === 'taught') say('The robot\'s own code went wrong — the problem is in js/robot.js.', true);
+    render();
+  }
 });
+
+// What the robot found, under the preview, until it plays again: the game's
+// own error, and — for a game on State — the way back to just before it.
+export function renderRobotNote() {
+  const broke = S.player.broke;
+  if (!broke) return null;
+  return h('div', { class: 'robot-note' },
+    h('p', { class: 'hint', text: `🤖 The robot broke the game${broke.message ? `: ${broke.message}` : '.'}` }),
+    // Paused there, so nothing moves on before somebody decides: ▶ to play
+    // from it by hand, 🤖 to watch the robot break it the same way again.
+    broke.savepoint ? h('button', {
+      text: 'Go to just before it broke',
+      title: 'Back to a moment a few seconds before, paused, as your pin — let the robot play from there to see it again',
+      onclick: () => {
+        savepoints.set(S.slug, broke.savepoint);
+        S.player.broke = null;
+        S.player.paused = true;
+        settle();
+        tell({ back: broke.savepoint });
+        render();
+      },
+    }) : null);
+}
 
 export function renderPlayerControls() {
   const { paused, speed } = S.player;
@@ -89,9 +129,22 @@ export function renderPlayerControls() {
     }) : null,
     h('button', {
       class: `icon${speed === 1 ? '' : ' on'}`, text: SPEED_WORDS[speed],
-      title: 'How fast the game runs here — press for slower',
+      title: 'How fast the game runs here — press for the next speed: slower, then faster',
       onclick: () => {
         S.player.speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+        settle();
+        render();
+      },
+    }),
+    // The robot plays it for you, run after run, and keeps playing through a
+    // save; your own key or tap takes over.
+    h('button', {
+      class: `icon${S.player.robot ? ' on' : ''}`, text: '🤖',
+      title: S.player.robot ? 'Stop the robot' : 'Let the robot play',
+      // Letting it play is letting the game run, so it carries on if paused.
+      onclick: () => {
+        S.player.robot = !S.player.robot;
+        if (S.player.robot) { S.player.broke = null; S.player.paused = false; }
         settle();
         render();
       },

@@ -58,6 +58,18 @@
    the game is in, so the button saying so is lit in the studio's cyan. */
 .preview-foot button.icon.on { color: var(--accent); }
 .preview-note { font-size: 11px; margin: 4px auto 0; width: var(--frame-w, 100%); padding: 0 4px; }
+/* What the robot found, in the note's place: the game's error, and the way
+   back to just before it. */
+.robot-note {
+  width: var(--frame-w, 100%);
+  margin: 6px auto 0;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.robot-note .hint { font-size: 12px; margin: 0; }
 .preview-frame { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 
 /* Collapsed: one row that keeps the two things you would miss — a way to show

@@ -11,7 +11,12 @@ import { PREVIEW_PLAYER_JS } from '../server/preview-player.js';
 
 const ORIGIN = 'http://games.test';
 
-function boot({ framed = true, stored = {} } = {}) {
+// An event the page makes — a key, a pointer, a click — as a plain object.
+class FakeEvent {
+  constructor(type, init = {}) { this.type = type; Object.assign(this, init); }
+}
+
+function boot({ framed = true, stored = {}, doc = {}, extra = {} } = {}) {
   const posts = [];
   const handlers = new Map();
   const reached = [];
@@ -33,10 +38,17 @@ function boot({ framed = true, stored = {} } = {}) {
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
     },
     navigator: { sendBeacon: (url) => { reached.push({ url: String(url), method: 'BEACON' }); return true; } },
-    document: { readyState: 'complete', addEventListener: (type, fn) => { if (type === 'load') loads.push(fn); } },
+    document: {
+      readyState: 'complete',
+      addEventListener: (type, fn) => { if (type === 'load') loads.push(fn); },
+      ...doc,
+    },
     localStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
     Response,
     URL,
+    KeyboardEvent: FakeEvent,
+    MouseEvent: FakeEvent,
+    ...extra,
   };
   sandbox.window = sandbox;
   sandbox.parent = framed ? { postMessage: (msg) => posts.push(JSON.parse(JSON.stringify(msg))) } : sandbox;
@@ -52,6 +64,8 @@ function boot({ framed = true, stored = {} } = {}) {
     frame: (ms) => { real += ms; frame(real); },
     studio: (data) => handlers.get('message')?.({ source: sandbox.parent, data: { gamestudio: 'player', ...data } }),
     run: (code) => vm.runInContext(code, sandbox),
+    // Something happening on the page that the player listens for.
+    fire: (type, event) => handlers.get(type)?.(event),
     storage,
     // A script of the page's having run: its load event, as the page fires it.
     ran: (path) => { for (const fn of loads) fn({ target: { tagName: 'SCRIPT', src: `${ORIGIN}/tank/${path}` } }); },
@@ -218,4 +232,197 @@ test('it asks the studio for its settings, and only when framed', () => {
   const alone = boot({ framed: false });
   assert.deepEqual(alone.posts, []);
   assert.equal(alone.run('Math.random'), alone.originalRandom, 'opened on its own, it changes nothing');
+});
+
+const FRAME = 1000 / 60;
+// A real frame a hair over one game frame, so rounding never makes one of
+// them run none.
+const TICK = FRAME + 0.001;
+const near = (a, b) => Math.abs(a - b) < 1e-6;
+
+test('timers and Date.now keep the player\'s clock, so Pause pauses them too', () => {
+  const p = boot();
+  p.run('var fired = []; setTimeout(function (a) { fired.push(a); }, 100, "once");'
+    + 'var every = setInterval(function () { fired.push("tick"); }, 50);');
+  const date = p.run('Date.now()');
+  p.studio({ paused: true });
+  p.frame(500);
+  const fired = () => JSON.parse(p.run('JSON.stringify(fired)'));
+  assert.deepEqual(fired(), [], 'paused, no timer fires, however long it really is');
+  p.studio({ paused: false });
+  p.frame(60);
+  assert.deepEqual(fired(), ['tick']);
+  p.frame(60);
+  assert.deepEqual(fired(), ['tick', 'once', 'tick'], 'each in the order it came due');
+  assert.equal(p.run('Date.now()') - date, 120, 'Date.now moved with the clock, not the wall');
+  p.run('clearInterval(every)');
+  p.frame(500);
+  assert.equal(p.run('fired.length'), 3);
+});
+
+test('a timer that throws is the game\'s error, and the frame goes on', () => {
+  const thrown = [];
+  const p = boot({ extra: { setTimeout: (fn) => { try { fn(); } catch (err) { thrown.push(err.message); } } } });
+  const seen = loop(p);
+  p.run('setTimeout(function () { throw new Error("late"); }, 0)');
+  p.frame(16);
+  assert.deepEqual(thrown, ['late'], 'thrown again on a real timer, for the reporter');
+  assert.equal(seen.length, 1, 'and the game still had its frame');
+});
+
+test('fast, the clock goes in whole frames, as many as are owed, and silently', () => {
+  const calls = [];
+  class Context {
+    suspend() { calls.push('suspend'); return Promise.resolve(); }
+    resume() { calls.push('resume'); return Promise.resolve(); }
+  }
+  const p = boot({ extra: { AudioContext: Context } });
+  const seen = loop(p);
+  p.run('var sound = new AudioContext()');
+  p.studio({ speed: 4 });
+  p.frame(51);
+  assert.equal(seen.length, 12, '51 ms at 4× is 204 ms of game: twelve whole frames, and some owed');
+  for (let i = 1; i < seen.length; i += 1) assert.ok(near(seen[i] - seen[i - 1], FRAME));
+  assert.deepEqual(calls, ['suspend'], 'held while fast');
+  p.run('sound.resume()');
+  assert.deepEqual(calls, ['suspend'], 'a game asking for its sound back does not get it while fast');
+  p.studio({ speed: 1 });
+  assert.deepEqual(calls, ['suspend', 'resume'], 'and back at 1×, it is let go');
+  p.studio({ speed: 16 });
+  p.frame(10000);
+  assert.equal(seen.length, 12 + 64, 'a machine that cannot keep up lets the rest go');
+});
+
+// A page with a keyboard and a body to tap, recording what reached it.
+function page() {
+  const sent = [];
+  let start = null;
+  const body = { dispatchEvent: (e) => sent.push(e.key === undefined ? e.type : `${e.type} ${e.key}`) };
+  const doc = {
+    body,
+    activeElement: null,
+    querySelector: (sel) => (sel.includes('screens-start') ? start : null),
+    querySelectorAll: () => [],
+    elementFromPoint: () => body,
+  };
+  // Which keys are down after everything sent so far.
+  const held = () => {
+    const down = new Set();
+    for (const s of sent) {
+      const [type, key] = s.split(' ').length > 2 ? [s.split(' ')[0], ' '] : s.split(' ');
+      if (type === 'keydown') down.add(key);
+      if (type === 'keyup') down.delete(key);
+    }
+    return [...down].sort().join(',');
+  };
+  return { sent, doc, held, setStart: (b) => { start = b; } };
+}
+
+const CONTROLS = 'const CONTROLS = { player1: { left: "key:left key:a pad:left", right: "key:right",'
+  + ' fire: "key:space pad:a", start: "key:enter" } };';
+
+test('the robot plays the game\'s own verbs as keys, never both ways at once', () => {
+  const pg = page();
+  const p = boot({ doc: pg.doc });
+  p.run(CONTROLS);
+  const seen = loop(p);
+  p.studio({ robot: true });
+  const both = [];
+  for (let i = 0; i < 600; i += 1) {
+    p.frame(TICK);
+    if (pg.held().includes('ArrowLeft') && pg.held().includes('ArrowRight')) both.push(i);
+  }
+  const downs = new Set(pg.sent.filter((s) => s.startsWith('keydown')));
+  assert.ok(downs.has('keydown ArrowLeft') && downs.has('keydown ArrowRight') && downs.has('keydown  '),
+    'left, right and fire, each as its first key');
+  assert.ok(downs.has('keydown Enter'), 'and Start now and then');
+  assert.deepEqual(both, []);
+  for (let i = 1; i < seen.length; i += 1) assert.ok(near(seen[i] - seen[i - 1], FRAME), 'in whole frames');
+
+  // A person's own key takes over, and the robot lets go of everything.
+  p.fire('keydown', { isTrusted: false });
+  assert.ok(!p.posts.some((m) => m.gamestudio === 'player-robot'), 'its own keys never stop it');
+  p.fire('keydown', { isTrusted: true });
+  assert.deepEqual(p.posts.filter((m) => m.gamestudio === 'player-robot').map((m) => m.reason), ['hands']);
+  assert.equal(pg.held(), '');
+});
+
+test('the robot presses Start on a title screen after a beat', () => {
+  const pg = page();
+  const p = boot({ doc: pg.doc });
+  p.run(CONTROLS);
+  loop(p);
+  pg.setStart({ getBoundingClientRect: () => ({ left: 0, top: 0, width: 40, height: 20 }) });
+  p.studio({ robot: true });
+  for (let i = 0; i < 89; i += 1) p.frame(TICK);
+  assert.ok(!pg.sent.includes('click'), 'the screen is left up a moment');
+  assert.equal(pg.held(), '', 'with nothing held under it');
+  p.frame(TICK);
+  assert.deepEqual(pg.sent.slice(-5), ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
+});
+
+test('a game teaches the robot with Robot.play, handed State each frame', () => {
+  const pg = page();
+  const p = boot({ doc: pg.doc });
+  p.run(CONTROLS);
+  p.run(STATE);
+  p.run('State.reset({ go: "right" }); Robot.play(function (s) { return s.go === "tap" ? { x: 5, y: 5 } : [s.go]; });');
+  loop(p);
+  p.studio({ robot: true });
+  p.frame(TICK);
+  assert.equal(pg.held(), 'ArrowRight');
+  p.run('State.go = "tap"');
+  p.frame(TICK);
+  assert.equal(pg.held(), '', 'a tap lets go of the keys first');
+  assert.equal(pg.sent.filter((s) => s === 'click').length, 1);
+  for (let i = 0; i < 30; i += 1) p.frame(TICK);
+  assert.equal(pg.sent.filter((s) => s === 'click').length, 1, 'and it waits a moment before deciding again');
+  assert.ok(p.run('Robot.random()') < 1, 'its own dice');
+
+  p.run('Robot.play(function () { throw new Error("my robot"); })');
+  for (let i = 0; i < 10; i += 1) { try { p.frame(TICK); } catch { /* the teacher's error, below */ } }
+  assert.equal(p.posts.filter((m) => m.gamestudio === 'player-robot').at(-1).reason, 'taught',
+    'a broken teacher stops it, and its error goes on to the reporter');
+});
+
+test('when the game breaks, the robot hands over a moment from seconds before', () => {
+  const pg = page();
+  const p = boot({ doc: pg.doc });
+  p.run(CONTROLS);
+  p.run(STATE);
+  p.run('State.reset({ t: 0 }); (function go() { State.t += 1; requestAnimationFrame(go); })();');
+  p.studio({ robot: true });
+  for (let i = 0; i < 400; i += 1) p.frame(TICK);
+  p.fire('error', { message: 'boom' });
+  const told = p.posts.filter((m) => m.gamestudio === 'player-robot').at(-1);
+  assert.equal(told.reason, 'broke');
+  assert.equal(told.message, 'boom');
+  assert.equal(JSON.parse(told.savepoint.file).state.t, 121, 'the oldest of three kept, two seconds apart');
+  assert.equal(told.savepoint.robot.frames, 120, 'taken between two frames, like a pin');
+  assert.equal(pg.held(), '');
+  p.fire('error', { message: 'again' });
+  assert.equal(p.posts.filter((m) => m.gamestudio === 'player-robot').length, 1, 'once stopped, it says nothing more');
+});
+
+test('a moment put back plays on the same way: the game\'s dice and the robot\'s', () => {
+  const pg = page();
+  const p = boot({ doc: pg.doc });
+  p.run(CONTROLS);
+  p.run(STATE);
+  p.run('State.reset({ rocks: [] }); (function go() { State.rocks.push(Math.random()); requestAnimationFrame(go); })();');
+  p.studio({ robot: true });
+  for (let i = 0; i < 50; i += 1) p.frame(TICK);
+  p.studio({ pin: true });
+  const savepoint = p.posts.find((m) => m.gamestudio === 'player-pinned').savepoint;
+  assert.equal(typeof savepoint.robot.seed, 'number', 'the pin holds the robot\'s dice too');
+  const play = () => {
+    const out = [];
+    for (let i = 0; i < 300; i += 1) { p.frame(TICK); out.push(pg.held()); }
+    return { held: out, rocks: p.run('JSON.stringify(State.rocks.slice(-300))') };
+  };
+  const first = play();
+  p.studio({ back: savepoint });
+  const again = play();
+  assert.deepEqual(again.held, first.held, 'the same keys, frame by frame');
+  assert.equal(again.rocks, first.rocks, 'and the same rocks');
 });

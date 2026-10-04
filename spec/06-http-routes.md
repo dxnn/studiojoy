@@ -991,7 +991,8 @@ agents; a template wants a clean thread and current libraries.
 the seeds); its `index.json` carries the dialog's words and is the
 validation list. Every template follows one shape: a remixable heart in a
 config file, a pre-written `BRIEF.md` and `SPEC.md`, the library script tags
-already in `index.html`, and placeholder assets the studio's own makers can
+already in `index.html`, a `js/robot.js` teaching the preview's **robot** to
+play it (below), and placeholder assets the studio's own makers can
 replace. Server-side copying is byte-safe, so templates can ship sounds and
 pictures.
 
@@ -1763,7 +1764,7 @@ is where the level is seen as the game draws it.
 | POST | `/_logout` | delete the player session, clear the cookie |
 | POST | `/_signup` | `{name, email, password}` → a `signups` row (§3), rate-limited per IP; answers 202 `{waiting: true}` whether or not it wrote, so the form never says what an address is to this studio |
 | GET, HEAD | `/robots.txt` | `Disallow: /` for every crawler: the games are for whoever was sent the link and the boards were never meant for the whole internet, and a hostname with a certificate is in public logs whether it is linked or not. No slug holds a dot, so no game can shadow it |
-| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8), and after it the **preview player** (`server/preview-player.js`, below); 404 when there is no `index.html` |
+| GET, HEAD | `/:slug/_studio.html` | the wrapper: the project's `index.html` with the reporter and its commit injected (§8), and after it the **preview player** (`server/preview-player.js`, below); the game's `js/robot.js`, when it has one, last of all; 404 when there is no `index.html` |
 | GET, HEAD | `/:slug/` | `<GAMES_DIR>/<slug>/index.html` |
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
@@ -1798,12 +1799,22 @@ back. That is the studio's to know and never the games origin's (§7).
 preview is a player of its own, different from anybody playing the game:
 always debugging and never on a board — no switch, and only there. The script
 injected after the reporter owns the game's time: the timestamps
-`requestAnimationFrame` hands it, `performance.now()` and `Math.random()` (a
-seeded stream with a state of its own) all come from it, so the preview's
-foot can **pause** a game, step it **one frame on** (exactly 1/60 s) and run
-it at **½×** or **¼×** — every canvas game, unchanged. Paused and speed are
-per game in the tab and survive a reload: a new page posts `player-ready`
-and the studio answers with them. A game's own callback that throws is let
+`requestAnimationFrame` hands it, `performance.now()`, `Date.now()`,
+`setTimeout`, `setInterval` and `Math.random()` (a seeded stream with a state
+of its own) all come from it, so the preview's foot can **pause** a game,
+step it **one frame on** (exactly 1/60 s) and run it at **½×**, **¼×**,
+**4×** or **16×** — every canvas game, unchanged, its timers included. A
+timer runs at the top of the frame it comes due in; one that throws is thrown
+again on a real timer, so the reporter files it and the frame goes on. A
+person at 1× or slower gets the time that really passed in one frame, so slow
+motion is smooth; fast, and whenever the robot plays, time goes in **whole
+frames** of exactly 1/60 s, as many as are owed and at most four times the
+speed in one real frame — the rest let go when a machine cannot keep up — so
+a run is the same run however fast the machine is. Above 1× every
+`AudioContext` the page made is suspended (its own `resume()` held off) and
+an element's `play()` skipped. Paused, speed and the robot are per game in
+the tab and survive a reload: a new page posts `player-ready` and the studio
+answers with them. A game's own callback that throws is let
 through, so the reporter still files it against the game's line. It answers
 the boards itself, in the page: a `POST` to `/_scores` is `{rank: null,
 preview: true}` and to `/_achievements` `{new: true, preview: true}` — the
@@ -1837,6 +1848,48 @@ knows the file it edits: `{playing, scene, line: 0}` for the story,
 for Roll a ball. Held while that editor is showing, so a save's reload lands
 back on the scene, as `?scene=` used to. ⚠️ No template takes a way in from
 its own address (`test/state-templates.test.js`): a player cannot skip ahead.
+
+**The robot** (🤖, since 2026-10-04, ideas/dreams.md §4) is the preview
+player's own player: it plays the game for whoever is watching, run after
+run, and keeps playing through a save's reload. Its hands are key events —
+player one's verbs in `config/controls.js`, each sent as its first key
+(`FALLBACK`'s arrows, Space and Enter without one) — which the input library
+and a game's own listeners hear alike, and taps with the coordinates a
+finger would give, dispatched on whatever is under the point. Untaught, it
+holds a few verbs at a time for a spell each, never both ways of a pair, with
+Start now and then and a tap mid-page every four seconds; where `SCHEME` is
+`none` and the page shows a button, it taps one of those instead. On a
+`Screens` title or game-over screen it lets go and taps **Start** after a
+second and a half. Its choices come from a seeded stream of its own, so the
+game's dice are the same whoever plays, and every savepoint — the pin too —
+carries that stream and what its hands were doing. A person's own (trusted)
+key or tap stops it: your hands take over.
+
+A game **teaches** it with `js/robot.js`, which only the wrapper loads — last,
+after the game's own scripts, when the file exists (`ROBOT_FILE` in
+`server/reporter.js`) — so nobody playing ever does. `Robot` is the preview
+player's, not a library: `Robot.play(fn)` hands `fn` State every frame, and
+its answer is the verbs to hold, a thing on the page to tap (in its middle),
+or `{x, y}` to tap there; after a tap it waits 0.6 s before deciding again.
+`Robot.random()` is its dice. Every template ships one
+(`test/robot-templates.test.js`), and the builder's preamble says how to write
+one. ⚠️ A teacher that keeps anything of its own between frames breaks the
+replay below; the template comments say so.
+
+While it plays it keeps a **rolling savepoint** of its own every two seconds,
+the last three, taken between frames like a pin — never the pin itself (Dann:
+"one savepoint" keeps things simple for the kids, it does not stop the studio
+doing more behind them). When code of the game's throws — a window `error`,
+which a failed picture or sound never is — it stops and hands the studio the
+oldest, a moment four to six seconds back, with the error's words. Under the
+preview, in place of the board note, *The robot broke the game: …* and **Go
+to just before it broke**, which loads that moment paused and makes it the
+pin; 🤖 again carries on from there and breaks it again. ⚠️ Checked in the
+MCP browser: replays from one moment break at the same frame every time, and
+within one frame of the run that found it. Timers pending at a savepoint are
+not part of it, so a game timed by `setTimeout` replays less exactly. A
+teacher that throws stops the robot too, its error filed against
+`js/robot.js` like any other file's.
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.

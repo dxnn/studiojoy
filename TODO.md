@@ -132,6 +132,13 @@ deliberately deferred.
 - move the existing games onto State by hand, in `games/<slug>/` and up to
   the server — not by asking each kid's builder (decided 2026-10-04;
   ideas/state-migration.md, whose order matters)
+- ask the robot whether a game is too hard: a hundred runs from the pin at
+  16×, hidden, each from its own seed, summed up in one line in the rail —
+  and the same hundred again after a tweak (ideas/dreams.md §4, item 5)
+- let the catalog card play itself — a clip recorded while the robot plays,
+  or a recorded run played back (ideas/dreams.md §4, item 7)
+- teach the robot in the games born from a template before 2026-10-04: the
+  template's `js/robot.js`, copied in by hand where the game still matches it
 - let the story editor open a story holding steps it does not know — a
   game's own `{ flash: true }` or `{ video: … }` line, carried through a save
   untouched — so a game like qiby-fam-days gets its editor and *Try this

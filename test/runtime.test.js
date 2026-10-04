@@ -99,6 +99,24 @@ test('the reporter goes in front of a page however it is written', async (t) => 
   assert.ok(body.indexOf('postMessage') < body.indexOf('<h1>'));
 });
 
+// The robot's teacher (ideas/dreams.md §4): last on the page, and only here.
+test('a game that teaches the robot has js/robot.js loaded in the preview alone', async (t) => {
+  const { app } = await studio(t);
+  const games = await startGames(app);
+  t.after(() => games.close());
+  const tag = 'src="js/robot.js"';
+  await put(app, 'index.html', '<!doctype html><head></head><body><script src="js/game.js"></script></body>');
+  const untaught = await (await games.client.request('GET', `/tank/${WRAPPER_PATH}`)).text();
+  assert.ok(!untaught.includes(tag), 'no teacher, nothing loaded');
+
+  await put(app, 'js/robot.js', 'Robot.play(function () { return []; });');
+  const body = await (await games.client.request('GET', `/tank/${WRAPPER_PATH}`)).text();
+  assert.ok(body.indexOf('src="js/game.js"') < body.indexOf(tag), 'after the game\'s own scripts');
+  assert.ok(body.indexOf(tag) < body.indexOf('</body>'));
+  const played = await (await games.client.request('GET', '/tank/')).text();
+  assert.ok(!played.includes(tag), 'nobody playing the game loads it');
+});
+
 /* Recording ---------------------------------------------------------------- */
 
 test('reported problems are stored, broadcast, and counted rather than repeated', async (t) => {

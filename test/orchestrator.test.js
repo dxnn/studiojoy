@@ -712,6 +712,9 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // seeing is the newest one (spec/ §14).
   assert.match(system, /You can see\. look_at shows you any \.png/);
   assert.match(system, /look_at_game shows you the game itself/);
+  // The robot is the preview's, but only the builder can teach it.
+  assert.match(system, /js\/robot\.js teaches it this game/);
+  assert.match(system, /Robot\.play\(\(s\) =>/);
 
   // The studio asks for many small files, a config/ directory, and the three
   // project documents.

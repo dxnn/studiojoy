@@ -473,7 +473,19 @@ runs — until **Save** writes the files or **Undo the tweaks** drops them.
 
 ## 4. A bot that plays
 
-**Status: queued.**
+**Status: decided 2026-10-04; items 1–4 of the proposal being built.**
+
+### Decided (Dann, 2026-10-04)
+
+- Build items 1–4 below: the robot, a game teaching it, *just before it
+  broke*, fast-forward. *Is it too hard?*, Jev and the catalog card later.
+- The robot keeps a **rolling savepoint** of its own and never replaces the
+  person's pin. "One savepoint" exists to keep things simple for the kids,
+  not to stop the studio doing more behind them.
+- The preview player owns `setTimeout`, `setInterval` and `Date.now()` too.
+- It is **the robot** in the interface *and* the code: `js/robot.js`,
+  `Robot.play`, never `bot`.
+- Jev is parked.
 
 ### Four wants, four bots
 
@@ -507,6 +519,115 @@ runs — until **Save** writes the files or **Undo the tweaks** drops them.
 - A bot's run never posts a score, earns an achievement, or (§5) a point.
 - Jev is called from the server, never from game code — a key in a game is
   no secret (ideas/scoreboard-trust.md).
+
+### What talk 3 changed (checked 2026-10-04)
+
+Written before the preview player and State existed. Both move this a long
+way, because a bot needs exactly what they built: a way in for presses, a
+clock it can lean on, and the game's situation as data.
+
+- **The preview player owns time** (`server/preview-player.js`): every
+  `requestAnimationFrame` callback runs from its `tick()`, with its own
+  `now`. Running that queue several times in one real frame, a frame of
+  1/60 s each, is **fast-forward** — the same loop as Step, repeated. And it
+  can hold the clock still while something slow decides, so a game *waits*
+  for its bot: 500 ms a decision stops being too slow for reflexes. The Jev
+  constraint above was about a clock nobody owned.
+- **Chance is seeded**, and the seed rides the savepoint. A bot whose own
+  choices come from that stream, pressing on frame boundaries, makes a run
+  that **plays back exactly**: a seed and a list of presses is the whole run.
+- **State is the game's situation as plain data** — what talk 4 called
+  "whatever the game publishes", for every game moved onto it
+  (ideas/state-migration.md). A bot reads `State.ship.x`, not pixels.
+- **A ghost thumb needs no library change.** `Input` fills its held set from
+  `keydown`/`keyup` on the window; a synthetic `KeyboardEvent` dispatched by
+  the injected script lands the same way. The verbs and their keys are
+  `CONTROLS.player1` in `config/controls.js`, a global the page already has.
+  A builder game with its own key listeners hears the same events. The one
+  `SCHEME` this misses is `none` — the quiz, the story, the adventure — where
+  the controls are the game's own buttons, and a bot clicks one.
+- **The end of a run is visible**: `Screens` puts `screens-open` on the body
+  while a title or game-over screen is up, `screens-over` on the game-over
+  one, and a `studio:start` event on the window presses Start
+  (`screens.js`, `input.js`).
+- **A crash already reaches the builder**: the reporter files the preview's
+  errors against the commit (`server/runtime.js`) and the next fire hands
+  them over. A bot that breaks the game needs no new path to say so.
+- **The preview is already off every board**, so the first constraint holds
+  for free inside it.
+- **The preview wrapper is the one place to load preview-only code**:
+  `wrapHtml` in `server/reporter.js` already rewrites the game's page there.
+- What the preview player does **not** own: `setTimeout`, `setInterval`,
+  `Date.now()`. A builder game that spawns on a timer is not paused by Pause
+  today, would not speed up under fast-forward, and would not play back.
+
+### The proposal
+
+1. **The robot**, in the preview player, for every game. A button under the
+   preview starts it and the game plays itself. It presses the game's own
+   verbs through synthetic keys — holds a few at a time, for a random spell
+   each, drawn from the preview's seeded stream — and presses Start whenever
+   a screen is up, so it plays run after run. On a `SCHEME: "none"` game it
+   clicks one of the game's visible buttons. Any key or click of yours stops
+   it: your hands take over. That is rung 1, and it already answers *watch
+   it run* and *find where it breaks*.
+2. **A game can teach it.** If the game has a `js/robot.js`, the wrapper
+   loads it — in the preview only, so no player ever downloads it — and it
+   hands the preview player a function of State that answers which verbs to
+   hold this frame:
+
+   ```js
+   Robot.play((s) => (s.ship.x < s.target.x ? ["right", "fire"] : ["left", "fire"]));
+   ```
+
+   `Robot` is the preview player's, not a library, so nothing is swept. Each
+   template ships one from what its editor knows — the racer steers for the
+   middle of the road, Roll a ball walks the level editor's `reachable`
+   squares to the next coin, the arcade turns toward the nearest rock and
+   fires, the story and the adventure pick a choice. A builder game gets one
+   when somebody asks the builder to *teach the robot*. That is rung 2.
+3. **Where it breaks, and just before.** While it plays, the robot keeps a
+   savepoint of its own from a few seconds back. When the game throws, it
+   stops, and the preview says so with one button: *go to just before it
+   broke* — which loads that moment and makes it the pin. The same seed means
+   pressing play from there breaks it the same way, every time, for the
+   person and for the builder reading the error.
+4. **Fast.** Fast-forward joins ½× and ¼× — 4× and 16× — for watching and for
+   rung 3. Sound is muted above 1×.
+5. **Is it too hard?** — later, on top of 2 and 4: a hundred runs from the
+   pin at 16×, hidden, each from its own seed, and a line in the rail: *37 of
+   100 reached level 2 · median 48 s · best 1,240*. With the tweaks it is the
+   *It's fair* stamp's loop: change one number, run the hundred again, same
+   seeds, and the difference is the number's. Its facts come from moments
+   and `Screens`, so a game says how far a run got the way it already does.
+   Only worth having with a taught robot — a monkey's hundred runs measure
+   the monkey.
+6. **Jev** — later still: State and moments in, a verb out, from the server,
+   the clock held while it thinks. Its price and its account decide when.
+7. **The catalog card playing itself** — not this talk. Either a recorded
+   clip (a canvas stream, captured while the robot plays) or a recorded run
+   played back; both want the rest first.
+
+### Where it pulls
+
+- **One savepoint.** Talk 3 decided Pin again replaces it. The robot's
+  rolling moment is a second one — kept out of sight, never replacing the
+  pin unless *go to just before it broke* is pressed. That bends the rule a
+  little; the alternative, the robot overwriting the pin every few seconds,
+  breaks it.
+- **Timers.** For the robot to replay a builder game that times things with
+  `setTimeout`, the preview player has to own those too — run them from its
+  clock. That also makes Pause pause them, which it should anyway; it is
+  also the riskiest change to the preview here, since every game's timers
+  start running on a clock that can stop.
+- **A taught robot is game code.** `js/robot.js` sits in the tree, so the
+  builder can write it and Versions shows it, and a broken one is reported
+  like any other file. It never runs for a player.
+- **Moments from the robot** reach the studio like any preview's. For the
+  achievements editor that is a gift — the robot finds moments nobody has
+  played to yet (TODO.md's registered moments) — but the preview's own
+  "moments heard" list stops meaning *what a person did*.
+- **The interface word.** Settled: *robot*, on the button and in the code.
 
 ## 5. Points
 

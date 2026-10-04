@@ -152,11 +152,14 @@ walk into, each paid for once already.
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache.
 - ⚠️ The preview is the **preview player** (`server/preview-player.js`,
-  spec/ §6): always debugging, never on a board. It owns the game's clock and
-  random numbers, and answers `/_scores`, `/_achievements` and `/_me` inside
-  the page — `fetch` and `sendBeacon` only. Its savepoint is `State.save()`
-  and the random stream; Back never moves the clock backwards, because every
-  template's loop takes `dt` from it and only caps it from above. The rail
+  spec/ §6): always debugging, never on a board. It owns the game's clock,
+  its timers (`setTimeout`, `setInterval`, `Date.now()`) and its random
+  numbers, and answers `/_scores`, `/_achievements` and `/_me` inside the
+  page — `fetch` and `sendBeacon` only. Its savepoint is `State.save()`, the
+  random stream and the robot's; Back never moves the clock backwards, because
+  every template's loop takes `dt` from it and only caps it from above. While
+  the **robot** plays, or above 1×, time goes in whole 1/60 s frames, which is
+  what makes a robot's run replay. The rail
   under it is the **tweaks** when nothing else claims it: config values tried
   in the running game, kept per browser, written only by Save
   (`public/tweaks.js`). A tweak reaches an object `const` live and never a
@@ -441,6 +444,16 @@ specified:
   caught Delete never reaching the studio and the canvas squeezed to a
   sliver on a phone. ⚠️ The adventure's box-drag has
   still not been shown in any browser, and none of it has met a real finger.
+- **The robot** (🤖 under the preview, spec/ §6, ideas/dreams.md §4, built
+  2026-10-04): the preview player's own player, pressing a game's verbs as
+  keys and tapping its buttons, run after run, at 1× to 16×. A game teaches
+  it in `js/robot.js`, which only the wrapper loads; every template ships one
+  and the builder is told how to write one. It keeps a rolling savepoint and,
+  when the game throws, offers *Go to just before it broke*, which replays
+  into the same break. Driven in the MCP browser on all five canvas and page
+  templates and a game built to break; ⚠️ 16× reached about 7.7× there,
+  headless Chromium's frame cap. *Is it too hard?*, the catalog card playing
+  itself and Jev are later (TODO.md).
 - **Microhelpers**: the guide's *Fill it in for me* and *Make one for me* —
   one request, one answer, nothing kept, through the same two token walls a
   reply goes through and billed to whoever pressed. No message row anywhere

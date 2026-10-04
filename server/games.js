@@ -6,7 +6,7 @@ import { HttpError } from './http/respond.js';
 import { checkSlug, checkProjectPath, resolveInside } from './files/paths.js';
 import { readFileAt, listTree } from './files/tree.js';
 import { currentSha, logCommits } from './files/git.js';
-import { WRAPPER_PATH, wrapHtml } from './reporter.js';
+import { ROBOT_FILE, WRAPPER_PATH, wrapHtml } from './reporter.js';
 import { readJson } from './http/body.js';
 import { json, noContent } from './http/respond.js';
 import {
@@ -354,13 +354,16 @@ export function createGamesApp({
     const version = head && pending ? pending.stampOf(project.slug, head) : head;
     const html = await readFileAt(path.join(dir, ENTRY_FILE));
     if (html === null) throw new HttpError(404, 'not found');
+    // The robot's teacher, when the game has one (reporter.js).
+    const robot = await fs.promises.stat(path.join(dir, ROBOT_FILE))
+      .then((s) => s.isFile(), () => false);
 
     ctx.res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
     });
     if (ctx.req.method === 'HEAD') return ctx.res.end();
-    return ctx.res.end(wrapHtml(html.toString('utf8'), version));
+    return ctx.res.end(wrapHtml(html.toString('utf8'), version, { robot }));
   });
 
   // The scoreboard (spec.md §6): the one thing here that is not a file, and
