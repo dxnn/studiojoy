@@ -109,68 +109,108 @@ function drawLevel() {
 // marker on the floor — so a new kind can be painted and seen before it does
 // anything. Each is a function of the square the ball just rolled onto:
 //
-//   b: (square) => { fall(); },                        // a trap: down you go
-//   p: (square) => { square.mesh.visible = false; },   // picked up, gone
+//   b: (square) => { fall(); },     // a trap: down you go
+//   p: (square) => { hide(square); }, // picked up, gone
 //
-// `square` is { r, c, mesh }, the mesh its marker. Run is the run, and every
-// function in this file is there to call.
+// `square` is { r, c, key, mesh }, the mesh its marker. What a square does to
+// the run goes in State, like everything else that changes — hide() is how a
+// square is gone for the rest of the level — and every function in this file
+// is there to call.
 const ON_SQUARE = {};
 
 // ---------- the run ----------
 
-// Everything that is true about the run happening right now: which level it
-// is on, the ball, the coins picked up, the clock. A new run is this built
-// again, which is why there is no reset(). Here is the level being played —
-// its coins and its markers — built again on every level.
-let Run = null;
-let Here = null;
-let playing = false;
+// Everything that is true about the run happening right now — which level it
+// is on, the ball, the coins picked up, the clock — kept in State
+// (studio/state.js), which is what lets the studio's preview pin a moment and
+// come back to it. A new run is State.reset(newRun()), so there is no reset()
+// of the game's own to keep in step.
+//
+// Not the run's: the picture of it. The level's rows and size, the ball's
+// mesh, a mesh for each coin and marker — built from State by showLevel()
+// whenever the level changes, and again when a pinned moment is put back.
 let last = 0;
 let ball = null;
+let coinMeshes = [];
+let markers = {};
+let screen = null;
 
 function newRun() {
   const coinsIn = (rows) => rows.join("").split("o").length - 1;
-  Run = {
+  return {
+    playing: false, // a run is going, rather than a title screen
     at: FIRST,
     x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0,
     falling: false, back: 0, // seconds until the ball is back after a fall
     on: null, // the square under the ball, as "r,c"
     got: 0, total: LEVELS.slice(FIRST).reduce((n, rows) => n + coinsIn(rows), 0),
     time: 0,
+    coins: [], // this level's: where each is, and whether it is got
+    hidden: {}, // this level's squares a kind of square has hidden, by "r,c"
   };
-  enterLevel(FIRST);
 }
 
 // The ball arrives at the start of level n, with nothing picked up there yet.
 function enterLevel(n) {
-  Run.at = n;
+  State.at = n;
   useLevel(n);
-  drawLevel();
-  const coins = whereIs("o").map(([r, c]) => {
-    const [cx, cz] = toWorld(r, c);
-    return { x: cx, z: cz, mesh: R.ball({ at: [cx, 0.35, cz], size: 0.18, colour: LOOK.COIN }) };
+  State.coins = whereIs("o").map(([r, c]) => {
+    const [x, z] = toWorld(r, c);
+    return { x, z, got: false };
   });
-  const markers = {};
+  State.hidden = {};
+  const [x, z] = toWorld(start[0], start[1]);
+  Object.assign(State, { x, z, y: PLAY.BALL_SIZE, vx: 0, vz: 0, vy: 0, falling: false, back: 0, on: null });
+  showLevel();
+}
+
+// The level State is on, drawn as State says it is: its coins got or not,
+// its markers hidden or not.
+function showLevel() {
+  useLevel(State.at);
+  drawLevel();
+  coinMeshes = State.coins.map((coin) => {
+    const mesh = R.ball({ at: [coin.x, 0.35, coin.z], size: 0.18, colour: LOOK.COIN });
+    mesh.visible = !coin.got;
+    return mesh;
+  });
+  markers = {};
   for (const ch of Object.keys(SQUARES)) {
     if (solid(ch)) continue;
     for (const [r, c] of whereIs(ch)) {
       const [mx, mz] = toWorld(r, c);
-      markers[r + "," + c] = { r, c, ch, mesh: R.box({ at: [mx, 0.08, mz], size: [0.6, 0.16, 0.6], colour: SQUARES[ch].colour }) };
+      const key = r + "," + c;
+      const mesh = R.box({ at: [mx, 0.08, mz], size: [0.6, 0.16, 0.6], colour: SQUARES[ch].colour });
+      mesh.visible = !State.hidden[key];
+      markers[key] = { r, c, ch, key, mesh };
     }
   }
-  Here = { coins, markers };
-  const [x, z] = toWorld(start[0], start[1]);
-  Object.assign(Run, { x, z, y: PLAY.BALL_SIZE, vx: 0, vz: 0, vy: 0, falling: false, back: 0, on: null });
+}
+
+// A square gone for the rest of the level: hidden in State, so a pinned
+// moment remembers it, and on the screen.
+function hide(square) {
+  State.hidden[square.key] = true;
+  square.mesh.visible = false;
 }
 
 // Down a hole — or anything else that should send the ball back to the start.
 function fall() {
-  Run.falling = true;
-  Run.vy = 0;
-  Run.back = PLAY.RESPAWN;
+  State.falling = true;
+  State.vy = 0;
+  State.back = PLAY.RESPAWN;
   Sound.play("fall", 0.6);
   Moments.say("fall");
 }
+
+// Back to a pinned moment: the level it was on, drawn again from State, and
+// the screen that was up when it was put back goes.
+State.loaded(function () {
+  showLevel();
+  if (!State.playing) return;
+  if (screen) { screen.close(); screen = null; }
+  updateHud();
+});
 
 // ---------- the loop ----------
 
@@ -183,15 +223,15 @@ function loop(now) {
   // ⚠️ First line of every frame, before anything asks what is held.
   Input.update();
 
-  if (playing) step(dt);
-  if (Run) ball.position.set(Run.x, Run.y, Run.z);
+  if (State.playing) step(dt);
+  if (ball) ball.position.set(State.x, State.y, State.z);
   // Last line of every frame: the picture, from where the camera follows.
   R.draw(dt);
   requestAnimationFrame(loop);
 }
 
 function step(dt) {
-  const b = Run;
+  const b = State;
   b.time += dt;
 
   if (b.falling) {
@@ -240,20 +280,22 @@ function step(dt) {
   const key = r + "," + c;
   if (key !== b.on) {
     b.on = key;
-    const marker = Here.markers[key];
-    if (marker && ON_SQUARE[marker.ch]) ON_SQUARE[marker.ch](marker);
+    const marker = markers[key];
+    if (marker && !b.hidden[key] && ON_SQUARE[marker.ch]) ON_SQUARE[marker.ch](marker);
   }
 
-  for (const coin of Here.coins) {
-    if (!coin.mesh.visible) continue;
-    coin.mesh.rotation.y += dt * 3;
+  b.coins.forEach((coin, i) => {
+    if (coin.got) return;
+    const mesh = coinMeshes[i];
+    mesh.rotation.y += dt * 3;
     if (Math.hypot(b.x - coin.x, b.z - coin.z) < PLAY.COIN_REACH) {
-      coin.mesh.visible = false;
+      coin.got = true;
+      mesh.visible = false;
       b.got += 1;
       Sound.play("coin", 0.5);
       Moments.say("coin", b.got);
     }
-  }
+  });
 
   if (under === "G") reachGoal();
   else updateHud();
@@ -261,10 +303,10 @@ function step(dt) {
 
 // The goal: on to the next level, or the end of the run after the last.
 function reachGoal() {
-  if (Run.at + 1 < LEVELS.length) {
+  if (State.at + 1 < LEVELS.length) {
     Sound.play("goal", 0.6);
-    Moments.say("level", Run.at + 1);
-    enterLevel(Run.at + 1);
+    Moments.say("level", State.at + 1);
+    enterLevel(State.at + 1);
     updateHud();
   } else {
     finish();
@@ -305,15 +347,17 @@ function bounceOffWalls(b) {
 // what changed, so saying all of it every time costs nothing.
 function updateHud() {
   const chips = {};
-  if (LEVELS.length > 1) chips[WORDS.hudLevel] = (Run.at + 1) + "/" + LEVELS.length;
-  chips[WORDS.hudCoins] = Run.got + "/" + Run.total;
-  chips[WORDS.hudTime] = Run.time.toFixed(1);
+  if (LEVELS.length > 1) chips[WORDS.hudLevel] = (State.at + 1) + "/" + LEVELS.length;
+  chips[WORDS.hudCoins] = State.got + "/" + State.total;
+  chips[WORDS.hudTime] = State.time.toFixed(1);
   Screens.chips(chips, { hint: true });
 }
 
 function startRun() {
-  newRun();
-  playing = true;
+  screen = null;
+  State.reset(newRun());
+  enterLevel(FIRST);
+  State.playing = true;
   updateHud();
 }
 
@@ -322,15 +366,15 @@ function startRun() {
 // with your place in it. Bigger is better on the board: coins, plus time
 // under par.
 function finish() {
-  const b = Run;
-  playing = false;
+  const b = State;
+  b.playing = false;
   const time = Math.round(b.time * 10) / 10;
   const score = b.got * PLAY.COIN_POINTS + Math.max(0, Math.round((PLAY.PAR - time) * PLAY.TIME_POINTS));
   Sound.play("goal", 0.6);
   Moments.say("goal", time);
   Moments.say("score", score);
   Screens.chips({});
-  Screens.title({
+  screen = Screens.title({
     name: WORDS.finished,
     tagline: WORDS.finishedHow.replace("{time}", time).replace("{coins}", b.got),
     score,
@@ -353,7 +397,8 @@ const widest = Math.max(...LEVELS.map((rows) => Math.max(rows.length, ...rows.ma
 R.start(canvas, { sky: LOOK.SKY, fog: widest });
 // Built once before the title screen, so the level behind it has its coins;
 // Roll! builds it again, fresh.
-newRun();
+State.reset(newRun());
+enterLevel(FIRST);
 
-Screens.title({ start: WORDS.start, onStart: startRun });
+screen = Screens.title({ start: WORDS.start, onStart: startRun });
 requestAnimationFrame(loop);

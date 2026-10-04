@@ -45,7 +45,12 @@ test('the arcade template makes the calls a game is shaped by', () => {
   assert.match(GAME, /Input\.update\(\)/, 'every frame begins with it');
   assert.match(GAME, /Moments\.say\(/, 'it says what happened');
   // A meter chip, which is the reason a game would otherwise build its own HUD.
-  assert.match(GAME, /value: Run\.charge, max: PLAY\.CHARGE_FULL/);
+  assert.match(GAME, /value: State\.charge, max: PLAY\.CHARGE_FULL/);
+  // The run is State, so the preview can pin it: a new run is a reset, and
+  // nothing changing lives in a variable of the game's own.
+  assert.match(GAME, /State\.reset\(newRun\(\)\)/);
+  assert.match(GAME, /State\.loaded\(/, 'and a pinned moment closes the screen in front of it');
+  assert.doesNotMatch(GAME, /\blet (Run|playing|Stars)\b/);
 });
 
 test('the arcade template leaves its own size alone', () => {
@@ -68,7 +73,7 @@ test('the arcade template loads its libraries in an order that works', () => {
   assert.ok(at('config/controls.js') < at('studio/input.js'), 'controls before input');
   assert.ok(at('config/controls.js') < at('studio/screens.js'), 'controls before screens');
   // The game itself last, after every config it reads at load.
-  for (const before of ['config/look.js', 'config/play.js', 'config/words.js', 'studio/screens.js']) {
+  for (const before of ['config/look.js', 'config/play.js', 'config/words.js', 'studio/screens.js', 'studio/state.js']) {
     assert.ok(at(before) >= 0 && at(before) < at('js/game.js'), `${before} before js/game.js`);
   }
   assert.equal(scripts[scripts.length - 1], 'js/game.js');

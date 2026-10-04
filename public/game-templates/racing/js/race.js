@@ -110,8 +110,11 @@ roadPicture.height = LOOK.HEIGHT;
 
 // ---------- the race ----------
 
-// Everything that is true about the race happening right now. A new race is
-// this object built again, which is why there is no reset() to keep in step.
+// Everything that is true about the race happening right now, kept in State
+// (studio/state.js) — which is what lets the studio's preview pin a moment
+// and come back to it. A new race is State.reset(newRace()), so there is no
+// reset() of the game's own to keep in step, and the code reaches through
+// State every time rather than keeping a piece of it in a variable.
 function newRace() {
   const p = Road.at(Road.start - 30);
   const rivals = [];
@@ -125,6 +128,7 @@ function newRace() {
     });
   }
   return {
+    racing: false, // a race is going, rather than a title screen
     car: { x: p.x + p.nx * Road.half * -0.45, y: p.y + p.ny * Road.half * -0.45, angle: p.angle, speed: 0 },
     lap: 0,
     progress: 0, // how far past the start line, 0 to Road.total
@@ -137,10 +141,21 @@ function newRace() {
   };
 }
 
-let Race = newRace();
-let racing = false;
+State.reset(newRace());
+
+// Not the race's: when the last frame was drawn, whether the engine's loop is
+// sounding, and the title or finish screen while one is up.
 let last = 0;
 let engineOn = false;
+let screen = null;
+
+// Back to a pinned moment in the middle of a race: the screen that was up when
+// it was put back goes, and the race carries on from there.
+State.loaded(function () {
+  if (!State.racing) return;
+  if (screen) { screen.close(); screen = null; }
+  updateHud();
+});
 
 // ---------- the loop ----------
 
@@ -153,13 +168,13 @@ function loop(now) {
   // ⚠️ First line of every frame, before anything asks what is held.
   Input.update();
 
-  if (racing) step(dt);
+  if (State.racing) step(dt);
   draw();
   requestAnimationFrame(loop);
 }
 
 function step(dt) {
-  const r = Race;
+  const r = State;
   if (r.countdown > 0) {
     r.countdown -= dt;
     if (r.countdown <= 0) Sound.play("lap", 0.5);
@@ -268,8 +283,8 @@ function rivalPos(rival) {
 
 // Your place: one, plus every rival further round than you.
 function placeNow() {
-  const mine = Race.lap * Road.total + Race.progress;
-  return 1 + Race.rivals.filter((rv) => rv.along - Road.start + 70 > mine).length;
+  const mine = State.lap * Road.total + State.progress;
+  return 1 + State.rivals.filter((rv) => rv.along - Road.start + 70 > mine).length;
 }
 
 // ---------- what the player sees around the game ----------
@@ -278,15 +293,16 @@ function placeNow() {
 // what changed, so saying all of it every time costs nothing.
 function updateHud() {
   const chips = {};
-  chips[WORDS.hudLap] = Math.min(Race.lap + 1, PLAY.LAPS) + "/" + PLAY.LAPS;
-  chips[WORDS.hudPlace] = placeNow() + "/" + (Race.rivals.length + 1);
-  chips[WORDS.hudTime] = Race.time.toFixed(1);
+  chips[WORDS.hudLap] = Math.min(State.lap + 1, PLAY.LAPS) + "/" + PLAY.LAPS;
+  chips[WORDS.hudPlace] = placeNow() + "/" + (State.rivals.length + 1);
+  chips[WORDS.hudTime] = State.time.toFixed(1);
   Screens.chips(chips, { hint: true });
 }
 
 function startRace() {
-  Race = newRace();
-  racing = true;
+  screen = null;
+  State.reset(newRace());
+  State.racing = true;
   updateHud();
 }
 
@@ -295,9 +311,9 @@ function startRace() {
 // with your place in it. Bigger is better on the board, so the score is time
 // under par plus points for every rival beaten.
 function finish() {
-  const r = Race;
+  const r = State;
   r.over = true;
-  racing = false;
+  r.racing = false;
   if (engineOn) { engineOn = false; Sound.stop("engine"); }
   const place = placeNow();
   const time = Math.round(r.time * 10) / 10;
@@ -306,7 +322,7 @@ function finish() {
   Moments.say("place", place);
   Moments.say("score", score);
   Screens.chips({});
-  Screens.title({
+  screen = Screens.title({
     name: place === 1 ? WORDS.first : WORDS.placed.replace("{place}", PLACES[place] || place + "th"),
     tagline: WORDS.finished.replace("{time}", time),
     score,
@@ -328,28 +344,28 @@ carPicture.src = "assets/sprites/car.png";
 
 function draw() {
   ctx.save();
-  if (Race.shake > 0.5) {
-    ctx.translate((Math.random() - 0.5) * Race.shake, (Math.random() - 0.5) * Race.shake);
+  if (State.shake > 0.5) {
+    ctx.translate((Math.random() - 0.5) * State.shake, (Math.random() - 0.5) * State.shake);
   }
   ctx.drawImage(roadPicture, 0, 0);
   for (const thing of THINGS) drawThing(thing);
-  for (const rival of Race.rivals) {
+  for (const rival of State.rivals) {
     const p = rivalPos(rival);
     drawCar(p.x, p.y, p.angle, rival.colour, false);
   }
-  drawCar(Race.car.x, Race.car.y, Race.car.angle, LOOK.CAR, true);
+  drawCar(State.car.x, State.car.y, State.car.angle, LOOK.CAR, true);
   ctx.restore();
 
   // The countdown, big and in the middle: a number, so it wears the highlight.
-  if (racing && Race.countdown > 0) {
+  if (State.racing && State.countdown > 0) {
     ctx.fillStyle = LOOK.highlight;
     ctx.font = "bold 96px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(Math.ceil(Race.countdown)), LOOK.WIDTH / 2, LOOK.HEIGHT / 2);
-  } else if (racing && Race.time < 0.8) {
+    ctx.fillText(String(Math.ceil(State.countdown)), LOOK.WIDTH / 2, LOOK.HEIGHT / 2);
+  } else if (State.racing && State.time < 0.8) {
     ctx.fillStyle = LOOK.primary;
-    ctx.globalAlpha = 1 - Race.time / 0.8;
+    ctx.globalAlpha = 1 - State.time / 0.8;
     ctx.font = "bold 96px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -428,5 +444,5 @@ function drawThing(thing) {
 // inline, which is why css/style.css says nothing about how wide #wrap is.
 Screens.fit(document.getElementById("wrap"));
 
-Screens.title({ start: WORDS.start, onStart: startRace });
+screen = Screens.title({ start: WORDS.start, onStart: startRace });
 requestAnimationFrame(loop);

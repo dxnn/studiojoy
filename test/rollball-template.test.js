@@ -21,6 +21,7 @@ const WORDS = read('game-templates/rollball/config/words.js');
 const CONTROLS = read('game-templates/rollball/config/controls.js');
 const LEVEL = read('game-templates/rollball/config/level.js');
 const INDEX = JSON.parse(read('game-templates/index.json'));
+const STATE = read('studio-lib/state/state.js');
 
 const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
@@ -134,6 +135,8 @@ function roll({
   });
   ctx.window = ctx;
   const config = (src) => src.replace(/^const (\w+) =/gm, 'var $1 =');
+  // The run is State, as on the page: the library is a script ahead of the game.
+  vm.runInContext(STATE, ctx);
   vm.runInContext(`var LEVELS = ${JSON.stringify(levels)}; var SQUARES = ${JSON.stringify(squares)};`, ctx);
   vm.runInContext(config(PLAY), ctx);
   Object.assign(ctx.PLAY, play);
@@ -141,9 +144,16 @@ function roll({
   vm.runInContext(config(WORDS), ctx);
   vm.runInContext(game(GAME), ctx);
   started();
-  for (let i = 1; i <= frames; i += 1) frame((i * 1000) / fps);
-  // The ball the camera is on: every level makes its own.
-  return { ball: followed, said, meshes };
+  let at = 0;
+  const more = (n) => { for (let i = 0; i < n; i += 1) { at += 1; frame((at * 1000) / fps); } };
+  more(frames);
+  // The ball the camera is on: every level makes its own. `more` runs on.
+  return {
+    ball: followed, said, meshes, more,
+    // A `const` on the page is reached by name, the way the preview reaches it.
+    State: vm.runInContext('State', ctx),
+    coins: () => meshes.filter((m) => m.o?.colour === ctx.LOOK.COIN),
+  };
 }
 
 test('a fast ball, or a small one, never rolls through a wall', () => {
@@ -201,6 +211,21 @@ test('a made-up square is drawn before it does anything, and does what ON_SQUARE
     game: (s) => s.replace('const ON_SQUARE = {};', 'const ON_SQUARE = { b: (square) => { Moments.say("bomb", square.c); fall(); } };'),
   });
   assert.deepEqual(loud.said.slice(0, 2), [['bomb', 2], ['fall', undefined]]);
+});
+
+// What the preview's Pin is: State.save(), then State.load() — and the level
+// is drawn again from State, the coin picked up since gone again from it.
+test('a pinned moment comes back whole: where the ball was, and the coin it had not got yet', () => {
+  const game = roll({ levels: [['########', '#S..o.G#', '########']], frames: 4, push: [0.4, 0] });
+  const pinned = game.State.save();
+  const x = game.State.x;
+  game.more(30);
+  assert.equal(game.State.got, 1, 'the coin was picked up after the pin');
+  assert.equal(game.State.load(pinned), true);
+  assert.equal(game.State.got, 0);
+  assert.equal(game.State.x, x);
+  const shown = game.coins().at(-1);
+  assert.equal(shown.visible, true, 'drawn again, there to be picked up');
 });
 
 test('a level with no start puts the ball on its first floor, not in a wall', () => {

@@ -16,10 +16,14 @@ const ctx = canvas.getContext("2d");
 
 // ---------- the run ----------
 
-// Everything that is true about the run happening right now. A new run is
-// this object built again, which is why there is no reset() to keep in step.
+// Everything that is true about the run happening right now, kept in State
+// (studio/state.js) — which is what lets the studio's preview pin a moment
+// and come back to it. A new run is State.reset(newRun()), so there is no
+// reset() of the game's own to keep in step, and the code reaches through
+// State every time rather than keeping a piece of it in a variable.
 function newRun() {
   return {
+    playing: false,  // a run is going, rather than a title screen
     score: 0,
     lives: PLAY.LIVES,
     level: 1,
@@ -34,23 +38,38 @@ function newRun() {
     sparks: [],
     nextRock: 1,
     over: false,
+    stars: newStars(),
   };
 }
 
-let Run = newRun();
-let playing = false;
-let last = 0;
-
-// The stars are the same every run: made once, drifted every frame.
-const Stars = [];
-for (let i = 0; i < 90; i += 1) {
-  Stars.push({
-    x: Math.random() * LOOK.WIDTH,
-    y: Math.random() * LOOK.HEIGHT,
-    size: Math.random() < 0.85 ? 1 : 2,
-    drift: 6 + Math.random() * 22,
-  });
+// The sky behind a run, drifted every frame.
+function newStars() {
+  const stars = [];
+  for (let i = 0; i < 90; i += 1) {
+    stars.push({
+      x: Math.random() * LOOK.WIDTH,
+      y: Math.random() * LOOK.HEIGHT,
+      size: Math.random() < 0.85 ? 1 : 2,
+      drift: 6 + Math.random() * 22,
+    });
+  }
+  return stars;
 }
+
+State.reset(newRun());
+
+// Not the run's: when the last frame was drawn, and the title or game-over
+// screen while one is up.
+let last = 0;
+let screen = null;
+
+// Back to a pinned moment in the middle of a run: the screen that was up when
+// it was put back goes, and the run carries on from there.
+State.loaded(function () {
+  if (!State.playing) return;
+  if (screen) { screen.close(); screen = null; }
+  updateHud();
+});
 
 // ---------- the loop ----------
 
@@ -63,13 +82,13 @@ function loop(now) {
   // ⚠️ First line of every frame, before anything asks what is held.
   Input.update();
 
-  if (playing) step(dt);
+  if (State.playing) step(dt);
   draw();
   requestAnimationFrame(loop);
 }
 
 function step(dt) {
-  const ship = Run.ship;
+  const ship = State.ship;
 
   // Left and right slide you along; thrust lifts you and gravity takes it
   // back. The names are the game's own words, from config/controls.js.
@@ -85,24 +104,24 @@ function step(dt) {
 
   // Firing. The button latches on a touchscreen — tap it on, tap it off — so
   // held() is the right question for it either way.
-  Run.cooldown -= dt;
-  if (Input.held("fire") && Run.cooldown <= 0) {
-    Run.cooldown = PLAY.BOLT_GAP;
-    Run.bolts.push({ x: ship.x, y: ship.y - 16 });
+  State.cooldown -= dt;
+  if (Input.held("fire") && State.cooldown <= 0) {
+    State.cooldown = PLAY.BOLT_GAP;
+    State.bolts.push({ x: ship.x, y: ship.y - 16 });
     Sound.play("shoot", 0.4);
   }
 
-  for (const bolt of Run.bolts) bolt.y -= PLAY.BOLT_SPEED * dt;
-  Run.bolts = Run.bolts.filter((b) => b.y > -20);
+  for (const bolt of State.bolts) bolt.y -= PLAY.BOLT_SPEED * dt;
+  State.bolts = State.bolts.filter((b) => b.y > -20);
 
   // Meteors arrive on a clock that speeds up with the level.
-  Run.nextRock -= dt;
-  if (Run.nextRock <= 0) {
-    Run.nextRock = Math.max(
+  State.nextRock -= dt;
+  if (State.nextRock <= 0) {
+    State.nextRock = Math.max(
       PLAY.ROCK_GAP_LEAST,
-      PLAY.ROCK_GAP - (Run.level - 1) * 0.12,
+      PLAY.ROCK_GAP - (State.level - 1) * 0.12,
     );
-    Run.rocks.push({
+    State.rocks.push({
       x: 40 + Math.random() * (LOOK.WIDTH - 80),
       y: -PLAY.ROCK_SIZE,
       spin: Math.random() * Math.PI,
@@ -110,27 +129,27 @@ function step(dt) {
     });
   }
 
-  const fall = PLAY.ROCK_SPEED + (Run.level - 1) * PLAY.ROCK_SPEED_PER_LEVEL;
-  for (const rock of Run.rocks) {
+  const fall = PLAY.ROCK_SPEED + (State.level - 1) * PLAY.ROCK_SPEED_PER_LEVEL;
+  for (const rock of State.rocks) {
     rock.y += fall * dt;
     rock.spin += rock.turn * dt;
   }
 
   hits();
 
-  if (Run.shield > 0) Run.shield -= dt;
+  if (State.shield > 0) State.shield -= dt;
 
-  for (const spark of Run.sparks) {
+  for (const spark of State.sparks) {
     spark.x += spark.vx * dt;
     spark.y += spark.vy * dt;
     spark.life -= dt;
   }
-  Run.sparks = Run.sparks.filter((s) => s.life > 0);
+  State.sparks = State.sparks.filter((s) => s.life > 0);
 
   // A meteor that reaches the floor costs you, the same as one that lands on
   // you: the line is what you are holding.
-  const passed = Run.rocks.filter((r) => r.y > LOOK.HEIGHT);
-  Run.rocks = Run.rocks.filter((r) => r.y <= LOOK.HEIGHT);
+  const passed = State.rocks.filter((r) => r.y > LOOK.HEIGHT);
+  State.rocks = State.rocks.filter((r) => r.y <= LOOK.HEIGHT);
   for (let i = 0; i < passed.length; i += 1) hurt();
 
   updateHud();
@@ -138,12 +157,12 @@ function step(dt) {
 
 // What touched what. Bolts break meteors; meteors break you.
 function hits() {
-  const ship = Run.ship;
+  const ship = State.ship;
   const half = PLAY.ROCK_SIZE / 2;
 
-  for (const rock of Run.rocks) {
+  for (const rock of State.rocks) {
     if (rock.gone) continue;
-    for (const bolt of Run.bolts) {
+    for (const bolt of State.bolts) {
       if (bolt.gone) continue;
       if (Math.abs(bolt.x - rock.x) < half && Math.abs(bolt.y - rock.y) < half) {
         rock.gone = true;
@@ -159,56 +178,56 @@ function hits() {
       hurt();
     }
   }
-  Run.rocks = Run.rocks.filter((r) => !r.gone);
-  Run.bolts = Run.bolts.filter((b) => !b.gone);
+  State.rocks = State.rocks.filter((r) => !r.gone);
+  State.bolts = State.bolts.filter((b) => !b.gone);
 }
 
 function breakRock(rock) {
-  Run.score += PLAY.ROCK_POINTS;
-  Run.broken += 1;
-  Run.sinceLevel += 1;
+  State.score += PLAY.ROCK_POINTS;
+  State.broken += 1;
+  State.sinceLevel += 1;
   spark(rock.x, rock.y);
   Sound.play("break", 0.5);
   // ⚠️ On the line where it happens, not in a batch at the end.
   Moments.say("rock-broken");
 
-  if (PLAY.CHARGE_FULL > 0 && Run.shield <= 0 && Run.charge < PLAY.CHARGE_FULL) {
-    Run.charge += 1;
-    if (Run.charge >= PLAY.CHARGE_FULL) {
-      Run.charge = PLAY.CHARGE_FULL;
-      Run.shield = PLAY.SHIELD_SECONDS;
+  if (PLAY.CHARGE_FULL > 0 && State.shield <= 0 && State.charge < PLAY.CHARGE_FULL) {
+    State.charge += 1;
+    if (State.charge >= PLAY.CHARGE_FULL) {
+      State.charge = PLAY.CHARGE_FULL;
+      State.shield = PLAY.SHIELD_SECONDS;
       Sound.play("shield", 0.5);
     }
   }
 
-  if (Run.sinceLevel >= PLAY.LEVEL_EVERY) {
-    Run.sinceLevel = 0;
-    Run.level += 1;
-    Run.score += PLAY.LEVEL_POINTS;
-    Moments.say("level", Run.level);
+  if (State.sinceLevel >= PLAY.LEVEL_EVERY) {
+    State.sinceLevel = 0;
+    State.level += 1;
+    State.score += PLAY.LEVEL_POINTS;
+    Moments.say("level", State.level);
   }
 }
 
 // A hit. The shield spends itself first, and the run ends when the lives do.
 function hurt() {
-  if (Run.over) return;
-  if (Run.shield > 0) {
-    Run.shield = 0;
-    Run.charge = 0;
+  if (State.over) return;
+  if (State.shield > 0) {
+    State.shield = 0;
+    State.charge = 0;
     Sound.play("shield-gone", 0.5);
     Moments.say("shield-saved");
     return;
   }
-  Run.lives -= 1;
+  State.lives -= 1;
   Sound.play("hurt", 0.6);
-  if (Run.lives <= 0) endRun();
+  if (State.lives <= 0) endRun();
 }
 
 function spark(x, y) {
   for (let i = 0; i < 10; i += 1) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 60 + Math.random() * 180;
-    Run.sparks.push({
+    State.sparks.push({
       x, y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
@@ -224,13 +243,13 @@ function spark(x, y) {
 // bar is a chip like the rest, not markup of this game's own.
 function updateHud() {
   const chips = {};
-  chips[WORDS.hudScore] = Math.round(Run.score);
-  chips[WORDS.hudLives] = Run.lives;
-  chips[WORDS.hudLevel] = Run.level;
+  chips[WORDS.hudScore] = Math.round(State.score);
+  chips[WORDS.hudLives] = State.lives;
+  chips[WORDS.hudLevel] = State.level;
   if (PLAY.CHARGE_FULL > 0) {
-    chips[WORDS.hudCharge] = Run.shield > 0
+    chips[WORDS.hudCharge] = State.shield > 0
       ? { value: 1, max: 1, text: WORDS.shieldUp }
-      : { value: Run.charge, max: PLAY.CHARGE_FULL, text: Run.charge + "/" + PLAY.CHARGE_FULL };
+      : { value: State.charge, max: PLAY.CHARGE_FULL, text: State.charge + "/" + PLAY.CHARGE_FULL };
   }
   Screens.chips(chips, { hint: true });
 }
@@ -239,9 +258,9 @@ function updateHud() {
 // them. `post` puts the run on the scoreboard and `board` shows the top ten
 // with your place in it.
 function titleScreen(score) {
-  playing = false;
+  State.playing = false;
   Screens.chips({});
-  Screens.title({
+  screen = Screens.title({
     score,
     post: score !== undefined,
     board: true,
@@ -250,16 +269,17 @@ function titleScreen(score) {
 }
 
 function startRun() {
-  Run = newRun();
-  playing = true;
+  screen = null;
+  State.reset(newRun());
+  State.playing = true;
   updateHud();
 }
 
 function endRun() {
-  Run.over = true;
-  playing = false;
-  Moments.say("run-over", Math.round(Run.score));
-  titleScreen(Math.round(Run.score));
+  State.over = true;
+  State.playing = false;
+  Moments.say("run-over", Math.round(State.score));
+  titleScreen(Math.round(State.score));
 }
 
 // ---------- drawing ----------
@@ -269,18 +289,18 @@ function draw() {
   ctx.fillRect(0, 0, LOOK.WIDTH, LOOK.HEIGHT);
 
   ctx.fillStyle = LOOK.STAR;
-  for (const star of Stars) {
+  for (const star of State.stars) {
     star.y += star.drift * 0.016;
     if (star.y > LOOK.HEIGHT) star.y = 0;
     ctx.fillRect(star.x, star.y, star.size, star.size);
   }
 
-  for (const rock of Run.rocks) drawRock(rock);
+  for (const rock of State.rocks) drawRock(rock);
 
   ctx.fillStyle = LOOK.BOLT;
-  for (const bolt of Run.bolts) ctx.fillRect(bolt.x - 2, bolt.y - 10, 4, 14);
+  for (const bolt of State.bolts) ctx.fillRect(bolt.x - 2, bolt.y - 10, 4, 14);
 
-  for (const spark of Run.sparks) {
+  for (const spark of State.sparks) {
     ctx.globalAlpha = Math.max(0, spark.life * 2);
     ctx.fillStyle = LOOK.SPARK;
     ctx.fillRect(spark.x - 2, spark.y - 2, 4, 4);
@@ -291,9 +311,9 @@ function draw() {
 }
 
 function drawShip() {
-  const { x, y } = Run.ship;
+  const { x, y } = State.ship;
 
-  if (Input.held("thrust") && playing) {
+  if (Input.held("thrust") && State.playing) {
     ctx.fillStyle = LOOK.FLAME;
     ctx.beginPath();
     ctx.moveTo(x - 6, y + 12);
@@ -312,10 +332,10 @@ function drawShip() {
   ctx.closePath();
   ctx.fill();
 
-  if (Run.shield > 0) {
+  if (State.shield > 0) {
     ctx.strokeStyle = LOOK.SHIELD;
     // The last second of it flashes, so nobody is surprised by losing it.
-    ctx.globalAlpha = Run.shield < 1 ? 0.3 + Math.abs(Math.sin(Run.shield * 12)) * 0.5 : 0.8;
+    ctx.globalAlpha = State.shield < 1 ? 0.3 + Math.abs(Math.sin(State.shield * 12)) * 0.5 : 0.8;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, y, 28, 0, Math.PI * 2);

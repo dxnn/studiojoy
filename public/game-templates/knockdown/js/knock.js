@@ -18,18 +18,23 @@ const ctx = canvas.getContext("2d");
 
 // ---------- the level ----------
 
-// Everything that is true about the level being played. A new level is this
-// built again — world and all — which is why there is no reset() to keep in
-// step.
+// Everything that is true about the level being played, kept in State
+// (studio/state.js) — which is what lets the studio's preview pin a moment
+// and come back to it. A new level is State.reset(newLevel()), world and all,
+// so there is no reset() of the game's own to keep in step. The bodies are the
+// physics library's and ride in State's saves on their own: this keeps none,
+// and finds them with Physics.all() and their kind.
 function newLevel() {
   Physics.world({ gravity: PLAY.GRAVITY, bounce: PLAY.BOUNCE, friction: PLAY.FRICTION });
   // A block is the one kind that never moves; the rest is the physics'.
   Physics.build(BODIES.map((b) => Object.assign({}, b, { still: b.kind === "block" })));
   return {
+    started: true,     // a level has been built — before it, the world as configured
+    playing: false,    // a level is going, rather than a title screen
     shotsLeft: PLAY.SHOTS,
     down: 0,
     score: 0,
-    shot: null,        // the shot in the air, while there is one
+    flying: false,     // a shot is in the air
     waited: 0,         // seconds since it was fired
     pulling: false,    // a finger or the mouse is on the sling
     pull: [-60, 40],   // where the band is pulled to, from the sling
@@ -37,17 +42,29 @@ function newLevel() {
   };
 }
 
-let Level = null;
-let playing = false;
+State.reset({ started: false });
+
+// Not the level's: when the last frame was drawn, and the title or end
+// screen while one is up.
 let last = 0;
+let screen = null;
+
+// Back to a pinned moment in the middle of a level: the screen that was up
+// when it was put back goes, and the level carries on from there.
+State.loaded(function () {
+  if (!State.playing) return;
+  if (screen) { screen.close(); screen = null; }
+  updateHud();
+});
 
 const targets = () => Physics.all().filter((b) => b.kind === "target");
+const shotBody = () => Physics.all().find((b) => b.kind === "shot") ?? null;
 
 // A hit is told after each step, with how hard the two met. Hard enough, and a
 // target is down; hard enough between anything, and it is a crash worth a
 // noise.
 Physics.onHit(function (a, b, speed) {
-  if (!playing || speed < PLAY.POP) return;
+  if (!State.playing || speed < PLAY.POP) return;
   Sound.play("hit", Math.min(1, speed / (PLAY.POP * 4)));
   Moments.say("crash");
   if (a.kind === "target") knockDown(a);
@@ -57,10 +74,10 @@ Physics.onHit(function (a, b, speed) {
 function knockDown(target) {
   if (Physics.all().indexOf(target) < 0) return;
   Physics.remove(target);
-  Level.down += 1;
-  Level.score += PLAY.TARGET_POINTS;
+  State.down += 1;
+  State.score += PLAY.TARGET_POINTS;
   Sound.play("pop", 0.6);
-  Moments.say("pop", Level.down);
+  Moments.say("pop", State.down);
 }
 
 // ---------- the loop ----------
@@ -74,13 +91,16 @@ function loop(now) {
   // ⚠️ First line of every frame, before anything asks what is held.
   Input.update();
 
-  if (playing) step(dt);
+  if (State.playing) step(dt);
   draw();
   requestAnimationFrame(loop);
 }
 
 function step(dt) {
-  const L = Level;
+  const L = State;
+  // The feel from config/play.js on every frame, so a change to it reaches
+  // the level already built — a tweak in the studio's preview included.
+  Physics.tune({ gravity: PLAY.GRAVITY, bounce: PLAY.BOUNCE, friction: PLAY.FRICTION });
   Physics.step(dt);
 
   // Off the edge of the world is down too: a target knocked off the ledge
@@ -93,7 +113,7 @@ function step(dt) {
     else Physics.remove(b);
   }
 
-  if (L.shot) {
+  if (L.flying) {
     // The shot is over when everything has settled, or it has waited long
     // enough — a ball rolling on a flat floor could roll for a long time.
     L.waited += dt;
@@ -110,7 +130,7 @@ function step(dt) {
 // Up and down turn the aim, left and right change how hard: the pull, moved
 // round the sling and in and out.
 function aimWithKeys(dt) {
-  const L = Level;
+  const L = State;
   let angle = Math.atan2(L.pull[1], L.pull[0]);
   let reach = Math.hypot(L.pull[0], L.pull[1]);
   angle += Input.axis("up", "down") * 1.5 * dt;
@@ -133,11 +153,12 @@ function launchSpeed(pull) {
 }
 
 function fire() {
-  const L = Level;
-  if (L.shot || L.shotsLeft <= 0) return;
+  const L = State;
+  if (L.flying || L.shotsLeft <= 0) return;
   const [vx, vy] = launchSpeed(L.pull);
-  L.shot = Physics.add({ kind: "shot", at: SLING.at, size: PLAY.SHOT_SIZE, weight: PLAY.SHOT_WEIGHT });
-  Physics.fling(L.shot, vx, vy);
+  const shot = Physics.add({ kind: "shot", at: SLING.at, size: PLAY.SHOT_SIZE, weight: PLAY.SHOT_WEIGHT });
+  Physics.fling(shot, vx, vy);
+  L.flying = true;
   L.shotsLeft -= 1;
   L.waited = 0;
   Sound.play("fling", 0.5);
@@ -145,9 +166,11 @@ function fire() {
 }
 
 function endShot() {
-  const L = Level;
-  Physics.remove(L.shot);
-  L.shot = null;
+  const L = State;
+  // Gone already when it flew off the edge of the world.
+  const shot = shotBody();
+  if (shot) Physics.remove(shot);
+  L.flying = false;
   if (targets().length === 0) finish(true);
   else if (L.shotsLeft <= 0) finish(false);
 }
@@ -172,25 +195,25 @@ function pullTo(e) {
     dx *= PLAY.REACH / reach;
     dy *= PLAY.REACH / reach;
   }
-  Level.pull = [dx, dy];
+  State.pull = [dx, dy];
 }
 
 canvas.addEventListener("pointerdown", (e) => {
-  if (!playing || Level.shot) return;
-  Level.pulling = true;
+  if (!State.playing || State.flying) return;
+  State.pulling = true;
   canvas.setPointerCapture(e.pointerId);
   pullTo(e);
 });
 canvas.addEventListener("pointermove", (e) => {
-  if (Level?.pulling) pullTo(e);
+  if (State.pulling) pullTo(e);
 });
 canvas.addEventListener("pointerup", () => {
-  if (!Level?.pulling) return;
-  Level.pulling = false;
+  if (!State.pulling) return;
+  State.pulling = false;
   // A tap is not a shot: the band has to have gone back a little.
-  if (Math.hypot(Level.pull[0], Level.pull[1]) > 12) fire();
+  if (Math.hypot(State.pull[0], State.pull[1]) > 12) fire();
 });
-canvas.addEventListener("pointercancel", () => { if (Level) Level.pulling = false; });
+canvas.addEventListener("pointercancel", () => { State.pulling = false; });
 
 // ---------- what the player sees around the game ----------
 
@@ -200,15 +223,16 @@ canvas.addEventListener("pointercancel", () => { if (Level) Level.pulling = fals
 // screen's tagline is what says so.
 function updateHud() {
   const chips = {};
-  chips[WORDS.hudShots] = Level.shotsLeft;
+  chips[WORDS.hudShots] = State.shotsLeft;
   chips[WORDS.hudTargets] = targets().length;
-  chips[WORDS.hudScore] = Level.score;
+  chips[WORDS.hudScore] = State.score;
   Screens.chips(chips);
 }
 
 function startGame() {
-  Level = newLevel();
-  playing = true;
+  screen = null;
+  State.reset(newLevel());
+  State.playing = true;
   updateHud();
 }
 
@@ -216,8 +240,8 @@ function startGame() {
 // them. `post` puts the level on the scoreboard and `board` shows the top ten
 // with your place in it.
 function finish(cleared) {
-  const L = Level;
-  playing = false;
+  const L = State;
+  L.playing = false;
   L.over = true;
   const used = PLAY.SHOTS - L.shotsLeft;
   if (cleared) {
@@ -226,7 +250,7 @@ function finish(cleared) {
   }
   Moments.say("score", L.score);
   Screens.chips({});
-  Screens.title({
+  screen = Screens.title({
     name: cleared ? WORDS.cleared : WORDS.missed,
     tagline: cleared
       ? WORDS.clearedHow.replace("{shots}", used)
@@ -251,14 +275,14 @@ targetPicture.src = "assets/sprites/target.png";
 function draw() {
   ctx.fillStyle = LOOK.SKY;
   ctx.fillRect(0, 0, LOOK.WIDTH, LOOK.HEIGHT);
-  if (!Level) {
+  if (!State.started) {
     // Before the first game: the world as config/bodies.js has it.
     for (const b of BODIES) drawBody(Object.assign({ x: b.at[0], y: b.at[1], angle: (b.angle || 0) * Math.PI / 180 }, sizeOf(b), { kind: b.kind }));
     drawSling(null);
     return;
   }
   for (const b of Physics.all()) drawBody(b);
-  drawSling(Level.shot ? null : Level.pull);
+  drawSling(State.flying ? null : State.pull);
 }
 
 const sizeOf = (b) => (typeof b.size === "number" ? { r: b.size } : { w: b.size[0], h: b.size[1] });
@@ -318,7 +342,7 @@ function drawSling(pull) {
   ctx.moveTo(sx, sy + 18);
   ctx.lineTo(sx + 14, sy - 4);
   ctx.stroke();
-  if (!pull || !playing || Level.shotsLeft <= 0) return;
+  if (!pull || !State.playing || State.shotsLeft <= 0) return;
   const [px, py] = [sx + pull[0], sy + pull[1]];
   ctx.strokeStyle = LOOK.BAND;
   ctx.lineWidth = 3;
@@ -349,5 +373,5 @@ function drawSling(pull) {
 // inline, which is why css/style.css says nothing about how wide #wrap is.
 Screens.fit(document.getElementById("wrap"));
 
-Screens.title({ start: WORDS.start, onStart: startGame });
+screen = Screens.title({ start: WORDS.start, onStart: startGame });
 requestAnimationFrame(loop);
