@@ -931,8 +931,8 @@ replaced on `files.changed` and revoked on replace — the file routes send
 every keystroke; `has_icon` on the project list keeps the sidebar from
 probing every game for an icon it lacks.
 
-The libraries under `studio/` — the six in the core set and the physics
-extra, what each does, the manifest, the compatibility law, the sweep, and
+The libraries under `studio/` — the seven in the core set and the physics
+and render3d extras, what each does, the manifest, the compatibility law, the sweep, and
 picking a game's control scheme — are documented separately, in
 spec/06-studio-library.md.
 
@@ -1796,8 +1796,20 @@ game-over screen shows, an achievement toasts every time it is met — `/_me`
 is a player called **Preview**, and asking what this player has earned
 answers nothing yet. ⚠️ Only `fetch` and `sendBeacon` are answered; a game's
 own `XMLHttpRequest` to a board still reaches it. A line under the preview
-says its scores and achievements never count. Not yet: live tweaks and
-savepoints, which wait on the **State** library (ideas/dreams.md §3).
+says its scores and achievements never count.
+
+**Pin** (📌) and **Back** (↩) are the preview player's **savepoint**: the
+game's `State.save()` and where its random stream stood, found by name
+through an indirect `eval` since `State` is a `const` on the page. One a game,
+Pin again replacing it, kept by the studio per tab (`public/preview-player.js`)
+so a reload of the game does not lose it. Back is `State.load()` and the
+stream put back; the clock is left alone — it only goes forward, so no game is
+handed a frame from before its last — and a paused game is drawn once with no
+time passing, so the moment shows without moving. The tweaks stay as they
+are, which is the point. A game with no State, or with something in it that
+is not plain, says so under the preview in words rather than pinning half of
+it. Not yet: live tweaks, the config files as fields under the preview
+(ideas/dreams.md §3).
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.

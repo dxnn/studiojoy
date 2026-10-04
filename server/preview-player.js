@@ -8,7 +8,10 @@
 // performance.now() and Math.random() all come from here, so the studio can
 // pause a game, step it one frame at a time, run it at half or quarter speed
 // — every canvas game, without the game knowing — and the random numbers are
-// a stream with a state of its own, so a moment can be had again.
+// a stream with a state of its own, so a moment can be had again: a
+// savepoint is the game's State (studio/state.js) and where that stream
+// stood, taken by Pin and put back by Back, for any game that keeps its run
+// in State.
 //
 // And it answers the scoreboard and the achievements itself. A score or an
 // unlock posted from the preview never leaves the page: the game hears "it
@@ -43,6 +46,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
   var paused = false;
   var speed = 1;
   var steps = 0;
+  var redraw = false;
   var realNow = performance.now.bind(performance);
   var realFrame = window.requestAnimationFrame.bind(window);
   var now = realNow();
@@ -52,15 +56,18 @@ export const PREVIEW_PLAYER_JS = `(function () {
 
   // One real frame: time moves on — by as much as really passed, times the
   // speed, or by one frame for a step — and every callback the game asked for
-  // since the last one runs with the clock's time. The next real frame is
-  // asked for first, so a game whose callback throws stops nothing here.
+  // since the last one runs with the clock's time. A redraw runs them with no
+  // time at all, so a paused game shows a moment put back without moving.
+  // The next real frame is asked for first, so a game whose callback throws
+  // stops nothing here.
   function tick() {
     realFrame(tick);
     var real = realNow();
-    var run = !paused || steps > 0;
+    var run = !paused || steps > 0 || redraw;
     if (!paused) now += (real - last) * speed;
     else if (steps > 0) { now += FRAME; steps -= 1; }
     last = real;
+    redraw = false;
     if (!run) return;
     var due = queue;
     queue = [];
@@ -140,19 +147,59 @@ export const PREVIEW_PLAYER_JS = `(function () {
     };
   }
 
+  // ---------- savepoints ----------
+
+  // The game's State (studio/state.js) — a const on the page, so reached by
+  // name from global code rather than as a property of window — or null for a
+  // game that keeps its run somewhere else.
+  function gameState() {
+    try {
+      var found = (0, eval)('typeof State === "undefined" ? null : State');
+      return found && typeof found.save === 'function' ? found : null;
+    } catch (err) { return null; }
+  }
+
+  // A savepoint is the game's State and the random stream where it stood. The
+  // clock is left alone: it only ever goes forward, so no game is handed a
+  // frame from before its last one. The studio keeps it, which is how one
+  // outlives a reload of this page.
+  function pin() {
+    var game = gameState();
+    if (!game) { tell({ what: 'unpinned', reason: 'no-state' }); return; }
+    var file = game.save();
+    if (file === null) { tell({ what: 'unpinned', reason: 'not-plain' }); return; }
+    tell({ what: 'pinned', savepoint: { file: file, seed: seed } });
+  }
+
+  // Back to one. Not inside a try: a game's own State.loaded() that throws is
+  // the game's error, for the reporter to file against its line.
+  function back(savepoint) {
+    var game = gameState();
+    if (!game || !savepoint || typeof savepoint.file !== 'string') {
+      tell({ what: 'unpinned', reason: 'no-state' });
+      return;
+    }
+    if (!game.load(savepoint.file)) { tell({ what: 'unpinned', reason: 'not-a-save' }); return; }
+    if (typeof savepoint.seed === 'number') seed = savepoint.seed >>> 0;
+    redraw = true;
+  }
+
   // ---------- the studio ----------
 
-  // What the studio says: run or pause, how fast, one frame on. Settings
-  // arrive again after every reload, asked for by 'ready' below.
+  // What the studio says: run or pause, how fast, one frame on, pin, back.
+  // Settings arrive again after every reload, asked for by 'ready' below.
   window.addEventListener('message', function (event) {
+    var d = null;
     try {
       if (event.source !== window.parent) return;
-      var d = event.data;
+      d = event.data;
       if (!d || d.gamestudio !== 'player') return;
       if (typeof d.paused === 'boolean') paused = d.paused;
       if (d.speed === 1 || d.speed === 0.5 || d.speed === 0.25) speed = d.speed;
       if (d.step) { paused = true; steps += 1; }
-    } catch (err) { /* never break the game */ }
+      if (d.pin) pin();
+    } catch (err) { return; /* never break the game */ }
+    if (d && d.back) back(d.back);
   });
   tell({ what: 'ready' });
 }());`;

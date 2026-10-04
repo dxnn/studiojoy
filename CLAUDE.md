@@ -154,7 +154,9 @@ walk into, each paid for once already.
 - ⚠️ The preview is the **preview player** (`server/preview-player.js`,
   spec/ §6): always debugging, never on a board. It owns the game's clock and
   random numbers, and answers `/_scores`, `/_achievements` and `/_me` inside
-  the page — `fetch` and `sendBeacon` only.
+  the page — `fetch` and `sendBeacon` only. Its savepoint is `State.save()`
+  and the random stream; Back never moves the clock backwards, because every
+  template's loop takes `dt` from it and only caps it from above.
 - A reasoning trace is never persisted and never replayed into a later fire.
   The one time one enters a request is the thinking cap's hand-on — the same
   fire, once, as text — and the receipt keeps a placeholder for it (spec/ §8).
@@ -397,9 +399,14 @@ specified:
   (`announcements_only`), so they reach everybody whose browser ever said
   yes. Built 2026-10-02 and driven in the MCP browser; no real push service
   has carried one yet.
-- Six studio libraries — input, sound, sprites, screens, moments,
+- Seven studio libraries — state, input, sound, sprites, screens, moments,
   achievements — the **core set**, copied into every game at creation and
-  raised by `npm run sweep` (§4). An **extra** goes only where a template
+  raised by `npm run sweep` (§4). **State** (2026-10-04) is the run itself:
+  everything a game changes while played lives in it as plain data, which
+  is what the preview player's **Pin** and **Back** save and put back. The
+  four canvas templates keep their run in it; the story, the quiz, the
+  adventure and every existing game are still to move (TODO.md), and a game
+  without it says it cannot be pinned. An **extra** goes only where a template
   names it or a person adds it, and the sweep never adds one. Two exist:
   **physics**, a façade over vendored planck.js, and **render3d**, one over
   vendored three.js — ⚠️ a module, so a game using it has its own code as a

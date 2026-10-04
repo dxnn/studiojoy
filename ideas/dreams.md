@@ -290,10 +290,14 @@ its key in `studio.env` beside DeepSeek's.
 
 ## 3. Live tweaks
 
-**Status: the preview player built 2026-10-04** (its clock, pause, step and
-speed, never on a board); **State** proposed, waiting on a yes; tweaks and
-savepoints after it. *Decided* and *State* are at the end of this section;
-what sits between is how it was worked out.
+**Status, 2026-10-04: built** — the preview player (its clock, pause, step
+and speed, never on a board), **State** (a yes from Dann; the four canvas
+templates on it, physics 2 keeping its bodies in its saves), and **Pin /
+Back**. **Next:** the tweaks under the preview. **TODO lines:** the story,
+the quiz and the adventure onto State with `?scene=` dropped; the existing
+games moved by hand; the rail made the preview player's alone; registered
+moments for achievements. *Decided* and *State* are at the end of this
+section; what sits between is how it was worked out.
 
 ### What exists
 
@@ -423,7 +427,13 @@ player**: always debugging, never on a board.
   message points at.
 - The DOM games and jumping to a stage: a TODO line, to look into.
 
-### State (proposed, waiting on a yes)
+### State (agreed and built 2026-10-04, with `loaded` the one call added)
+
+Since built, two things learned: a savepoint leaves the **clock** alone —
+every template's loop takes `dt` from the clock and only caps it from above,
+so a clock put back would hand the game a negative frame — and a page drawn
+from State, rather than every frame, needs telling after a load, which is
+`State.loaded(fn)`.
 
 A core library, `studio/state.js`, global `State` — the game's data *is* the
 object, and its four calls are hidden from the data:

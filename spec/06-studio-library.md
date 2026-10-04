@@ -198,6 +198,34 @@ library. ⚠️ It carries its own copy of the shape rules — a classic script
 can't import — kept from drifting against `public/achievement-shape.js` by a
 shared test (§16).
 
+The **state library** (`studio/state.js`, 2026-10-04, ideas/dreams.md §3) is
+the seventh, and first in the index, so its game-shape line leads. `State`
+*is* the run — `State.score += 10` — and its five calls are hidden from the
+data (non-enumerable, refused as field names): `reset(fresh)` empties it and
+fills it from a new run's object; `save()` is the run as JSON text with each
+library's own part beside it, or null and one warning when something in it
+is not plain; `load(text)` replaces the data whole, hands each library its
+part, then calls everybody who asked through `loaded(fn)` — a page drawn
+from State draws itself again there; `include(name, save, load)` is how a
+library keeps state of its own with the game's. The rule it exists for, said
+in the game shape: everything that changes while a game is played lives in
+State — never in a variable, closure or class of the game's — as plain data
+reached through State every time. That is what makes a **savepoint** in the
+*preview player* (§6) a `save()`, and a save file one call. The four canvas
+templates keep their run in it; a loaded moment closes the title or end
+screen in front of it. Roll a ball draws its level from State — coins got
+and squares hidden are State, the meshes are drawn from it — and Knock it
+down keeps no body in State, finding its shot by kind.
+
+The **physics library**, version 2, keeps its bodies in State's saves: it
+enlists with `State.include` the first time a world exists, saves every body
+as plain data (its config entry, place, angle, speed, spin, awake) and loads
+by building each again — new objects, so a game holding an old one holds
+nothing. `Physics.tune(opts)` sets gravity, bounce and friction on the live
+world, gravity at once and the other two on every body that does not say its
+own; Knock it down calls it every frame, so a tweak reaches a level already
+built.
+
 **Copied, not shared**: real bytes, in the tree, in the history — at the
 cost of drift, which the manifest makes visible rather than silent (other
 designs tried and rejected: spec/alternatives.md). **Every game is born

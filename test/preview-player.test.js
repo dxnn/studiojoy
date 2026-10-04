@@ -5,6 +5,7 @@
 // here, because a game in the preview can see neither happening.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import vm from 'node:vm';
 import { PREVIEW_PLAYER_JS } from '../server/preview-player.js';
 
@@ -130,6 +131,41 @@ test('the preview is never on a board, and is a player called Preview', async (t
 
   assert.equal(p.run('navigator.sendBeacon("/_scores/tank", "{}")'), true);
   assert.equal(p.reached.length, 3, 'a beacon to the board is swallowed too');
+});
+
+const STATE = fs.readFileSync(new URL('../public/studio-lib/state/state.js', import.meta.url), 'utf8');
+
+test('a pin is the game\'s State and its chance; back puts both back, and shows it', () => {
+  const p = boot();
+  p.run(STATE);
+  p.run('State.reset({ score: 1 }); var drawn = 0;'
+    + '(function go(t) { if (t !== undefined) drawn += 1; requestAnimationFrame(go); })();');
+  p.studio({ pin: true });
+  const pinned = p.posts.find((m) => m.gamestudio === 'player-pinned');
+  assert.equal(typeof pinned.savepoint.file, 'string');
+  assert.equal(typeof pinned.savepoint.seed, 'number');
+  const chance = p.run('JSON.stringify([Math.random(), Math.random()])');
+
+  p.run('State.score = 50');
+  p.studio({ paused: true });
+  p.frame(16);
+  const drawn = p.run('drawn');
+  const time = p.run('performance.now()');
+  p.studio({ back: pinned.savepoint });
+  assert.equal(p.run('State.score'), 1);
+  assert.equal(p.run('JSON.stringify([Math.random(), Math.random()])'), chance, 'the same meteors fall again');
+  p.frame(16);
+  assert.equal(p.run('drawn'), drawn + 1, 'paused, the moment put back is drawn once');
+  assert.equal(p.run('performance.now()'), time, 'and no time passes for it');
+  p.frame(16);
+  assert.equal(p.run('drawn'), drawn + 1, 'then it is paused again');
+});
+
+test('a game that keeps its run outside State says it cannot be pinned', () => {
+  const p = boot();
+  p.studio({ pin: true });
+  p.studio({ back: { file: '{}', seed: 1 } });
+  assert.deepEqual(p.posts.filter((m) => m.gamestudio === 'player-unpinned').map((m) => m.reason), ['no-state', 'no-state']);
 });
 
 test('it asks the studio for its settings, and only when framed', () => {
