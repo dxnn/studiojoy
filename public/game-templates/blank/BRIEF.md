@@ -7,7 +7,7 @@ What is here now:
 
 - index.html — the placeholder: a title, one line of text, and the script
   tags. Replace it with the game's own page.
-- studio/ — the studio library, six of them, read-only. studio/studio.json
+- studio/ — the studio library, seven of them, read-only. studio/studio.json
   says which and at what version.
 - config/controls.js — the game's own copy of the controls, seeded by the
   input library. See Controls below.
@@ -17,9 +17,11 @@ What is here now:
   thing built makes them, and every number and word the game uses goes in
   them rather than in js/: the studio's rule, and the one most often missed.
 
-All six libraries are loaded already, so a first script can call Input.held,
-Sound.play, Sprites.draw, Screens.title and Moments.say without touching
-index.html.
+All seven libraries are loaded already, so a first script can call
+State.reset, Input.held, Sound.play, Sprites.draw, Screens.title and
+Moments.say without touching index.html. Everything that changes while the
+game is played goes in State from the first line, so it can be pinned in the
+preview.
 
 ## Controls
 
