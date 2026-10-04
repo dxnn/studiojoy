@@ -5,7 +5,7 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, isChat, agentName, urlAs, openProject,
+  S, render, prefs, isChat, hasRail, agentName, urlAs, openProject,
   composerBox, sendComposer, send, api, say, sizeText,
   openMode, showMode, renderModeBody, frozen, canTalk, nearQuota,
   more, placeMenu,
@@ -846,11 +846,11 @@ function renderViewChanger(p) {
       h('span', { class: 'view-name', text: modes[at].label }),
       h('span', { class: 'view-what', text: modes[at].what })),
     step(1, '›'),
-    h('button', {
+    hasRail() ? h('button', {
       class: `quiet view-preview${railUp ? ' on' : ''}`,
       text: railUp ? 'Close preview' : 'Preview',
       onclick: () => { S.narrowPane = railUp ? 'chat' : 'rail'; render(); },
-    }));
+    }) : null);
 }
 
 // One pill per conversation, and at the right the things that are about this

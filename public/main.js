@@ -363,6 +363,10 @@ function keepOpenFileInView() {
 }
 
 export const isChat = () => S.project?.kind === 'chat';
+// The rail — the preview and what is selected — is a game's. A chat has no
+// game, and a game in Game Design has none yet: its cards take the width, and
+// a blank page saying to ask a helper who is not there would only mislead.
+export const hasRail = () => !isChat() && S.project?.type !== 'design';
 
 // Whether this game is yours to change: you are one of its authors, or it is
 // open to the whole studio. Archived is the other half of the same question —
@@ -1397,13 +1401,14 @@ export function render() {
   // studio's own defaults standing, so a partial look is fine.
   // The phone header is over the centre and the rail alike, and not over the
   // games list, which has a bar of its own. Only narrow.css ever shows it.
+  if (S.narrowPane === 'rail' && !hasRail()) S.narrowPane = 'chat';
   const head = S.project && S.narrowPane !== 'games' ? renderPhoneHeader() : null;
   const app = h('div', {
-    class: `app${S.sidebar ? '' : ' side-closed'}${isChat() ? ' no-rail' : ''}${head ? ' has-head' : ''}`,
+    class: `app${S.sidebar ? '' : ' side-closed'}${hasRail() ? '' : ' no-rail'}${head ? ' has-head' : ''}`,
     style: [`--rail:${S.railWidth}px`, ...LOOK_ROLES
       .filter((name) => S.look[name])
       .map((name) => `--look-${name}:${S.look[name]}`)].join(';'),
-  }, head, renderSidebar(), renderChat(), isChat() ? null : renderRail());
+  }, head, renderSidebar(), renderChat(), hasRail() ? renderRail() : null);
   root.append(app);
 
   // At the top, where the banner is at the bottom: this one is not a thing
