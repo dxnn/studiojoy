@@ -6,8 +6,17 @@
 
 (function () {
   const root = document.getElementById("quiz");
-  const tally = {};
-  let at = -1; // -1 is the start screen
+
+  // Where the player is, kept in State (studio/state.js) — which is what lets
+  // the studio's preview pin a moment and come back to it: the question, -1
+  // for the start screen and past the last for the ending, and the answers
+  // counted towards each ending so far.
+  const fresh = () => {
+    const tally = {};
+    for (const key of Object.keys(RESULTS)) tally[key] = 0;
+    return { at: -1, tally };
+  };
+  State.reset(fresh());
 
   const sound = (name) => { if (window.Sound) Sound.play(name); };
   // What the game says happened, for achievements in config/achievements.js
@@ -34,52 +43,69 @@
   }
 
   function start() {
-    for (const key of Object.keys(RESULTS)) tally[key] = 0;
-    at = -1;
-    const go = el("button", "big", WORDS.start);
-    go.addEventListener("click", next);
-    show(el("h1", "", WORDS.title), go);
+    State.reset(fresh());
+    draw();
   }
 
   function next() {
-    at += 1;
-    if (at >= QUESTIONS.length) return finish();
-    const q = QUESTIONS[at];
+    State.at += 1;
+    if (State.at >= QUESTIONS.length) {
+      sound("tada");
+      moment("finished", best());
+    }
+    draw();
+  }
+
+  // The most answers wins; a tie goes to the ending listed first.
+  function best() {
+    let won = null;
+    for (const key of Object.keys(RESULTS)) {
+      if (won === null || (State.tally[key] || 0) > (State.tally[won] || 0)) won = key;
+    }
+    return won;
+  }
+
+  // The screen State says the player is on — the start, a question, or the
+  // ending — with no noise of its own, so a moment put back is only shown.
+  function draw() {
+    if (State.at < 0) {
+      const go = el("button", "big", WORDS.start);
+      go.addEventListener("click", next);
+      show(el("h1", "", WORDS.title), go);
+      return;
+    }
+    if (State.at >= QUESTIONS.length) {
+      const ending = RESULTS[best()]
+        || { name: "A Mystery", tell: "This quiz has no endings yet." };
+      const again = el("button", "big", WORDS.again);
+      again.addEventListener("click", start);
+      show(
+        el("p", "count", WORDS.reveal),
+        el("h1", "", ending.name),
+        el("p", "tell", ending.tell),
+        again,
+      );
+      return;
+    }
+    const q = QUESTIONS[State.at];
     const card = el("div", "card");
-    card.append(el("p", "count", (at + 1) + " / " + QUESTIONS.length));
+    card.append(el("p", "count", (State.at + 1) + " / " + QUESTIONS.length));
     card.append(el("h2", "", q.ask));
     for (const answer of q.answers) {
       const pick = el("button", "answer", answer.say);
       pick.addEventListener("click", () => {
-        tally[answer.result] = (tally[answer.result] || 0) + 1;
+        State.tally[answer.result] = (State.tally[answer.result] || 0) + 1;
         sound("pick");
         moment("answered", answer.result);
         next();
       });
       card.append(pick);
     }
-    return show(card);
+    show(card);
   }
 
-  function finish() {
-    // The most answers wins; a tie goes to the ending listed first.
-    let best = null;
-    for (const key of Object.keys(RESULTS)) {
-      if (best === null || (tally[key] || 0) > (tally[best] || 0)) best = key;
-    }
-    const ending = RESULTS[best]
-      || { name: "A Mystery", tell: "This quiz has no endings yet." };
-    sound("tada");
-    moment("finished", best);
-    const again = el("button", "big", WORDS.again);
-    again.addEventListener("click", start);
-    show(
-      el("p", "count", WORDS.reveal),
-      el("h1", "", ending.name),
-      el("p", "tell", ending.tell),
-      again,
-    );
-  }
+  // Back to a pinned moment: whatever screen it was on, drawn again.
+  State.loaded(draw);
 
   start();
 }());

@@ -184,10 +184,33 @@ export const PREVIEW_PLAYER_JS = `(function () {
     redraw = true;
   }
 
+  // "Try this scene" and "Try it": the game's State once the page has loaded —
+  // the game makes it while it loads — with the editor's fields laid over it,
+  // loaded and then pinned, so Back comes here too. The savepoint's own way in,
+  // not a second one; it replaces whatever was pinned, which is fine, since
+  // trying a scene is a different thing from tuning the last one.
+  function jump(fields) {
+    var go = function () {
+      var game = gameState();
+      var file = game ? game.save() : null;
+      if (file === null) { tell({ what: 'unpinned', reason: game ? 'not-plain' : 'no-state' }); return; }
+      var saved = JSON.parse(file);
+      for (var key in fields) {
+        if (Object.prototype.hasOwnProperty.call(fields, key)) saved.state[key] = fields[key];
+      }
+      if (!game.load(JSON.stringify(saved))) { tell({ what: 'unpinned', reason: 'not-a-save' }); return; }
+      redraw = true;
+      pin();
+    };
+    if (document.readyState === 'complete') go();
+    else window.addEventListener('load', go);
+  }
+
   // ---------- the studio ----------
 
-  // What the studio says: run or pause, how fast, one frame on, pin, back.
-  // Settings arrive again after every reload, asked for by 'ready' below.
+  // What the studio says: run or pause, how fast, one frame on, pin, back, a
+  // place to jump to. Settings arrive again after every reload, asked for by
+  // 'ready' below.
   window.addEventListener('message', function (event) {
     var d = null;
     try {
@@ -200,6 +223,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
       if (d.pin) pin();
     } catch (err) { return; /* never break the game */ }
     if (d && d.back) back(d.back);
+    if (d && d.jump && typeof d.jump === 'object') jump(d.jump);
   });
   tell({ what: 'ready' });
 }());`;

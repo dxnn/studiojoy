@@ -122,11 +122,6 @@ deliberately deferred.
   called from the server with its key in `studio.env` (ideas/dreams.md §2)
 - bring Game Design's cards back after Make it — a spec editor over
   `SPEC.md`, a different thing from the cards (ideas/dreams.md §2)
-- drop `?scene=` from the story and the adventure so a player on the games
-  origin cannot jump ahead, and move them onto State so they can be pinned
-  like every other game (decided 2026-10-04, ideas/dreams.md §3) — ⚠️ the
-  same parameter is how *Try this scene* opens the preview on a scene, and
-  `?level=` how the level editor's *Try it* does
 - make the rail the preview player's alone — the preview, its controls and
   the tweaks — by moving out what lives under the preview today: the story's
   and the adventure's scene fields, Hear's sound editor, Pics' picture

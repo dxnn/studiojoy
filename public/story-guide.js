@@ -36,6 +36,7 @@ import {
 import { createPictureAt } from './drawing.js';
 import { writeFiles } from './upload.js';
 import { storyEdited, selectScene, saveStory } from './story-form.js';
+import { tryFrom } from './preview-player.js';
 
 // The standard set's home under public/, and where each kind lands in a game.
 const ART = '/story-art';
@@ -816,9 +817,7 @@ function readyCard() {
       class: 'filled tiny', text: '▶ Try it',
       onclick: async () => {
         if (S.story.dirty && !(await saveStory())) return;
-        S.tryScene = model().scenes[0]?.key ?? null;
-        S.previewOpen = true;
-        S.previewNonce += 1;
+        tryFrom({ playing: true, scene: model().scenes[0]?.key ?? null, line: 0 });
         render();
       },
     }));

@@ -215,10 +215,9 @@ export const S = {
   previewNonce: 0,
   // What the preview player is doing (preview-player.js): its own clock, run
   // or paused, at a speed. Per game — opening one starts it running.
-  player: { paused: false, speed: 1 },
-  // "Try this scene" in the story editor: the scene the preview opens into.
-  // Read only while an editor is up, and cleared with the game.
-  tryScene: null,
+  // `trying` is an editor's Try: where the preview is put on every new page
+  // while that editor is showing.
+  player: { paused: false, speed: 1, trying: null },
   autoscroll: true,
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
@@ -870,10 +869,9 @@ export async function openProject(slug, { view = null } = {}) {
   S.menu = null;
   for (const e of allEditors()) e.reset?.();
   S.achievements = null;
-  S.tryScene = null;
   // Another game starts its preview running; the same one opened again —
   // Make it, another tab's change — keeps what it was doing.
-  if (slug !== S.slug) S.player = { paused: false, speed: 1 };
+  if (slug !== S.slug) S.player = { paused: false, speed: 1, trying: null };
 
   if (!slug) {
     S.slug = null;
@@ -1136,13 +1134,9 @@ document.addEventListener('scroll', placePreview, true);
 // already reports.
 function renderPreview() {
   const best = bestScore();
-  // "Try this scene" adds the game's own ?scene= — a template that honours it
-  // opens straight into that scene, and one that does not ignores it. Held
-  // while the editor is up, so a save from it lands back in the scene being
-  // worked on; cleared with the game.
-  const scene = editorShowing() && S.tryScene ? S.tryScene : null;
-  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`
-    + (scene ? `&${editorShowing().viewParam ?? 'scene'}=${encodeURIComponent(scene)}` : '');
+  // The address is the game's and a version, nothing more: "Try this scene"
+  // goes through the preview player's State (preview-player.js, tryFrom).
+  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
   // Folded, the frame is unloaded rather than hidden: a collapsed preview is
   // not a game running silently in the background.
   showPreview(S.previewOpen ? url : 'about:blank');

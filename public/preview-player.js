@@ -34,7 +34,26 @@ function tell(data) {
   }
 }
 
-const settle = () => tell({ paused: S.player.paused, speed: S.player.speed });
+// The settings — and, to a page that has just loaded, the place an editor is
+// trying (tryFrom, below).
+function settle({ loaded = false } = {}) {
+  const trying = S.player.trying;
+  const jump = loaded && trying?.mode === S.mode ? trying.fields : null;
+  tell({ paused: S.player.paused, speed: S.player.speed, ...(jump ? { jump } : {}) });
+}
+
+// "Try this scene" and "Try it": the preview opened again on a fresh page and
+// put where the editor says, by the savepoint's own way — `fields` laid over
+// the game's State once it has loaded, and kept as the pin. Held while that
+// editor is showing, so a save from it lands back on the scene being worked
+// on, as ?scene= used to; each editor knows its template's fields, the way it
+// knows the file it edits. There is no way in from the game's own address any
+// more, so a player cannot skip ahead.
+export function tryFrom(fields) {
+  S.player.trying = { mode: S.mode, fields };
+  S.previewOpen = true;
+  S.previewNonce += 1;
+}
 
 // What the preview says: a new page asking for its settings — a save, a
 // commit, another game — a pin taken, or why one could not be.
@@ -43,7 +62,7 @@ window.addEventListener('message', (event) => {
   if (!origin || event.origin !== origin) return;
   const data = event.data;
   if (!data || data.slug !== S.slug) return;
-  if (data.gamestudio === 'player-ready') settle();
+  if (data.gamestudio === 'player-ready') settle({ loaded: true });
   if (data.gamestudio === 'player-pinned' && typeof data.savepoint?.file === 'string') {
     savepoints.set(S.slug, { file: data.savepoint.file, seed: Number(data.savepoint.seed) || 0 });
     render();

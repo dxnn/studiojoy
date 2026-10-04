@@ -45,14 +45,22 @@
   box.append(who, say, choices, more);
   root.append(picture, portrait, box);
 
+  // Where the reader is, kept in State (studio/state.js) — which is what lets
+  // the studio's preview pin a moment and come back to it, and what its "Try
+  // this scene" puts a scene into. The scene, the line in it, and the switches
+  // the choices have set, as a list.
   const keys = Object.keys(SCENES);
-  const switches = new Set();
-  let at = keys[0];
-  let line = 0;
-  let waiting = false; // true while the choices are up: a tap must not skip them
+  const newStory = () => ({ playing: false, scene: keys[0], line: 0, switches: [] });
+  State.reset(newStory());
 
-  const scene = () => SCENES[at] || {};
+  // Not the story's: whether the choices are up — a tap must not skip them —
+  // and the title or ending screen while one is up.
+  let waiting = false;
+  let screen = null;
+
+  const scene = () => SCENES[State.scene] || {};
   const lines = () => scene().lines || [];
+  const has = (name) => State.switches.indexOf(name) >= 0;
 
   function setPicture(node, src) {
     // Only when it changes, or the browser restarts the load and the picture
@@ -95,8 +103,8 @@
   }
 
   function enter(key) {
-    at = key;
-    line = 0;
+    State.scene = key;
+    State.line = 0;
     waiting = false;
     // A scene with nothing in it — no lines, no choices, nowhere to go — is
     // the end: a story with nothing written yet shows its title and then The
@@ -108,13 +116,13 @@
     // meant "at the start". Still played, so a story the studio has not
     // re-saved sounds the way it always did.
     if (scene().sound && window.Sound) Sound.play(scene().sound);
-    line = soundsFrom(0);
+    State.line = soundsFrom(0);
     show();
   }
 
   function show() {
     setPicture(picture, scene().picture);
-    const current = lines()[line] || {};
+    const current = lines()[State.line] || {};
     const person = current.who ? (CAST[current.who] || {}) : null;
     who.textContent = person ? (person.name || current.who) : "";
     who.style.display = person ? "" : "none";
@@ -126,9 +134,9 @@
     // What happens after the last line: choices, straight on, or the end.
     // Nothing left to *say* is what makes it the last one — a noise after the
     // final line is still to come, and plays as the scene is left.
-    const last = !lines().slice(line + 1).some((l) => !l.sound);
+    const last = !lines().slice(State.line + 1).some((l) => !l.sound);
     const offered = last ? (scene().choices || []).filter(
-      (c) => !c.need || switches.has(c.need)
+      (c) => !c.need || has(c.need)
     ) : [];
     waiting = offered.length > 0;
     more.style.visibility = waiting || (last && !scene().go) ? "hidden" : "visible";
@@ -140,8 +148,11 @@
         e.stopPropagation();
         // Any noise written after the last line happens as the scene is left,
         // which is here as much as it is on a tap.
-        soundsFrom(line + 1);
-        if (choice.set) { switches.add(choice.set); moment("switch", choice.set); }
+        soundsFrom(State.line + 1);
+        if (choice.set) {
+          if (!has(choice.set)) State.switches.push(choice.set);
+          moment("switch", choice.set);
+        }
         if (SCENES[choice.go]) enter(choice.go);
         else finish();
       });
@@ -153,8 +164,8 @@
     if (waiting) return;
     // Where the next tap lands, playing whatever noise sits on the way. Past
     // the end means there was nothing more to say, so the scene is over.
-    const to = soundsFrom(line + 1);
-    if (to < lines().length) { line = to; show(); return; }
+    const to = soundsFrom(State.line + 1);
+    if (to < lines().length) { State.line = to; show(); return; }
     if (scene().go && SCENES[scene().go]) { enter(scene().go); return; }
     finish();
   }
@@ -163,9 +174,10 @@
     // The scene the story stopped on: a scene with no choices and no `go`, or
     // a choice that led nowhere. An ending is a scene like any other, so the
     // value is its name — Moments.say("ending", "the-good-one").
-    moment("ending", at);
+    moment("ending", State.scene);
+    State.playing = false;
     if (window.Screens) {
-      Screens.title({
+      screen = Screens.title({
         name: WORDS.theEnd,
         tagline: "",
         hint: "",
@@ -178,9 +190,24 @@
   }
 
   function begin() {
-    switches.clear();
+    screen = null;
+    State.reset(newStory());
+    State.playing = true;
     enter(keys[0]);
   }
+
+  // Back to a pinned moment, or a scene the studio's "Try this scene" put the
+  // story into: the screen in front goes, and the reader is where State says.
+  // The first line of a scene is entering it — its music and its opening
+  // noises — and any other is shown as it stands.
+  State.loaded(function () {
+    if (!State.playing) return;
+    if (screen) { screen.close(); screen = null; }
+    if (!SCENES[State.scene]) State.scene = keys[0];
+    if (State.line === 0) { enter(State.scene); return; }
+    setMusic(scene().music);
+    show();
+  });
 
   root.addEventListener("click", next);
   window.addEventListener("keydown", (e) => {
@@ -191,11 +218,9 @@
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); next(); }
   });
 
-  // ?scene=<name> opens straight into one scene, skipping the title screen.
-  // The studio's "Try this scene" button uses it; nothing else does, and a
-  // name that is not a scene is ignored rather than showing an empty stage.
-  const asked = new URLSearchParams(location.search).get("scene");
-  if (asked && SCENES[asked]) enter(asked);
-  else if (window.Screens) Screens.title({ start: WORDS.start, onStart: begin });
+  // Always from the title screen: there is no way in at a later scene from
+  // the address, so a player cannot skip to an ending. The studio's preview
+  // goes to one through State instead.
+  if (window.Screens) screen = Screens.title({ start: WORDS.start, onStart: begin });
   else begin();
 }());

@@ -25,6 +25,7 @@ import { S, render, say, frozen, more } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
 import { planCanvas } from './plan-canvas.js';
+import { tryFrom } from './preview-player.js';
 
 export { LEVEL_FILE };
 
@@ -389,9 +390,9 @@ export function renderLevelEditor() {
       class: 'link', text: 'Try it', title: 'Save, then roll through this level and the ones after it in the preview',
       onclick: async () => {
         if (st.dirty && !(await saveLevel())) return;
-        S.tryScene = String(st.at + 1);
-        S.previewOpen = true;
-        S.previewNonce += 1;
+        // The template's State: this level, arrived at fresh — no coins in
+        // State is what makes Roll a ball build them again.
+        tryFrom({ playing: true, at: st.at, coins: null });
         render();
       },
     }),

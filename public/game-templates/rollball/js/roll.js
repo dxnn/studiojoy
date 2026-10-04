@@ -24,10 +24,10 @@ const canvas = document.getElementById("game");
 
 // ---------- the levels ----------
 
-// Which level a run starts on, counted from 0. The studio's "Try it" opens
-// the preview on the level being painted: ?level=2 is the second.
-const asked = Number(new URLSearchParams(location.search).get("level"));
-const FIRST = Number.isInteger(asked) && asked >= 1 && asked <= LEVELS.length ? asked - 1 : 0;
+// Which level a run starts on, counted from 0: always the first, so a player
+// cannot skip ahead from the address. The studio's "Try it" puts the preview
+// on the level being painted through State instead (below).
+const FIRST = 0;
 
 // The level being played: its rows, its size, and where the ball starts.
 let level = LEVELS[FIRST];
@@ -204,9 +204,12 @@ function fall() {
 }
 
 // Back to a pinned moment: the level it was on, drawn again from State, and
-// the screen that was up when it was put back goes.
+// the screen that was up when it was put back goes. A State with no coins in
+// it is a level to arrive at fresh — what the studio's "Try it" sends.
 State.loaded(function () {
-  showLevel();
+  if (!LEVELS[State.at]) State.at = FIRST;
+  if (!Array.isArray(State.coins)) enterLevel(State.at);
+  else showLevel();
   if (!State.playing) return;
   if (screen) { screen.close(); screen = null; }
   updateHud();

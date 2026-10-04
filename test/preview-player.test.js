@@ -31,6 +31,7 @@ function boot({ framed = true } = {}) {
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
     },
     navigator: { sendBeacon: (url) => { reached.push({ url: String(url), method: 'BEACON' }); return true; } },
+    document: { readyState: 'complete' },
     Response,
     URL,
   };
@@ -166,6 +167,21 @@ test('a game that keeps its run outside State says it cannot be pinned', () => {
   p.studio({ pin: true });
   p.studio({ back: { file: '{}', seed: 1 } });
   assert.deepEqual(p.posts.filter((m) => m.gamestudio === 'player-unpinned').map((m) => m.reason), ['no-state', 'no-state']);
+});
+
+// Try this scene: not a way in of its own but the savepoint's — the State
+// there now with the editor's fields over it, loaded, then kept as the pin.
+test('a jump lays the editor\'s fields over State, loads it, and pins it', () => {
+  const p = boot();
+  p.run(STATE);
+  p.run('State.reset({ playing: false, scene: "start", line: 4, switches: ["met"] });'
+    + 'var shown = []; State.loaded(function () { shown.push(State.scene); });');
+  p.studio({ jump: { playing: true, scene: 'kitchen', line: 0 } });
+  assert.equal(p.run('JSON.stringify(Object.assign({}, State))'),
+    '{"playing":true,"scene":"kitchen","line":0,"switches":["met"]}', 'what the editor did not say is kept');
+  assert.equal(p.run('shown.join()'), 'kitchen', 'and the game was told');
+  const pinned = p.posts.find((m) => m.gamestudio === 'player-pinned');
+  assert.equal(JSON.parse(pinned.savepoint.file).state.scene, 'kitchen', 'Back comes here too');
 });
 
 test('it asks the studio for its settings, and only when framed', () => {

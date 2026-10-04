@@ -404,9 +404,11 @@ specified:
   raised by `npm run sweep` (§4). **State** (2026-10-04) is the run itself:
   everything a game changes while played lives in it as plain data, which
   is what the preview player's **Pin** and **Back** save and put back. The
-  four canvas templates keep their run in it; the story, the quiz, the
-  adventure and every existing game are still to move (TODO.md), and a game
-  without it says it cannot be pinned. An **extra** goes only where a template
+  seven templates keep their run in it, and ⚠️ none takes a way in from its
+  own address — *Try this scene* and *Try it* lay their fields over State
+  through the savepoint, so a player cannot skip ahead. Every existing game
+  is still to move, by hand (TODO.md), and a game without State says it
+  cannot be pinned. An **extra** goes only where a template
   names it or a person adds it, and the sweep never adds one. Two exist:
   **physics**, a façade over vendored planck.js, and **render3d**, one over
   vendored three.js — ⚠️ a module, so a game using it has its own code as a

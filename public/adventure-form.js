@@ -32,6 +32,7 @@ import {
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
 import { createPictureAt } from './drawing.js';
+import { tryFrom } from './preview-player.js';
 import {
   artShelf, artCredit, asPng, plainCard,
 } from './story-guide.js';
@@ -645,9 +646,7 @@ function renderGuide() {
             class: 'filled tiny', text: '▶ Try it',
             onclick: async () => {
               if (st.dirty && !(await saveAdventure())) return;
-              S.tryScene = st.model.scenes[0]?.key ?? null;
-              S.previewOpen = true;
-              S.previewNonce += 1;
+              tryFrom({ playing: true, scene: st.model.scenes[0]?.key ?? null, lines: [] });
               render();
             },
           })),
@@ -896,9 +895,8 @@ export function renderAdventureEditor() {
       class: 'link', text: 'Try this scene', title: 'Play the game from this scene',
       onclick: async () => {
         if (st.dirty && !(await saveAdventure())) return;
-        S.tryScene = scene.key;
-        S.previewOpen = true;
-        S.previewNonce += 1;
+        // The template's State: this scene, with nothing being said yet.
+        tryFrom({ playing: true, scene: scene.key, lines: [] });
         // On a phone the preview is the rail, a pane away: go there.
         S.narrowPane = 'rail';
         render();

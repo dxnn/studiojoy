@@ -55,7 +55,7 @@ test('the adventure plays the shape the editor writes', () => {
     assert.ok(game.includes(key), `${key} is read`);
   }
   // Taking a thing remembers a switch of its own name.
-  assert.match(game, /switches\.add\(spot\.take\)/);
+  assert.match(game, /remember\(spot\.take\)/);
   // A scene with nothing to click on is the end, and the end is the library's
   // screen with Start again on it.
   assert.match(game, /if \(!spotsOf\(\)\.length\) \{ finish\(\); return; \}/);
@@ -68,8 +68,12 @@ test('the adventure plays the shape the editor writes', () => {
   // browser drew it in — the same pixels the editor's boxes are in.
   assert.match(game, /naturalWidth/);
   assert.match(game, /getBoundingClientRect/);
-  // Try this scene.
-  assert.match(game, /get\("scene"\)/);
+  // No way in at a later scene from the address — a player cannot skip ahead;
+  // the studio's Try this scene goes through State, and a loaded moment is
+  // where the player is.
+  assert.doesNotMatch(game, /location\.search|URLSearchParams/);
+  assert.match(game, /State\.loaded\(/);
+  assert.match(game, /State\.reset\(newAdventure\(\)\)/);
   // Its own input, never the library's: the pointer is the control.
   assert.doesNotMatch(game, /Input\./);
 });

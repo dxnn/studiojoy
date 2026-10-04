@@ -186,13 +186,21 @@ test('a goal takes the ball on to the next level, and the last one ends the run'
   assert.equal(said[2][1], 2, 'the coins count on across the levels');
 });
 
-test('?level= starts the run on the level asked for', () => {
+// A player cannot skip ahead from the address; the studio's "Try it" puts the
+// preview on a level the way the preview player does it — the State there
+// now, the level asked for laid over it with no coins, loaded.
+test('the address cannot skip a level, and Try it goes through State', () => {
   const trap = ['#####', '#S. #', '#####'];
   const room = ['#####', '#S.G#', '#####'];
-  const { said } = roll({ levels: [trap, room], search: '?v=3&level=2', frames: 40 });
-  assert.deepEqual(said.map(([name]) => name), ['goal', 'score'], 'the second, never the first');
-  const odd = roll({ levels: [room], search: '?level=9', frames: 40 });
-  assert.ok(odd.said.some(([name]) => name === 'goal'), 'one past the end is the first');
+  const asked = roll({ levels: [trap, room], search: '?level=2', frames: 40 });
+  assert.ok(asked.said.some(([name]) => name === 'fall'), '?level= is ignored: the first level, its hole and all');
+
+  const tried = roll({ levels: [trap, room], frames: 0 });
+  const save = JSON.parse(tried.State.save());
+  Object.assign(save.state, { playing: true, at: 1, coins: null });
+  tried.State.load(JSON.stringify(save));
+  tried.more(40);
+  assert.deepEqual(tried.said.map(([name]) => name), ['goal', 'score'], 'the second level, arrived at fresh');
 });
 
 test('a made-up square is drawn before it does anything, and does what ON_SQUARE says', () => {

@@ -64,8 +64,9 @@ import { S } from './main.js';
 //   inspector()    the rail, while this editor is showing
 //   view / applyView(v)  the one thing it adds to the address — a scene —
 //                  and landing on it; `applyView(null)` is the first
-//   viewParam      that thing's name in the address and in the preview's,
-//                  when it is not `scene`: the level editor's is `level`
+//   viewParam      that thing's name in the studio's address, when it is not
+//                  `scene`: the level editor's is `level`. Never the game's —
+//                  Try puts the preview there through State (tryFrom)
 //
 // ⚠️ Every hook reads its module's bindings when called, never when this
 // table is built: those modules import main.js, which imports this one.

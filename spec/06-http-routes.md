@@ -1081,7 +1081,11 @@ picture, sound or quiz; Code's text editor keeps its Save, since half-typed
 code is a broken game the *reporter* would post. *Show the text* saves first
 and opens the file as plain text — the editor is in the middle, and a form
 there too would be a second surface writing the same file. *Try this scene*
-saves first, then reloads the preview at the game's own `?scene=`. ⚠️
+saves first, then reloads the preview and puts it on the scene through the
+*preview player*'s savepoint — `{playing, scene, line: 0}` laid over the
+game's State and pinned (`tryFrom`, below) — held while the editor shows, so
+each save's reload lands back there. The game takes no way in from its own
+address any more: a player cannot skip to an ending with `?scene=`. ⚠️
 Unsaved edits park per game on leaving and return while the file's etag
 still matches, so a mis-click in the sidebar can't cost a scene; a changed
 file drops them with a word. ⚠️ A reload after a save keeps the story on
@@ -1688,8 +1692,10 @@ square in its colour before it does anything — a block the ball bumps into
 when `solid`, a marker on the floor when not — and runs its letter's function
 in `ON_SQUARE` (`js/roll.js`) when the ball rolls onto one, so a new kind is
 seen the moment it is painted and the builder only writes what it does. The
-run starts on the first level or the one `?level=` names, which is how *Try
-it* opens the level being painted; the coins and the clock carry across, a
+run starts on the first level, always — `?level=` is gone from the game, so
+nobody skips ahead — and *Try it* puts the preview on the level being painted
+through State: `{playing, at, coins: null}`, no coins being how the game
+knows to arrive at that level fresh. The coins and the clock carry across, a
 level's goal says `level` with its number, and the last one's is the end
 (`LEVEL`, one level, was the shape until 2026-09-28; the editor declines it,
 and the one game made from it was brought forward by hand). A level with
@@ -1727,9 +1733,9 @@ letter SQUARES no longer names would shut the editor out of the file. `+ Row`, `
 grow and shrink the grid at the near end and the right, between 3 and 24 a
 side; squares the ball can never reach are dimmed. The plan canvas takes its
 shape from the grid and is never much taller than a track's. Explicit Save,
-like the track's; *Try it* saves, then opens the preview on the chosen level
-(`&level=` on the frame's address — the editor's `viewParam`, where the
-story's and the adventure's is `scene`). Its checks, per level, with each
+like the track's; *Try it* saves, then puts the preview on the chosen level
+through the preview player's savepoint, as *Try this scene* does (the
+editor's `viewParam` is the studio's address alone now). Its checks, per level, with each
 level's count on its row: no start or more than one, no goal or more than
 one, the goal the ball **cannot roll to** (a search from the start, four ways,
 never through a wall, a solid kind of square or over a hole), coins it cannot
@@ -1808,8 +1814,20 @@ handed a frame from before its last — and a paused game is drawn once with no
 time passing, so the moment shows without moving. The tweaks stay as they
 are, which is the point. A game with no State, or with something in it that
 is not plain, says so under the preview in words rather than pinning half of
-it. Not yet: live tweaks, the config files as fields under the preview
-(ideas/dreams.md §3).
+it.
+
+**Try** goes through the savepoint too — not a way in of its own (decided
+2026-10-04). *Try this scene* in the story and the adventure, *Try it* in
+their guides and in the level editor, call `tryFrom(fields)`: the preview
+reloads, and once the new page has loaded the player lays the editor's
+fields over the game's State, loads it and pins it, so Back comes there as
+well. It replaces the pin, which is fine — trying a scene is not tuning the
+last one. The fields are the template's, which the editor knows the way it
+knows the file it edits: `{playing, scene, line: 0}` for the story,
+`{playing, scene, lines: []}` for the adventure, `{playing, at, coins: null}`
+for Roll a ball. Held while that editor is showing, so a save's reload lands
+back on the scene, as `?scene=` used to. ⚠️ No template takes a way in from
+its own address (`test/state-templates.test.js`): a player cannot skip ahead.
 
 The underscore routes cannot collide with a game: an underscore is not legal
 in a slug. No `/api` surface, no directory index, any other method 405.

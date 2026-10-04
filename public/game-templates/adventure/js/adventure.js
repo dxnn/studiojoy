@@ -42,21 +42,29 @@
   box.append(say, more);
   root.append(picture, spots, bag, box);
 
+  // Where the player is, kept in State (studio/state.js) — which is what lets
+  // the studio's preview pin a moment and come back to it, and what its "Try
+  // this scene" puts a scene into: the scene, the switches remembered, what is
+  // carried, and what is still to be said, first line up.
   const keys = Object.keys(SCENES);
-  const switches = new Set();
-  let carried = [];
-  let at = keys[0];
-  let lines = []; // what is still to be said, first line up
-  let after = null; // what happens once the last line has been read
+  const newAdventure = () => ({ playing: false, scene: keys[0], switches: [], carried: [], lines: [] });
+  State.reset(newAdventure());
 
-  const scene = () => SCENES[at] || {};
+  // Not the adventure's: what happens once the last line has been read, and
+  // the title or ending screen while one is up.
+  let after = null;
+  let screen = null;
+
+  const scene = () => SCENES[State.scene] || {};
   const spotsOf = () => scene().spots || [];
+  const has = (name) => State.switches.indexOf(name) >= 0;
+  const remember = (name) => { if (!has(name)) State.switches.push(name); };
 
   // A spot is usable when its need is met and, if it takes something, that
   // thing has not been taken already — a key you keep picking up would be a
   // strange key. keep: true is for the fountain you can drink from twice.
-  const usable = (spot) => (!spot.need || switches.has(spot.need))
-    && !(spot.take && !spot.keep && carried.includes(spot.take));
+  const usable = (spot) => (!spot.need || has(spot.need))
+    && !(spot.take && !spot.keep && State.carried.includes(spot.take));
 
   // The first usable spot the point is in, top to bottom — which is what lets
   // two spots on one box be a locked door and then an open one.
@@ -107,10 +115,10 @@
 
   function paintBag() {
     bag.replaceChildren();
-    bag.hidden = carried.length === 0;
-    if (!carried.length) return;
+    bag.hidden = State.carried.length === 0;
+    if (!State.carried.length) return;
     bag.append(el("span", "label", WORDS.carrying));
-    for (const item of carried) {
+    for (const item of State.carried) {
       // A picture when somebody has drawn one, the word until then. An <img>
       // that fails to load is swapped for the word rather than a broken icon.
       const img = el("img");
@@ -125,26 +133,26 @@
   /* Saying things --------------------------------------------------------------- */
 
   function speak(what, then) {
-    lines = Array.isArray(what) ? what.slice() : [what];
+    State.lines = Array.isArray(what) ? what.slice() : [what];
     after = then || null;
     showLine();
   }
 
   function showLine() {
-    if (!lines.length) {
+    if (!State.lines.length) {
       box.hidden = true;
       const then = after;
       after = null;
       if (then) then();
       return;
     }
-    say.textContent = lines[0];
-    more.hidden = lines.length === 1 && !after;
+    say.textContent = State.lines[0];
+    more.hidden = State.lines.length === 1 && !after;
     box.hidden = false;
   }
 
   function nextLine() {
-    lines.shift();
+    State.lines.shift();
     showLine();
   }
 
@@ -152,10 +160,10 @@
 
   function act(spot) {
     if (spot.sound && window.Sound) Sound.play(spot.sound);
-    if (spot.set) { switches.add(spot.set); moment("switch", spot.set); }
+    if (spot.set) { remember(spot.set); moment("switch", spot.set); }
     if (spot.take) {
-      carried.push(spot.take);
-      switches.add(spot.take);
+      State.carried.push(spot.take);
+      remember(spot.take);
       moment("item", spot.take);
       paintBag();
       if (spot.say) speak(spot.say);
@@ -170,8 +178,8 @@
   }
 
   function enter(key) {
-    at = key;
-    lines = [];
+    State.scene = key;
+    State.lines = [];
     after = null;
     box.hidden = true;
     // A scene with nothing to click on is the end: an adventure with nothing
@@ -185,9 +193,10 @@
   function finish() {
     // The scene the adventure stopped on: one with no spots, or a spot that
     // led nowhere. The value is its name — Moments.say("ending", "morning").
-    moment("ending", at);
+    moment("ending", State.scene);
+    State.playing = false;
     if (window.Screens) {
-      Screens.title({
+      screen = Screens.title({
         name: WORDS.theEnd, tagline: "", hint: "", start: WORDS.again, onStart: begin,
       });
     } else {
@@ -196,11 +205,26 @@
   }
 
   function begin() {
-    switches.clear();
-    carried = [];
+    screen = null;
+    State.reset(newAdventure());
+    State.playing = true;
     paintBag();
     enter(keys[0]);
   }
+
+  // Back to a pinned moment, or a scene the studio's "Try this scene" put the
+  // adventure into: the screen in front goes, and the player is where State
+  // says — mid-sentence if something was being said, entering the scene if not.
+  State.loaded(function () {
+    if (!State.playing) return;
+    if (screen) { screen.close(); screen = null; }
+    if (!SCENES[State.scene]) State.scene = keys[0];
+    paintBag();
+    if (!State.lines.length) { enter(State.scene); return; }
+    setPicture(scene().picture);
+    layout();
+    showLine();
+  });
 
   /* Clicks ------------------------------------------------------------------------ */
 
@@ -227,12 +251,10 @@
     if ((e.key === "Enter" || e.key === " ") && !box.hidden) { e.preventDefault(); nextLine(); }
   });
 
-  // ?scene=<name> opens straight into one scene, skipping the title screen.
-  // The studio's "Try this scene" button uses it; nothing else does, and a
-  // name that is not a scene is ignored rather than showing an empty stage.
-  const asked = new URLSearchParams(location.search).get("scene");
+  // Always from the title screen: there is no way in at a later scene from
+  // the address, so a player cannot skip ahead. The studio's preview goes to
+  // one through State instead.
   paintBag();
-  if (asked && SCENES[asked]) enter(asked);
-  else if (window.Screens) Screens.title({ start: WORDS.start, onStart: begin });
+  if (window.Screens) screen = Screens.title({ start: WORDS.start, onStart: begin });
   else begin();
 }());

@@ -33,6 +33,7 @@ import { refreshFiles, chooseFile } from './files.js';
 import { writeEditorFile } from './editor-file.js';
 import { createPictureAt } from './drawing.js';
 import { renderGuide, artCredit } from './story-guide.js';
+import { tryFrom } from './preview-player.js';
 import { writeFiles } from './upload.js';
 import { typedField } from './typed.js';
 
@@ -909,9 +910,8 @@ export function renderStoryEditor() {
       class: 'link', text: 'Try this scene', title: 'Play the game from this scene',
       onclick: async () => {
         if (st.dirty && !(await saveStory())) return;
-        S.tryScene = scene.key;
-        S.previewOpen = true;
-        S.previewNonce += 1;
+        // The template's State: this scene, from its first line.
+        tryFrom({ playing: true, scene: scene.key, line: 0 });
         // On a phone the preview is the rail, a pane away: go there.
         S.narrowPane = 'rail';
         render();
