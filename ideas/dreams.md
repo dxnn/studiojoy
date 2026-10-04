@@ -136,7 +136,8 @@ from the admin panel instead keeps that list as it is.
 
 ## 2. One way in: design first, then how it is made
 
-**Status: queued.**
+**Status: discussing (2026-10-04).** The worked-out version is *The proposal*
+at the end of this section; what sits between is the first sketch.
 
 ### What exists
 
@@ -195,6 +196,93 @@ literally asks for.
   (ephemeral, simpler, no "apply a template later")?
 - Is Jev inside "no LLM", or is the table the point?
 - A shortcut for somebody who knows they want a quiz?
+
+### What the code forces (checked 2026-10-04)
+
+- Today a game's template, its libraries and its type are all decided
+  **before its row exists** (`POST /api/projects`, `server/routes/projects.js`
+  :170–217): the repository, then the core libraries with the chosen
+  scheme's `config/controls.js`, then the template's tree or the blank page,
+  then the row with `type`. "Template after the spec" needs one new thing: a
+  template applied to a game that already exists, **once**.
+- A template brings its own `SPEC.md`, `BRIEF.md` and `index.html` (the quiz
+  has all three); the racing one brings `config/controls.js` too. Applied
+  over a guide-written `SPEC.md`, the two specs merge — the guide's on top as
+  what this game is, the template's under it as how the template works — and
+  the template's other files replace the blank page's, which were only ever
+  placeholders.
+- `projects.type` stays a column set by a person-pressed route, so no
+  `write_file` can change which editors somebody sees.
+- Every game is born with `Building` and the builder in it (CLAUDE.md). While
+  a game is undecided, anything the builder writes into the blank page is
+  overwritten when a template lands.
+- [Jev](https://flaviocopes.com/jev-api-key/) is one call: `POST
+  https://api.typesafe.ai/v1/systemone` with the answers as `state` text and
+  named questions — `choice` (up to 255 options) and `noul` (yes/no, answered
+  as a probability). $0.042 per million input tokens, output free. New
+  sign-ups paused on 2026-09-22; Dann's account predates that.
+
+### The proposal
+
+**New game asks a name, and nothing else.** The game is born *undecided*:
+`Humans only`, `Building`, the blank page, and one editor mode — the guide.
+
+**The guide asks one card at a time,** the story guide's posture: the next
+question is read off `SPEC.md`, each answer is a section of it, and *Not sure
+yet* is always an answer, so it is never a wall.
+
+1. **What do you do?** — Answer questions · Read a story and choose · Explore
+   and click on things · Race around a track · Throw things to knock them down
+   · Roll a ball through a maze · Dodge and shoot · Something else…
+2. **Who are you?**
+3. **Where are you?**
+4. **What are you trying to do?** — Win · Get the most points · Reach the end
+   · Find out what happens · Last as long as you can · Something else…
+5. **What gets in your way?**
+6. **How does it end?** — You win · You lose · A high score · One of several
+   endings · It never ends
+7. *Something else only:* **How do you play it?** — Tap or click things ·
+   Arrows or a stick · One button · Swipes · Two sticks
+8. *Something else only:* **Flat or 3D?** and **Do things fall and bounce?**
+
+**Under the cards, the how-it's-made card,** filled in from card 1 onwards:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ How it's made                                            │
+│                                                          │
+│ Knock it down                                            │
+│ A sling, a pile, and targets. You build the pile by      │
+│ dragging — no code needed.                               │
+│ With: physics   Played by: dragging on the screen        │
+│                                                          │
+│ 4 of 6 answered                          [ Make it ✓ ]  │
+└──────────────────────────────────────────────────────────┘
+```
+
+The recommendation is a **table** from card 1: each answer but the last names
+its template (and so its scheme and extras). *Something else…* is free form,
+its scheme from card 7 and its extras from card 8. No model anywhere.
+
+**Make it** is one commit: the template's tree over the blank page, the specs
+merged, the extras added, the scheme seeded, and `type` set once — then the
+game opens where a template game opens today (Questions for a quiz, Write for
+a story), whose own guide carries on.
+
+**Jev, later and only for *Something else…*:** the kid's free text plus
+cards 2–6 as `state`, a `choice` over the eight starts and two `noul`s, and
+the card says *pretty sure: Knock it down* or *could be either*. Server-side,
+its key in `studio.env` beside DeepSeek's.
+
+### Still to decide
+
+- In the game (above) or in the New game dialog?
+- Every card before Make it (with *Not sure yet*), or Make it from card 1?
+- The builder while a game is undecided: there and told it is design time,
+  or not until Make it?
+- Jev: later for *Something else…*, now, or never?
+- The mode's name: **Idea**, **Dream** or **Design** — not *Plan*, which is
+  the builder's.
 
 ## 3. Live tweaks
 
