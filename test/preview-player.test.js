@@ -11,10 +11,12 @@ import { PREVIEW_PLAYER_JS } from '../server/preview-player.js';
 
 const ORIGIN = 'http://games.test';
 
-function boot({ framed = true } = {}) {
+function boot({ framed = true, stored = {} } = {}) {
   const posts = [];
   const handlers = new Map();
   const reached = [];
+  const storage = new Map(Object.entries(stored));
+  const loads = [];
   let real = 1000;
   let frame = null;
   const sandbox = {
@@ -31,7 +33,8 @@ function boot({ framed = true } = {}) {
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
     },
     navigator: { sendBeacon: (url) => { reached.push({ url: String(url), method: 'BEACON' }); return true; } },
-    document: { readyState: 'complete' },
+    document: { readyState: 'complete', addEventListener: (type, fn) => { if (type === 'load') loads.push(fn); } },
+    localStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
     Response,
     URL,
   };
@@ -49,6 +52,9 @@ function boot({ framed = true } = {}) {
     frame: (ms) => { real += ms; frame(real); },
     studio: (data) => handlers.get('message')?.({ source: sandbox.parent, data: { gamestudio: 'player', ...data } }),
     run: (code) => vm.runInContext(code, sandbox),
+    storage,
+    // A script of the page's having run: its load event, as the page fires it.
+    ran: (path) => { for (const fn of loads) fn({ target: { tagName: 'SCRIPT', src: `${ORIGIN}/tank/${path}` } }); },
   };
 }
 
@@ -182,6 +188,29 @@ test('a jump lays the editor\'s fields over State, loads it, and pins it', () =>
   assert.equal(p.run('shown.join()'), 'kitchen', 'and the game was told');
   const pinned = p.posts.find((m) => m.gamestudio === 'player-pinned');
   assert.equal(JSON.parse(pinned.savepoint.file).state.scene, 'kitchen', 'Back comes here too');
+});
+
+// Tweaks: numbers tried in the studio go into the live objects the config
+// files made — a const is still an object whose insides can change — and are
+// kept, so the next page has them the moment that file has run.
+test('a tweak goes into the running game, and the next page has it before the game does', () => {
+  const p = boot();
+  p.run('const PLAY = { SPEED: 4, GROUP: { A: 1, B: 2 }, LIST: [1, 2] }; const PLAIN = 5;');
+  const tweaks = { 'config/play.js': { PLAY: { SPEED: 9, GROUP: { A: 3, B: 2 }, LIST: [7] }, PLAIN: 6 } };
+  p.studio({ tweaks });
+  assert.equal(p.run('JSON.stringify(PLAY)'), '{"SPEED":9,"GROUP":{"A":3,"B":2},"LIST":[7]}');
+  assert.equal(p.run('PLAIN'), 5, 'a plain const keeps what the file says');
+  assert.deepEqual(JSON.parse(p.storage.get('studio-tweaks:tank')), tweaks);
+
+  const next = boot({ stored: { 'studio-tweaks:tank': JSON.stringify(tweaks) } });
+  next.run('const PLAY = { SPEED: 4, GROUP: { A: 1, B: 2 }, LIST: [1, 2] };');
+  next.ran('config/look.js');
+  assert.equal(next.run('PLAY.SPEED'), 4, 'only the file the tweaks are for');
+  next.ran('config/play.js');
+  assert.equal(next.run('PLAY.SPEED'), 9, 'in, as that file finishes running');
+
+  next.studio({ tweaks: {} });
+  assert.equal(next.storage.get('studio-tweaks:tank'), '{}', 'undone, nothing for the page after');
 });
 
 test('it asks the studio for its settings, and only when framed', () => {

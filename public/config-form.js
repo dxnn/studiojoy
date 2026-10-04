@@ -15,7 +15,7 @@ const looksLikeColour = (v) => typeof v === 'string' && /^#[0-9a-fA-F]{3}([0-9a-
 
 // Where a value sits in the file: the declaration's name, then keys and list
 // positions down to it — ['TRACKS', 1, 'width'].
-function nodeAt(decls, path) {
+export function nodeAt(decls, path) {
   let node = decls.find((d) => d.name === path[0])?.node;
   for (const step of path.slice(1)) {
     if (!node) return null;
@@ -64,23 +64,34 @@ function markUnsaved() {
 // write to anybody's game rebuilds the whole tree, this form included.
 const fieldId = (path) => `cfg.${path.join('.')}`;
 
+// What a field does with a value, and what it is called. The form's own
+// writes into the open file; the tweaks under the preview (tweaks.js) write
+// into the running game and nowhere else, under ids of their own so the two
+// can be on screen at once.
+const FORM = {
+  set: setConfigValue,
+  typing: () => markUnsaved(),
+  id: fieldId,
+  marked: () => false,
+};
+
 // Fields write into the open file as they are typed, so a background render
 // rebuilds them with what was typed rather than what the file said before.
 // A half-typed number is never written: it waits for the next keystroke, and
 // is put back to what the file says if focus leaves it half-typed.
-function configField(node, path) {
+function configField(node, path, how) {
   if (node.kind === 'boolean') {
     return h('input', {
-      type: 'checkbox', id: fieldId(path),
+      type: 'checkbox', id: how.id(path),
       checked: node.value === true,
-      onchange: (e) => setConfigValue(path, 'boolean', e.currentTarget.checked),
+      onchange: (e) => how.set(path, 'boolean', e.currentTarget.checked),
     });
   }
   if (node.kind === 'number') {
     const input = h('input', {
-      type: 'number', step: 'any', class: 'cfg-num', id: fieldId(path),
-      oninput: (e) => { markUnsaved(); setConfigValue(path, 'number', e.currentTarget.value); },
-      onchange: (e) => setConfigValue(path, 'number', e.currentTarget.value, e.currentTarget),
+      type: 'number', step: 'any', class: 'cfg-num', id: how.id(path),
+      oninput: (e) => { how.typing(); how.set(path, 'number', e.currentTarget.value); },
+      onchange: (e) => how.set(path, 'number', e.currentTarget.value, e.currentTarget),
     });
     input.value = String(node.value);
     return input;
@@ -88,9 +99,9 @@ function configField(node, path) {
   if (node.kind === 'string' && looksLikeColour(node.value)) {
     const shown = h('span', { class: 'mono hint', text: node.value });
     const input = h('input', {
-      type: 'color', id: fieldId(path),
+      type: 'color', id: how.id(path),
       oninput: (e) => {
-        setConfigValue(path, 'string', e.currentTarget.value);
+        how.set(path, 'string', e.currentTarget.value);
         shown.textContent = e.currentTarget.value;
       },
     });
@@ -105,9 +116,9 @@ function configField(node, path) {
     // A line with a newline in it is a paragraph, so it gets a box that shape.
     const multiline = node.value.includes('\n');
     const input = h(multiline ? 'textarea' : 'input', {
-      class: 'cfg-text', id: fieldId(path),
+      class: 'cfg-text', id: how.id(path),
       ...(multiline ? { rows: 2 } : { type: 'text' }),
-      oninput: (e) => setConfigValue(path, 'string', e.currentTarget.value),
+      oninput: (e) => how.set(path, 'string', e.currentTarget.value),
     });
     input.value = node.value;
     return input;
@@ -119,21 +130,21 @@ function configField(node, path) {
 // A row per value, nesting for lists and groups. A list of groups — the tracks
 // in a racing game, the levels in a platformer — comes out as one block per
 // item, which is how it reads in the file too.
-function configRows(label, node, path) {
+export function configRows(label, node, path, how = FORM) {
   const comment = node.comment;
   if (node.kind === 'array' || node.kind === 'object') {
     const kids = node.kind === 'array'
-      ? node.items.map((item, i) => configRows(`#${i + 1}`, item, [...path, i]))
-      : node.props.map((p) => configRows(p.key, p.node, [...path, p.key]));
+      ? node.items.map((item, i) => configRows(`#${i + 1}`, item, [...path, i], how))
+      : node.props.map((p) => configRows(p.key, p.node, [...path, p.key], how));
     return h('div', { class: 'cfg-group' },
       h('div', { class: 'cfg-group-head' },
         h('span', { class: 'cfg-name mono', text: label }),
         comment ? h('span', { class: 'hint muted', text: comment }) : null),
       h('div', { class: 'cfg-group-body' }, kids));
   }
-  return h('label', { class: 'cfg-row' },
+  return h('label', { class: `cfg-row${how.marked(path) ? ' tweaked' : ''}` },
     h('span', { class: 'cfg-name mono', text: label }),
-    configField(node, path),
+    configField(node, path, how),
     comment ? h('span', { class: 'hint muted', text: comment }) : null);
 }
 

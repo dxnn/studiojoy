@@ -103,7 +103,7 @@ public/
                   another the same way
   sidebar.js  chat.js  versions.js  config-form.js  sound-form.js
   dialogs.js  upload.js  achievements-form.js  quiz-form.js  story-form.js
-  story-guide.js  controls-form.js
+  story-guide.js  controls-form.js  preview-player.js  tweaks.js
                   one pane or feature each, importing the core from main.js
   game-types.js   which editors a game's type puts in the centre pane (§6)
   game-design.js  Game Design's cards over SPEC.md and the table they pick from;

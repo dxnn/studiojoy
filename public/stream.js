@@ -10,6 +10,7 @@ import { applyReactionDelta } from './chat.js';
 import { dropStageImages } from './story-form.js';
 import { editorsFor } from './game-types.js';
 import { ACHIEVEMENTS_FILE } from './achievements-editor.js';
+import { tweaksChanged } from './tweaks.js';
 import { achievementsChanged } from './achievements-form.js';
 import { stickToBottom } from './chats.js';
 import {
@@ -438,6 +439,8 @@ function onEvent(name, data) {
         if (e.isPath && data.paths.some(e.isPath)) tree.then(e.changed);
       }
       if (S.achievements && data.paths.includes(ACHIEVEMENTS_FILE)) tree.then(achievementsChanged);
+      // A tuning file changed under the tweaks: read again, tweaks laid over it.
+      tweaksChanged(data.paths);
       dropStageImages(data.paths);
       // A helper changing the game's colours retints the studio. Not while
       // there are unsaved ones in the editor: re-reading would throw those

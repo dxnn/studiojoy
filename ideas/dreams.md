@@ -291,12 +291,12 @@ its key in `studio.env` beside DeepSeek's.
 ## 3. Live tweaks
 
 **Status, 2026-10-04: built** — the preview player (its clock, pause, step
-and speed, never on a board), **State** (a yes from Dann; the four canvas
-templates on it, physics 2 keeping its bodies in its saves), and **Pin /
-Back**. **Next:** the tweaks under the preview. **TODO lines:** the story,
-the quiz and the adventure onto State with `?scene=` dropped; the existing
-games moved by hand; the rail made the preview player's alone; registered
-moments for achievements. *Decided* and *State* are at the end of this
+and speed, never on a board), **State** (a yes from Dann; all seven templates
+on it, physics 2 keeping its bodies in its saves), **Pin / Back**, **Try**
+through the savepoint with `?scene=` and `?level=` gone from the games, and
+the **tweaks** under the preview. **TODO lines:** the existing games moved by
+hand; the rail made the preview player's alone; registered moments for
+achievements. *Decided* and *State* are at the end of this
 section; what sits between is how it was worked out.
 
 ### What exists

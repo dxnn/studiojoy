@@ -156,7 +156,11 @@ walk into, each paid for once already.
   random numbers, and answers `/_scores`, `/_achievements` and `/_me` inside
   the page — `fetch` and `sendBeacon` only. Its savepoint is `State.save()`
   and the random stream; Back never moves the clock backwards, because every
-  template's loop takes `dt` from it and only caps it from above.
+  template's loop takes `dt` from it and only caps it from above. The rail
+  under it is the **tweaks** when nothing else claims it: config values tried
+  in the running game, kept per browser, written only by Save
+  (`public/tweaks.js`). A tweak reaches an object `const` live and never a
+  plain-number one.
 - A reasoning trace is never persisted and never replayed into a later fire.
   The one time one enters a request is the thinking cap's hand-on — the same
   fire, once, as text — and the receipt keeps a placeholder for it (spec/ §8).

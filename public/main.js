@@ -16,8 +16,7 @@ import { h } from './dom.js';
 import { isFileDrag } from './upload.js';
 import { QUIZ_FILE } from './quiz-editor.js';
 import {
-  loadAchievements, parkAchievements, renderAchievementsTab, loadCounts, countsFor,
-  makeAchievementsButton,
+  loadAchievements, parkAchievements, renderAchievementsTab,
 } from './achievements-form.js';
 import { renderControlsEditor } from './controls-form.js';
 import { editorsFor, modesFor, allEditors } from './game-types.js';
@@ -38,13 +37,14 @@ import {
   loadHistory, loadDiff, historyNeedsLoad, keepDiffInView,
 } from './history.js';
 import {
-  loadScores, bestScore, showScore, scoresOn, renderScoreList, renderScoreboardTab,
+  loadScores, bestScore, showScore, renderScoreboardTab,
 } from './scoreboard.js';
 import {
   readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
 } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { renderPlayerControls } from './preview-player.js';
+import { renderTweaks } from './tweaks.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
 import { listenForNotifications, renewPush } from './notify.js';
@@ -962,10 +962,7 @@ export async function openProject(slug, { view = null } = {}) {
   // picture is opened.
   if (!isChat()) {
     await loadScores();
-    // The rail's default summary wants a count of what each achievement holds
-    // too, so both are fetched with the game the same way the best score is.
     if (!S.achievements || S.achievements.grown) await loadAchievements();
-    await loadCounts(slug);
     await loadPalette();
     await loadReservedImages();
     // And the story, when this game has the editor for it — before applyView,
@@ -1253,75 +1250,15 @@ function renderRail() {
 
 // The selected thing's fields, for the mode that has one: the story editor's
 // scene, person or title screen; Pics' picture or person; Hear's open sound.
-// Nothing more specific selected, and the rail falls back to how the game is
-// doing: every achievement, then every score — the same two lists Share
-// carries, in the same order, read-only. Each heading is the way to the real
-// editor.
+// Nothing more specific selected, and the rail is the preview player's: the
+// tweaks, the game's tuning files as fields that go into the running game and
+// nowhere else until saved (tweaks.js). The rail is meant to be the player's
+// alone; what the editors keep here is to move into the centre (TODO.md).
 function renderInspector() {
   const editor = editorShowing();
   if (editor?.inspector) return editor.inspector();
   if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
-  return renderGameSummary();
-}
-
-// Both lists in one scroller, like the inspector proper: a game with twenty
-// achievements and a long board must not push the preview off the top.
-// Exported for test/rail-summary.test.js, which holds the order and the two
-// silences to it.
-export function renderGameSummary() {
-  const achievements = renderAchievementsSummary();
-  const scores = renderScoresSummary();
-  if (!achievements && !scores) return null;
-  return h('div', {
-    class: 'scroll rail-summary', 'data-scroll': 'rail-summary',
-  }, achievements, scores);
-}
-
-// A heading that goes to the editor for what is under it. A link, because it
-// looks at something rather than changing it.
-const summaryHead = (label) => h('button', {
-  class: 'link tiny', text: label, onclick: () => openMode('share'),
-});
-
-// Every achievement the game has, with how many people hold each. It was an
-// icon strip with the words on a `title` before, which is nothing at all on a
-// touchscreen — the studio is used on phones, where there is no hover.
-// A game with none shows the way to make the first ones rather than an empty
-// heading, which would be furniture — and nothing at all to somebody who may
-// not change it.
-function renderAchievementsSummary() {
-  if (!S.achievements || S.achievements.grown) return null;
-  const { entries } = S.achievements.model;
-  if (entries.length === 0) {
-    return frozen() ? null : h('div', { class: 'rail-section' },
-      summaryHead('Achievements'),
-      h('div', { class: 'rail-empty' },
-        h('span', { class: 'hint muted', text: 'None yet — things a player can earn by playing.' }),
-        makeAchievementsButton()));
-  }
-  const counts = countsFor(S.slug);
-  return h('div', { class: 'rail-section' },
-    summaryHead('Achievements'),
-    h('div', { class: 'rail-ach-list' }, entries.map((a) => {
-      const held = counts?.get(a.id) ?? 0;
-      return h('div', { class: `rail-ach${held ? ' got' : ''}` },
-        h('span', { class: 'ach-icon', text: a.icon || '🏆' }),
-        h('span', { class: 'ach-name', text: a.name || '(no name yet)' }),
-        h('span', {
-          class: 'ach-held',
-          text: held ? `${held} player${held === 1 ? '' : 's'}` : 'nobody yet',
-        }));
-    })));
-}
-
-// The whole board, not just its top. Nothing at all when the board is off or
-// empty: an empty heading in the rail is furniture, and the same rule the
-// sidebar's groups keep.
-function renderScoresSummary() {
-  if (!scoresOn() || !S.scores?.length) return null;
-  return h('div', { class: 'rail-section' },
-    summaryHead('Scores'),
-    renderScoreList());
+  return renderTweaks();
 }
 
 // The centre's body for every mode but the chat, whose thread and composer

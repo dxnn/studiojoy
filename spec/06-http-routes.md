@@ -704,17 +704,26 @@ happens rather than what things are called. Its fields keep the ids the
 focus snapshot knows (§17), so the caret survives a render there too. A file
 has none: its bar in the centre already says what it is.
 
-With nothing more specific selected, the inspector falls back to **how the
-game is doing**: every achievement in `config/achievements.js` — icon, name
-and how many people hold it, dimmed until somebody does — and then every
-score on the board, the same two lists Share carries and in the same order,
-read-only in both. The heading of each opens Share, where the real editor
-lives; a summary is not where you go to change one. Each is absent rather
-than empty — no achievements defined, or a board that is off or has nothing
-on it, and that half simply is not there, the sidebar's rule about a group
-with nothing in it. ⚠️ **Except achievements, for somebody who may change the
-game** (2026-10-02): a game with none shows a line saying what they are and
-**Make some with the builder**, which is also beside *+ Add an achievement*
+With nothing more specific selected, the inspector is the **tweaks**
+(`public/tweaks.js`, 2026-10-04; until then the scores and achievements,
+which live under Share alone now): the game's tuning files under the preview
+— every `config/` file but the ones that are content with editors of their
+own — as the config form's own rows, `config/play.js` open and the rest a
+click away. A value changed there is **tried**, not saved: it goes into the
+running game at once, the preview player writing it into the live object
+(`PLAY.GRAVITY = 600`; a `const` that is a plain number cannot be written to
+and keeps what the file says), its row lit cyan with a dot, and it is kept in
+this browser for this game. Every new page of the preview is handed the
+tweaks before the game's own code runs — each file's the moment that file has
+run, from the games origin's own copy the player keeps — so a reload keeps
+them, and so does Back to a pin. Kept as values where they sit, never as a
+copy of the file, so somebody else's change to the same file meanwhile
+stands: **Save them** splices each tweak into the file as it is then and
+writes it, and **Undo** drops them all and reloads the preview, since a value
+written into a running game cannot be taken back out. The rail is meant to be
+the preview player's alone; what the editors keep in it is to move into the
+centre (TODO.md). **Make some with the builder**, which this section once
+carried for a game with no achievements, is beside *+ Add an achievement*
 under Share. It opens the game's builder room called *Achievements* — making
 it the first time, Building when the game already has every room it may —
 with the ask waiting in the composer, unsent. An achievement is a rule over

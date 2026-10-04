@@ -147,6 +147,73 @@ export const PREVIEW_PLAYER_JS = `(function () {
     };
   }
 
+  // ---------- tweaks ----------
+
+  // Numbers being tried in the studio, by config file and declaration —
+  // {"config/play.js": {"PLAY": {...}}} — written into the live objects the
+  // config files made. Kept on this origin too, so the next page has them
+  // before the game's own code runs: each file's are put in the moment that
+  // file has run, which is before the script after it starts. A const that is
+  // a plain number cannot be written to and keeps what the file says.
+  var TWEAKS = 'studio-tweaks:' + slug;
+  var tweaks = {};
+  try { tweaks = JSON.parse(localStorage.getItem(TWEAKS) || '{}') || {}; } catch (err) { tweaks = {}; }
+
+  function into(target, value) {
+    for (var key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      var v = value[key];
+      var t = target[key];
+      if (Array.isArray(v) && Array.isArray(t)) {
+        t.length = 0;
+        for (var i = 0; i < v.length; i++) t.push(JSON.parse(JSON.stringify(v[i])));
+      } else if (v && typeof v === 'object' && t && typeof t === 'object') {
+        into(t, v);
+      } else {
+        target[key] = v;
+      }
+    }
+  }
+
+  function tweak(decls) {
+    for (var name in decls) {
+      if (!Object.prototype.hasOwnProperty.call(decls, name) || !/^[A-Za-z_$][\\w$]*$/.test(name)) continue;
+      var live;
+      try { live = (0, eval)(name); } catch (err) { continue; }
+      if (live && typeof live === 'object' && decls[name] && typeof decls[name] === 'object') {
+        into(live, decls[name]);
+      }
+    }
+  }
+
+  // Which config file a script element is, as the tweaks name it.
+  function fileOf(src) {
+    try {
+      var path = new URL(src, location.href).pathname;
+      var mark = '/' + slug + '/';
+      return path.indexOf(mark) === 0 ? path.slice(mark.length) : null;
+    } catch (err) { return null; }
+  }
+
+  if (document.addEventListener) {
+    document.addEventListener('load', function (event) {
+      try {
+        var el = event.target;
+        if (!el || el.tagName !== 'SCRIPT' || !el.src) return;
+        var file = fileOf(el.src);
+        if (file && tweaks[file]) tweak(tweaks[file]);
+      } catch (err) { /* never break the game */ }
+    }, true);
+  }
+
+  function retweak(next) {
+    tweaks = next && typeof next === 'object' ? next : {};
+    try { localStorage.setItem(TWEAKS, JSON.stringify(tweaks)); } catch (err) { /* private mode */ }
+    for (var file in tweaks) {
+      if (Object.prototype.hasOwnProperty.call(tweaks, file)) tweak(tweaks[file]);
+    }
+  }
+
   // ---------- savepoints ----------
 
   // The game's State (studio/state.js) — a const on the page, so reached by
@@ -220,6 +287,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
       if (typeof d.paused === 'boolean') paused = d.paused;
       if (d.speed === 1 || d.speed === 0.5 || d.speed === 0.25) speed = d.speed;
       if (d.step) { paused = true; steps += 1; }
+      if (d.tweaks) retweak(d.tweaks);
       if (d.pin) pin();
     } catch (err) { return; /* never break the game */ }
     if (d && d.back) back(d.back);

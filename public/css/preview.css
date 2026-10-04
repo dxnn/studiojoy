@@ -105,43 +105,15 @@
 }
 .preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
 
-/* The rail's default when nothing more specific is selected: how the game is
-   doing, read-only — every achievement, then every score, the same two lists
-   Share carries and in the same order. The heading of each is the way to the
-   editor. The padding is here rather than a .pad on the node, so the score
-   list's own padding and the achievements' line up. */
-.rail-summary { padding-bottom: 12px; }
-.rail-section > button.link { display: block; padding: 12px 16px 6px; }
-.rail-ach-list { display: grid; gap: 2px; padding: 0 16px 12px; }
-/* A section with nothing in it yet: what it would hold, and the way to make
-   the first one. */
-.rail-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 16px 12px; }
-/* Dimmed until somebody holds it — a row of achievements nobody has yet is
-   the shape of the game, not its news. Icon, name, headcount: it was icons
-   with the words on a `title` before, which says nothing under a finger. */
-.rail-ach {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  opacity: 0.5;
-}
-.rail-ach .ach-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  font-size: 13px;
-  background: var(--panel-3);
-  border: 1px solid var(--border-soft);
-}
-.rail-ach .ach-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A headcount is a number worth looking at, so it is gold — the same rule the
-   score beside it keeps. "nobody yet" is not a number and stays muted. */
-.rail-ach .ach-held { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-.rail-ach.got { opacity: 1; }
-.rail-ach.got .ach-icon { border-color: color-mix(in oklab, var(--look-primary) 55%, transparent); }
-.rail-ach.got .ach-held { color: var(--num); }
+/* The rail's default when nothing more specific is selected: the tweaks — the
+   game's tuning files as fields, tried in the running game and written only
+   on Save (tweaks.js). A row being tried wears the studio's cyan and a dot:
+   it is a state the game is in, and the eye has to find what to undo. */
+.tweaks { padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 6px; }
+.tweaks-head { display: flex; align-items: baseline; gap: 8px; }
+.tweaks .hint { font-size: 12px; margin: 0; }
+.tweaks button.tweaks-file { align-self: flex-start; font-family: var(--mono); font-size: 12px; text-decoration: none; }
+.tweaks .cfg { padding: 0; }
+.tweaks .cfg-row.tweaked .cfg-name { color: var(--accent); }
+.tweaks .cfg-row.tweaked .cfg-name::after { content: ' ●'; }
+.tweaks-bar { gap: 6px; justify-content: flex-end; }

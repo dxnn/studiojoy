@@ -7,6 +7,7 @@
 import { h } from './dom.js';
 import { S, render, say, previewWindow } from './main.js';
 import { gamesOrigin } from './telemetry.js';
+import { liveTweaks } from './tweaks.js';
 
 // The one savepoint each game has, by slug: what Pin took — the game's State
 // as text and where its random numbers stood — kept here rather than in the
@@ -34,13 +35,18 @@ function tell(data) {
   }
 }
 
-// The settings — and, to a page that has just loaded, the place an editor is
-// trying (tryFrom, below).
+// The settings and the tweaks (tweaks.js) — and, to a page that has just
+// loaded, the place an editor is trying (tryFrom, below).
 function settle({ loaded = false } = {}) {
   const trying = S.player.trying;
   const jump = loaded && trying?.mode === S.mode ? trying.fields : null;
-  tell({ paused: S.player.paused, speed: S.player.speed, ...(jump ? { jump } : {}) });
+  tell({
+    paused: S.player.paused, speed: S.player.speed, tweaks: liveTweaks(), ...(jump ? { jump } : {}),
+  });
 }
+
+// A tweak tried, saved or dropped: the preview is told the whole set again.
+export const settlePlayer = () => settle();
 
 // "Try this scene" and "Try it": the preview opened again on a fresh page and
 // put where the editor says, by the savepoint's own way — `fields` laid over
