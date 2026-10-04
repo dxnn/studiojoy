@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { scratchDir } from './helpers.js';
-import { studioPaths } from '../bin/env.js';
+import { studioPaths, whereDbPath } from '../bin/env.js';
 
 function envFile(text) {
   const file = path.join(scratchDir('env'), 'studio.env');
@@ -42,4 +42,17 @@ test('STUDIO_ENV names the file, the same as it does for pm2', () => {
 test('no file is a laptop: the defaults beside the code', () => {
   const missing = path.join(scratchDir('env'), 'studio.env');
   assert.deepEqual(studioPaths({}, missing), { dbPath: 'gamestudio.db', gamesDir: 'games', from: null });
+});
+
+// What a script says when it finds no database: which of the three places
+// answered, and for the default, what the env file lacked — the case a
+// server that still runs on a path pm2 remembers will hit.
+test('a missing database says where its path came from', () => {
+  const missing = path.join(scratchDir('env'), 'studio.env');
+  assert.equal(whereDbPath({}, missing), `the default: there is no ${missing}`);
+  const keyOnly = envFile('DEEPSEEK_API_KEY=sk-x\n# DB_PATH=/srv/data/db\n');
+  assert.equal(whereDbPath({}, keyOnly), `the default: ${keyOnly} has no DB_PATH line`);
+  const full = envFile('DB_PATH=/srv/data/db\n');
+  assert.equal(whereDbPath({}, full), full);
+  assert.equal(whereDbPath({ DB_PATH: 'here.db' }, full), 'DB_PATH in the environment');
 });

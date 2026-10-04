@@ -29,12 +29,23 @@ export function paths() {
   return found;
 }
 
+// Where the database path came from, for when it is wrong. A server whose env
+// file has no DB_PATH still runs — pm2 keeps a value it was once given, since
+// --update-env adds and overrides and never drops — so a script falling back
+// to the default has to say which file it read and what was missing from it.
+export function whereDbPath(env = process.env, file = envFilePath(env)) {
+  if (env.DB_PATH !== undefined) return 'DB_PATH in the environment';
+  if (!fs.existsSync(file)) return `the default: there is no ${file}`;
+  if (readEnv(file).DB_PATH === undefined) return `the default: ${file} has no DB_PATH line`;
+  return file;
+}
+
 // For the scripts that only ever change an existing studio: an empty database
 // made by mistake is worse than an error.
 export function existingDb() {
   const { dbPath } = paths();
   if (!fs.existsSync(dbPath)) {
-    console.error(`no database at ${dbPath} (set DB_PATH, here or in the studio's env file)`);
+    console.error(`no database at ${dbPath} (${whereDbPath()})`);
     process.exit(1);
   }
   return dbPath;
