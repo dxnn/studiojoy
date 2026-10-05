@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { getEventListeners } from 'node:events';
 import {
   createDeepSeek, tokensCharged, tokensForChars, LlmError, MODEL,
   DEFAULT_MAX_TOKENS, MAX_OUTPUT_TOKENS, PROGRESS_STEP,
@@ -487,6 +488,15 @@ test("a caller's signal cancels a waiting stream, and says so", async () => {
       return true;
     },
   );
+});
+
+// A fire's signal outlives every request in it — a plan makes dozens — so a
+// request must leave nothing hanging on it when it ends.
+test("a caller's signal is left as it was found, request after request", async () => {
+  const stop = new AbortController();
+  const llm = createDeepSeek({ apiKey: 'k', fetchImpl: timedFetch([textChunk('hi'), finalChunk()]) });
+  for (let i = 0; i < 12; i += 1) await collect(llm, { signal: stop.signal });
+  assert.equal(getEventListeners(stop.signal, 'abort').length, 0);
 });
 
 /* complete() — the whole answer at once, for the studio's own small asks ----- */

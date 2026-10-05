@@ -140,14 +140,13 @@ export class LlmError extends Error {
   }
 }
 
-// Cancel (spec.md §8): the caller's signal aborts the same controller the idle
-// guard does, and a request that ends that way says it was cancelled rather
-// than that it stalled — the catch asks the caller's signal first.
-function follow(signal, controller) {
-  if (!signal) return;
-  if (signal.aborted) controller.abort();
-  else signal.addEventListener('abort', () => controller.abort(), { once: true });
-}
+// Cancel (spec.md §8): the request stops for the idle guard or the caller's
+// signal, and one that ends for the caller says it was cancelled rather than
+// that it stalled — the catch asks the caller's signal first. AbortSignal.any
+// rather than a listener on the caller's signal: that signal is a fire's, it
+// outlives every request in it, and a listener a request — a plan makes dozens
+// — piled up on it until Node warned of a leak.
+const stopsFor = (controller, signal) => (signal ? AbortSignal.any([controller.signal, signal]) : controller.signal);
 
 const cancelled = () => new LlmError('cancelled', { code: 'cancelled' });
 
@@ -236,7 +235,6 @@ export function createDeepSeek({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), idleMs);
     timer.unref?.();
-    follow(signal, controller);
 
     let res;
     try {
@@ -247,7 +245,7 @@ export function createDeepSeek({
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: stopsFor(controller, signal),
       });
     } catch (err) {
       clearTimeout(timer);
@@ -310,7 +308,6 @@ export function createDeepSeek({
       };
       // The first arming also covers connecting and waiting for headers.
       arm();
-      follow(signal, controller);
 
       let res;
       try {
@@ -321,7 +318,7 @@ export function createDeepSeek({
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify(body),
-          signal: controller.signal,
+          signal: stopsFor(controller, signal),
         });
       } catch (err) {
         clearTimeout(timer);
