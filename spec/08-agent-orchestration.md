@@ -78,8 +78,12 @@ stopping, not asking again; a message sent after the press sets it afresh.
   `files.changed` names the paths put back, and a studio notice stands in the
   thread (*Cancelled — everything Builder changed is back how it was.*, or
   *Cancelled.* where nothing had been written or there is no tree). The
-  tokens are charged — a stream nobody let finish sends no usage, so what it
-  streamed is estimated, as a capped trace's is.
+  tokens are charged — a request nobody let finish sends no usage, so what it
+  streamed is estimated, as a capped trace's is, and the prompt it sent is
+  charged its floor: what it costs read from the cache, which inside a fire
+  it nearly always is (`promptFloor`). A sizing cancelled before its answer
+  is charged the same floor. Charged nothing, send-and-Cancel over and over
+  cost the key a prompt a time and no budget saw it.
 - **In a plan,** only the running piece: it goes back to `todo` and the plan
   **pauses**, so *Carry on* runs it again; the pieces before it keep their
   versions. Cancelled during Build it's own sizing, before any piece ran, the

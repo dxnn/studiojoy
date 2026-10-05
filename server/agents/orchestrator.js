@@ -860,6 +860,12 @@ function picturePlaceholder(parts) {
     .join('\n');
 }
 
+// What a request cancelled before its usage arrived is charged for the prompt
+// it sent: the floor, what that prompt costs when the cache answers it, as it
+// nearly always does inside a fire (§14). The model read it and the key paid;
+// charged nothing, send-and-Cancel over and over ran up a bill no budget saw.
+const promptFloor = (text) => Math.ceil(tokensForChars(text.length) / HIT_DIVISOR);
+
 // The prompt as readable text, one labelled part per message, verbatim
 // content. Rendered rather than dumped as the JSON body so the person
 // debugging reads what the model read; a tool call keeps its raw argument
@@ -1091,11 +1097,13 @@ export function createOrchestrator({
       // This turn's trace, held only until the turn ends: what a cap hands on.
       let trace = '';
       // Whether this turn's usage arrived. A stream cancelled before its end
-      // sends none, so what it streamed is charged from an estimate, the way
-      // an abandoned trace is (below).
+      // sends none, so what it read and streamed is charged from an estimate,
+      // the way an abandoned trace is (below).
       let billed = false;
       const cancelled = () => {
-        if (!billed) charged += tokensForChars(trace.length + text.length) * OUTPUT_WEIGHT;
+        if (!billed) {
+          charged += promptFloor(sentPrompt) + tokensForChars(trace.length + text.length) * OUTPUT_WEIGHT;
+        }
         return outcome({ cancelled: true });
       };
       if (signal?.aborted) return outcome({ cancelled: true });
@@ -1614,7 +1622,11 @@ export function createOrchestrator({
       };
       return sized ?? { size: 'small', resume: true };
     } catch (err) {
-      console.error('sizing failed', err);
+      if (stopped(fire)) {
+        const floor = promptFloor(promptText(context.system, messages));
+        consumeBudget(db, floor);
+        chargeUser(db, asker?.id, floor);
+      } else console.error('sizing failed', err);
       return { size: 'small', resume: true };
     }
   }

@@ -1004,6 +1004,44 @@ test('Cancel stops a fire and puts back everything it wrote, leaving no version'
   assert.equal((await cancel(app, chatId)).status, 409, 'nothing left to stop');
 });
 
+// The model read the prompt whether or not an answer came back: a request
+// cancelled before its usage arrived is charged the prompt's floor, or
+// send-and-Cancel would cost the key and no budget.
+const spentToday = (app) => app.db.prepare('SELECT tokens_used_today AS n FROM studio_state WHERE id = 1').get().n;
+
+test('a turn cancelled before its usage arrived is still charged its prompt', async (t) => {
+  const hang = waits();
+  const llm = scriptedLlm([hang.turn], [sized({ size: 'small' })]);
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, chatId, 'make it a tank game');
+  await hang.started;
+  const before = spentToday(app);
+  assert.equal((await cancel(app, chatId)).status, 202);
+  await notice(stream);
+  assert.ok(spentToday(app) > before, 'the prompt it sent');
+});
+
+test('a sizing cancelled before its answer is still charged its prompt', async (t) => {
+  let reached;
+  const asked = new Promise((resolve) => { reached = resolve; });
+  const llm = scriptedLlm([], (opts) => new Promise((resolve, reject) => {
+    reached();
+    opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('cancelled'), { code: 'cancelled' })), { once: true });
+  }));
+  const { app, chatId } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await send(app, chatId, 'make it a tank game');
+  await asked;
+  const before = spentToday(app);
+  assert.equal((await cancel(app, chatId)).status, 202);
+  await notice(stream);
+  assert.ok(spentToday(app) > before, 'the prompt it sent');
+  assert.equal(llm.calls.length, 0, 'and nothing after it');
+});
+
 // A save is the person's: it lands as their own version before the undo reads
 // HEAD, so HEAD — and the file — is what they saved.
 test("Cancel keeps a person's save of the same file, made while the fire ran", async (t) => {
