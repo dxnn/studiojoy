@@ -68,7 +68,8 @@ export async function listAchievements(db, project, dir, userId) {
 // One unlock. 404 for an id the file does not define — the file is the truth,
 // so a rule a helper removed is refused from then on, and the rows it left
 // are simply shown nowhere. `new` says whether this was the first time, and
-// `joy` what it paid — only ever on the first time, in the same transaction.
+// `joy` what it paid — only ever on the first time, in the same transaction;
+// later chips reach a holder through settleJoy (server/joy.js).
 export async function unlockAchievement(db, project, dir, userId, body, now = new Date()) {
   const id = body?.id;
   if (typeof id !== 'string') throw new HttpError(400, 'id must be text');

@@ -32,6 +32,7 @@ import { unseenInProject, unseenInChat } from '../mentions.js';
 import { projectHasUnread, chatHasUnread } from '../reads.js';
 import { arcFor } from '../../public/arc.js';
 import { isAnnouncements } from '../announcements.js';
+import { settleJoy } from '../joy.js';
 
 const MAX_PROJECT_NAME = 200;
 const RECENT_MESSAGES = 100;
@@ -598,8 +599,13 @@ export function projectRoutes(r) {
     if (typeof published !== 'boolean') {
       throw new HttpError(400, 'published must be a boolean');
     }
-    ctx.db.prepare('UPDATE projects SET published = ? WHERE id = ?')
-      .run(published ? 1 : 0, project.id);
+    // Published, whoever earned an achievement while it was not is paid for
+    // it now (server/joy.js).
+    tx(ctx.db, () => {
+      ctx.db.prepare('UPDATE projects SET published = ? WHERE id = ?')
+        .run(published ? 1 : 0, project.id);
+      if (published) settleJoy(ctx.db, { ...project, published: 1 });
+    });
     ctx.broker.broadcast('project.updated', {
       slug: project.slug, name: project.name, archived: project.archived === 1, published,
     });

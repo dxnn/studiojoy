@@ -10,9 +10,12 @@
 // which is the point (Dann, 2026-10-04). Joy is a person's to keep, and to
 // spend once avatars come.
 //
-// Nobody earns joy from a game they author, nor from one that is not
-// published, nor for an achievement earned before its chips were put on: joy
-// is paid once, in the same moment as the earned row.
+// Everybody who holds an achievement of a published game ends up paid what
+// it gives now, its editors included (Dann, 2026-10-05): at the earn, and
+// again whenever it gives more — chips put on one already held pay its
+// holders the difference, and so does publishing a game that was earned in
+// while it was not. Owed is always what it gives less what was paid for it,
+// so nothing is paid twice.
 //
 // ⚠️ An unlock is the browser's word, as a score is, so a forged one now makes
 // joy. Accountable rather than prevented: every earn is a ledger row with a
@@ -103,19 +106,50 @@ export function putChips(db, project, user, achievement, chips, now = new Date()
       userId: user.id, currency: 'chips', delta: -chips, why: 'put',
       projectId: project.id, achievement, now,
     });
+    settleJoy(db, project, now);
     return { joy: joyOn(db, project.id).get(achievement), stash: have - chips };
   });
 }
 
-// Joy for the first time somebody earns an achievement, inside the
-// transaction that writes the earned row; how much was paid.
+// What one person is owed for an achievement they hold — what it gives now,
+// less what they have been paid for it — paid, inside a transaction the
+// caller holds; how much. Nothing while the game is unpublished.
 export function payJoy(db, project, userId, achievement, now) {
-  if (project.published !== 1 || isAuthor(db, project.id, userId)) return 0;
-  const joy = joyOn(db, project.id).get(achievement) ?? 0;
-  if (joy > 0) {
-    write(db, {
-      userId, currency: 'joy', delta: joy, why: 'earned', projectId: project.id, achievement, now,
-    });
+  if (project.published !== 1) return 0;
+  const gives = joyOn(db, project.id).get(achievement) ?? 0;
+  const paid = Number(db
+    .prepare(
+      `SELECT COALESCE(SUM(delta), 0) AS n FROM ledger
+        WHERE user_id = ? AND currency = 'joy' AND why = 'earned' AND project_id = ? AND achievement = ?`,
+    )
+    .get(userId, project.id, achievement).n);
+  const owed = gives - paid;
+  if (owed <= 0) return 0;
+  write(db, {
+    userId, currency: 'joy', delta: owed, why: 'earned', projectId: project.id, achievement, now,
+  });
+  return owed;
+}
+
+// Every published game settled, once as the studio starts: what a holder was
+// owed before payJoy knew to pay it — an earn before the chips, an editor's —
+// lands with the deploy that taught it, and after that it finds nothing.
+export function settleAllJoy(db, now = new Date()) {
+  tx(db, () => {
+    for (const project of db.prepare('SELECT id, published FROM projects WHERE published = 1').all()) {
+      settleJoy(db, project, now);
+    }
+  });
+}
+
+// Every holder of every achievement a game gives joy for, paid up to what it
+// gives now: when chips go on, and when the game is published.
+export function settleJoy(db, project, now = new Date()) {
+  if (project.published !== 1) return;
+  for (const achievement of joyOn(db, project.id).keys()) {
+    const holders = db
+      .prepare('SELECT user_id FROM achievements WHERE project_id = ? AND achievement = ?')
+      .all(project.id, achievement);
+    for (const { user_id: userId } of holders) payJoy(db, project, userId, achievement, now);
   }
-  return joy;
 }

@@ -30,7 +30,6 @@ import {
 } from './players.js';
 import { catalogPage, playersPage } from './catalog.js';
 import { joyOf, joyOn } from './joy.js';
-import { isAuthor } from './authors.js';
 import { gearBytes } from './gear.js';
 import { sendPicture } from './routes/gear.js';
 
@@ -161,10 +160,10 @@ export function createGamesApp({
       const mine = earned.get(g.id) ?? new Set();
       const [latest] = await logCommits(dir, { limit: 1 });
       // The joy still there to earn (server/joy.js): signed in, what you have
-      // not earned yet — none in a game you author, which pays you nothing —
+      // not earned yet — in your own games too, which pay you like anybody —
       // and signed out, everything the game gives. The catalog's whole pull.
       const joy = joyOn(db, g.id);
-      const toEarn = player && isAuthor(db, g.id, player.id) ? 0 : defined
+      const toEarn = defined
         .filter((a) => !mine.has(a.id))
         .reduce((n, a) => n + (joy.get(a.id) ?? 0), 0);
       entries.push({

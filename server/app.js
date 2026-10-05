@@ -26,6 +26,7 @@ import { pushRoutes } from './routes/push.js';
 import { planRoutes } from './routes/plans.js';
 import { tell } from './notify.js';
 import { ensureAnnouncements } from './announcements.js';
+import { settleAllJoy } from './joy.js';
 
 const DEFAULT_PUBLIC_DIR = path.resolve(import.meta.dirname, '..', 'public');
 
@@ -59,6 +60,8 @@ export function createApp({
   // A studio from before the announcements gets its room the first time it
   // starts; a new one, when its first account is made (auth.js).
   ensureAnnouncements(db);
+  // Joy anybody is owed and was not paid (server/joy.js).
+  settleAllJoy(db);
 
   // ⚠️ Hung on the broker rather than added beside each `message.new`: three
   // places broadcast one, and a push has to reach a browser with no

@@ -161,9 +161,10 @@ walk into, each paid for once already.
 - A score, a personal best and an achievement are rows in SQLite, never files:
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache. ⚠️ So are **chips** and **joy**
-  (`ledger`, `server/joy.js`): joy is made only by a first earn in a
-  published game you do not edit, chips only by the weekly grant, and no
-  `write_file` can make either.
+  (`ledger`, `server/joy.js`): joy is made only by holding an achievement
+  of a published game — paid up to what it gives, never twice, editors
+  included — chips only by the weekly grant, and no `write_file` can make
+  either.
 - ⚠️ The preview is the **preview player** (`server/preview-player.js`,
   spec/ §6): always debugging, never on a board. It owns the game's clock,
   its timers (`setTimeout`, `setInterval`, `Date.now()`) and its random
@@ -476,8 +477,9 @@ specified:
 - **Joy and chips** (spec/ §3, ideas/dreams.md §5, built 2026-10-04): every
   author gets 10 **chips** a week into a **stash** of at most 50, and puts
   them on their published games' achievements — 1, 5, 10 or 20 joy in the
-  editor, an interface limit only. Everybody who earns one gets that much
-  **joy**, once: a bounty, inflationary on purpose. Gold on the achievement,
+  editor, an interface limit only. Everybody who holds one gets that much
+  **joy**, its editors too, and is topped up when it gives more (2026-10-05):
+  a bounty, inflationary on purpose. Gold on the achievement,
   the toast (achievements library v3, so the sweep carries it), the catalog
   card's *joy to earn* and beside your alias; your settings show both. Driven
   in the MCP browser end to end.

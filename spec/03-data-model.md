@@ -765,9 +765,16 @@ the last week given, and the weeks since are added the next time anything
 reads the stash, only as far as fifty. Chips are put on an achievement of a
 published game the person authors and stay there, whatever happens to the
 game or the achievement. An achievement gives as much joy as it has chips to
-everybody who earns it — a bounty, inflationary on purpose (Dann) — paid in
-the same transaction as the `achievements` row, so only the first time,
-never to one of the game's editors, and never while it is unpublished. The
+everybody who holds it — a bounty, inflationary on purpose (Dann) — its
+editors included, and never while it is unpublished. What a holder is owed is
+what it gives now less what they were paid for it (`payJoy`), so nothing is
+paid twice: at the earn, in the same transaction as the `achievements` row;
+and to every holder at once (`settleJoy`) when chips go on — earned before
+the chips, or before more of them — and when the game is published, for what
+was earned while it was not (Dann, 2026-10-05; until then joy was the first
+earn's alone, never an editor's). Every published game is settled once more
+as the studio starts (`settleAllJoy`), which is how what the old rules left
+owing was paid, and which finds nothing after that. The
 achievements editor offers only 1, 5, 10 or 20 joy — each button the chips it
 takes to get there from where it is — which is the interface's limit alone:
 the route takes any whole number (Dann, "we'll change this later").
