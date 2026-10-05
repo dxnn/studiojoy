@@ -5,7 +5,9 @@ import { h } from './dom.js';
 import {
   S, render, prefs, api, openProject, SIDE_SEARCH, frozen,
 } from './main.js';
-import { attachAgent, mentionPerson, readMark } from './chats.js';
+import { attachAgent, readMark } from './chats.js';
+import { avatarHead } from './avatar.js';
+import { openWardrobe } from './wardrobe.js';
 import { notifyState, toggleNotify, quietBell } from './notify.js';
 
 /* Render: sidebar --------------------------------------------------------- */
@@ -110,7 +112,10 @@ export function renderSidebar() {
         : S.sideTab === 'chats' ? chatRows(matches)
           : crewRows(matches)),
     h('div', { class: 'who' },
-      h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
+      // Your avatar's head once it wears one; until then, your initial.
+      S.me.avatar?.head
+        ? avatarHead(S.me.avatar)
+        : h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
       // Your own settings — the alias, and your joy and chips — behind your
       // own name. Asked again on the way in, since joy is earned on the games
       // site while the studio sits open.
@@ -300,18 +305,25 @@ function crewRows(matches) {
   const people = S.people.filter((p) => matches(p.display_name));
   const helpers = helperRows(matches);
   return [
+    // Your avatar and the gear to dress it in (wardrobe.js): a place, so it
+    // is looked at like one. ⚠️ Returned: it opens something.
+    h('div', { class: 'pad' }, h('button', {
+      class: 'link', text: 'Your wardrobe',
+      title: 'Your avatar, and gear to make, buy and wear',
+      onclick: () => openWardrobe(),
+    })),
     h('div', { class: 'section-label', text: 'Humans' }),
     people.length
       ? people.map((p) => {
         const you = p.id === S.me.id;
+        // Their face, and on a click the whole of them — with the way to say
+        // something to them, which is what a click here used to do.
         return h('div', { class: 'srow' },
           h('button', {
             class: 'hname',
-            text: p.display_name,
-            title: you ? 'You' : `Say something to ${p.display_name}`,
-            disabled: you,
-            onclick: () => mentionPerson(p),
-          }),
+            title: you ? 'You — your avatar' : `${p.display_name}'s avatar`,
+            onclick: () => { S.dialog = { kind: 'person', id: p.id }; render(); },
+          }, avatarHead(you ? S.me.avatar : p.avatar), h('span', { text: p.display_name })),
           you ? h('span', { class: 'tag', text: 'you' }) : null);
       })
       : nothing('Nobody yet — accounts are made with npm run adduser.'),

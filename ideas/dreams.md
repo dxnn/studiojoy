@@ -759,7 +759,31 @@ looking at an achievement knows exactly what it will pay.
 
 ## 6. Avatars
 
-**Status: proposed 2026-10-04, waiting on the questions in the reply.**
+**Status: built 2026-10-04** (`server/gear.js`, `public/wardrobe.js`, spec/
+§3 and §6). What was decided replaced most of the proposal below.
+
+### Decided (Dann, 2026-10-04)
+
+- **No animal faces.** An avatar is gear and nothing else: a **head**, a
+  **body** and **legs**. The head fits a circle; the body and legs are
+  roughly the right size and shape — the drawing tool with a **mask**, so
+  nothing can be drawn outside it.
+- **Three new pieces a person a week**, so gear arrives faster.
+- **20 joy a piece**, so people buy more of it, and **the joy vanishes** — the
+  maker gets none. Makers get their own pieces for nothing.
+- **No admin approval.** It is fine.
+- **In the Crew tab**: a wardrobe to make, buy and wear gear, and clicking a
+  person shows their avatar.
+- **On the catalog**, the avatar beside each game its primary author made.
+- **Chat in the first pass**: a person's head beside their messages.
+
+How it landed: the shapes are a 32×32 circle, a 32×28 T-shirt and 32×24
+legs with feet (`public/gear-shapes.js`); the mask is one byte a pixel in
+the pixel editor's single bounds check, so every tool stops at its edge; the
+bare shape sits behind every worn piece, so a piece with gaps still has a body
+under it; the wardrobe is a page, `/wardrobe`, rather than a dialog, because
+the pixel editor needs the room. Players — accounts without the studio — earn
+joy and have no wardrobe yet.
 
 ### What the code says (checked 2026-10-04)
 

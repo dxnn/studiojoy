@@ -44,6 +44,7 @@ import {
 } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
 import { renderPlayerControls, renderRobotNote } from './preview-player.js';
+import { renderWardrobe, openWardrobe, closeWardrobe } from './wardrobe.js';
 import { renderTweaks } from './tweaks.js';
 import { loadPeople } from './people.js';
 import { connectStream, liveMapFor, pendingMapFor } from './stream.js';
@@ -219,6 +220,9 @@ export const S = {
   // `trying` is an editor's Try: where the preview is put on every new page
   // while that editor is showing. `broke` is what the robot found.
   player: { paused: false, speed: 1, robot: false, trying: null, broke: null },
+  // The wardrobe (wardrobe.js), while it is the centre pane — no game open —
+  // or null: {drawing, data}.
+  wardrobe: null,
   autoscroll: true,
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
@@ -628,6 +632,7 @@ export async function openMode(id) {
 // The inverse of applyView, and written in the same two branches so the pair
 // can be read against each other.
 function urlNow() {
+  if (S.wardrobe) return '/wardrobe';
   if (!S.slug) return '/';
   const q = new URLSearchParams();
   // What the centre shows. A mode other than the chat, and what it is about —
@@ -767,9 +772,13 @@ let following = Promise.resolve();
 
 const followUrl = () => {
   following = following.then(() => urlAs('replace', async () => {
+    if (location.pathname === '/wardrobe') {
+      if (!S.wardrobe) await openWardrobe();
+      return;
+    }
     const slug = slugFromUrl();
     const view = viewFromUrl();
-    if (slug && slug === S.slug) await applyView(view);
+    if (slug && slug === S.slug && !S.wardrobe) await applyView(view);
     else await openProject(slug, { view });
   }));
   return following;
@@ -844,6 +853,9 @@ export function nearQuota() {
 // The address is render()'s to write — opening a game only sets the state.
 // Wrap the call in urlAs('replace', …) when it is not a navigation.
 export async function openProject(slug, { view = null } = {}) {
+  // Wherever this goes, it is out of the wardrobe — and a piece half drawn
+  // there goes with it, before anything below asks the canvas to save.
+  closeWardrobe();
   // Half-typed text belongs to the game it was typed in, so it is parked
   // here on the way out and put back on the way in.
   if (S.slug) S.unsent.set(S.slug, composerBox.value);
@@ -1357,7 +1369,7 @@ export function render() {
     style: [`--rail:${S.railWidth}px`, ...LOOK_ROLES
       .filter((name) => S.look[name])
       .map((name) => `--look-${name}:${S.look[name]}`)].join(';'),
-  }, head, renderSidebar(), renderChat(), hasRail() ? renderRail() : null);
+  }, head, renderSidebar(), S.wardrobe ? renderWardrobe() : renderChat(), hasRail() ? renderRail() : null);
   root.append(app);
 
   // At the top, where the banner is at the bottom: this one is not a thing

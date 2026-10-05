@@ -137,7 +137,8 @@ walk into, each paid for once already.
   Unquoted, a path with an accent comes back escaped and matches nothing.
 - The games listener never reads the `session` cookie and serves nothing but
   static files, the catalog, the wrapper, a live listing of each game's
-  `assets/`, and the scoreboard and achievement routes. It exists to be a
+  `assets/`, the scoreboard and achievement routes, and gear's pictures
+  (`/_gear/:id`, for the makers' avatars on the catalog). It exists to be a
   separate origin (spec/ §7).
 - ⚠️ Two headers on the catalog are load-bearing — `frame-ancestors 'none'`
   and `COOP: same-origin` — because a password form now shares an origin with
@@ -470,7 +471,15 @@ specified:
   **joy**, once: a bounty, inflationary on purpose. Gold on the achievement,
   the toast (achievements library v3, so the sweep carries it), the catalog
   card's *joy to earn* and beside your alias; your settings show both. Driven
-  in the MCP browser end to end. What joy buys is talk 6, avatars.
+  in the MCP browser end to end.
+- **Avatars** (spec/ §6, ideas/dreams.md §6, built 2026-10-04): a head, a
+  body and legs, each a piece of **gear** drawn in the pixel editor's gear
+  mode inside its shape — a mask no tool paints outside — three a person a
+  week, the maker's for nothing, everybody else's for 20 joy spent to nobody.
+  The **wardrobe** is the centre pane at `/wardrobe`, from the Crew tab; a
+  crew row opens a person's whole avatar; heads in chat and the sidebar; the
+  catalog card shows each game's maker. Driven in the MCP browser end to end
+  at 1280 and 390, never on a finger.
 - **Microhelpers**: the guide's *Fill it in for me* and *Make one for me* —
   one request, one answer, nothing kept, through the same two token walls a
   reply goes through and billed to whoever pressed. No message row anywhere

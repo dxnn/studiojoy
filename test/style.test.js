@@ -102,6 +102,7 @@ const GOLD_TEXT = new Map([
   ['.commit .meta .sha', 'a version, mixed toward muted'],
   ['.ach-joy', 'the joy an achievement gives whoever earns it'],
   ['.me-joy', 'your own joy and chips'],
+  ['.wardrobe-joy', 'your joy, in the wardrobe'],
 ]);
 
 test('gold paints a number and nothing else', () => {

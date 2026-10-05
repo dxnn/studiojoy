@@ -116,9 +116,11 @@ export function createApp({
 
   const sendIndex = (ctx) => serveFile(ctx.req, ctx.res, path.join(publicDir, 'index.html'));
 
-  // Client-side routing: both entry points serve the same shell.
+  // Client-side routing: every entry point serves the same shell — the studio,
+  // a game, and the wardrobe (public/wardrobe.js).
   r.get('/', sendIndex);
   r.get('/p/:slug', sendIndex);
+  r.get('/wardrobe', sendIndex);
 
   r.get('/*path', async (ctx) => {
     const rel = ctx.params.path;

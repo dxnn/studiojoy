@@ -14,6 +14,7 @@ import {
   rgbaOf, hexOf, isColour,
 } from './pixel-editor.js';
 import { parseConfigFile, literalFor, spliceValue } from './config-file.js';
+import { SIZES, maskFor } from './gear-shapes.js';
 import {
   writeFiles, assetPath, IMAGE_DIR, SPRITE_DIR,
 } from './upload.js';
@@ -122,6 +123,26 @@ export async function startDrawing() {
   if (S.drawPrefs.slot >= paletteColours().length) S.drawPrefs.slot = 0;
   render();
 }
+
+// Gear mode (public/wardrobe.js): a blank piece of gear, its slot's shape as
+// the mask every tool stays inside, in the studio's own colours — there is no
+// game, so no file to save into and no config/look.js to read. The wardrobe
+// makes the piece when its owner says so; nothing here saves it.
+export function startGearDrawing(slot) {
+  const { width, height } = SIZES[slot];
+  const picture = blankPicture(width, height);
+  picture.mask = maskFor(slot);
+  S.draw = { picture, undo: [], redo: [], dirty: false, gear: { slot } };
+  S.palette = { colours: [...PALETTE], text: null, from: null };
+  if (S.drawPrefs.slot >= PALETTE.length) S.drawPrefs.slot = 0;
+  S.drawPrefs.zoom = 'fit';
+}
+
+const gearMode = () => Boolean(S.draw?.gear);
+// A game's drawing is locked with the game; gear belongs to no game.
+const locked = () => !gearMode() && frozen();
+// A game's picture saves itself two seconds after a stroke; gear never does.
+const soon = () => { if (!gearMode()) saveEditorSoon(); };
 
 // A blank picture at exactly this path, opened ready to draw on. The story
 // guide uses it for a face or a place the story already names.
@@ -299,7 +320,7 @@ function stepDrawing(back) {
   }
   to.push(move);
   S.draw.dirty = true;
-  saveEditorSoon();
+  soon();
   render();
 }
 
@@ -323,6 +344,9 @@ window.addEventListener('keydown', (event) => {
 // false when any of it did not, the same answer as saveOpenFile, so "Save and
 // close" knows whether closing would lose anything.
 export async function saveDrawing() {
+  // ⚠️ Gear is never a file. A game's save arriving late, after the wardrobe
+  // took the canvas over, must not write a piece of gear into that game.
+  if (gearMode() || !S.open) return true;
   const { path } = S.open;
   const drawing = S.draw;
   const drew = !!drawing?.dirty;
@@ -366,7 +390,10 @@ export async function saveDrawing() {
 // Everything here is painted into one canvas and one pair of nodes rather
 // than through render(), which would rebuild the canvas under the pointer
 // drawing on it — the same reason the problems panel is painted in place.
-export function renderDrawing() {
+//
+// `bar` is what the host puts in the bar under it: the wardrobe's name box and
+// its Make button, in gear mode.
+export function renderDrawing({ bar = null } = {}) {
   const { picture } = S.draw;
 
   // A strip — width a whole multiple of height — opens one frame at a time:
@@ -464,7 +491,19 @@ export function renderDrawing() {
   // spotOf has one rectangle to read. .media centres it while it is smaller
   // than the pane and scrolls it once it is bigger, which is the whole of
   // panning.
-  const pictureBox = h('div', { class: 'picture-box' }, canvas, preview, grid, edge, lines);
+  // Gear's shape, shown as everything outside it in shade: where the mask
+  // says nothing may go. Painted once — the mask never changes — and display
+  // only, like the edge.
+  let shade = null;
+  if (picture.mask) {
+    shade = h('canvas', { class: 'pixels preview shade', width: viewW, height: picture.height });
+    const dark = new Uint8ClampedArray(viewW * picture.height * 4);
+    for (let i = 0; i < viewW * picture.height; i += 1) {
+      if (!picture.mask[i]) dark.set([14, 10, 26, 200], i * 4);
+    }
+    shade.getContext('2d').putImageData(new ImageData(dark, viewW, picture.height), 0, 0);
+  }
+  const pictureBox = h('div', { class: 'picture-box' }, canvas, shade, preview, grid, edge, lines);
   const media = h('div', { class: 'media grow' }, pictureBox);
 
   // Screen pixels per picture pixel. `fit` is as big as the pane allows —
@@ -557,7 +596,7 @@ export function renderDrawing() {
 
   const touched = () => {
     S.draw.dirty = true;
-    saveEditorSoon();
+    soon();
     paint();
   };
 
@@ -579,7 +618,7 @@ export function renderDrawing() {
     // refusing to remember it would mean it could not be undone.
     while (S.draw.undo.length > 1 && used() > UNDO_BYTES) S.draw.undo.shift();
     S.draw.dirty = true;
-    saveEditorSoon();
+    soon();
   };
 
   const colour = () => (S.drawPrefs.tool === 'eraser' ? CLEAR : rgbaOf(chosenColour()));
@@ -676,7 +715,7 @@ export function renderDrawing() {
       panned = { mx, my, left: media.scrollLeft, top: media.scrollTop };
       return;
     }
-    if (fingers.size > 2 || frozen()) return;
+    if (fingers.size > 2 || locked()) return;
     event.preventDefault();
     const spot = spotOf(event);
     if (!spot) return;
@@ -858,11 +897,13 @@ export function renderDrawing() {
       well,
       h('span', {
         class: 'hint muted',
-        text: S.palette?.dirty
-          ? `Colours change ${LOOK_FILE} when you save`
-          : S.palette?.from
-            ? `Colours from ${LOOK_FILE}`
-            : `The studio's colours — changing one writes ${LOOK_FILE}`,
+        text: gearMode()
+          ? 'The studio\'s colours — the colour box changes the chosen one, for this piece'
+          : S.palette?.dirty
+            ? `Colours change ${LOOK_FILE} when you save`
+            : S.palette?.from
+              ? `Colours from ${LOOK_FILE}`
+              : `The studio's colours — changing one writes ${LOOK_FILE}`,
       }),
       h('div', { class: 'spacer' }),
       S.palette?.from
@@ -918,7 +959,7 @@ export function renderDrawing() {
       frameMode && S.draw.copied ? h('button', {
         class: 'quiet tiny', text: 'Paste frame',
         title: 'Paste the copied frame over this one — one Undo takes it back',
-        disabled: frozen(),
+        disabled: locked(),
         onclick: () => {
           if (picture.step) closed();
           opened();
@@ -965,8 +1006,9 @@ export function renderDrawing() {
   return h('div', { class: 'drawing grow' },
     media,
     h('div', { class: 'pad col' }, frameRow, tools, brushes, swatches),
-    h('div', { class: 'editor-bar row' },
-      state,
+    h('div', { class: `editor-bar row${gearMode() ? ' wrap' : ''}` },
+      gearMode() ? null : state,
+      ...(bar ?? []),
       h('span', {
         class: 'hint muted',
         text: frameMode

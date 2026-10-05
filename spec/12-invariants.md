@@ -8,8 +8,9 @@ Tests enforce each of these.
   is the only one, it resolves only `player_sessions`, and neither origin's
   token means anything to the other. It serves nothing but a project's own
   files, the catalog, the wrapper — that project's own `index.html` with a
-  script in front of it — a live listing of its `assets/`, and the scoreboard
-  and achievements; its writes are
+  script in front of it — a live listing of its `assets/`, the scoreboard
+  and achievements, and the pictures of gear (`/_gear/:id`, for the makers'
+  avatars on the catalog); its writes are
   scoreboard, personal-best, achievement and waiting-list rows: bounded
   tables, never a working tree. ⚠️
 - The games origin never says an account's `display_name` — only its

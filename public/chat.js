@@ -16,6 +16,7 @@ import {
   toggleChatty, detachAgent, openChat, readMark, marked, retrySend,
 } from './chats.js';
 import { modesFor } from './game-types.js';
+import { avatarHead, avatarOf } from './avatar.js';
 import { renderArcCard } from './arc-card.js';
 
 /* Render: chat ------------------------------------------------------------ */
@@ -559,7 +560,11 @@ function renderMessage(msg) {
     : null;
 
   return h('div', { class: `msg ${isAgent ? 'from-agent' : 'from-human'}` },
-    h('div', { class: 'from', text: who }),
+    // A person's avatar's head beside their name (avatar.js); a helper is
+    // pink words, as it always was.
+    isAgent
+      ? h('div', { class: 'from', text: who })
+      : h('div', { class: 'from' }, avatarHead(avatarOf(S, msg.user_id)), h('span', { text: who })),
     thinking,
     workingPanel(msg),
     msg.body && h('div', {

@@ -16,9 +16,14 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 |---|---|---|---|
 | POST | `/api/login` | `{email, password}` | set cookie, return user |
 | POST | `/api/logout` | — | delete session, clear cookie |
-| GET | `/api/me` | — | current user, `alias` included |
+| GET | `/api/me` | — | current user, `alias` included, and `joy`, `stash` and `avatar` (`{head, body, legs}`, a gear id or null each) |
 | PATCH | `/api/me` | `{alias}` | your own settings — only the alias so far, through `setAlias` (§3); a refusal is a 400 saying why. Opened from your own name in the sidebar's bottom row (*Your settings*). ⚠️ No twin on the games origin (§7) |
-| GET | `/api/users` | — | everyone in the studio: `{id, display_name}` only |
+| PUT | `/api/me/avatar` | `{head?, body?, legs?}` | what your avatar wears: each a piece of gear you own, of that slot, or null for the bare shape; a slot left out stays as it is. 404 for a piece you do not own, 400 for one of another slot. Answers the avatar |
+| GET | `/api/users` | — | everyone in the studio: `{id, display_name, avatar}` only |
+| GET | `/api/gear` | — | the *wardrobe*: every piece, newest first, `{gear: [{id, slot, name, made_by, maker, created_at, owned, mine}], wearing, joy, price, made_this_week, makes_a_week}` |
+| GET | `/api/gear/:id/picture` | — | a piece's PNG, cached `immutable`: a piece never changes once made |
+| POST | `/api/gear?slot=&name=` | raw PNG bytes | make a piece (server/gear.js): a PNG exactly its slot's size — head 32×32, body 32×28, legs 32×24 — named, ≤ 40 characters. Yours at once, for nothing. 409 past three this week (since Monday, UTC) |
+| POST | `/api/gear/:id/buy` | — | 20 joy for a piece somebody else made, spent to nobody: 201 `{joy}` left; 409 when it is yours already or the joy is short |
 
 There is no signup route **on this origin**: studio accounts come from
 `npm run adduser` and the admin panel, and the games origin's public sign-up
@@ -27,6 +32,24 @@ only feeds a waiting list whose approval makes a player account (§3,
 unknown-email path, same as a removed one. `/api/users` lists who is *in the
 studio* for the sidebar's Crew tab — players excluded — and carries no
 address: a list of names needn't be a list of emails to do its job.
+
+**Avatars and the wardrobe** (ideas/dreams.md §6, since 2026-10-04). An
+avatar is three pieces of **gear** — a head, a body, legs — stacked into one
+figure 32 pixels wide, each the bare shape (`public/gear-shapes.js`) where
+nothing is worn and showing through the gaps of what is. Everybody in the
+studio draws gear, three pieces a week, in the pixel editor's **gear mode**:
+a blank picture of the slot's size, the slot's shape as a mask every tool
+stays inside (the editor's one bounds check) and everything outside it
+shaded, the studio's own colours, nothing autosaved — the wardrobe makes the
+piece when its maker names it. A piece is its maker's for nothing and
+everybody else's for 20 joy, which is spent to nobody; no approval. The
+**wardrobe** is the centre pane at `/wardrobe`, reached from the Crew tab:
+wear and take off what you own, draw a piece, buy one. A crew row is the
+person's head and name, and opens their whole avatar with *Say something to
+them*, which is what pressing the row used to do. Every person's message in
+a chat has their head beside the name; your own head replaces your initial
+once you wear one. On the games origin each catalog card shows whoever made
+the game as their avatar, with their alias on hover — never a name (§7).
 
 #### Projects
 
@@ -1770,6 +1793,7 @@ is where the level is seen as the game draws it.
 | GET, HEAD | `/:slug/*path` | that file from the project directory |
 | GET, HEAD | `/_scores/:slug` | the game's scoreboard, best first: `{scores: [{name, score}, …]}`, 10 unless `?limit=` asks for up to 100 |
 | POST | `/_scores/:slug` | add one entry `{score}` under the signed-in player's alias; 401 with nobody signed in; ten a minute per player; answers 201 `{rank}` — null when it missed the board (§3, §10) |
+| GET | `/_gear/:id` | a piece of gear's PNG, for the avatars on the catalog's cards; everybody's, cached `immutable` — there is no approval, and a piece never changes |
 | GET | `/_achievements/:slug` | what this game defines and what the signed-in player has: `{achievements: [{id, name, how, icon, got, joy}]}` in the file's order, `got` the ISO time they earned it or null — null throughout when nobody is signed in — and `joy` what it gives whoever earns it |
 | POST | `/_achievements/:slug` | `{id}` → 201 `{new: bool, joy}` when it counts, `joy` what it paid — only the first time, only in a published game, never to one of its editors; 401 with nobody signed in; 404 for an id the file does not define; twenty a minute per player (§3, §10) |
 

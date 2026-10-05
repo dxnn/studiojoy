@@ -510,6 +510,20 @@ test('the clip keeps the brush and the fill inside one frame', () => {
   assert.deepEqual(pixelAt(strip, 0, 0), [0, 0, 0, 0]);
 });
 
+// Gear's shapes (public/gear-shapes.js): a mask is a clip of any shape, so a
+// fill floods the circle and stops at its rim, and nothing lands outside it.
+test('a mask keeps every tool inside its shape', async () => {
+  const { maskFor } = await import('../public/gear-shapes.js');
+  const head = blankPicture(32, 32);
+  head.mask = maskFor('head');
+  floodFill(head, 16, 16, BLUE);
+  stamp(head, 0, 0, RED, 4);
+  head.mask = null;
+  assert.deepEqual(pixelAt(head, 16, 16), BLUE);
+  assert.deepEqual(pixelAt(head, 0, 0), [0, 0, 0, 0], 'the corner is outside the circle: nothing there');
+  assert.deepEqual(pixelAt(head, 31, 31), [0, 0, 0, 0], 'the fill stopped at the rim');
+});
+
 test('a copied frame pastes as one undoable gesture', () => {
   const strip = blankPicture(32, 8);
   drawLine(strip, 0, 0, 7, 7, RED); // a mark on frame 0

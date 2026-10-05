@@ -13,7 +13,11 @@ import {
 import {
   S, api, say, send, render, urlAs, openProject, loadProjects, loadAgents, frozen, encodePath,
 } from './main.js';
-import { syncAttached, attachAgent, createChat } from './chats.js';
+import {
+  syncAttached, attachAgent, createChat, mentionPerson,
+} from './chats.js';
+import { avatarFigure } from './avatar.js';
+import { openWardrobe } from './wardrobe.js';
 import {
   openFile, saveOpenFile, saveAndClose, createFile, renameFile, duplicateFile,
   deleteFile, setAuthors, setOpenEdit, setPublished, copyFileTo, addLibrary, LIBRARY_DIR,
@@ -1219,6 +1223,25 @@ export function dialogFor(d) {
       box,
       h('div', { class: 'actions' },
         h('button', { class: 'filled', text: 'Done', onclick: close })));
+  }
+
+  // Somebody in the crew, from their row: their avatar, whole (avatar.js),
+  // and the two things to do about it — say something to them, or, for you,
+  // go and change it.
+  if (d.kind === 'person') {
+    const you = d.id === S.me.id;
+    const person = you ? S.me : S.people.find((p) => p.id === d.id);
+    const done = h('button', { class: 'quiet', text: 'Close', onclick: close });
+    if (!person) {
+      return wrap('Not here any more', h('p', { text: 'They are not in the studio now.' }), h('div', { class: 'actions' }, done));
+    }
+    return wrap(person.display_name,
+      h('div', { class: 'person-figure' }, avatarFigure(person.avatar, { size: 'big' })),
+      h('div', { class: 'actions' },
+        done,
+        you
+          ? h('button', { class: 'filled', text: 'Change it in your wardrobe', onclick: () => { close(); return openWardrobe(); } })
+          : h('button', { class: 'filled', text: `Say something to ${person.display_name}`, onclick: () => { close(); mentionPerson(person); } })));
   }
 
   // Your own settings, from your name in the sidebar's bottom row: your joy

@@ -1,0 +1,51 @@
+/* The wardrobe and avatars --------------------------------------------------- */
+
+/* An avatar is pixel art: a head over a body over legs, every picture 32
+   wide, drawn at whole multiples so a pixel stays a square (avatar.js). */
+.avatar-figure { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.avatar-figure img, .avatar-head, .gear { display: block; image-rendering: pixelated; }
+.avatar-figure img, .avatar-head { background-size: 100% 100%; }
+.avatar-figure.big img { width: 128px; height: auto; }
+.avatar-figure.small img { width: 32px; height: auto; }
+
+/* The head alone, where there is only room for a face: beside your name, a
+   crew row and every person's message. */
+.avatar-head { width: 24px; height: 24px; flex-shrink: 0; }
+.who .avatar-head { width: 27px; height: 27px; }
+.srow .hname { display: flex; align-items: center; gap: 8px; }
+.srow .hname .avatar-head { width: 20px; height: 20px; }
+.msg .from { display: flex; align-items: center; gap: 7px; }
+.msg .from .avatar-head { width: 22px; height: 22px; }
+
+/* The wardrobe fills the centre pane while it is open. */
+.wardrobe .bar .title { flex: 1; }
+.wardrobe-joy { color: var(--num); font-weight: 700; white-space: nowrap; }
+.wardrobe-body { padding: 16px 20px 28px; display: flex; flex-direction: column; gap: 22px; }
+.wardrobe-body h3 { margin: 0 0 10px; font-size: 14px; }
+.wardrobe-you { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.wardrobe-you .col { flex: 1 1 16rem; min-width: 0; gap: 12px; }
+.wear-row { display: flex; flex-direction: column; gap: 6px; }
+
+/* A piece you own, to put on or take off: lit in the studio's cyan while it
+   is the one worn, because pressing it again takes it off. */
+.gear-pick {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px; border-radius: var(--radius);
+}
+.gear-pick.on { border-color: var(--accent); color: var(--accent); }
+.gear-pick .gear { width: 32px; height: auto; }
+
+/* Everybody's gear, and yours: a tile each. */
+.gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 10px; }
+.gear-piece {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+  padding: 10px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2);
+}
+.gear-piece .gear { width: 64px; height: auto; margin-bottom: 4px; }
+.gear-piece .gear-name { font-weight: 600; overflow-wrap: anywhere; }
+
+/* Drawing a piece: the name and the button to make it share the bar. */
+.wardrobe .gear-name-field { flex: 1 1 10rem; min-width: 6rem; }
+
+/* Somebody's whole avatar, in their dialog. */
+.person-figure { display: flex; justify-content: center; padding: 8px 0 4px; }

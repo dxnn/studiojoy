@@ -99,8 +99,14 @@ export const copyPicture = (picture) => ({
 // flood the same way the picture's own edge does. Undo and redo write
 // through applyStep, which takes no positions, so they ignore the clip —
 // a step is put back wherever it happened.
+//
+// The mask is the same idea in any shape: one byte a pixel, 0 where nothing
+// may be drawn — gear's circle, shirt and legs (public/gear-shapes.js). Inside
+// the check every tool goes through, so a brush, a line and a fill all stop
+// at its edge as they do at the picture's.
 const inside = (picture, x, y) => {
   if (x < 0 || y < 0 || x >= picture.width || y >= picture.height) return false;
+  if (picture.mask && !picture.mask[y * picture.width + x]) return false;
   const { clip } = picture;
   return !clip || (x >= clip.left && x < clip.right);
 };

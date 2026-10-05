@@ -13,6 +13,7 @@ epoch milliseconds. Counter columns reset on UTC date boundaries.
 | `display_name` | TEXT NOT NULL | shown in the studio and used as the git author name; ≤ 100 chars, and every door that sets one refuses the path validator's control and format characters (§4). ⚠️ Never said by the games origin — that is `alias` |
 | `alias` | TEXT, unique `COLLATE NOCASE` | what every scoreboard shows and the only name the games origin says; `Alias <id>` until somebody picks one (`server/alias.js`) |
 | `chips_week` | TEXT | the Monday (UTC, `YYYY-MM-DD`) of the last week whose chips this person has been given; null until the first time anything reads their stash (`ledger`, below) |
+| `wear_head`, `wear_body`, `wear_legs` | INTEGER → gear | what this person's avatar wears in each slot, or null for the bare shape (`gear`, below) |
 | `created_at` | TEXT NOT NULL | |
 
 A row here is an account, and it comes in two kinds: with `studio_access = 1`
@@ -770,6 +771,37 @@ the route takes any whole number (Dann, "we'll change this later").
 ⚠️ The unlock that pays it is the browser's word (above), so a forged one
 makes joy: accountable, every earn a row with a name on it. ⚠️ No file holds
 chips or joy, so no `write_file` can make either.
+
+Joy is spent on gear: a `bought` row of −20, with `gear_id` (an added column)
+naming the piece. It goes to nobody — there is no matching row for the maker.
+
+### `gear`
+
+| column | type | notes |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `slot` | TEXT NOT NULL | `head`, `body` or `legs` (CHECK) |
+| `name` | TEXT NOT NULL | ≤ 40, the path validator's forbidden characters refused |
+| `bytes` | BLOB NOT NULL | the PNG, exactly its slot's size |
+| `made_by` | INTEGER NOT NULL → users | |
+| `created_at` | TEXT NOT NULL | three a person since Monday (UTC) |
+
+The pieces an avatar is made of (`server/gear.js`, ideas/dreams.md §6). Like
+`collection_art`, the bytes are in the row, so `npm run backup` covers them,
+and a piece never changes once made — its picture is served `immutable`. The
+shape is the drawing tool's to keep (§6); the server checks only that it is a
+PNG of the right size.
+
+### `gear_owned`
+
+| column | type | notes |
+|---|---|---|
+| `user_id` | INTEGER NOT NULL → users | PK with `gear_id` |
+| `gear_id` | INTEGER NOT NULL → gear | |
+| `created_at` | TEXT NOT NULL | |
+
+Who owns which: the maker from the moment it is made, a buyer from the
+moment they pay. For good — nothing deletes a row.
 
 ### `collection_art`
 
