@@ -4,13 +4,12 @@
    dashed edge: it is the room where nobody is listening, which is worth
    seeing before you type in it.
 
-   This row is everything about the room rather than the game: Add chat pinned
-   at the left, the pills, and the helpers listening at the right with the +
-   that calls another one in. ⚠️ The pills
-   and the chips each scroll sideways inside their own box, so a studio's worth
-   of chats and a crowd of helpers give way to each other instead of one
-   pushing the other off the end. Both need min-width: 0 to be allowed to
-   shrink at all. */
+   This row is everything about the room rather than the game: the pills, and
+   the helpers listening at the right with the + that calls another one in.
+   Add chat is in the game's ···. ⚠️ The pills and the chips each scroll
+   sideways inside their own box, so a studio's worth of chats and a crowd of
+   helpers give way to each other instead of one pushing the other off the
+   end. Both need min-width: 0 to be allowed to shrink at all. */
 .chat-tabs {
   display: flex;
   align-items: center;
@@ -29,40 +28,37 @@
   scrollbar-width: thin;
   padding-bottom: 1px;
 }
-/* flex-shrink: 0 and nowrap together: inside a scroller a pill keeps its own
-   width and its words on one line, and the row scrolls instead of squeezing
-   "Sound effects" into three lines of two letters. */
-.chat-tab {
+/* A pill, a room's or a mode's. flex-shrink: 0 and nowrap together: inside a
+   scroller a pill keeps its own width and its words on one line, and the row
+   scrolls instead of squeezing "Sound effects" into three lines of two
+   letters. */
+.chat-tab, .modes .mode {
   flex-shrink: 0;
   white-space: nowrap;
-  font-size: 12.5px;
   font-weight: 600;
-  padding: 5px 11px;
   border-radius: 999px;
   border: 1px solid color-mix(in oklab, var(--border-soft) 80%, transparent);
   background: none;
   color: var(--muted);
 }
-/* Something in that room is unread. The mark says so and the words say it
-   too: muted is the studio saying "nothing for you in here", and a room with
-   something waiting is not that. Before .on and :hover on purpose — the open
-   room and the one under the pointer are both being read right now. */
-.chat-tab.marked { color: var(--text); }
-.chat-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); }
-.chat-tab.on {
-  color: #fff;
-  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
-  background: color-mix(in oklab, var(--look-primary) 28%, transparent);
-}
+/* Something in that room is unread — on Chat, while another mode is up, it is
+   the one pill in the row that can be holding something you have not read.
+   The mark says so and the words say it too: muted is the studio saying
+   "nothing for you in here", and a room with something waiting is not that.
+   Before .on and :hover on purpose — the open room and the one under the
+   pointer are both being read right now. */
+.chat-tab.marked, .modes .mode.marked { color: var(--text); }
+.chat-tab:hover:not(:disabled), .modes .mode:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.chat-tab.on, .modes .mode.on { color: #fff; border-color: color-mix(in oklab, var(--look-primary) 70%, transparent); }
+/* The chat's own pills sit under the modes, smaller, because a room is not a
+   surface. */
+.chat-tab { font-size: 12.5px; padding: 5px 11px; }
+.chat-tab.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); }
 /* The room where no helper is listening. A dashed edge, not a dot: on a pill
    a dot means one thing — something in there is new — and the dot this room
    used to wear was always on, so it said nothing and looked like unread. */
 .chat-tab.quiet-room { border-style: dashed; }
-/* Never squeezed and never scrolled away: when it is there at all it is in
-   the same place in every game. */
-.chat-tab.add { flex: 0 0 auto; padding: 5px 11px; color: var(--accent); }
-/* The mode row (spec.md §6): one pill per surface the centre can show. The
-   chat's own pills sit under it, smaller, because a room is not a surface. */
+/* The mode row (spec.md §6): one pill per surface the centre can show. */
 .modes {
   display: flex;
   align-items: center;
@@ -73,34 +69,15 @@
   overflow-x: auto;
   scrollbar-width: thin;
 }
-.modes .mode {
-  flex-shrink: 0;
-  white-space: nowrap;
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 7px 16px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--border-soft) 80%, transparent);
-  background: none;
-  color: var(--muted);
-}
-/* The same on Chat while another surface is up: it is the one pill in this
-   row that can be holding something you have not read. */
-.modes .mode.marked { color: var(--text); }
-.modes .mode:hover:not(:disabled) { color: var(--text); background: var(--hover); }
-.modes .mode.on {
-  color: #fff;
-  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
-  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
-}
+.modes .mode { font-size: 13.5px; padding: 7px 16px; }
+.modes .mode.on { background: color-mix(in oklab, var(--look-primary) 32%, transparent); }
 .modes .mode .called { margin-left: 6px; }
 .modes .mode .unread { margin-left: 6px; }
 
 /* The phone header (spec.md §17): the game's bar, and under it the view
-   changer — ‹, the mode you are on and what it is for, ›, and Preview. The
-   phone's form of the pills above, which do not fit across a phone. Shown by
-   narrow.css only; it is a grid row of the shell there, so it never scrolls
-   away. */
+   changer — ‹, the mode you are on and what it is for, ›. The phone's form of
+   the pills above, which do not fit across a phone. Shown by narrow.css only;
+   it is a grid row of the shell there, so it never scrolls away. */
 .phone-header { display: none; flex-direction: column; min-width: 0; background: var(--bg); }
 .view-changer {
   display: flex;
@@ -144,10 +121,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.view-changer .view-preview { flex: 0 0 auto; min-height: 44px; }
-.view-changer .view-preview.on {
-  color: #fff;
-  border-color: color-mix(in oklab, var(--look-primary) 70%, transparent);
-  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
 }

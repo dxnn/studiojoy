@@ -67,14 +67,8 @@
    own text under a small name, because it is the longest thing on the screen
    and a box around it made the pane unreadable. */
 .msg { display: flex; flex-direction: column; gap: 7px; max-width: 62ch; }
-.msg .from {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: color-mix(in oklab, var(--look-primary) 75%, white);
-}
+/* The name over a message: the small capitals (shell.css), in the game's colour. */
+.msg .from { color: color-mix(in oklab, var(--look-primary) 75%, white); }
 .msg .bubble {
   background: linear-gradient(135deg,
     color-mix(in oklab, var(--look-primary) 55%, transparent),
@@ -327,14 +321,7 @@
   gap: 3px;
   justify-items: start;
 }
-.receipt .rhead {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: color-mix(in oklab, var(--look-primary) 70%, white);
-}
+.receipt .rhead { color: color-mix(in oklab, var(--look-primary) 70%, white); }
 .receipt .rhead:not(:first-child) { margin-top: 7px; }
 .receipt .rrow {
   display: flex;
@@ -422,50 +409,4 @@
   background: linear-gradient(100deg, var(--look-primary), var(--look-accent));
   color: #1c0810;
   box-shadow: 0 0 22px color-mix(in oklab, var(--look-primary) 30%, transparent);
-}
-
-/* The @ menu -------------------------------------------------------------- */
-
-/* Everybody an @ could reach, over the composer while a name is being typed
-   (chats.js). Fixed and placed from the box's own rectangle, like the ···
-   menus: the pane it sits in moves, and an absolutely placed menu would be
-   clipped by it. Hidden until there is something to show, so it is never an
-   empty card at the corner of the window. */
-.at-menu {
-  position: fixed;
-  z-index: 60;
-  display: none;
-  flex-direction: column;
-  padding: 5px;
-  min-width: 240px;
-  background: var(--panel-2);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 14px 34px oklch(0 0 0 / 0.5);
-}
-.at-menu.on { display: flex; }
-.at-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  min-width: 0;
-}
-/* Lit by the arrows as well as the pointer, so both ways through the list look
-   the same. */
-.at-row:hover, .at-row.on { background: var(--hover); }
-.at-row .at-name { font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
-/* Pink is a helper, everywhere in the studio. */
-.at-row .at-name.helper { color: var(--agent); }
-.at-row .at-what {
-  flex: 1;
-  min-width: 0;
-  font-size: 11.5px;
-  color: var(--muted);
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

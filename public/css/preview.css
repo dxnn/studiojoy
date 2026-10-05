@@ -18,10 +18,11 @@
 }
 
 .preview-wrap { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 9px; flex: 0 0 auto; }
+/* Square at the foot, where the preview's own controls carry on under it. */
 .preview-frame {
   width: 100%;
   border: 1px solid color-mix(in oklab, var(--look-primary) 55%, transparent);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--panel-3);
   display: block;
 }
@@ -95,8 +96,7 @@
   align-items: flex-start;
   gap: 6px;
 }
-.robot-note .hint { font-size: 12px; margin: 0; }
-.preview-frame { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.robot-note .hint, .tweaks .hint { font-size: 12px; margin: 0; }
 
 /* Under the game: the tweaks — the game's tuning files as fields, tried in
    the running game and written only on Save (tweaks.js). A row being tried
@@ -104,7 +104,6 @@
    has to find what to undo. */
 .tweaks { padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 6px; }
 .tweaks-head { display: flex; align-items: baseline; gap: 8px; }
-.tweaks .hint { font-size: 12px; margin: 0; }
 .tweaks button.tweaks-file { align-self: flex-start; font-family: var(--mono); font-size: 12px; text-decoration: none; }
 .tweaks .cfg { padding: 0; }
 .tweaks .cfg-row.tweaked .cfg-name { color: var(--accent); }

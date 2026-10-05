@@ -20,14 +20,8 @@
 /* An explicit display would otherwise beat the browser's rule for [hidden]. */
 .problems[hidden] { display: none; }
 .problem-list { display: grid; gap: 5px; }
-.problems-head {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--danger);
-}
+/* The heads here are the small capitals (shell.css), in their own colours. */
+.problems-head { color: var(--danger); }
 .problem { overflow-wrap: anywhere; }
 .problem .where {
   font-family: var(--mono);
@@ -48,14 +42,7 @@
   font-size: 12px;
 }
 .moments[hidden] { display: none; }
-.moments-head {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
+.moments-head { color: var(--accent); }
 .moment-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .moment {
   display: inline-flex;

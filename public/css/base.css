@@ -11,8 +11,8 @@
    panes.
 
    Per-game theming: look.js can set --g1/--g2/--g3 on .app as an inline style
-   and the chat pane, its Play/Send buttons and the rail follow. Unset, they
-   fall back to crimson/pink/gold, which is Asteriskoids. */
+   and the chat pane, Send and Play follow. Unset, they fall back to
+   crimson/pink/gold, which is Asteriskoids. */
 
 /* One file per surface, all of them under public/css/ and linked in order from
    index.html. Two of those links are placed rather than merely present: this
@@ -79,6 +79,10 @@
     linear-gradient(165deg, oklch(0.5 0.14 195 / 0.16), transparent 55%, oklch(0.5 0.16 340 / 0.18));
   --halftone-size: 10px 10px, 10px 10px, 100% 100%;
   --halftone-pos: 0 0, 5px 5px, 0 0;
+
+  /* What is see-through, behind a picture: a checkerboard, so a transparent
+     sprite reads as transparent rather than as black. Each use sizes it. */
+  --checker: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%);
 }
 
 /* The studio is dark, on purpose and always: the games are dark, the previews

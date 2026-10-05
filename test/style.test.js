@@ -95,7 +95,6 @@ const GOLD_TEXT = new Map([
   ['.tok-num', 'a numeric literal, coloured by the highlighter'],
   ['.knob-value', "a sound parameter's value"],
   ['.score-row .sval', 'a score'],
-  ['.tag.version', 'a version'],
   ['.preview-foot .best', 'a personal best'],
   ['.tokens .low', 'a token count, nearly out'],
   ['.tokens button.link:hover:not(:disabled)', 'the token count itself, under the pointer'],

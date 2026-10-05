@@ -2,22 +2,12 @@
 
 /* Controls: the shapes a game can be held in, one wide row each, the name
    over what it does — the same choice the New game dialog offers, so the same
-   row as .choices there. Cyan on the one the game wears: a shape is the
-   studio's own vocabulary rather than the game's, so it stays cyan whichever
-   game is open. A manner of the arcade family is stepped in under it. */
+   row as .choices there, whose shape it shares (dialog.css). Cyan on the one
+   the game wears: a shape is the studio's own vocabulary rather than the
+   game's, so it stays cyan whichever game is open. A manner of the arcade
+   family is stepped in under it. */
 .ctl-shapes { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px; }
-.ctl-shape {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  text-align: left;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: none;
-}
+.ctl-shape { padding: 9px 12px; }
 .ctl-shape.manner { margin-left: 18px; padding: 7px 12px; }
 /* Only the rows that are buttons light up, which here means every row but
    the one the game already wears — and none at all in a game you may not
@@ -27,8 +17,6 @@ button.ctl-shape:hover:not(.on) {
   border-color: var(--border-soft);
   color: inherit;
 }
-.ctl-shape .cname { font-size: 14px; font-weight: 700; }
-.ctl-shape .cwhat { font-size: 12.5px; color: var(--muted); }
 .ctl-shape.on {
   border-color: color-mix(in oklab, var(--accent) 70%, transparent);
   background: color-mix(in oklab, var(--accent) 14%, transparent);

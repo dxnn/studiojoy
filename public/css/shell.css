@@ -54,9 +54,8 @@
     radial-gradient(620px 460px at -8% 108%, color-mix(in oklab, var(--look-accent) 30%, transparent), transparent 68%),
     radial-gradient(color-mix(in oklab, var(--look-primary) 9%, transparent) 1px, transparent 1px);
   background-size: auto, auto, 15px 15px;
+  border-left-color: color-mix(in oklab, var(--look-primary) 40%, transparent);
 }
-
-.pane.chat { border-left-color: color-mix(in oklab, var(--look-primary) 40%, transparent); }
 
 .bar {
   min-height: 56px;
@@ -149,12 +148,6 @@
     radial-gradient(circle at 22% 78%, oklch(0.78 0.15 350) 0.082em, transparent 0.086em),
     radial-gradient(circle at 78% 78%, oklch(0.72 0.16 265) 0.082em, transparent 0.086em);
 }
-.bar.brand-bar .icon { color: var(--muted); }
-.bar.brand-bar .icon:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--accent);
-  border-color: transparent;
-}
 .spacer { flex: 1; }
 .bar .title {
   font-family: var(--ui);
@@ -225,32 +218,28 @@
       color-mix(in oklab, var(--look-deep) 82%, transparent)),
     var(--chat-image);
 }
-.section-label {
-  padding: 12px 16px 4px;
+/* The small capitals over a section, a report or a message: one shape, in
+   each surface's own colour. */
+.section-label, .problems-head, .moments-head, .receipt .rhead, .msg .from {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
 }
+.section-label { padding: 12px 16px 4px; color: var(--muted); }
 .pad { padding: 12px 16px; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row.wrap { flex-wrap: wrap; row-gap: 6px; }
 .col { display: flex; flex-direction: column; gap: 8px; }
 
-/* The middle pane's actions ------------------------------------------------ */
+/* The open switch ---------------------------------------------------------- */
 
-/* Fork, publish and Editors: what you do to a whole game rather than to this
-   conversation. They sit at the right-hand end of the game's own bar. They
-   were a drawer under the title before that and the foot of the Play tab
-   before that; three buttons never needed a place to hide, and the words that
-   went with them ("in the games list", "by Dann", "authors only") are gone —
-   the padlock and the publish button say their own state now.
-
-   A button.act each, .act.on for the state that is currently true, and an
-   optional .act .dot for publish's light. */
+/* A state you switch, said on the button: .act.on while it is true, and
+   .act .dot its light. The open switch in the Editors dialog is the one left
+   (in dialog.css, as a .plan-row); Fork, Publish and Editors wore it at the
+   end of the game's bar until they went into its ···. */
 button.act {
   display: inline-flex;
   align-items: center;
@@ -269,10 +258,9 @@ button.act:hover:not(:disabled) {
   border-color: var(--look-accent);
   color: #fff;
 }
-/* Published: the state is on, so the button is on. The dot is the light. */
-/* On: published, or open to the whole studio. Green rather than the gold it
-   wore before — ⚠️ gold is a number worth looking at and nothing else, and a
-   published game is not a number. */
+/* On: open to the whole studio. Green rather than the gold it wore before —
+   ⚠️ gold is a number worth looking at and nothing else, and a state is not a
+   number. */
 button.act.on {
   color: oklch(0.88 0.1 155);
   border-color: color-mix(in oklab, var(--ok) 55%, transparent);
@@ -291,15 +279,3 @@ button.act .dot {
   flex-shrink: 0;
 }
 button.act.on .dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
-/* Fork gets the mark, because copying a game is the one action here that
-   makes a new thing rather than changing this one. */
-button.act.fork { border-color: color-mix(in oklab, var(--accent) 50%, transparent); color: var(--accent-hi); }
-button.act.fork:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--accent) 22%, transparent);
-  border-color: var(--accent);
-  color: var(--accent-hi);
-}
-button.act.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 55%, transparent); background: none; }
-button.act.danger:hover:not(:disabled) { background: var(--danger); color: #1c0810; border-color: var(--danger); }
-/* The open switch wears .act too, in the Editors dialog rather than the bar —
-   it is a .plan-row, so it is with the rest of them in dialog.css. */

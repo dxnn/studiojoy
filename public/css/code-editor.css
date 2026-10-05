@@ -5,9 +5,8 @@
 
 .editor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 /* ⚠️ The open file's bar wraps, because unwrapped it ran off the right edge of
-   the rail and took Delete and ✕ with it — and a file that cannot be closed is
-   a file you are stuck in. The rail goes down to 280 and opens at 360, so this
-   is the ordinary width rather than a narrow-screen one. */
+   a narrow pane and took Delete and ✕ with it — and a file that cannot be
+   closed is a file you are stuck in. */
 .editor > .bar { flex-wrap: wrap; }
 .editor textarea {
   flex: 1;
@@ -71,8 +70,8 @@
 .tok-tag { color: var(--agent); }
 .tok-attr { color: oklch(0.85 0.12 95); }
 
-/* A picture, sound or video where the text editor would be. The checkerboard
-   is so a transparent sprite reads as transparent rather than as black. */
+/* A picture, sound or video where the text editor would be, on the
+   checkerboard. */
 .media {
   display: flex;
   align-items: center;
@@ -81,8 +80,7 @@
   padding: 14px;
   overflow: auto;
   position: relative;
-  background:
-    repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 16px 16px;
+  background: var(--checker) 0 0 / 16px 16px;
 }
 .media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .media audio { width: 100%; }

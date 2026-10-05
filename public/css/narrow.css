@@ -2,7 +2,7 @@
 
 /* ⚠️ Last of the stylesheets, and it has to stay last: these rules carry the
    same specificity as the ones they override, so the cascade is doing the
-   work. What is here is the *shell* giving way — three panes becoming one at
+   work. What is here is the *shell* giving way — two panes becoming one at
    a time, and the two utilities for showing a control at one width only. A
    surface with a narrow shape of its own keeps that rule in its own file
    (story-editor.css is the one). */

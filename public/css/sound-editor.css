@@ -24,7 +24,7 @@ label.knob {
 .sound { display: flex; flex-direction: column; min-height: 0; }
 .sound .knobs { padding-bottom: 6px; }
 
-/* A version of a sound, playable where it stands. The browser's own player,
-   full width, because a narrow rail is where it is usually met. */
+/* A version of a sound, playable where it stands: the browser's own player,
+   full width. */
 .heard-row { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
 .heard { width: 100%; height: 34px; }

@@ -124,7 +124,7 @@ button.icon-btn.on {
   color: var(--accent-ink);
 }
 
-/* Two rows of sixteen, sized by the pane rather than fixed, so a narrow rail
+/* Two rows of sixteen, sized by the pane rather than fixed, so a narrow pane
    still shows the whole palette instead of wrapping it into a third row. */
 .swatches { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
 .swatch {

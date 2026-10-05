@@ -188,7 +188,7 @@
   border-radius: 5px;
   object-fit: cover;
 }
-.item.active .item-name { font-weight: 700; }
+.item.active .item-name { font-weight: 700; color: #fff; }
 .item .item-sub {
   font-size: 12px;
   color: var(--muted);
@@ -196,7 +196,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.item.active .item-name { color: #fff; }
 .item.active .item-sub { color: color-mix(in oklab, var(--accent) 45%, white); }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
 /* The studio's announcements, pinned over the tabs: outside the list, so its
@@ -299,7 +298,3 @@
   color: var(--accent-hi);
   white-space: nowrap;
 }
-.tag.agent { border-color: color-mix(in oklab, var(--agent) 50%, transparent); color: var(--agent); }
-.tag.on { background: var(--agent); border-color: var(--agent); color: #1c0812; }
-/* A version number is a highlight thing, always. */
-.tag.version { border-color: color-mix(in oklab, var(--num) 50%, transparent); color: var(--num); }

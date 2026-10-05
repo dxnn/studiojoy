@@ -55,15 +55,10 @@
   font-size: 13px;
 }
 .plan-row:hover { background: var(--hover); }
-.plan-row.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
+/* The chosen row, and the level editor's chosen paint, lit the same way. */
+.plan-row.on, .level-tools button.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
 .plan-row .label { flex: 1; }
 .plan-row .hint.mono { font-size: 11px; }
-.inspector .link.danger { color: var(--danger); align-self: flex-start; }
-/* The level editor's paint, the chosen one lit the way a chosen row is. */
-.level-tools button.on {
-  background: color-mix(in oklab, var(--look-primary) 28%, transparent);
-  color: #fff;
-}
 /* A made-up kind of square's own colour, at the head of its row. */
 .plan-row .kind-colour {
   flex: 0 0 auto;

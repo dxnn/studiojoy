@@ -1,20 +1,13 @@
 /* The achievements editor ------------------------------------------------- */
 
 /* The achievements editor: a card per achievement, the open one grown in
-   place under its row. Same card as a question or a scene — a piece of the
+   place under its row. The quiz's card (quiz-editor.css) — a piece of the
    game. The row lights up because it opens. */
 .ach-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: oklch(0.22 0.05 295 / 0.5);
-  padding: 9px 11px;
-  margin: 8px 0;
-  display: grid;
   /* One column that may be narrower than its content: a grid track's floor is
      the content's width, and a long rule on the head row was pushing every
-     field under it out past the rail's edge. */
+     field under it out past the pane's edge. */
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
 }
 .ach-card.on { border-color: color-mix(in oklab, var(--look-primary) 65%, transparent); }
 .ach-row {

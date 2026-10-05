@@ -1,7 +1,6 @@
 /* Share, and the versions in it ------------------------------------------- */
 
-/* Share is one page of sections. Each keeps the rendering it had as a rail
-   tab, minus the scroller: the page scrolls, its parts do not. */
+/* Share is one page of sections: the page scrolls, its parts do not. */
 .share .scroll { flex: none; overflow: visible; }
 .share .section-label { padding-top: 18px; }
 .share .link-card .play-link { display: inline-block; color: var(--accent); word-break: break-all; font-size: 13px; }
@@ -29,14 +28,14 @@
   border: 1px solid var(--border-soft);
   border-radius: 6px;
   line-height: 0;
-  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 10px 10px;
+  background: var(--checker) 0 0 / 10px 10px;
 }
 /* Keeping the checkerboard on hover, because the button rule above would
    otherwise paint the whole tile primary and hide the picture that is the
    entire point of it. */
 .shot:hover:not(:disabled) {
   border-color: var(--accent);
-  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 10px 10px;
+  background: var(--checker) 0 0 / 10px 10px;
 }
 .shot img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; }
 
@@ -52,7 +51,7 @@
   object-fit: contain;
   border-radius: 6px;
   image-rendering: pixelated;
-  background: repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 14px 14px;
+  background: var(--checker) 0 0 / 14px 14px;
 }
 
 pre.diff {

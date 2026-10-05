@@ -1,8 +1,9 @@
 /* The quiz editor -------------------------------------------------------- */
 
-/* The quiz editor: a card per question and per ending. The .cfg-text inputs
-   inside flex rows need leave to shrink, or a long answer pushes the ✕ out. */
-.quiz-q {
+/* The quiz editor: a card per question and per ending — and the achievements
+   editor's card per achievement is the same card. The .cfg-text inputs inside
+   flex rows need leave to shrink, or a long answer pushes the ✕ out. */
+.quiz-q, .ach-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: oklch(0.22 0.05 295 / 0.5);

@@ -35,8 +35,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background:
-    repeating-conic-gradient(oklch(0.28 0.05 295) 0% 25%, oklch(0.22 0.04 295) 0% 50%) 0 0 / 16px 16px;
+  background: var(--checker) 0 0 / 16px 16px;
 }
 .card .cpic img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
 .card .cpic img[hidden] { display: none; }
@@ -58,7 +57,7 @@
 .section-row { display: flex; align-items: center; gap: 8px; padding-right: 16px; }
 .section-row .section-label { flex: 1; min-width: 0; }
 
-/* Hear: a row per sound, lit while it is open in the rail. */
+/* Hear: a row per sound, lit while it is open under it. */
 .hear-row {
   display: flex;
   align-items: center;

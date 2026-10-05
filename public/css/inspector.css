@@ -1,28 +1,18 @@
 /* The inspector ----------------------------------------------------------- */
 
-/* The inspector: the selected thing's fields, under the preview in the rail
-   (spec.md §6). Its own scroller, so a long scene never pushes the preview
-   off the top. */
+/* The inspector: the selected thing's fields, opened in place (spec.md §6) —
+   under the row or the cards it belongs to, inside that pane's own scroller,
+   so not one itself. Set apart from what is around it the way an open row is. */
 .inspector {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 6px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-/* In place in the centre (spec.md §6): opened under the row or the
-   cards it belongs to, inside that pane's own scroller, so not one itself.
-   Set apart from what is around it the way an open row is. */
-.inspector.in-place {
   flex: none;
-  overflow: visible;
   margin: 2px 12px 10px;
   padding: 10px 14px 14px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .inspector-head { display: flex; flex-direction: column; gap: 2px; }
 .inspector-head .section-label { padding: 8px 0 0; }
@@ -42,6 +32,9 @@
   border: 1px solid var(--border);
 }
 .ifield .hint.mono { font-size: 11px; }
+/* The way to take the selected thing out, under its fields — a point off the
+   road, a body out of the world: crimson, its own width. */
+.inspector .link.danger { color: var(--danger); align-self: flex-start; }
 
 /* The inspector holds a sound's editor or player, and a person's moods. Its
    parts do not scroll on their own; it does. */

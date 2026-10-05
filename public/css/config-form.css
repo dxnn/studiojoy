@@ -5,7 +5,7 @@
    levels reads the way it does in the file. */
 .cfg { padding: 8px 14px 14px; }
 /* Name and field on one line, the comment on its own line under them. A third
-   column for the comment turns every row four lines tall in a narrow rail. */
+   column for the comment turns every row four lines tall in a narrow pane. */
 .cfg .cfg-row {
   display: grid;
   grid-template-columns: minmax(6rem, 8.5rem) 1fr;
