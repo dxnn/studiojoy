@@ -73,11 +73,16 @@ stopping, not asking again; a message sent after the press sets it afresh.
   touched it. Under the mutex: settle again, then each changed path gets HEAD's
   bytes back, or goes when HEAD has none. ⚠️ Nothing is committed: the fire
   leaves nothing in history. A person who saved the same file mid-fire keeps
-  it — it lands as their version first, and that is what comes back.
+  it — it lands as their version first, and that is what comes back, with
+  whatever of the fire's bytes they saved along with their own, since nothing
+  can tell the two apart. Each path's HEAD is noted when the fire first
+  touches it, and one HEAD has changed under since is named in the notice.
 - **What is left.** No reply row: the live entry ends with no `message_id`,
   `files.changed` names the paths put back, and a studio notice stands in the
   thread (*Cancelled — everything Builder changed is back how it was.*, or
-  *Cancelled.* where nothing had been written or there is no tree). The
+  *Cancelled.* where nothing had been written or there is no tree), and a
+  file somebody saved meanwhile is named rather than claimed: *…everything else … is back how it
+  was. index.html was saved while Builder worked, so it stays as saved.* The
   tokens are charged — a request nobody let finish sends no usage, so what it
   streamed is estimated, as a capped trace's is, and the prompt it sent is
   charged its floor: what it costs read from the cache, which inside a fire

@@ -1408,17 +1408,24 @@ export function createOrchestrator({
     } = fire;
     consumeBudget(db, charged);
     chargeUser(db, asker?.id, charged);
-    const paths = toolset ? await toolset.putBack() : [];
+    const { paths, kept } = toolset ? await toolset.putBack() : { paths: [], kept: [] };
     if (state.live) {
       emit('agent.stream.end');
       state.live = false;
     }
     if (paths.length > 0) broker.broadcast('files.changed', { project_slug: row.slug, paths });
+    // A file somebody saved while it worked stays as they saved it, the fire's
+    // bytes in it included, so the notice names it rather than claim it went back.
+    const others = paths.length > kept.length;
+    const names = kept.length === 1 ? kept[0] : `${kept.slice(0, -1).join(', ')} and ${kept.at(-1)}`;
+    const stays = kept.length === 0 ? ''
+      : ` ${names} ${kept.length === 1 ? 'was' : 'were'} saved while ${row.agent_name} worked, `
+        + `so ${kept.length === 1 ? 'it stays' : 'they stay'} as saved.`;
     postSystemMessage(db, broker, {
       project, chat, agentId: agent.id,
-      body: body ?? (paths.length > 0
-        ? `Cancelled — everything ${row.agent_name} changed is back how it was.`
-        : 'Cancelled.'),
+      body: (body ?? (others
+        ? `Cancelled — everything${stays ? ' else' : ''} ${row.agent_name} changed is back how it was.`
+        : 'Cancelled.')) + stays,
     });
   }
 

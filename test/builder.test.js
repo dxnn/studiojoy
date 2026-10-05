@@ -1064,6 +1064,31 @@ test("Cancel keeps a person's save of the same file, made while the fire ran", a
   assert.deepEqual(newest.paths, ['index.html']);
 });
 
+// A save made on top of the fire's bytes keeps them — nothing can tell the two
+// apart — so the notice names that file rather than claim it went back.
+test('Cancel names a file somebody saved while it worked, which stays as saved', async (t) => {
+  const hang = waits();
+  const llm = scriptedLlm([
+    calls([write('index.html', '<h1>Builder</h1>'), write('js/tank.js', 'drive()')]),
+    hang.turn,
+  ], [sized({ size: 'small' })]);
+  const { app, chatId, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'make it a tank game');
+  await hang.started;
+  const onTop = `${read(dir, 'index.html')}<p>and mine</p>`;
+  await app.client.json('PUT', '/api/projects/tank/files/index.html', { rawBody: onTop });
+  assert.equal((await cancel(app, chatId)).status, 202);
+
+  assert.equal((await notice(stream)).data.body,
+    'Cancelled — everything else Builder changed is back how it was. '
+    + 'index.html was saved while Builder worked, so it stays as saved.');
+  assert.equal(read(dir, 'index.html'), onTop);
+  assert.ok(!fs.existsSync(path.join(dir, 'js')), 'what nobody saved goes back');
+});
+
 // Only the piece that is running: the ones before it keep their versions, and
 // this one waits to be done again, the plan paused with Carry on.
 test('Cancel mid-plan puts back the running piece and pauses the plan', async (t) => {

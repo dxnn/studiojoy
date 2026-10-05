@@ -154,6 +154,14 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
   // path -> {action, bytes}. The orchestrator commits these once per turn.
   const changes = new Map();
   const settlePending = () => (pending ? pending.settleLocked(slug) : null);
+  // HEAD as it stood when this fire first touched each path, a person's saves
+  // landed first: Cancel compares against it to find a path somebody saved
+  // while the fire ran.
+  const bases = new Map();
+  const settleFor = async (rel) => {
+    await settlePending();
+    if (!bases.has(rel)) bases.set(rel, await currentSha(dir));
+  };
 
   function resolve(input) {
     const checked = checkProjectPath(input);
@@ -197,7 +205,7 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
       return `refused: ${buffer.length} bytes exceeds the ${MAX_FILE_BYTES} byte limit`;
     }
     return mutex.run(slug, async () => {
-      await settlePending();
+      await settleFor(target.rel);
       const existing = await readFileAt(target.abs);
       const existed = existing !== null;
       const refusal = configRefusal(target.rel, content, existed ? existing.toString('utf8') : null);
@@ -222,7 +230,7 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     if (typeof newText !== 'string') return 'new_text must be a string';
 
     return mutex.run(slug, async () => {
-      await settlePending();
+      await settleFor(target.rel);
       const buffer = await readFileAt(target.abs);
       if (buffer === null) return `no such file: ${target.rel}`;
       if (!isTextPath(target.rel)) return `${target.rel} is not a text file`;
@@ -324,7 +332,7 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     const target = resolveForWrite(p);
     if (target.error) return target.error;
     return mutex.run(slug, async () => {
-      await settlePending();
+      await settleFor(target.rel);
       if ((await readFileAt(target.abs)) === null) return `no such file: ${target.rel}`;
       await removeFileAt(dir, target.rel);
       record(target.rel, 'delete', 0);
@@ -354,22 +362,32 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     // the fire touched them — its own writes are committed only at its end,
     // and each one settled a person's saves first — so nothing is committed
     // here, and the fire leaves nothing in history. A person's save of the
-    // same file lands as theirs first, and is what comes back. Answers the
-    // paths it put back.
+    // same file lands as theirs first, and is what comes back — with whatever
+    // of the fire's bytes they saved along with their own, since nothing can
+    // tell the two apart. So the paths that HEAD changed under since the fire
+    // first touched them are answered as `kept`, for the notice to name
+    // rather than claim they went back. Answers every path it put back.
     async putBack() {
       const paths = [...changes.keys()];
-      if (paths.length === 0) return [];
+      const kept = [];
+      if (paths.length === 0) return { paths, kept };
       await mutex.run(slug, async () => {
         await settlePending();
         const sha = await currentSha(dir);
         const held = new Set((await treeAtCommit(dir, sha)).map((e) => e.path));
+        const at = (commit, rel) => showFile(dir, commit, rel).catch(() => null);
         for (const rel of paths) {
+          const base = bases.get(rel);
+          if (base && base !== sha) {
+            const [was, is] = await Promise.all([at(base, rel), at(sha, rel)]);
+            if (was === null ? is !== null : is === null || !was.equals(is)) kept.push(rel);
+          }
           if (held.has(rel)) await writeFileAt(resolveInside(dir, rel), await showFile(dir, sha, rel));
           else await removeFileAt(dir, rel);
         }
       });
       changes.clear();
-      return paths;
+      return { paths, kept };
     },
     async run(name, input) {
       const handler = handlers[name];
