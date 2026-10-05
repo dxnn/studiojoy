@@ -57,7 +57,10 @@
   font-size: 13.5px;
 }
 
-.who {
+/* Who is signed in, at the foot of the list. Scoped to the list: the story
+   stage's speaker line is a .who too, and it wore this row's padding and
+   rule until 2026-10-05. */
+.pane.side .who {
   padding: 12px 14px;
   border-top: 1px solid var(--border);
   display: flex;
