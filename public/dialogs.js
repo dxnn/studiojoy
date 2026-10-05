@@ -1257,7 +1257,7 @@ export function dialogFor(d) {
       h('p', { class: 'me-joy', text: `${S.me.joy ?? 0} joy · ${S.me.stash ?? 0} chips` }),
       h('p', {
         class: 'hint muted',
-        text: 'Joy comes from earning achievements in other people’s games. Chips are yours to put on your own games’ achievements, under Smell: each chip is one joy for everybody who earns it. Ten more chips come every Monday, and your stash holds 50.',
+        text: 'Joy comes from earning achievements in published games — your own too. Chips are yours to put on your own games’ achievements, under Smell: each chip is one joy for everybody who earns it. Ten more chips come every Monday, and your stash holds 50.',
       }),
       h('label', { text: 'Your alias' }), alias,
       h('p', {
