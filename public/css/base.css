@@ -223,6 +223,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 a { color: var(--accent); }
 a:hover { color: var(--accent-hi); }
 
+/* Hidden means hidden, whatever display a surface's own rule gives the
+   element: without this, any rule that sets display beats the browser's own
+   rule for [hidden], and a panel the code hid stays on screen. */
+[hidden] { display: none !important; }
+
 .mono { font-family: var(--mono); font-size: 13px; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }

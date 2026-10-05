@@ -17,8 +17,6 @@
   gap: 5px;
   font-size: 13px;
 }
-/* An explicit display would otherwise beat the browser's rule for [hidden]. */
-.problems[hidden] { display: none; }
 .problem-list { display: grid; gap: 5px; }
 /* The heads here are the small capitals (shell.css), in their own colours. */
 .problems-head { color: var(--danger); }
@@ -41,7 +39,6 @@
   gap: 6px;
   font-size: 12px;
 }
-.moments[hidden] { display: none; }
 .moments-head { color: var(--accent); }
 .moment-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .moment {
