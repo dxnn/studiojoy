@@ -25,7 +25,7 @@ import {
   emptyAdventure, spotLabel, spotAt, nextQuestion, itemPath, KINDS, ADVENTURE_FILE,
 } from './adventure-editor.js';
 import { titleWords, withTitleWords, WORDS_FILE } from './story-editor.js';
-import { h } from './dom.js';
+import { h, inspector, fieldRow } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, commitNow, more, NO_CONNECTION, prefs,
 } from './main.js';
@@ -932,19 +932,13 @@ function adventureFields() {
   const has = new Set(S.files.map((f) => f.path));
   const keys = scenes.map((s) => s.key);
   const ro = frozen();
-  const head = (kind, name) => h('div', { class: 'inspector-head' },
-    h('span', { class: 'section-label', text: kind }),
-    h('div', { class: 'iname', text: name }));
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   if (st.title && st.words) {
     const w = st.words;
     const word = (key, id, label, placeholder) => fieldRow(label, field(id, w[key], placeholder, {
       oninput: (e) => { w[key] = e.currentTarget.value; w.dirty = true; touched(); },
     }));
-    return box(head('Title screen', w.title || '…'),
+    return inspector('Title screen', w.title || '…',
       word('title', 'adventure-title', 'Title', 'What the adventure is called'),
       word('tagline', 'adventure-tagline', 'Under it', 'A line under the title'));
   }
@@ -969,7 +963,7 @@ function adventureFields() {
 
   if (st.item) {
     const path = itemPath(st.item);
-    return box(head('Thing', st.item),
+    return inspector('Thing', st.item,
       fieldRow('Picture',
         has.has(path) ? thumb(path) : h('span', { class: 'hint warn', text: `no picture yet — it is shown as the word ${st.item}` }),
         h('span', { class: 'hint muted mono', text: path }),
@@ -985,7 +979,7 @@ function adventureFields() {
   const at = scenes.indexOf(scene);
   const from = leadingTo(m, scene.key);
   const size = sizes.get(scene.picture);
-  return box(head('Scene', scene.key),
+  return inspector('Scene', scene.key,
     fieldRow('Name', renameField('adventure-name', scene.key, 'a short name', (text) => {
       const want = freshKey(text, keys.filter((k) => k !== scene.key));
       renameScene(m, scene.key, want);

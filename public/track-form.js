@@ -19,7 +19,7 @@ import {
   KINDS, WORLD, MIN_WIDTH, MAX_WIDTH, MIN_POINTS, TRACK_FILE,
 } from './track-editor.js';
 import { parseConfigFile } from './config-file.js';
-import { h } from './dom.js';
+import { h, inspector, fieldRow } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, more,
 } from './main.js';
@@ -462,12 +462,6 @@ export function renderTrackEditor() {
 function selectedFields(st) {
   const { model, selected } = st;
   const ro = frozen();
-  const head = (kind, name) => h('div', { class: 'inspector-head' },
-    h('span', { class: 'section-label', text: kind }),
-    h('div', { class: 'iname', text: name }));
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
   const numField = (id, value, onchange) => {
     const input = h('input', {
       type: 'number', class: 'cfg-num', id, step: '1', disabled: ro,
@@ -480,7 +474,7 @@ function selectedFields(st) {
   if (selected?.kind === 'point' && model.points[selected.index]) {
     const i = selected.index;
     const [x, y] = model.points[i];
-    return box(head('Point', `${i + 1} of ${model.points.length}`),
+    return inspector('Point', `${i + 1} of ${model.points.length}`,
       fieldRow('Across', numField('track-x', x, (v) => movePoint(model, i, v, y))),
       fieldRow('Down', numField('track-y', y, (v) => movePoint(model, i, x, v))),
       i === model.start
@@ -506,7 +500,7 @@ function selectedFields(st) {
       if (k === t.kind) o.selected = true;
       return o;
     }));
-    return box(head('On the road', LABELS[t.kind]),
+    return inspector('On the road', LABELS[t.kind],
       fieldRow('What it is', kindPick),
       fieldRow('Across', numField('track-tx', t.at[0], (v) => moveThing(model, i, v, t.at[1]))),
       fieldRow('Down', numField('track-ty', t.at[1], (v) => moveThing(model, i, t.at[0], v))),

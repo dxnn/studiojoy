@@ -20,6 +20,21 @@ export function h(tag, props, ...kids) {
   return el;
 }
 
+/* The inspector ------------------------------------------------------------ */
+
+// The selected thing's fields, opened in place under the row or the cards it
+// belongs to (spec.md §6, inspector.css): what kind of thing it is over its
+// name, then a labelled row a field. Every editor's selected thing is one; a
+// head of its own — a ✕ beside the name — builds the box itself.
+export const inspector = (kind, name, ...kids) => h('div', { class: 'inspector' },
+  h('div', { class: 'inspector-head' },
+    h('span', { class: 'section-label', text: kind }),
+    h('div', { class: 'iname', text: name })),
+  ...kids);
+
+export const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
+  h('span', { class: 'ilabel', text: label }), ...kids);
+
 /* Icons -------------------------------------------------------------------- */
 
 // h() makes HTML elements, and an <svg> built with createElement is inert —

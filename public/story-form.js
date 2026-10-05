@@ -25,7 +25,7 @@ import {
   stageFor, leadingTo, moveLine, startAt, addScene, addPerson, isSoundStep, soundStep,
   duplicateScene, titleWords, withTitleWords, WORDS_FILE,
 } from './story-editor.js';
-import { h } from './dom.js';
+import { h, inspector, fieldRow } from './dom.js';
 import {
   S, render, send, say, frozen, encodePath, commitNow, more, NO_CONNECTION,
 } from './main.js';
@@ -942,19 +942,13 @@ function storyFields() {
   const { cast, scenes } = model;
   const has = new Set(S.files.map((f) => f.path));
   const keys = scenes.map((s) => s.key);
-  const head = (kind, name) => h('div', { class: 'inspector-head' },
-    h('span', { class: 'section-label', text: kind }),
-    h('div', { class: 'iname', text: name }));
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   if (st.title && st.words) {
     const w = st.words;
     const word = (key, id, label, placeholder) => fieldRow(label, field(id, w[key], placeholder, {
       oninput: (e) => { w[key] = e.currentTarget.value; w.dirty = true; touched(); },
     }));
-    return box(head('Title screen', w.title || '…'),
+    return inspector('Title screen', w.title || '…',
       word('title', 'story-title', 'Title', 'What the story is called'),
       word('tagline', 'story-tagline', 'Under it', 'A line under the title'));
   }
@@ -965,7 +959,7 @@ function storyFields() {
   if (!scene) return null;
   const at = scenes.indexOf(scene);
   const from = leadingTo(model, scene.key);
-  return box(head('Scene', scene.key),
+  return inspector('Scene', scene.key,
     fieldRow('Name', renameField('story-name', scene.key, 'a short name', (text) => {
       const want = freshKey(text, keys.filter((k) => k !== scene.key));
       renameScene(model, scene.key, want);
@@ -1023,8 +1017,6 @@ export function renderPersonInspector(person, { close = null } = {}) {
   const { model } = st;
   const ro = frozen();
   const has = new Set(S.files.map((f) => f.path));
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
   const moodRow = (mood, mi) => {
     const path = portraitPath(person.key, mood);
     return h('div', { class: 'mood-row row' },
@@ -1073,8 +1065,8 @@ export function renderPersonInspector(person, { close = null } = {}) {
         },
       ], { label: `More about ${mood}` }));
   };
-  // In place, inside a pane's own scroller, it is not a scroller itself.
-  return h('div', { class: 'inspector in-place' },
+  // Its own head, for the ✕ beside the name.
+  return h('div', { class: 'inspector' },
     h('div', { class: 'inspector-head row' },
       h('div', { class: 'grow' },
         h('span', { class: 'section-label', text: 'Character' }),

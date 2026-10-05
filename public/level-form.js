@@ -20,7 +20,7 @@ import {
   moveLevel, deleteLevel, addSquare, deleteSquare, usesOf, CHARS,
   MAX_SIDE, MIN_SIDE, MAX_NAME, LEVEL_FILE,
 } from './level-editor.js';
-import { h } from './dom.js';
+import { h, inspector, fieldRow } from './dom.js';
 import { S, render, say, frozen, more } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
@@ -416,9 +416,6 @@ function squareFields(st) {
   const { model } = st;
   const { squares } = model;
   const ro = frozen();
-  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
 
   const sq = squares[st.tool];
   if (sq) {
@@ -445,10 +442,7 @@ function squareFields(st) {
       type: 'checkbox', id: 'level-square-solid', checked: sq.solid, disabled: ro,
       onchange: (e) => { sq.solid = e.currentTarget.checked; markUnsaved(); render(); },
     });
-    return box(
-      h('div', { class: 'inspector-head' },
-        h('span', { class: 'section-label', text: 'Kind of square' }),
-        h('div', { class: 'iname', text: sq.name })),
+    return inspector('Kind of square', sq.name,
       fieldRow('Name', name),
       fieldRow('Colour', colour),
       fieldRow('Solid', h('label', { class: 'row' }, solid, h('span', { class: 'hint muted', text: 'The ball bumps into it, like a wall' }))),

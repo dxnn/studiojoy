@@ -744,8 +744,9 @@ three destinations a file can go — this game, another, or a picture into the
 click elsewhere closes it.
 
 **The inspector** (a working name, ideas/calm-shell.md) is the selected
-thing's fields, opened **in place** (`.inspector.in-place`, since 2026-10-05,
-when it left the rail): in the story editor a scene's name, ways in, note,
+thing's fields, opened **in place** (since 2026-10-05, when it left the
+rail; `inspector()` and `fieldRow()` in `dom.js`, one box for every editor):
+in the story editor a scene's name, ways in, note,
 picture and music, a person's name, note and moods, and the title screen's
 two lines, each at the head of the steps; the adventure's the same at the head
 of the spots; a sound's editor under its row in Hear; a character's under

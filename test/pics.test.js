@@ -165,12 +165,12 @@ test('a character opens under the cards, and the same card closes them', () => {
   const card = () => withClass(renderPicsMode(), 'face')[0];
   press(card());
   assert.deepEqual(S.pick, { kind: 'person', key: 'ada' });
-  const open = withClass(renderPicsMode(), 'in-place');
+  const open = withClass(renderPicsMode(), 'inspector');
   assert.equal(open.length, 1);
   assert.ok(texts(open[0]).includes('Character'));
   press(card());
   assert.equal(S.pick, null);
-  assert.equal(withClass(renderPicsMode(), 'in-place').length, 0);
+  assert.equal(withClass(renderPicsMode(), 'inspector').length, 0);
   S.story = null;
 });
 
@@ -184,7 +184,7 @@ test('a sound opens under its own row', () => {
   const kids = withClass(renderHearMode(), 'hear')[0].children.filter(Boolean);
   const at = kids.findIndex((n) => hasClass(n, 'hear-row') && hasClass(n, 'on'));
   assert.ok(at >= 0, 'the open row is lit');
-  assert.ok(hasClass(kids[at + 1], 'in-place'), 'and what it opened is the next thing under it');
+  assert.ok(hasClass(kids[at + 1], 'inspector'), 'and what it opened is the next thing under it');
   S.open = null;
   S.mode = 'pics';
 });

@@ -212,7 +212,7 @@ export function renderHearMode() {
     h('span', { class: 'hname mono', text: f.path.split('/').pop() }),
     h('span', { class: 'hsize', text: sizeText(f.size) }),
     fileMore(f.path)),
-    on && S.open && isAudioFile(S.open) ? h('div', { class: 'inspector in-place hear-open' },
+    on && S.open && isAudioFile(S.open) ? h('div', { class: 'inspector hear-open' },
       S.sound ? renderSoundEditor() : renderMedia(S.open),
       S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused }) : null,
       h('p', { class: 'hint muted mono', text: f.path })) : null];

@@ -18,7 +18,7 @@ import {
   addBody, moveBody, resizeBody, setAngle, setKind, setSize, removeBody, moveSling,
   KINDS, ROUND, WORLD, WORLD_FILE,
 } from './world-editor.js';
-import { h } from './dom.js';
+import { h, inspector, fieldRow } from './dom.js';
 import { S, render, say, frozen, more } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
@@ -336,8 +336,6 @@ export function renderWorldEditor() {
 
 /* The chosen thing's fields, and the sling's ----------------------------------- */
 
-const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-  h('span', { class: 'ilabel', text: label }), ...kids);
 const numField = (id, value, onchange) => {
   const input = h('input', {
     type: 'number', class: 'cfg-num', id, step: '1', disabled: frozen(),
@@ -359,10 +357,6 @@ function slingFields({ model }) {
 function bodyFields(st) {
   const { model, selected } = st;
   const ro = frozen();
-  const head = (kind, name) => h('div', { class: 'inspector-head' },
-    h('span', { class: 'section-label', text: kind }),
-    h('div', { class: 'iname', text: name }));
-  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   const b = model.bodies[selected];
   if (b) {
@@ -376,7 +370,7 @@ function bodyFields(st) {
       return o;
     }));
     const round = ROUND.has(b.kind);
-    return box(head(LABELS[b.kind], WHAT[b.kind]),
+    return inspector(LABELS[b.kind], WHAT[b.kind],
       fieldRow('What it is', kindPick),
       fieldRow('Across', numField('world-x', b.at[0], (v) => moveBody(model, i, v, b.at[1]))),
       fieldRow('Down', numField('world-y', b.at[1], (v) => moveBody(model, i, b.at[0], v))),
