@@ -113,6 +113,16 @@ test('the checks say what the game will not count, and what it has not been hear
     '“Chatty” waits for “answered”, which the game has not been heard to say.',
   ]);
 
+  // …and so does the moment itself: another achievement on the same moment
+  // being held proves the game says it, so one nobody has reached yet — a
+  // higher level — is not warned about. Asteriskoids' Impossibilio was, alone
+  // of its six level achievements (2026-10-05).
+  const levels = achievementsModel(`const ACHIEVEMENTS = [
+    { id: "primo", name: "Primo", when: { moment: "level", atLeast: 2 } },
+    { id: "impossibilio", name: "Impossibilio", when: { moment: "level", atLeast: 11 } },
+  ];`);
+  assert.deepEqual(achievementChecks(levels, new Map([['risk', {}]]), new Map([['primo', 3]])), []);
+
   // A row being written, a duplicate id and an icon that is not one emoji
   // are flagged with the shape module's own words.
   model.entries.push({ id: '', name: '', how: '', icon: '', when: null });

@@ -161,8 +161,12 @@ export function achievementChecks({ entries }, heard = new Map(), counts = new M
     else out.push(`${label(a)} is not in the game: ${why}.`);
   }
   if (heard.size > 0) {
+    // A moment some achievement has been earned on is one the game says,
+    // whether or not this browser has heard it yet — so another on the same
+    // moment that nobody has reached, a higher level, is not a warning.
+    const said = new Set(entries.filter((a) => a.when && counts.get(a.id)).map((a) => a.when.moment));
     for (const a of entries) {
-      if (a.when && !heard.has(a.when.moment) && !counts.get(a.id)) {
+      if (a.when && !heard.has(a.when.moment) && !said.has(a.when.moment) && !counts.get(a.id)) {
         out.push(`${label(a)} waits for “${a.when.moment}”, which the game has not been heard to say.`);
       }
     }

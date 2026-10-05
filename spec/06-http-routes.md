@@ -1100,7 +1100,10 @@ its tab with a reason and the text. Under Files it opens as plain text only
 — one surface writes it. It reads two things no field can: how many players
 hold each achievement (`GET /api/projects/:slug/achievements`), and the
 moments the *reporter* has heard this game say this session (§8) — offered
-where a rule names one, flagged where a rule names one never heard. Explicit
+where a rule names one, flagged where a rule names one never heard — unless
+somebody holds an achievement waiting on that same moment, which proves the
+game says it; asteriskoids' six levels share `level`, and only the one nobody
+had reached was flagged. Explicit
 Save with `if-match` and a conflict dialog on 409; unsaved edits park per
 game like the story's. The libraries and seed reach an existing game through
 the *sweep*; `<script>` tags and `Moments.say()` calls stay a helper's job.
