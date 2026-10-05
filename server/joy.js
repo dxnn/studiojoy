@@ -108,17 +108,18 @@ export function putChips(db, project, user, achievement, chips, now = new Date()
       userId: user.id, currency: 'chips', delta: -chips, why: 'put',
       projectId: project.id, achievement, now,
     });
-    settleJoy(db, project, now);
+    settleJoy(db, project, now, achievement);
     return { joy: joyOn(db, project.id).get(achievement), stash: have - chips };
   });
 }
 
 // What one person is owed for an achievement they hold — what it gives now,
 // less what they have been paid for it — paid, inside a transaction the
-// caller holds; how much. Nothing while the game is unpublished.
-export function payJoy(db, project, userId, achievement, now) {
+// caller holds; how much. Nothing while the game is unpublished. `gives` is
+// for a caller that has just read it, settling holder after holder.
+export function payJoy(db, project, userId, achievement, now, gives = null) {
   if (project.published !== 1) return 0;
-  const gives = joyOn(db, project.id).get(achievement) ?? 0;
+  gives ??= joyOn(db, project.id).get(achievement) ?? 0;
   const paid = Number(db
     .prepare(
       `SELECT COALESCE(SUM(delta), 0) AS n FROM ledger
@@ -145,13 +146,16 @@ export function settleAllJoy(db, now = new Date()) {
 }
 
 // Every holder of every achievement a game gives joy for, paid up to what it
-// gives now: when chips go on, and when the game is published.
-export function settleJoy(db, project, now = new Date()) {
+// gives now: when the game is published, and — for `only` the achievement
+// they went on — when chips go on. What each gives is read once, not once a
+// holder.
+export function settleJoy(db, project, now = new Date(), only = null) {
   if (project.published !== 1) return;
-  for (const achievement of joyOn(db, project.id).keys()) {
-    const holders = db
-      .prepare('SELECT user_id FROM achievements WHERE project_id = ? AND achievement = ?')
-      .all(project.id, achievement);
-    for (const { user_id: userId } of holders) payJoy(db, project, userId, achievement, now);
+  const holders = db.prepare('SELECT user_id FROM achievements WHERE project_id = ? AND achievement = ?');
+  for (const [achievement, gives] of joyOn(db, project.id)) {
+    if (only !== null && achievement !== only) continue;
+    for (const { user_id: userId } of holders.all(project.id, achievement)) {
+      payJoy(db, project, userId, achievement, now, gives);
+    }
   }
 }
