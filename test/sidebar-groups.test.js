@@ -120,6 +120,19 @@ test('each group lists the most recently changed first', () => {
   assert.deepEqual(names(tree), ['bomb', 'tank', 'kart', 'pipe', 'maze']);
 });
 
+// Your face and your name at the foot are one button: both light up, and a
+// press on either opens your settings.
+test('your avatar and your name are one button to your settings', () => {
+  store.clear();
+  const tree = open();
+  const [who] = withClass(tree, 'who');
+  const [button] = withClass(who, 'name');
+  assert.equal(button.tag, 'button');
+  assert.ok(pressable(button));
+  assert.equal(withClass(button, 'avatar')[0].textContent, 'D', 'the initial, until a head is worn');
+  assert.equal(withClass(button, 'name-text')[0].textContent, 'Dann');
+});
+
 // The line under a game of yours says who spoke last: You, as the thread says
 // it; a person by name; every helper as Bot; the studio's own notices — a
 // paused plan, a fork's first line — as Studio, even when one carries the

@@ -112,15 +112,12 @@ export function renderSidebar() {
         : S.sideTab === 'chats' ? chatRows(matches)
           : crewRows(matches)),
     h('div', { class: 'who' },
-      // Your avatar's head once it wears one; until then, your initial.
-      S.me.avatar?.head
-        ? avatarHead(S.me.avatar)
-        : h('div', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
       // Your own settings — the alias, and your joy and chips — behind your
-      // own name. Asked again on the way in, since joy is earned on the games
+      // face and your name, one button, so both light up and either opens
+      // them. Asked again on the way in, since joy is earned on the games
       // site while the studio sits open.
       h('button', {
-        class: 'name', text: S.me.display_name,
+        class: 'name',
         title: `Your settings. Scoreboards call you ${S.me.alias}.`,
         onclick: async () => {
           const res = await api('GET', '/api/me');
@@ -128,7 +125,12 @@ export function renderSidebar() {
           S.dialog = { kind: 'me' };
           render();
         },
-      }),
+      },
+      // Your avatar's head once it wears one; until then, your initial.
+      S.me.avatar?.head
+        ? avatarHead(S.me.avatar)
+        : h('span', { class: 'avatar', text: (S.me.display_name ?? '?').trim().charAt(0).toUpperCase() }),
+      h('span', { class: 'name-text', text: S.me.display_name })),
       bell(),
       h('button', {
         class: 'quiet tiny', text: 'Sign out',
