@@ -11,7 +11,7 @@ import {
 import { SLOTS } from './gear-shapes.js';
 import { avatarFigure, gearSrc, bareOf } from './avatar.js';
 import {
-  renderDrawing, startGearDrawing, pictureBlob, lightPaper,
+  renderDrawing, startGearDrawing, pictureBlob, lightPaper, mirrorPicture,
 } from './drawing.js';
 import { loadPeople } from './people.js';
 
@@ -90,23 +90,14 @@ function tryNext(slot) {
 
 // The piece being drawn in its place on a figure, with the other two around
 // it, so where a neck or a waist meets the next piece shows while it is
-// drawn. The live one is a canvas copied off the picture every frame, the way
-// the strip's loop is, stopping once it leaves the page. The other two are
-// pressed to try the next piece in that place. On the paper the canvas has.
+// drawn. The live one is a canvas the editor copies the picture into as it
+// paints (drawing.js, mirrorPicture). The other two are pressed to try the
+// next piece in that place. On the paper the canvas has.
 function inContext(st) {
   const { slot } = st.drawing;
   const { width, height } = S.draw.picture;
   const live = h('canvas', { class: slot, width, height });
-  const ctx = live.getContext('2d');
-  let seen = false;
-  const loop = () => {
-    if (live.isConnected) seen = true;
-    else if (seen) return;
-    const picture = S.draw?.picture;
-    if (picture) ctx.putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
-    requestAnimationFrame(loop);
-  };
-  requestAnimationFrame(loop);
+  mirrorPicture(live);
   const other = (s) => {
     const id = st.drawing.with[s];
     const g = S.wardrobe.data.gear.find((x) => x.id === id);

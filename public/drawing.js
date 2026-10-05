@@ -97,6 +97,25 @@ export const pictureBlob = (picture) => new Promise((resolve) => {
   pictureCanvas(picture).toBlob(resolve, 'image/png');
 });
 
+// Canvases showing the picture being drawn somewhere else — the wardrobe's
+// figure — copied when the editor paints, not every frame: nothing changes
+// between strokes. One goes once it has been on the page and left it.
+const mirrors = new Map();
+const copyInto = (canvas, picture) => canvas.getContext('2d')
+  .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+export function mirrorPicture(canvas) {
+  mirrors.set(canvas, false);
+  if (S.draw?.picture) copyInto(canvas, S.draw.picture);
+}
+function paintMirrors(picture) {
+  for (const [canvas, seen] of mirrors) {
+    if (canvas.isConnected) {
+      mirrors.set(canvas, true);
+      copyInto(canvas, picture);
+    } else if (seen) mirrors.delete(canvas);
+  }
+}
+
 // The picture comes back out of the file rather than out of anything the
 // studio kept, so what is drawn on is what is actually on disk. Anything it
 // will not open stays on screen as the picture, with the reason underneath —
@@ -617,6 +636,7 @@ export function renderDrawing({ bar = null } = {}) {
       canvas.getContext('2d')
         .putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
     }
+    paintMirrors(picture);
     state.textContent = unsaved();
   };
 
