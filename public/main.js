@@ -135,9 +135,9 @@ export const S = {
   errors: [],
   pinned: new Set(),
   open: null, // {path, content, etag, dirty, conflict}
-  // The person Pics has selected into the inspector: {kind: 'person', key}.
-  // A picture is not one of these — it opens in the editor on one click, and
-  // the inspector reads S.open. Hear's selection is the open sound itself.
+  // The person Pics has open under its cards: {kind: 'person', key}. A
+  // picture is not one of these — it opens in the editor on one click. Hear's
+  // selection is the open sound itself.
   pick: null,
   // Set only while the open file is being drawn on, and thrown away with it:
   // {picture, undo, dirty}
@@ -1266,22 +1266,13 @@ function renderRail() {
   if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
   // On a phone the rail is a pane of its own, under the phone header, whose
   // Close preview is the way back.
+  // Under the game, the tweaks: its tuning files as fields that go into the
+  // running game and nowhere else until saved (tweaks.js). Every editor's own
+  // fields open in place in the centre now (ideas/one-pane.md).
   return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
     railGrip(),
     renderPreview(),
-    renderInspector());
-}
-
-// The selected thing's fields, for an editor that still keeps them here: the
-// story's and the adventure's scenes, and the plan canvases. Pics and Hear
-// open theirs in place. Nothing more specific selected, and the rail is the
-// preview player's: the tweaks, the game's tuning files as fields that go into
-// the running game and nowhere else until saved (tweaks.js). All of it is
-// moving into the centre (ideas/one-pane.md).
-function renderInspector() {
-  const editor = editorShowing();
-  if (editor?.inspector) return editor.inspector();
-  return renderTweaks();
+    renderTweaks());
 }
 
 // The centre's body for every mode but the chat, whose thread and composer

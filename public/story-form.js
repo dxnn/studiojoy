@@ -513,7 +513,7 @@ export function renderStoryEditor() {
   // The row's ··· holds what can be done to the scene, and nothing that
   // cannot (spec.md §6): Start here is absent on the first scene, Delete
   // while anything still leads here or it is the last one. Its name, its
-  // note, its picture and its music are the inspector's, beside the preview.
+  // note, its picture and its music open at the head of its steps.
   const sceneRow = (scene, at) => {
     const problems = problemsFor(scene.key);
     const from = leadingTo(model, scene.key);
@@ -638,7 +638,7 @@ export function renderStoryEditor() {
 
   // What happens in the scene, top to bottom. The scene's own fields — its
   // name, what leads here, the note about it, its picture and its music —
-  // are the inspector's, beside the preview (renderStoryInspector below).
+  // head the steps (storyFields below).
   const sceneSteps = (scene) => {
     const rows = [];
 
@@ -860,38 +860,31 @@ export function renderStoryEditor() {
     return rows;
   };
 
-  /* A person ----------------------------------------------------------------- */
-
-  // A person is all the inspector's — their name, the note about them and
-  // their moods (renderPersonInspector); the stage shows the mood the step
-  // names. Taking them out is the strip row's ···.
-  const personSteps = () => [
-    h('p', {
-      class: 'hint muted problem',
-      text: 'Their name, the note about them and their moods are beside the preview.',
-    }),
-  ];
-
   /* The title screen ------------------------------------------------------------ */
 
-  // Its two lines are the inspector's, beside the preview. The rest of that
+  // Its two lines are its fields, at the head of the steps. The rest of that
   // file — the End, the buttons, how to play — stays the config form's, under
   // Code.
   const titleSteps = () => [
     h('p', { class: 'hint muted problem' },
-      `The title and the line under it are beside the preview. The End, the buttons and how to play are in ${WORDS_FILE} — `,
+      `The End, the buttons and how to play are in ${WORDS_FILE} — `,
       h('button', { class: 'link tiny', text: 'open it under Taste', onclick: () => chooseFile(WORDS_FILE) }),
       '.'),
   ];
 
   /* Put together -------------------------------------------------------------- */
 
+  // The selected thing's own fields head the steps, in place (storyFields): a
+  // scene's over what happens in it, and a person's — their name, the note
+  // about them and their moods — on their own, the stage showing the mood
+  // the step names. Taking a person out is the strip row's ···.
   const showTitle = st.title && st.words;
   const scene = st.person || showTitle ? null : scenes.find((s) => s.key === st.scene);
   const person = st.person ? cast.find((p) => p.key === st.person) : null;
-  if (showTitle) stepsBox.append(...titleSteps());
-  else if (person) stepsBox.append(...personSteps(person));
-  else if (scene) stepsBox.append(...sceneSteps(scene));
+  const fields = storyFields();
+  if (showTitle) stepsBox.append(fields, ...titleSteps());
+  else if (person) stepsBox.append(fields);
+  else if (scene) stepsBox.append(fields, ...sceneSteps(scene));
   else stepsBox.append(h('p', { class: 'muted', text: 'No scenes yet. Add one on the left.' }));
 
   // No Save: the story saves itself (touched, above). The whisper is the
@@ -937,16 +930,15 @@ export function renderStoryEditor() {
       bar));
 }
 
-/* The inspector -------------------------------------------------------------- */
+/* The selected thing's fields -------------------------------------------------- */
 
-// The selected thing's own fields, in the rail beside the preview (spec.md
-// §6): a scene's name, what leads to it, the note about it, its picture and
-// its music; a person's name and note; the title screen's two lines. These
-// were the head rows of the steps; moved so the middle is what happens and
-// the side is what it is about. The fields keep their story-… ids, so the
-// caret survives a render here as it does in the middle, and every edit saves
-// the way every edit does: touched().
-export function renderStoryInspector() {
+// The selected thing's own fields, at the head of the steps (spec.md §6): a
+// scene's name, what leads to it, the note about it, its picture and its
+// music; a person's name, note and moods; the title screen's two lines. They
+// were the head rows of the steps once, then the rail's while there was one
+// (ideas/one-pane.md). The fields keep their story-… ids, so the caret
+// survives a render, and every edit saves the way every edit does: touched().
+function storyFields() {
   const st = S.story;
   if (!st?.model || st.grown || st.missing || S.open?.path === STORY_FILE) return null;
   const { model } = st;
@@ -958,7 +950,7 @@ export function renderStoryInspector() {
     h('div', { class: 'iname', text: name }));
   const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
     h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   if (st.title && st.words) {
     const w = st.words;
@@ -1021,14 +1013,14 @@ export function renderStoryInspector() {
         ? h('span', { class: 'hint warn', text: 'not in this game' }) : null));
 }
 
-// A person, for the story inspector and for Pics' Characters card alike
+// A person, in place under Write's strip and under Pics' Characters cards alike
 // (spec.md §6): their name, the note about them, and their moods — each a
 // picture at the path the story expects, which is how somebody knows what to
 // call the picture they draw. A mood is drawn on under Pics or Code, or picked
 // from the shelf of faces, or renamed here, which renames the picture and
 // every line said in it. `close` is the way out of a card in Pics; the strip
 // in Write has no such thing to close.
-export function renderPersonInspector(person, { close = null, inPlace = false } = {}) {
+export function renderPersonInspector(person, { close = null } = {}) {
   const st = S.story;
   if (!st?.model || !person) return null;
   const { model } = st;
@@ -1085,7 +1077,7 @@ export function renderPersonInspector(person, { close = null, inPlace = false } 
       ], { label: `More about ${mood}` }));
   };
   // In place, inside a pane's own scroller, it is not a scroller itself.
-  return h('div', inPlace ? { class: 'inspector in-place' } : { class: 'inspector scroll', 'data-scroll': 'inspector' },
+  return h('div', { class: 'inspector in-place' },
     h('div', { class: 'inspector-head row' },
       h('div', { class: 'grow' },
         h('span', { class: 'section-label', text: 'Character' }),

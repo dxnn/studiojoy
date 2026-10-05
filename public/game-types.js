@@ -21,12 +21,12 @@
 // it, and the first thing to fix if the names stay.
 
 import {
-  renderStoryEditor, renderStoryInspector, loadStory, parkStory, saveStory, storyChanged,
+  renderStoryEditor, loadStory, parkStory, saveStory, storyChanged,
   selectScene, dropStageImages,
 } from './story-form.js';
 import { renderQuizEditor } from './quiz-form.js';
 import {
-  renderAdventureEditor, renderAdventureInspector, loadAdventure, parkAdventure, saveAdventure,
+  renderAdventureEditor, loadAdventure, parkAdventure, saveAdventure,
   adventureChanged, selectAdventureScene, dropAdventureSizes,
 } from './adventure-form.js';
 import {
@@ -61,7 +61,6 @@ import { S } from './main.js';
 //                  one; the rest keep their own button and are parked
 //   changed()      the file changed on disk
 //   reset()        the game is being left: its state, and anything cached
-//   inspector()    the rail, while this editor is showing
 //   view / applyView(v)  the one thing it adds to the address — a scene —
 //                  and landing on it; `applyView(null)` is the first
 //   viewParam      that thing's name in the studio's address, when it is not
@@ -104,7 +103,6 @@ export const GAME_TYPES = {
       saveDirty: (opts) => (S.story?.dirty ? saveStory(opts) : null),
       changed: () => storyChanged(),
       reset: () => { S.story = null; dropStageImages(); },
-      inspector: () => renderStoryInspector(),
       view: () => sceneView(S.story),
       applyView: (scene) => selectScene(scene ?? S.story?.model?.scenes[0]?.key),
     }],
@@ -129,7 +127,6 @@ export const GAME_TYPES = {
       saveDirty: (opts) => (S.adventure?.dirty ? saveAdventure(opts) : null),
       changed: () => adventureChanged(),
       reset: () => { S.adventure = null; dropAdventureSizes(); },
-      inspector: () => renderAdventureInspector(),
       view: () => sceneView(S.adventure),
       applyView: (scene) => selectAdventureScene(scene ?? S.adventure?.model?.scenes[0]?.key),
     }],

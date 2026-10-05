@@ -869,14 +869,16 @@ export function renderAdventureEditor() {
     return rows;
   };
 
+  // The selected thing's own fields head the box, in place (adventureFields).
+  const fields = adventureFields();
   if (st.title && st.words) {
-    spotsBox.append(h('p', { class: 'hint muted problem' },
-      `The title and the line under it are beside the preview. The End, the buttons and how to play are in ${WORDS_FILE} — `,
+    spotsBox.append(fields, h('p', { class: 'hint muted problem' },
+      `The End, the buttons and how to play are in ${WORDS_FILE} — `,
       h('button', { class: 'link tiny', text: 'open it under Taste', onclick: () => chooseFile(WORDS_FILE) }), '.'));
   } else if (st.item) {
-    spotsBox.append(h('p', { class: 'hint muted problem', text: 'Its picture is beside the preview. It is picked up wherever a spot says so.' }));
+    spotsBox.append(fields, h('p', { class: 'hint muted problem', text: 'It is picked up wherever a spot says so.' }));
   } else if (scene) {
-    spotsBox.append(...spotRows(scene));
+    spotsBox.append(fields, ...spotRows(scene));
   } else {
     spotsBox.append(h('p', { class: 'muted', text: 'No scenes yet. Add one on the left.' }));
   }
@@ -920,12 +922,12 @@ export function renderAdventureEditor() {
     bar));
 }
 
-/* The inspector -------------------------------------------------------------- */
+/* The selected thing's fields -------------------------------------------------- */
 
-// The selected thing's own fields, in the rail beside the preview: a scene's
-// name, what leads to it, the note about it and its picture; a thing's
-// picture; the title screen's two lines.
-export function renderAdventureInspector() {
+// The selected thing's own fields, at the head of the spots, in place
+// (ideas/one-pane.md): a scene's name, what leads to it, the note about it and
+// its picture; a thing's picture; the title screen's two lines.
+function adventureFields() {
   const st = S.adventure;
   if (!st?.model || st.grown || st.missing || S.open?.path === ADVENTURE_FILE) return null;
   const { model: m } = st;
@@ -938,7 +940,7 @@ export function renderAdventureInspector() {
     h('div', { class: 'iname', text: name }));
   const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
     h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   if (st.title && st.words) {
     const w = st.words;

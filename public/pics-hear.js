@@ -121,7 +121,7 @@ export function renderPicsMode() {
     parts.push(...section('Characters', story.cast.map(personCard)));
     const person = story.cast.find(pickedPerson);
     if (person) {
-      parts.push(renderPersonInspector(person, { close: () => { S.pick = null; render(); }, inPlace: true }));
+      parts.push(renderPersonInspector(person, { close: () => { S.pick = null; render(); } }));
     }
     for (const person of story.cast) {
       for (const mood of person.moods) covered.add(`${SPRITE_DIR}/${person.key}-${mood}.png`);
