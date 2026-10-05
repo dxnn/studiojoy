@@ -9,7 +9,7 @@ import { SLOTS, shapeSvg } from './gear-shapes.js';
 
 const BARE = '#5b5486';
 const bare = new Map();
-const bareOf = (slot) => {
+export const bareOf = (slot) => {
   if (!bare.has(slot)) bare.set(slot, shapeSvg(slot, BARE));
   return bare.get(slot);
 };

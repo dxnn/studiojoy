@@ -17,7 +17,7 @@ before its handler runs — that check is a security boundary, not hygiene (§7)
 | POST | `/api/login` | `{email, password}` | set cookie, return user |
 | POST | `/api/logout` | — | delete session, clear cookie |
 | GET | `/api/me` | — | current user, `alias` included, and `joy`, `stash` and `avatar` (`{head, body, legs}`, a gear id or null each) |
-| PATCH | `/api/me` | `{alias}` | your own settings — only the alias so far, through `setAlias` (§3); a refusal is a 400 saying why. Opened from your own name in the sidebar's bottom row (*Your settings*). ⚠️ No twin on the games origin (§7) |
+| PATCH | `/api/me` | `{alias}` | your own settings — only the alias so far, through `setAlias` (§3); a refusal is a 400 saying why. Opened from your own face and name in the sidebar's bottom row, one button (*Your settings*). ⚠️ No twin on the games origin (§7) |
 | PUT | `/api/me/avatar` | `{head?, body?, legs?}` | what your avatar wears: each a piece of gear you own, of that slot, or null for the bare shape; a slot left out stays as it is. 404 for a piece you do not own, 400 for one of another slot. Answers the avatar |
 | GET | `/api/users` | — | everyone in the studio: `{id, display_name, avatar}` only |
 | GET | `/api/gear` | — | the *wardrobe*: every piece, newest first, `{gear: [{id, slot, name, made_by, maker, created_at, owned, mine}], wearing, joy, price, made_this_week, makes_a_week}` |
@@ -43,7 +43,12 @@ studio draws gear, three pieces a week, in the pixel editor's **gear mode**:
 a blank picture of the slot's size, the slot's shape as a mask every tool
 stays inside (the editor's one bounds check) and everything outside it
 shaded, the studio's own colours, nothing autosaved — the wardrobe makes the
-piece when its maker names it. A piece is its maker's for nothing and
+piece when its maker names it. Beside the drawing (above it, small, on a
+phone) the piece stands in its place on a figure with the other two, live as
+it is drawn, so where a neck or a waist meets shows while it is made: those
+two are what you wear, else somebody's piece for that place at random, else
+the bare shape, and pressing one tries the next piece for that place,
+everybody's in turn and the bare shape last (since 2026-10-05). A piece is its maker's for nothing and
 everybody else's for 20 joy, which is spent to nobody; no approval. The
 **wardrobe** is the centre pane at `/wardrobe`, reached from the Crew tab:
 wear and take off what you own, draw a piece, buy one. A crew row is the
@@ -417,6 +422,13 @@ Twelve choices worth naming:
   an SVG in the picture's own units (`gridPath`) with one-screen-pixel
   strokes, so each line is placed on its own square's edge, at a fractional
   Fit too, and nothing is sized by hand; display only, like the edge.
+  At the end of that row the **paper**, a black-and-white icon: what shows
+  through a see-through pixel, dark (the studio's checkerboard) or light
+  (white and pale grey, lit while it is), still a checker either way so a
+  white pixel never passes for an empty one. Its title says what a press
+  does — *Switch to light paper*, *Switch to dark paper* — and it is
+  remembered per browser (`draw-paper`); gear mode's shade outside the shape
+  follows it, near-black on dark and mid grey on light (since 2026-10-05).
   The canvas's floor against the tools' is
   `clamp(min(150px, 25vh), calc(100vh - 470px), 320px)` — too small a floor
   and the canvas goes to nothing, which is no canvas at all since a pointer

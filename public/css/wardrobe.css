@@ -46,5 +46,33 @@
 /* Drawing a piece: the name and the button to make it share the bar. */
 .wardrobe .gear-name-field { flex: 1 1 10rem; min-width: 6rem; }
 
+/* Beside the drawing, the piece in its place on a figure (wardrobe.js). The
+   other two are buttons with nothing of a button's own — no padding, no
+   border — so the three still meet as one figure; under the pointer the one
+   to press is ringed. On the drawing's paper when it is light. */
+.gear-drawing { display: flex; flex: 1; min-height: 0; }
+.gear-drawing > .drawing { min-width: 0; }
+.gear-context {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 16px; border-left: 1px solid var(--border-soft);
+}
+.gear-context .hint { max-width: 7rem; text-align: center; }
+.avatar-figure.context { padding: 8px; border-radius: var(--radius); }
+.avatar-figure.context.paper-light { background: #ececf0; }
+.avatar-figure.context img, .avatar-figure.context canvas {
+  display: block; width: 96px; height: auto; image-rendering: pixelated;
+}
+.gear-try { display: block; padding: 0; border: 0; border-radius: 0; background: none; cursor: pointer; }
+.gear-try:hover:not(:disabled) { background: none; outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 860px) {
+  /* Above the drawing on a phone, small and on its side, so the canvas keeps
+     the height it needs. */
+  .gear-drawing { flex-direction: column; }
+  .gear-context { order: -1; flex-direction: row; padding: 6px 16px; border-left: 0; border-bottom: 1px solid var(--border-soft); }
+  .gear-context .hint { max-width: none; text-align: left; }
+  .avatar-figure.context { padding: 4px; }
+  .avatar-figure.context img, .avatar-figure.context canvas { width: 40px; }
+}
+
 /* Somebody's whole avatar, in their dialog. */
 .person-figure { display: flex; justify-content: center; padding: 8px 0 4px; }

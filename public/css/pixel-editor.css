@@ -44,6 +44,11 @@
    furniture and one band of tools need. The tools scroll under it either
    way. Measured at 1280 × 820, 390 × 844 and 844 × 390. */
 .drawing .media { min-height: clamp(min(150px, 25vh), calc(100vh - 470px), 320px); }
+/* Light paper (drawing.js): white and pale grey for what is see-through,
+   still a checker, so a white pixel is never mistaken for an empty one. */
+.drawing .media.paper-light {
+  background: repeating-conic-gradient(#ffffff 0% 25%, #dcdce2 0% 50%) 0 0 / 16px 16px;
+}
 .drawing > .pad { min-height: 0; overflow-y: auto; }
 /* The strip looping beside the frame buttons while it is edited. */
 .strip-preview {

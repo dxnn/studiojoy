@@ -9,11 +9,14 @@ import {
   S, render, api, send, say, openProject, prefs, urlAs,
 } from './main.js';
 import { SLOTS } from './gear-shapes.js';
-import { avatarFigure, gearSrc } from './avatar.js';
-import { renderDrawing, startGearDrawing, pictureBlob } from './drawing.js';
+import { avatarFigure, gearSrc, bareOf } from './avatar.js';
+import {
+  renderDrawing, startGearDrawing, pictureBlob, lightPaper,
+} from './drawing.js';
 import { loadPeople } from './people.js';
 
 const SLOT_WORDS = { head: 'Head', body: 'Body', legs: 'Legs' };
+const ANOTHER = { head: 'another head', body: 'another body', legs: 'other legs' };
 const DRAW_WORDS = { head: 'Draw a head', body: 'Draw a body', legs: 'Draw some legs' };
 
 // Leaving whatever game was open, the usual way, and arriving here.
@@ -60,9 +63,63 @@ async function buy(piece) {
 }
 
 function startDrawing(slot) {
-  S.wardrobe.drawing = { slot, name: '' };
+  S.wardrobe.drawing = { slot, name: '', with: companions(slot) };
   startGearDrawing(slot);
   render();
+}
+
+// The other two pieces the one being drawn is seen with: what you wear in
+// each place, else somebody's piece for it at random, else the bare shape.
+function companions(slot) {
+  const { gear, wearing } = S.wardrobe.data;
+  const out = {};
+  for (const other of SLOTS.filter((s) => s !== slot)) {
+    const choices = gear.filter((g) => g.slot === other);
+    out[other] = wearing[other] ?? choices[Math.floor(Math.random() * choices.length)]?.id ?? null;
+  }
+  return out;
+}
+
+// The next piece for that place, everybody's in turn and then the bare shape.
+function tryNext(slot) {
+  const ids = [...S.wardrobe.data.gear.filter((g) => g.slot === slot).map((g) => g.id), null];
+  const at = ids.indexOf(S.wardrobe.drawing.with[slot]);
+  S.wardrobe.drawing.with[slot] = ids[(at + 1) % ids.length];
+  render();
+}
+
+// The piece being drawn in its place on a figure, with the other two around
+// it, so where a neck or a waist meets the next piece shows while it is
+// drawn. The live one is a canvas copied off the picture every frame, the way
+// the strip's loop is, stopping once it leaves the page. The other two are
+// pressed to try the next piece in that place. On the paper the canvas has.
+function inContext(st) {
+  const { slot } = st.drawing;
+  const { width, height } = S.draw.picture;
+  const live = h('canvas', { class: slot, width, height });
+  const ctx = live.getContext('2d');
+  let seen = false;
+  const loop = () => {
+    if (live.isConnected) seen = true;
+    else if (seen) return;
+    const picture = S.draw?.picture;
+    if (picture) ctx.putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  const other = (s) => {
+    const id = st.drawing.with[s];
+    const g = S.wardrobe.data.gear.find((x) => x.id === id);
+    return h('button', {
+      class: 'gear-try',
+      title: `${g ? `“${g.name}”` : 'Nothing'} — press to try ${ANOTHER[s]}`,
+      onclick: () => tryNext(s),
+    }, h('img', { class: s, src: id ? gearSrc(id) : bareOf(s), alt: '' }));
+  };
+  return h('div', { class: 'gear-context' },
+    h('div', { class: `avatar-figure context${lightPaper() ? ' paper-light' : ''}` },
+      SLOTS.map((s) => (s === slot ? live : other(s)))),
+    h('span', { class: 'hint muted', text: 'Press the others to try them' }));
 }
 
 function stopDrawing() {
@@ -118,13 +175,15 @@ export function renderWardrobe() {
     name.value = st.drawing.name;
     return pane(
       h('p', { class: 'hint pad', text: `${SLOT_WORDS[slot]}: draw inside the shape — outside it, nothing sticks.` }),
-      renderDrawing({
-        bar: [
-          name,
-          h('button', { class: 'filled', text: 'Put it in the wardrobe', onclick: () => makeIt() }),
-          h('button', { class: 'quiet tiny', text: 'Never mind', onclick: () => stopDrawing() }),
-        ],
-      }));
+      h('div', { class: 'gear-drawing' },
+        renderDrawing({
+          bar: [
+            name,
+            h('button', { class: 'filled', text: 'Put it in the wardrobe', onclick: () => makeIt() }),
+            h('button', { class: 'quiet tiny', text: 'Never mind', onclick: () => stopDrawing() }),
+          ],
+        }),
+        inContext(st)));
   }
 
   if (!data) return pane(h('p', { class: 'pad hint muted', text: 'Opening the wardrobe…' }));

@@ -19,7 +19,7 @@ import {
   writeFiles, assetPath, IMAGE_DIR, SPRITE_DIR,
 } from './upload.js';
 import {
-  S, send, say, render, encodePath, problem, frozen,
+  S, send, say, render, encodePath, problem, frozen, prefs,
 } from './main.js';
 import {
   openFile, opening, saveEditorSoon, refreshFiles, putOpenFile,
@@ -59,6 +59,31 @@ const ZOOMS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
 // screen pixel wide is too much of each square, and the grid hides the
 // picture it is there to help with.
 const GRID_FROM = 8;
+
+// The **paper**: what shows through a see-through pixel. Dark is the studio's
+// checkerboard; light is white and pale grey, which some pictures are easier
+// to draw on. Still a checker either way, so a white pixel never passes for a
+// see-through one. Remembered per browser, like the rail's width; gear mode's
+// shade outside the shape follows it (decided 2026-10-05).
+export const lightPaper = () => prefs.get('draw-paper', 'dark') === 'light';
+const SHADE = { dark: [14, 10, 26, 200], light: [128, 124, 146, 200] };
+
+// Black and white whichever way it is set: the button's light says which.
+function paperIcon() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 17, height: 17, 'aria-hidden': 'true' })) {
+    svg.setAttribute(k, v);
+  }
+  for (const [d, fill] of [['M12 4a8 8 0 0 0 0 16z', '#fff'], ['M12 4a8 8 0 0 1 0 16z', '#000']]) {
+    const half = document.createElementNS(SVG_NS, 'path');
+    half.setAttribute('d', d);
+    half.setAttribute('fill', fill);
+    half.setAttribute('stroke', 'currentColor');
+    half.setAttribute('stroke-width', '1.5');
+    svg.append(half);
+  }
+  return svg;
+}
 
 function pictureCanvas(picture) {
   const canvas = document.createElement('canvas');
@@ -497,14 +522,15 @@ export function renderDrawing({ bar = null } = {}) {
   let shade = null;
   if (picture.mask) {
     shade = h('canvas', { class: 'pixels preview shade', width: viewW, height: picture.height });
-    const dark = new Uint8ClampedArray(viewW * picture.height * 4);
+    const tint = SHADE[lightPaper() ? 'light' : 'dark'];
+    const dim = new Uint8ClampedArray(viewW * picture.height * 4);
     for (let i = 0; i < viewW * picture.height; i += 1) {
-      if (!picture.mask[i]) dark.set([14, 10, 26, 200], i * 4);
+      if (!picture.mask[i]) dim.set(tint, i * 4);
     }
-    shade.getContext('2d').putImageData(new ImageData(dark, viewW, picture.height), 0, 0);
+    shade.getContext('2d').putImageData(new ImageData(dim, viewW, picture.height), 0, 0);
   }
   const pictureBox = h('div', { class: 'picture-box' }, canvas, shade, preview, grid, edge, lines);
-  const media = h('div', { class: 'media grow' }, pictureBox);
+  const media = h('div', { class: `media grow${lightPaper() ? ' paper-light' : ''}` }, pictureBox);
 
   // Screen pixels per picture pixel. `fit` is as big as the pane allows —
   // what a picture opens at, and what the canvas always did — and a number is
@@ -994,12 +1020,22 @@ export function renderDrawing({ bar = null } = {}) {
   const zoomBtn = (text, dir, title) => h('button', {
     class: 'quiet tiny', text, title, onclick: () => stepZoom(dir),
   });
+  // The paper, with the view rather than the tools. Lit while it is light; its
+  // words say what a press will do, so no aria-pressed to contradict them.
+  const paperSays = lightPaper() ? 'Switch to dark paper' : 'Switch to light paper';
+  const paperBtn = h('button', {
+    class: `icon-btn paper${lightPaper() ? ' on' : ''}`,
+    title: paperSays,
+    'aria-label': paperSays,
+    onclick: () => { prefs.set('draw-paper', lightPaper() ? 'dark' : 'light'); render(); },
+  }, paperIcon());
   const zoomRow = h('div', { class: 'row' },
     zoomBtn('−', -1, 'Make the squares smaller'),
     zoomLabel,
     zoomBtn('+', 1, 'Make the squares bigger, to draw one pixel at a time'),
     fitBtn,
-    eightsBtn);
+    eightsBtn,
+    paperBtn);
   showZoom();
 
   paint();
