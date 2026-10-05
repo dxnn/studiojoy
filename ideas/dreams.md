@@ -759,7 +759,74 @@ looking at an achievement knows exactly what it will pay.
 
 ## 6. Avatars
 
-**Status: queued.** Waits on §1 and §5.
+**Status: proposed 2026-10-04, waiting on the questions in the reply.**
+
+### What the code says (checked 2026-10-04)
+
+- §1 settled on typed aliases, not dealt animals, so there is no animal to
+  start a face from — but the big set holds **Kenney's animal pack**: ten
+  CC0 heads (elephant, giraffe, hippo, monkey, panda, parrot, penguin, pig,
+  rabbit, snake), each the same rounded square face, about 284 pixels, with
+  ears, horns or a beak reaching past it. Aligned on that square, a hat drawn
+  for one sits on all ten.
+- The pixel editor (`public/drawing.js`) draws on a game's open file, with
+  that game's palette, and saves by writing the file. It knows nothing of a
+  picture that is not a file, so drawing gear wants a mode of its own:
+  opened on a blank picture, with the face ghosted underneath, saving to a
+  route.
+- Pictures that live outside any game already have a pattern:
+  `collection_art`, the **bytes in the row**, so `npm run backup` covers them
+  (spec/ §3). Gear would be the same.
+- ⚠️ "Thing" is taken: the interface says *thing* where the code says
+  `sprite` (the big set's shelf). Gear needs its own word.
+- Where a person shows today: the studio's `who` row draws a circle with the
+  first letter of your name; the crew list and the chat say names; the games
+  origin says your alias in the catalog's header, the players page and the
+  boards.
+- Joy is a `ledger` sum (§5), so buying is two more `why`s — and a row per
+  sale makes "the maker gets paid" one more row, not a new mechanism.
+
+### The proposal
+
+1. **Your avatar is an animal and its gear.** The face is one of the ten
+   animal heads — free, yours to change whenever. Over it, up to four pieces
+   of **gear**, one in each slot: **back** (a cape, wings, a sky behind),
+   **face** (glasses, a mask, a moustache), **head** (a hat, a crown, a bow)
+   and **hand** (something held). Drawn in that order, back to front.
+2. **Gear is drawn by the people here** — one new piece an author a week, the
+   way chips are weekly. A 48 × 48 picture, drawn in the pixel editor's
+   **gear** mode over a ghost of the face, so a hat lands on a head; given a
+   name and a slot; and offered to the **shop**.
+3. **The shop** has every piece anyone has made, all at one price — 100 joy,
+   ten weeks of chips — and the maker owns their own for nothing. Buying
+   pays the maker: joy moves rather than vanishing, so drawing good gear is
+   another way to earn it. Bought is yours for good.
+4. ⚠️ **A piece reaches the shop when an admin says yes.** Gear is worn on
+   the games origin, which is the internet, and a kid's drawing can hold a
+   name, a face or worse; the studio collection gets away without review
+   because it never leaves the studio. One piece an author a week keeps the
+   queue a handful.
+5. **Where it shows**, first: the studio's `who` row in place of the
+   letter, the crew list, and *Your settings* — which grows **Your avatar**:
+   pick the animal, wear and take off, the shop, and making a piece. On the
+   games origin: beside your alias in the catalog's header and on every row
+   of a game's players page. Later: beside a chat message, and inside the
+   games' own boards (a screens library change).
+6. **Stored like the collection**: `gear` (slot, name, the PNG's bytes, who
+   made it, who approved it and when), `gear_owned` (who owns which, since
+   when), the face and what is worn on `users`, and the joy as `ledger` rows —
+   `bought` out of the buyer, `sold` into the maker.
+
+### Where it pulls
+
+- A smooth vector face under chunky pixel gear is two styles at once. That
+  is also what makes it read as *theirs*, and 48 × 48 keeps the pixels
+  honest at avatar size.
+- An admin's queue is a chore. The alternative — gear only inside the studio,
+  the bare animal on the games origin — avoids it and loses half the point.
+- 100 joy against an achievement that can give 20: a keen player buys a piece
+  in an afternoon. Joy is inflationary on purpose (§5); the price is one
+  constant.
 
 ### A first guess at the shape
 
