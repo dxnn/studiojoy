@@ -57,11 +57,15 @@ export const PREVIEW_PLAYER_JS = `(function () {
   var last = now;
   var queue = [];
   var nextId = 1;
-  // Game time owed and not yet run, while the clock goes in whole frames.
+  // Game time owed and not yet run.
   var owed = 0;
   // The most whole frames one real frame may run, times the speed: past that
   // the machine cannot keep up, and the rest is let go rather than raced.
   var MOST = 4;
+  // A real frame a hair short of 1/60 s still runs one: a 60 Hz screen ticks
+  // with jitter, and without the slack a game at 1× would miss a frame and
+  // double the next, over and over. What it borrows comes off the next.
+  var SLACK = 4;
 
   // Every callback the game asked for since the last frame, with the clock's
   // time. One asked for again from inside a callback waits for the next.
@@ -82,14 +86,18 @@ export const PREVIEW_PLAYER_JS = `(function () {
     frame();
   }
 
-  // One real frame. A person playing at 1× or slower gets the time that really
-  // passed, times the speed, in one frame, so slow motion is smooth. While the
-  // robot plays, and whenever the game runs fast, time goes in whole frames of
-  // exactly 1/60 s, as many as are owed — so a run is the same run however
-  // fast the machine is, which is what lets the robot's moment before a break
-  // break the same way again. A redraw runs the callbacks with no time at all,
-  // so a paused game shows a moment put back without moving. The next real
-  // frame is asked for first, so a game whose callback throws stops nothing.
+  // One real frame. ⚠️ Time goes in whole frames of exactly 1/60 s at every
+  // speed, as many as are owed: the game is a 60 Hz machine here whatever the
+  // screen is and however fast it is played, so one frame of the game is the
+  // same frame at ¼× as at 4×. A game that counts something per frame rather
+  // than per second — Asteriskoids' risk did — counted four times as fast in
+  // slow motion while its rocks moved at a quarter (decided 2026-10-05). So ¼×
+  // is a whole frame every fourth screen frame, choppy and exact; a 120 Hz
+  // screen runs one every other; and a run is the same run however fast the
+  // machine, which is what lets the robot's moment before a break break the
+  // same way again. A redraw runs the callbacks with no time at all, so a
+  // paused game shows a moment put back without moving. The next real frame is
+  // asked for first, so a game whose callback throws stops nothing.
   function tick() {
     realFrame(tick);
     var real = realNow();
@@ -103,17 +111,10 @@ export const PREVIEW_PLAYER_JS = `(function () {
       else if (drawAgain) frame();
       return;
     }
-    if (!robot.on && speed <= 1) {
-      owed = 0;
-      now += gap * speed;
-      timers();
-      frame();
-      return;
-    }
     owed += gap * speed;
     var most = MOST * Math.max(1, speed);
     var ran = 0;
-    while (owed >= FRAME && ran < most) { owed -= FRAME; ran += 1; wholeFrame(); }
+    while (owed >= FRAME - SLACK && ran < most) { owed -= FRAME; ran += 1; wholeFrame(); }
     if (ran === most) owed = 0;
     if (ran === 0 && drawAgain) frame();
   }
@@ -131,9 +132,38 @@ export const PREVIEW_PLAYER_JS = `(function () {
   performance.now = function () { return now; };
 
   // Date.now() keeps the same clock, from where the real one stood: a game
-  // timing itself with it pauses, hurries and plays back like any other.
-  var dateBase = Date.now() - now;
-  Date.now = function () { return Math.floor(dateBase + now); };
+  // timing itself with it pauses, hurries and plays back like any other. So
+  // does new Date() with nothing in the brackets, which is the same question
+  // asked another way — a Date of the game's own clock, still a Date to
+  // instanceof, and Date(...) with a time given just what it always was.
+  var RealDate = Date;
+  var dateBase = RealDate.now() - now;
+  var clockNow = function () { return Math.floor(dateBase + now); };
+  try {
+    var ClockDate = function Date() {
+      if (!new.target) return new RealDate(clockNow()).toString();
+      var args = arguments.length ? Array.prototype.slice.call(arguments) : [clockNow()];
+      return Reflect.construct(RealDate, args, new.target);
+    };
+    ClockDate.prototype = RealDate.prototype;
+    ClockDate.now = clockNow;
+    ClockDate.parse = RealDate.parse;
+    ClockDate.UTC = RealDate.UTC;
+    window.Date = ClockDate;
+  } catch (err) {
+    RealDate.now = clockNow;
+  }
+
+  // An input event's timeStamp is the same clock again: a game timing a double
+  // tap or a held key with it slows, pauses and plays back with the rest. A
+  // browser that will not let it be redefined keeps real time there.
+  try {
+    if (typeof Event === 'function') {
+      Object.defineProperty(Event.prototype, 'timeStamp', {
+        configurable: true, get: function () { return now; },
+      });
+    }
+  } catch (err) { /* real time for this one */ }
 
   // setTimeout and setInterval run from the same clock too (ideas/dreams.md
   // §4), so Pause pauses them, fast-forward hurries them and a robot's run is

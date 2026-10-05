@@ -168,13 +168,16 @@ walk into, each paid for once already.
   either.
 - ⚠️ The preview is the **preview player** (`server/preview-player.js`,
   spec/ §6): always debugging, never on a board. It owns the game's clock,
-  its timers (`setTimeout`, `setInterval`, `Date.now()`) and its random
-  numbers, and answers `/_scores`, `/_achievements` and `/_me` inside the
-  page — `fetch` and `sendBeacon` only. Its savepoint is `State.save()`, the
-  random stream and the robot's; Back never moves the clock backwards, because
-  every template's loop takes `dt` from it and only caps it from above. While
-  the **robot** plays, or above 1×, time goes in whole 1/60 s frames, which is
-  what makes a robot's run replay. ⚠️ It lives under **Play**, a mode, and
+  its timers (`setTimeout`, `setInterval`, `Date.now()`, `new Date()`, an
+  event's `timeStamp`) and its random numbers, and answers `/_scores`,
+  `/_achievements` and `/_me` inside the page — `fetch` and `sendBeacon`
+  only. Its savepoint is `State.save()`, the random stream and the robot's;
+  Back never moves the clock backwards, because every template's loop takes
+  `dt` from it and only caps it from above. ⚠️ Time goes in whole 1/60 s
+  frames at **every** speed (since 2026-10-05): slow motion is the same
+  frames further apart, so a game counting per frame counts the same as at
+  1×, and a robot's run replays. The builder is told to count by time, not
+  by frame, which is the half that fixes a 120 Hz screen. ⚠️ It lives under **Play**, a mode, and
   off Play it stays loaded and *paused* (`showMode` tells it), never
   unloaded while a game is open: the builder's shot is taken from it when a
   message is sent from Speak. Under the game are the **tweaks**: config

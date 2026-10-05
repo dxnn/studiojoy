@@ -1856,9 +1856,10 @@ back. That is the studio's to know and never the games origin's (§7).
 preview is a player of its own, different from anybody playing the game:
 always debugging and never on a board — no switch, and only there. The script
 injected after the reporter owns the game's time: the timestamps
-`requestAnimationFrame` hands it, `performance.now()`, `Date.now()`,
-`setTimeout`, `setInterval` and `Math.random()` (a seeded stream with a state
-of its own) all come from it, so the preview's foot can **pause** a game,
+`requestAnimationFrame` hands it, `performance.now()`, `Date.now()` and
+`new Date()` with nothing given, an input event's `timeStamp`, `setTimeout`,
+`setInterval` and `Math.random()` (a seeded stream with a state of its own)
+all come from it, so the preview's foot can **pause** a game,
 step it **one frame on** (exactly 1/60 s, one arrow to a bar) and run it at
 **¼×**, **½×**, **2×**, **4×** or **16×** — picked from a list under the
 speed, the one running lit; the same list is the injected player's, which
@@ -1866,12 +1867,20 @@ ignores any other — every canvas game, unchanged, its timers included. Paused,
 another speed and the robot playing each light their button, the background
 too, since 🤖 is an emoji no text colour reaches. A
 timer runs at the top of the frame it comes due in; one that throws is thrown
-again on a real timer, so the reporter files it and the frame goes on. A
-person at 1× or slower gets the time that really passed in one frame, so slow
-motion is smooth; fast, and whenever the robot plays, time goes in **whole
-frames** of exactly 1/60 s, as many as are owed and at most four times the
-speed in one real frame — the rest let go when a machine cannot keep up — so
-a run is the same run however fast the machine is. Above 1× every
+again on a real timer, so the reporter files it and the frame goes on. ⚠️
+Time goes in **whole frames** of exactly 1/60 s at every speed, as many as
+are owed and at most four times the speed in one real frame — the rest let go
+when a machine cannot keep up — with 4 ms of slack, so a 60 Hz screen's
+jitter still runs one a frame. The game is a 60 Hz machine whatever the
+screen and the speed: ¼× is a whole frame every fourth screen frame, choppy
+and exact, and a 120 Hz screen runs one every other. Until 2026-10-05 a
+person at 1× or slower got the time that really passed in one frame, which
+was smooth and was wrong for any game counting per frame rather than per
+second — Asteriskoids' skimming risk built four times as fast at ¼× while
+its rocks moved at a quarter. A run is the same run however fast the machine
+is, which is what lets the robot's moment before a break break the same way
+again. What it cannot slow: an `AudioContext`'s own clock and a CSS
+animation keep real time. Above 1× every
 `AudioContext` the page made is suspended (its own `resume()` held off) and
 an element's `play()` skipped. Paused, speed and the robot are per game in
 the tab and survive a reload: a new page posts `player-ready` and the studio

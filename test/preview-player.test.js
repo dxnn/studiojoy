@@ -80,30 +80,64 @@ function loop(p) {
   return seen;
 }
 
+// Every speed goes in whole frames of exactly 1/60 s (decided 2026-10-05): a
+// 60 Hz screen's frame is one game frame, and slow is the same frames further
+// apart, never smaller ones.
 test('the game runs on the player\'s clock, which pauses, steps and slows', () => {
+  const step = 1000 / 60;
   const p = boot();
   const seen = loop(p);
   const start = p.run('performance.now()');
-  p.frame(100);
-  assert.deepEqual(seen, [start + 100], 'a real frame moves the clock by what really passed');
+  p.frame(step);
+  assert.deepEqual(seen, [start + step], 'a 60 Hz frame is one whole frame of the game');
 
   p.studio({ paused: true });
   p.frame(100);
   p.frame(100);
   assert.equal(seen.length, 1, 'paused, the game is not called');
-  assert.equal(p.run('performance.now()'), start + 100, 'and its time stands still');
+  assert.equal(p.run('performance.now()'), start + step, 'and its time stands still');
 
   p.studio({ step: true });
   p.frame(100);
   assert.equal(seen.length, 2);
-  assert.ok(Math.abs(seen[1] - (start + 100 + 1000 / 60)) < 1e-9, 'one step is one frame, however long the real one');
+  assert.ok(Math.abs(seen[1] - (start + 2 * step)) < 1e-9, 'one step is one frame, however long the real one');
 
   p.studio({ paused: false, speed: 0.5 });
-  p.frame(100);
-  assert.ok(Math.abs(seen[2] - (seen[1] + 50)) < 1e-9, 'at half speed, half the time');
+  p.frame(step);
+  assert.equal(seen.length, 2, 'at half speed, half a frame owed is not a frame yet');
+  p.frame(step);
+  assert.equal(seen.length, 3);
+  assert.ok(Math.abs(seen[2] - seen[1] - step) < 1e-9, 'and the game still sees a whole 1/60 s');
   p.studio({ speed: 7 });
-  p.frame(100);
-  assert.ok(Math.abs(seen[3] - (seen[2] + 50)) < 1e-9, 'a speed it does not offer is ignored');
+  p.frame(step);
+  p.frame(step);
+  assert.equal(seen.length, 4, 'a speed it does not offer is ignored');
+});
+
+// What Asteriskoids met: a game counting per frame counted four times as fast
+// in slow motion while its rocks moved at a quarter. Whole frames, further
+// apart, and the frame and the second agree again.
+test('at ¼× the game gets a whole frame every fourth screen frame', () => {
+  const step = 1000 / 60;
+  const p = boot();
+  const seen = loop(p);
+  p.studio({ speed: 0.25 });
+  for (let i = 0; i < 8; i += 1) p.frame(step);
+  assert.equal(seen.length, 2);
+  assert.ok(Math.abs(seen[1] - seen[0] - step) < 1e-9);
+});
+
+test('a 120 Hz screen runs one every other frame, and jitter still runs one a frame', () => {
+  const step = 1000 / 60;
+  const fast = boot();
+  const seenFast = loop(fast);
+  for (let i = 0; i < 4; i += 1) fast.frame(step / 2);
+  assert.equal(seenFast.length, 2, 'the game is a 60 Hz machine whatever the screen');
+
+  const p = boot();
+  const seen = loop(p);
+  for (const ms of [16.2, 17.1, 16.4, 16.9, 16]) p.frame(ms);
+  assert.equal(seen.length, 5, 'a frame a hair short of 1/60 s still runs one');
 });
 
 test('a game whose frame throws stops nothing but itself', () => {
@@ -250,14 +284,26 @@ test('timers and Date.now keep the player\'s clock, so Pause pauses them too', (
   const fired = () => JSON.parse(p.run('JSON.stringify(fired)'));
   assert.deepEqual(fired(), [], 'paused, no timer fires, however long it really is');
   p.studio({ paused: false });
-  p.frame(60);
+  p.frame(50);
   assert.deepEqual(fired(), ['tick']);
-  p.frame(60);
+  p.frame(50);
   assert.deepEqual(fired(), ['tick', 'once', 'tick'], 'each in the order it came due');
-  assert.equal(p.run('Date.now()') - date, 120, 'Date.now moved with the clock, not the wall');
+  assert.ok(Math.abs(p.run('Date.now()') - date - 100) <= 1, 'Date.now moved with the clock, not the wall');
+  assert.ok(Math.abs(p.run('new Date().getTime()') - date - 100) <= 1, 'and so did new Date()');
+  assert.equal(p.run('new Date(0).getTime()'), 0, 'a Date of a given time is that time');
+  assert.equal(p.run('new Date() instanceof Date'), true);
   p.run('clearInterval(every)');
   p.frame(500);
   assert.equal(p.run('fired.length'), 3);
+});
+
+test('an input event\'s timeStamp is the player\'s clock too', () => {
+  class Event {}
+  Object.defineProperty(Event.prototype, 'timeStamp', { configurable: true, get: () => -1 });
+  const p = boot({ extra: { Event } });
+  p.studio({ paused: true });
+  p.frame(500);
+  assert.equal(p.run('new Event().timeStamp'), p.run('performance.now()'), 'paused, a tap\'s time stands still with the game');
 });
 
 test('a timer that throws is the game\'s error, and the frame goes on', () => {
