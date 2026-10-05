@@ -679,8 +679,11 @@ function renderPending(localId, entry) {
 
 // A message only gets an answer if some agent attached to this project is
 // eligible. Nothing in the interface used to say that, so an unanswered
-// message looked like a broken app. Said now where it is not obvious: helpers
-// that are here but waiting to be called, and a studio with none at all.
+// message looked like a broken app. Said now only where it is not obvious:
+// helpers that are here but all waiting to be called. An empty room says
+// nothing — every game's rooms come with the builder, and a chat with nobody
+// in it is somebody's choice, the + and the @ being how to change it
+// (decided 2026-10-05).
 function helperGap() {
   if (!S.project || frozen()) return null;
   // The human-only chat is not missing its helpers; it is the room without
@@ -688,36 +691,12 @@ function helperGap() {
   // the whole of the explanation, and a standing notice under a name that
   // already says it is furniture.
   if (S.chat && !S.chat.bots) return null;
-  if (S.project.agents.length > 0) {
-    // Attached, but every one of them is waiting to be called by name.
-    if (S.project.agents.some((a) => a.chatty)) return null;
-    const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
-    return h('div', { class: 'notice' },
-      `Your helpers only answer when you call them. Try starting your message with ${names}, `,
-      'or click the helper’s "..." and pick "Answer everything".');
-  }
-  // An empty room with helpers in the studio says nothing: every game's rooms
-  // come with the builder, and a chat with nobody in it is somebody's choice
-  // — the + and the @ are how to change it, and people know them (decided
-  // 2026-10-05).
-  if (S.agents.length > 0) return null;
+  // Attached, but every one of them is waiting to be called by name.
+  if (S.project.agents.length === 0 || S.project.agents.some((a) => a.chatty)) return null;
+  const names = S.project.agents.map((a) => `@${a.name.split(' ')[0]}`).join(' or ');
   return h('div', { class: 'notice' },
-    'Nobody can answer yet — the studio has no helpers. ',
-    h('button', {
-      class: 'link',
-      text: 'Make your first helper',
-      onclick: () => {
-        S.narrowPane = 'games';
-        S.sidebar = true;
-        prefs.set('sidebar', 'open');
-        // On the tab it will land on, so the new helper is where the eye goes
-        // when the dialog closes.
-        S.sideTab = 'crew';
-        prefs.set('side-tab', 'crew');
-        S.dialog = { kind: 'new-agent' };
-        render();
-      },
-    }), '.');
+    `Your helpers only answer when you call them. Try starting your message with ${names}, `,
+    'or click the helper’s "..." and pick "Answer everything".');
 }
 
 // The one item in that ··· with no dialog behind it: nothing is lost by
