@@ -23,9 +23,9 @@
    version and nothing else: gold that also means "active" means nothing, and
    these three are the only place in the studio it had drifted (CLAUDE.md,
    test/style.test.js). */
-/* ⚠️ The background is restated because pixel-editor.css's `button.quiet.on`
-   is global and fills a lit quiet button with the same cyan as this ink —
-   which made all three read as blank cyan bars. */
+/* ⚠️ The background is restated because base.css's `button.quiet.on` fills a
+   lit quiet button with the same cyan as this ink — which made all three read
+   as blank cyan bars. */
 .person button.on { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 50%, transparent); background: transparent; }
 /* What a row's button revealed, on its own line under the row: the new
    password field and the button that sets it. */

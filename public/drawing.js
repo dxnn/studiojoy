@@ -1024,7 +1024,7 @@ export function renderDrawing({ bar = null } = {}) {
   // words say what a press will do, so no aria-pressed to contradict them.
   const paperSays = lightPaper() ? 'Switch to dark paper' : 'Switch to light paper';
   const paperBtn = h('button', {
-    class: `icon-btn paper${lightPaper() ? ' on' : ''}`,
+    class: `quiet icon-btn paper${lightPaper() ? ' on' : ''}`,
     title: paperSays,
     'aria-label': paperSays,
     onclick: () => { prefs.set('draw-paper', lightPaper() ? 'dark' : 'light'); render(); },

@@ -146,6 +146,9 @@ button.quiet:hover:not(:disabled) {
   color: var(--accent);
   border-color: var(--accent);
 }
+/* Lit: a tool that is on, a switch that is set — the pixel editor's tools,
+   a binding being listened for, a picked answer. */
+button.quiet.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* A quiet button that destroys something is still crimson: quiet is its size
    and weight, and danger is what it does. */
 button.quiet.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, transparent); }

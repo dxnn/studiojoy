@@ -100,8 +100,9 @@
 }
 .pixel-grid .squares { stroke: rgba(128, 128, 150, 0.45); }
 .pixel-grid .eights { stroke: var(--accent); opacity: 0.7; }
-/* A square button holding one icon. The words live on its title and its
-   aria-label, so nothing here is only a picture. */
+/* A square button holding one icon: a quiet one (base.css), lit the same way.
+   The words live on its title and its aria-label, so nothing here is only a
+   picture. */
 button.icon-btn {
   display: inline-flex;
   align-items: center;
@@ -109,19 +110,6 @@ button.icon-btn {
   width: 30px;
   height: 28px;
   padding: 0;
-  color: var(--muted);
-  background: oklch(0.26 0.06 290 / 0.6);
-  border-color: var(--border);
-}
-button.icon-btn:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--accent);
-  border-color: var(--accent);
-}
-button.icon-btn.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
 }
 
 /* Two rows of sixteen, sized by the pane rather than fixed, so a narrow pane
@@ -140,4 +128,3 @@ input[type="color"] {
   width: 32px; height: 26px; padding: 0;
   border: 1px solid var(--border-soft); border-radius: 6px; background: none;
 }
-button.quiet.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

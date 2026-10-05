@@ -72,7 +72,7 @@ export function icon(name, size = 17) {
 // An icon button always carries the words too: a picture nobody recognises is
 // only a button you have to press to find out about.
 export const iconButton = ({ name, label, hint, on = false, disabled = false, onclick }) => h('button', {
-  class: `icon-btn${on ? ' on' : ''}`,
+  class: `quiet icon-btn${on ? ' on' : ''}`,
   title: hint ? `${label} — ${hint}` : label,
   'aria-label': label,
   'aria-pressed': on ? 'true' : null,
