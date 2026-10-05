@@ -282,7 +282,7 @@ export function renderLevelEditor() {
     const problems = levelChecks(lv, squares).length;
     const { rows, cols } = levelShape(lv);
     return h('div', {
-      class: `plan-row${st.at === i ? ' on' : ''}`,
+      class: `canvas-row${st.at === i ? ' on' : ''}`,
       onclick: (e) => {
         if (e.target.closest('button')) return;
         go(i);
@@ -302,7 +302,7 @@ export function renderLevelEditor() {
   // A kind of square the game made up, as a row: picking it paints with it,
   // and opens under the row where it is named and coloured.
   const squareRow = ([ch, sq]) => h('div', {
-    class: `plan-row${st.tool === ch ? ' on' : ''}`,
+    class: `canvas-row${st.tool === ch ? ' on' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button')) return;
       st.tool = ch;

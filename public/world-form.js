@@ -269,7 +269,7 @@ export function renderWorldEditor() {
   };
 
   const bodyRow = (b, i) => h('div', {
-    class: `plan-row${st.selected === i ? ' on' : ''}`,
+    class: `canvas-row${st.selected === i ? ' on' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button, select, input')) return;
       st.selected = i;

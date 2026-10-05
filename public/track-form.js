@@ -382,7 +382,7 @@ export function renderTrackEditor() {
 
   const fields = selectedFields(st);
   const thingRow = (t, i) => h('div', {
-    class: `plan-row${st.selected?.kind === 'thing' && st.selected.index === i ? ' on' : ''}`,
+    class: `canvas-row${st.selected?.kind === 'thing' && st.selected.index === i ? ' on' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button, select, input')) return;
       st.selected = { kind: 'thing', index: i };

@@ -44,8 +44,10 @@
 .plan-side input[type="range"] { flex: 1; min-width: 0; }
 .plan-side .hint { margin: 0; }
 /* A thing in the world as a row: what it is, where it is, its ···. Lights up
-   because it can be pressed. */
-.plan-row {
+   because it can be pressed. Not .plan-row, which is a dialog's row of an
+   upload or a person (dialog.css): sharing the name, each wore the other's
+   rules — these the dialog's baseline, those this hover. */
+.canvas-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -54,13 +56,13 @@
   cursor: pointer;
   font-size: 13px;
 }
-.plan-row:hover { background: var(--hover); }
+.canvas-row:hover { background: var(--hover); }
 /* The chosen row, and the level editor's chosen paint, lit the same way. */
-.plan-row.on, .level-tools button.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
-.plan-row .label { flex: 1; }
-.plan-row .hint.mono { font-size: 11px; }
+.canvas-row.on, .level-tools button.on { background: color-mix(in oklab, var(--look-primary) 28%, transparent); color: #fff; }
+.canvas-row .label { flex: 1; }
+.canvas-row .hint.mono { font-size: 11px; }
 /* A made-up kind of square's own colour, at the head of its row. */
-.plan-row .kind-colour {
+.canvas-row .kind-colour {
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
