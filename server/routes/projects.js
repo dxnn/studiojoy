@@ -19,7 +19,7 @@ import { listTree } from '../files/tree.js';
 import { listErrors, errorPublic } from '../runtime.js';
 import {
   requireProject, projectDirFor, authorFor, requireString, optionalBool,
-  messagePublic,
+  messagePublic, isArchived,
 } from './helpers.js';
 import { PROJECT_KINDS, tx } from '../db.js';
 import {
@@ -67,7 +67,7 @@ function projectPublic(ctx, row, user = null) {
     name: row.name,
     kind: row.kind,
     type: typeOf(ctx, row),
-    archived: row.archived === 1,
+    archived: isArchived(row),
     published: row.published === 1,
     scores_on: row.scores_on === 1,
     // Whether icon.png is at the root of the game's tree — a reserved image,
@@ -657,6 +657,8 @@ export function projectRoutes(r) {
   // is read.
   r.post('/api/projects/:slug/archive', async (ctx) => {
     const project = originatorsProject(ctx, 'archive');
+    // A game's door alone: a chat is never archived (helpers.js).
+    if (project.kind === 'chat') throw new HttpError(409, 'a chat is never archived');
     if (project.archived) throw new HttpError(409, 'project is archived');
     // The studio's own room, not anybody's project to put away.
     if (isAnnouncements(project)) throw new HttpError(409, 'the announcements stay');

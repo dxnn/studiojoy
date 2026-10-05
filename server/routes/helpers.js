@@ -5,6 +5,11 @@ import { requireAuth } from '../auth.js';
 import { canEdit } from '../authors.js';
 import { planFor, planPublic } from '../plans.js';
 
+// Archiving is a game's alone (decided 2026-10-05): a chat project is never
+// archived, and the flag one may carry from before means nothing — so every
+// read of it goes through here. The row keeps it; nothing migrates.
+export const isArchived = (project) => project.archived === 1 && project.kind !== 'chat';
+
 // Load the project named by :slug. Reads 404 on an unknown slug; writes also
 // 409 on an archived one (spec.md §6). Archiving stops edits, not reads, and
 // never stops the public game being served.
@@ -25,6 +30,8 @@ export function requireProject(ctx, { write = false, files = false, anyone = fal
     .prepare('SELECT * FROM projects WHERE slug = ?')
     .get(slug);
   if (!project) throw new HttpError(404, 'no such project');
+  // Read here once, so every route after it sees a chat as never archived.
+  project.archived = isArchived(project) ? 1 : 0;
   if (write && project.archived) throw new HttpError(409, 'project is archived');
   if (write && !anyone) {
     const user = requireAuth(ctx);

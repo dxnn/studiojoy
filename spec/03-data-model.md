@@ -189,7 +189,7 @@ the builder's by construction (§8).
 | `name` | TEXT NOT NULL | ≤ 200 chars |
 | `kind` | TEXT NOT NULL DEFAULT 'game' | `game` or `chat` |
 | `type` | TEXT | the game's **type**, a template's key (`visual-novel`, `quiz`, `arcade`, `adventure`, `racing`): which *editors* the centre pane offers and how helpers are briefed (§6, §8). Null is a free-form game |
-| `archived` | INTEGER NOT NULL DEFAULT 0 | |
+| `archived` | INTEGER NOT NULL DEFAULT 0 | a game's alone: read through `isArchived`, false for every chat whatever this says (§11) |
 | `published` | INTEGER NOT NULL DEFAULT 0 | listed in the public catalog at `/` on the games origin |
 | `scores_on` | INTEGER NOT NULL DEFAULT 1 | the per-game scoreboard switch: off, both `/_scores` routes answer 404 and the preamble stops naming the board; the rows are kept |
 | `created_by` | INTEGER NOT NULL → users | the **originator**: the one account that may archive the game (§11). Display otherwise |

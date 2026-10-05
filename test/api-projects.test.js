@@ -603,6 +603,27 @@ test('archiving blocks writes, reads keep working, and unarchiving undoes it', a
   );
 });
 
+// Archiving is a game's alone (decided 2026-10-05). A chat that was archived
+// before keeps the bit in its row, and nothing reads it: it is listed, opened
+// and talked in like any other.
+test('a chat is never archived, and one archived before is a chat like any other', async (t) => {
+  const app = await studio(t);
+  await app.client.json('POST', '/api/projects', { body: { name: 'Room', slug: 'room', kind: 'chat' } });
+  const refused = await app.client.json('POST', '/api/projects/room/archive', { body: {} });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /never archived/);
+
+  app.db.prepare("UPDATE projects SET archived = 1 WHERE slug = 'room'").run();
+  const listed = (await app.client.json('GET', '/api/projects')).body.find((p) => p.slug === 'room');
+  assert.equal(listed.archived, false);
+  const open = await app.client.json('GET', '/api/projects/room');
+  assert.equal(open.body.archived, false);
+  const said = await app.client.json('POST', '/api/projects/room/messages', {
+    body: { body: 'still here', chat_id: open.body.chat.id },
+  });
+  assert.equal(said.status, 201);
+});
+
 test("archiving and unarchiving are the originator's alone, and never a published game's", async (t) => {
   const app = await studio(t);
   await app.client.json('POST', '/api/projects', { body: { name: 'Tank' } });

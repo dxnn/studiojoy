@@ -80,7 +80,7 @@ the game as their avatar, with their alias on hover — never a name (§7).
 | POST | `/api/push/unsubscribe` | `{endpoint}` | forget it. ⚠️ Scoped to the caller, so knowing somebody's endpoint is not a way to switch their notifications off. 204 whether there was a row or not — turning a thing off should never fail |
 | POST | `/api/projects/:slug/story/fill` | `{sentence, scene: {key, about}, cast: [{key, name, about}], lines: [{who, say}]}` | the *fill*: a sentence about what happens back as `{lines: [{who, say}], tokens}` in the story's own keys. An editor's, like every change to a game |
 | POST | `/api/projects/:slug/story/picture` | `{kind, name?, about?, colours?}` | the drawn *stand-in*: `{svg, width, height, tokens}` — a flat SVG at the size `kind` (`portrait` 128², `background` 480×270) wants. The browser draws and saves it; the server writes nothing |
-| POST | `/api/projects/:slug/archive` | — | archive: the *originator*'s alone, refused while the game is published (§11). The pending commit lands first |
+| POST | `/api/projects/:slug/archive` | — | archive: the *originator*'s alone, refused while the game is published, and always for a chat, which is never archived (§11). The pending commit lands first |
 | POST | `/api/projects/:slug/unarchive` | — | the way back, the same person's alone (§11); 409 on a game that is not archived. Settles nothing — an archived tree owes no commit. `npm run unarchive` stays for a game whose originator has been removed |
 | POST | `/api/projects/:slug/authors` | `{user_id}` | add an editor; 404 for anybody deleted or without `studio_access` |
 | DELETE | `/api/projects/:slug/authors/:user_id` | — | drop an editor |

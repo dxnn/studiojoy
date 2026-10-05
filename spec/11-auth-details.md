@@ -97,6 +97,13 @@ still there, and is now for the one case the studio cannot reach — an
 originator who has been *removed* leaves a game nobody here can archive or
 unarchive; the terminal still can, by hand.
 
+**A chat is never archived** (since 2026-10-05). `POST /archive` refuses a
+chat project and its `···` offers no Archive. One archived before keeps the
+bit in its row — nothing migrates — and nothing reads it: `isArchived` in
+`routes/helpers.js` is false for every chat, and `requireProject`, the
+project list and the orchestrator all read through it, so such a chat is
+listed, opened, talked in and answered like any other.
+
 The client mirrors the rule rather than enforcing it: `frozen()` in `main.js`
 is `archived || !can_edit`, and every control that was disabled for an
 archived game is disabled for somebody else's. The server is what refuses.

@@ -71,7 +71,8 @@ ignored as a second lock.
 - `npm run unarchive -- <slug>` — brings an archived game back from a
   terminal. The studio does it too now: Archive and Unarchive are both in the
   game's `···`, both the originator's alone, and archiving is never a
-  published game's (spec/ §11). The script is for the game the studio cannot
+  published game's nor a chat's — a chat with the bit from before is read as
+  not archived (spec/ §11). The script is for the game the studio cannot
   reach — one whose originator has been removed. With no slug it lists what is
   archived.
 - `npm run backup -- [dest]` — one consistent copy of the database

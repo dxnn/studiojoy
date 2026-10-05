@@ -15,7 +15,7 @@ import {
   hasBudget, consumeBudget, DEFAULT_DAILY_TOKEN_BUDGET,
   studioLimit, userHasBudget, chargeUser,
 } from '../budget.js';
-import { messagePublic, agentAuthorFor } from '../routes/helpers.js';
+import { messagePublic, agentAuthorFor, isArchived } from '../routes/helpers.js';
 import { parseMentions, agentEligible } from '../mentions.js';
 import { createToolset } from './tools.js';
 import {
@@ -2032,7 +2032,8 @@ export function createOrchestrator({
       .prepare('UPDATE chat_agents SET response_pending = 0 WHERE id = ?')
       .run(row.id);
 
-    if (row.archived) {
+    // A chat is never archived, whatever its row says (routes/helpers.js).
+    if (isArchived(row)) {
       clearPending();
       return;
     }

@@ -252,25 +252,28 @@ test('a chat holds at most ten helpers', async (t) => {
   assert.match(res.body.error, /10 helpers/);
 });
 
-test('an archived project accepts no helper changes', async (t) => {
+// Helpers live in chat projects, and a chat is never archived (decided
+// 2026-10-05): one that carries the bit from before still has its helpers
+// changed like any other.
+test('a chat archived before still takes helper changes', async (t) => {
   const app = await studio(t);
   const agent = await makeAgent(app, { name: 'Designer', description: 'd' });
   const chat = await workChat(app, 'talk');
-  await putInChat(app, 'talk', agent.body.id, { chat_id: chat });
-  await app.client.json('POST', '/api/projects/talk/archive', { body: {} });
+  assert.equal((await app.client.json('POST', '/api/projects/talk/archive', { body: {} })).status, 409);
+  app.db.prepare("UPDATE projects SET archived = 1 WHERE slug = 'talk'").run();
 
-  assert.equal((await putInChat(app, 'talk', agent.body.id, { chat_id: chat })).status, 409);
+  assert.equal((await putInChat(app, 'talk', agent.body.id, { chat_id: chat })).status, 201);
   assert.equal(
     (await app.client.json(
       'PATCH', `/api/projects/talk/chats/${chat}/agents/${agent.body.id}`,
       { body: { chatty: true } },
     )).status,
-    409,
+    200,
   );
   const del = await app.client.request(
     'DELETE', `/api/projects/talk/chats/${chat}/agents/${agent.body.id}`,
   );
-  assert.equal(del.status, 409);
+  assert.ok(del.status < 300, String(del.status));
   await del.text();
 });
 

@@ -14,7 +14,8 @@ const db = openDb(existingDb());
 
 if (!slug) {
   const rows = db
-    .prepare('SELECT slug, name FROM projects WHERE archived = 1 ORDER BY name COLLATE NOCASE')
+    // Games only: a chat is never archived, whatever its row says.
+    .prepare("SELECT slug, name FROM projects WHERE archived = 1 AND kind != 'chat' ORDER BY name COLLATE NOCASE")
     .all();
   if (rows.length === 0) {
     console.log('nothing is archived');

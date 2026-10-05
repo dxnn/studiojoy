@@ -772,7 +772,7 @@ function renderMore(p) {
     rooms && !frozen() && S.chats.length < MAX_CHATS && item('Add chat…', 'new-chat', {
       title: 'Start another chat in this game',
     }),
-    p.originator && !p.archived && !p.published && !p.announce && item('Archive…', 'archive', {
+    rooms && p.originator && !p.archived && !p.published && item('Archive…', 'archive', {
       danger: true, title: 'Put this game away — you can unarchive it again',
     }),
     p.originator && p.archived && {
