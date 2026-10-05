@@ -119,10 +119,28 @@
   line-height: 1;
 }
 .view-changer .view-step .called, .view-changer .view-step .unread { margin-left: 4px; }
-/* The name and the line under it: what lights up is what can be clicked, and
-   this is neither, so it has no hover. */
-.view-changer .view-now { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* The name and the line under it: a button, the whole of the space between
+   the arrows, which opens every mode as a list (more() in main.js). The caret
+   says it opens; the one on screen in that list wears the pill's own light. */
+.view-changer > .more { flex: 1; min-width: 0; }
+.view-changer .view-now {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.view-changer .view-now.on { background: var(--hover); }
 .view-changer .view-name { font-family: var(--ui); font-weight: 700; font-size: 17px; color: var(--text); }
+.view-changer .view-name::after { content: '▾'; margin-left: 6px; font-size: 12px; color: var(--muted); }
+.view-changer .menu { max-width: calc(100vw - 8px); }
+.view-changer .menu-item { white-space: normal; }
+.view-changer .menu-item.on {
+  color: #fff;
+  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
+}
+.view-changer .menu-sub { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 400; color: var(--muted); }
 .view-changer .view-what {
   max-width: 100%;
   font-size: 11.5px;

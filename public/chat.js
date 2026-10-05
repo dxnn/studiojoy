@@ -827,7 +827,10 @@ export function renderPhoneHeader() {
 
 // ‹ and › step through the modes and wrap, so either way round reaches all
 // of them. Between them, the mode you are on and what it is for: a pill says that in a
-// title, and a phone has no hover to read one by. Speak's mark, when somebody
+// title, and a phone has no hover to read one by. Pressed, that name is the
+// whole list — every mode in the row's order, each with what it is for and
+// the one on screen marked — for a mode further off than a step or two.
+// Speak's mark, when somebody
 // is waiting in there, rides the arrow that reaches it sooner. Preview is the
 // rail, a pane of its own on a phone, and the same button closes it again.
 function renderViewChanger(p) {
@@ -836,20 +839,30 @@ function renderViewChanger(p) {
   const at = Math.max(0, modes.findIndex((m) => m.id === S.mode));
   const waiting = S.mode !== 'chat' && marked(p) ? readMark(p) : null;
   const leftward = at <= modes.length - at;
+  // ⚠️ Returned, not fired, as the pills' is (see syncUrl).
+  const go = (id) => { S.narrowPane = 'chat'; return openMode(id); };
   const step = (by, arrow) => {
     const to = modes[(at + by + modes.length) % modes.length];
     return h('button', {
       class: 'quiet view-step', title: `Go to ${to.label}`, 'aria-label': `Go to ${to.label}`,
-      // ⚠️ Returned, not fired, as the pills' is (see syncUrl).
-      onclick: () => { S.narrowPane = 'chat'; return openMode(to.id); },
+      onclick: () => go(to.id),
     }, arrow, (by < 0) === leftward ? waiting : null);
   };
   const railUp = S.narrowPane === 'rail';
   return h('div', { class: 'view-changer' },
     step(-1, '‹'),
-    h('div', { class: 'view-now' },
-      h('span', { class: 'view-name', text: modes[at].label }),
-      h('span', { class: 'view-what', text: modes[at].what })),
+    more('modes', modes.map((m, i) => ({
+      text: m.label, sub: m.what, on: i === at, onPick: () => go(m.id),
+    })), {
+      label: 'Choose where to go',
+      face: {
+        class: 'quiet view-now',
+        kids: [
+          h('span', { class: 'view-name', text: modes[at].label }),
+          h('span', { class: 'view-what', text: modes[at].what }),
+        ],
+      },
+    }),
     step(1, '›'),
     hasRail() ? h('button', {
       class: `quiet view-preview${railUp ? ' on' : ''}`,

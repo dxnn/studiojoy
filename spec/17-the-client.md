@@ -211,7 +211,9 @@ holds something git cannot recover.
   what gives way, and the game's ··· — and the **view changer** under it: ‹
   and › step through the
   modes and wrap, the mode you are on is named between them with its `what`
-  under it (a pill's title, which a phone has no hover to read), and Preview
+  under it (a pill's title, which a phone has no hover to read) — a button
+  whose list is every mode in the row's order, each with its `what`, the one
+  on screen lit (`more()` with a `face`) — and Preview
   is the rail, lit and reading *Close preview* while it is up. The wide bar,
   its published whisper and the pills are hidden at that width; an arrow
   pressed on the rail goes to the next mode in the centre. ⚠️ A pick whose

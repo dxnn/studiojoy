@@ -562,13 +562,19 @@ export function commitNow(slug = S.slug, { keepalive = false } = {}) {
 // Which one is open is `S.menu`, keyed by the thing, so a render keeps it;
 // the listener at the foot of this file closes it on a click anywhere else.
 // Clicks stop here: the row a ··· sits in usually opens something on a click.
-export function more(key, items, { label = 'More', small = true } = {}) {
+//
+// One menu wears another face: the view changer's name, which opens the list
+// of modes (chat.js) — `face` is its class and what it shows, and there an
+// item can be `on`, the one on screen, and carry a `sub` saying what it is.
+export function more(key, items, { label = 'More', small = true, face = null } = {}) {
   const list = items.filter(Boolean);
   if (list.length === 0) return null;
   const open = S.menu === key;
   const button = h('button', {
-    class: `icon more-dots${small ? ' tiny' : ''}${open ? ' on' : ''}`, text: '···',
-    title: label, 'aria-label': label,
+    class: `${face ? face.class : `icon more-dots${small ? ' tiny' : ''}`}${open ? ' on' : ''}`,
+    text: face ? null : '···',
+    // A face says what it is in its own words; a ··· has none of its own.
+    title: label, 'aria-label': face ? null : label,
     'aria-haspopup': 'menu', 'aria-expanded': open ? 'true' : 'false',
     onclick: (e) => {
       e.stopPropagation();
@@ -576,11 +582,12 @@ export function more(key, items, { label = 'More', small = true } = {}) {
       menuOpenedAt = performance.now();
       render();
     },
-  });
+  }, face?.kids);
   const menu = open ? h('div', { class: 'menu', role: 'menu' }, list.map((item) => h('button', {
-    class: `menu-item${item.danger ? ' danger' : ''}`, text: item.text, title: item.title, role: 'menuitem',
+    class: `menu-item${item.danger ? ' danger' : ''}${item.on ? ' on' : ''}`,
+    text: item.text, title: item.title, role: 'menuitem', 'aria-current': item.on ? 'true' : null,
     onclick: (e) => { e.stopPropagation(); S.menu = null; return item.onPick(); },
-  }))) : null;
+  }, item.sub ? h('span', { class: 'menu-sub', text: item.sub }) : null))) : null;
   if (menu) placeMenu(button, menu);
   return h('div', { class: 'more' }, button, menu);
 }

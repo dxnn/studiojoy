@@ -6,8 +6,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { install, all, withClass, hasClass } from './dom-stand-in.js';
 
-// ⚠️ Before main.js, which reads `document` on the way in.
+// ⚠️ Before main.js, which reads `document` on the way in. An open menu is
+// placed on the next frame, which a stand-in never draws.
 install();
+globalThis.requestAnimationFrame = () => 0;
 
 const { S } = await import('../public/main.js');
 const { renderPhoneHeader } = await import('../public/chat.js');
@@ -48,6 +50,25 @@ test('the mode on screen says what it is for, which a pill only says on hover', 
     assert.equal(withClass(tree, 'view-name')[0].textContent, mode.label);
     assert.equal(withClass(tree, 'view-what')[0].textContent, mode.what);
   }
+});
+
+// For a mode further off than a step or two: the name is a button, and its
+// list is every mode in the row's order, each saying what it is for — a phone
+// has no hover to read a pill's title by — with the one on screen marked.
+test('the name opens every mode as a list, the one on screen marked', () => {
+  const modes = modesFor(GAME);
+  S.menu = null;
+  const [shut] = withClass(head({ mode: 'hear' }), 'view-now');
+  assert.equal(shut.tag, 'button');
+  assert.equal(shut.attrs['aria-haspopup'], 'menu');
+  assert.equal(withClass(head({ mode: 'hear' }), 'menu').length, 0, 'shut until pressed');
+
+  S.menu = 'modes';
+  let items;
+  try { items = withClass(head({ mode: 'hear' }), 'menu-item'); } finally { S.menu = null; }
+  assert.deepEqual(items.map((n) => n.textContent), modes.map((m) => m.label));
+  assert.deepEqual(items.map((n) => withClass(n, 'menu-sub')[0].textContent), modes.map((m) => m.what));
+  assert.deepEqual(items.filter((n) => hasClass(n, 'on')).map((n) => n.textContent), ['Hear']);
 });
 
 test('Preview is one button, lit and saying so while the rail is up', () => {
