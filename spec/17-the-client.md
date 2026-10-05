@@ -93,7 +93,10 @@ is gone unless it is snapshotted and put back.
   placeholder of its size, and `placePreview` lays the fixed frame over the
   placeholder's rectangle after every render, on resize and on any scroll —
   hidden while the placeholder is hidden or gone, which is every mode but
-  Play. ⚠️ Hidden, not unloaded: the game stays loaded and paused off Play
+  Play. ⚠️ And cut to Play's scroller with a `clip-path`, which clips the
+  pointer as well: Play scrolls to reach the tweaks, and a fixed frame
+  following its placeholder up slid over the pills and the bar and took their
+  clicks. ⚠️ Hidden, not unloaded: the game stays loaded and paused off Play
   (§6), so the builder's shot is still there to take; `settlePreview` loads
   the open game's wrapper whatever the mode, and `about:blank` only when no
   game is open. The problems panel and the moments panel are still painted in

@@ -1104,7 +1104,8 @@ function placePreview() {
   // each time if the value never changes.
   const { ratio } = previewShape();
   const room = slot.getBoundingClientRect().width;
-  const pane = slot.closest('[data-scroll]')?.clientHeight ?? window.innerHeight;
+  const scroller = slot.closest('[data-scroll]');
+  const pane = scroller?.clientHeight ?? window.innerHeight;
   const tall = `${Math.round(Math.max(120, Math.min(room / ratio, pane - FOOT_ROOM)))}px`;
   if (slot.style.height !== tall) slot.style.height = tall;
   const box = slot.getBoundingClientRect();
@@ -1113,7 +1114,14 @@ function placePreview() {
   if (wrap && wrap.style.getPropertyValue('--frame-w') !== wide) {
     wrap.style.setProperty('--frame-w', wide);
   }
-  const shown = box.width > 0 && box.height > 0;
+  // Play scrolls — the tweaks are under the game — and the frame is fixed, so
+  // it is cut to the scroller's box: uncut, it slid up over the pills and the
+  // bar with the placeholder and took their clicks. A clip-path clips the
+  // pointer too.
+  const view = scroller?.getBoundingClientRect();
+  const above = view ? Math.max(0, Math.round(view.top - box.top)) : 0;
+  const below = view ? Math.max(0, Math.round(box.bottom - view.bottom)) : 0;
+  const shown = box.width > 0 && box.height > above + below;
   previewFrame.style.display = shown ? '' : 'none';
   if (!shown) return;
   Object.assign(previewFrame.style, {
@@ -1121,6 +1129,7 @@ function placePreview() {
     left: `${Math.round(box.left + (box.width - parseFloat(wide)) / 2)}px`,
     width: wide,
     height: `${box.height}px`,
+    clipPath: above || below ? `inset(${above}px 0 ${below}px 0)` : '',
   });
 }
 
