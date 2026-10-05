@@ -164,12 +164,11 @@ async function saveTweaks() {
   render();
 }
 
-// Undo: nothing tried any more, and a fresh page, since a value already
-// written into the running game cannot be taken back out of it.
+// Undo: nothing tried any more. The preview player puts every value it
+// changed back to the file's at once, where the game is — no fresh page.
 function undoTweaks() {
   keep(S.slug, { list: {}, live: {} });
   settlePlayer();
-  S.previewNonce += 1;
   render();
 }
 

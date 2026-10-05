@@ -310,13 +310,42 @@ export const PREVIEW_PLAYER_JS = `(function () {
     }
   }
 
-  function tweak(decls) {
+  // What each declaration was before a tweak first touched it, by file and
+  // name, so a tweak let go — its value put back to the file's, or every
+  // tweak undone — puts the game back at once rather than at the next page.
+  // Config is plain data, so its JSON is the whole of it.
+  var originals = {};
+
+  function liveOf(name) {
+    if (!/^[A-Za-z_$][\\w$]*$/.test(name)) return null;
+    var live;
+    try { live = (0, eval)(name); } catch (err) { return null; }
+    return live && typeof live === 'object' ? live : null;
+  }
+
+  function tweak(file, decls) {
     for (var name in decls) {
-      if (!Object.prototype.hasOwnProperty.call(decls, name) || !/^[A-Za-z_$][\\w$]*$/.test(name)) continue;
-      var live;
-      try { live = (0, eval)(name); } catch (err) { continue; }
-      if (live && typeof live === 'object' && decls[name] && typeof decls[name] === 'object') {
-        into(live, decls[name]);
+      if (!Object.prototype.hasOwnProperty.call(decls, name)) continue;
+      var live = liveOf(name);
+      if (!live || !decls[name] || typeof decls[name] !== 'object') continue;
+      var kept = originals[file] || (originals[file] = {});
+      if (!Object.prototype.hasOwnProperty.call(kept, name)) {
+        try { kept[name] = JSON.stringify(live); } catch (err) { /* not plain: never put back */ }
+      }
+      into(live, decls[name]);
+    }
+  }
+
+  // Every declaration a tweak touched and no tweak names now, put back.
+  function untweak() {
+    for (var file in originals) {
+      if (!Object.prototype.hasOwnProperty.call(originals, file)) continue;
+      for (var name in originals[file]) {
+        if (!Object.prototype.hasOwnProperty.call(originals[file], name)) continue;
+        if (tweaks[file] && Object.prototype.hasOwnProperty.call(tweaks[file], name)) continue;
+        var live = liveOf(name);
+        if (live) into(live, JSON.parse(originals[file][name]));
+        delete originals[file][name];
       }
     }
   }
@@ -336,7 +365,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
         var el = event.target;
         if (!el || el.tagName !== 'SCRIPT' || !el.src) return;
         var file = fileOf(el.src);
-        if (file && tweaks[file]) tweak(tweaks[file]);
+        if (file && tweaks[file]) tweak(file, tweaks[file]);
       } catch (err) { /* never break the game */ }
     }, true);
   }
@@ -344,8 +373,9 @@ export const PREVIEW_PLAYER_JS = `(function () {
   function retweak(next) {
     tweaks = next && typeof next === 'object' ? next : {};
     try { localStorage.setItem(TWEAKS, JSON.stringify(tweaks)); } catch (err) { /* private mode */ }
+    untweak();
     for (var file in tweaks) {
-      if (Object.prototype.hasOwnProperty.call(tweaks, file)) tweak(tweaks[file]);
+      if (Object.prototype.hasOwnProperty.call(tweaks, file)) tweak(file, tweaks[file]);
     }
   }
 

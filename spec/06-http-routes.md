@@ -769,8 +769,10 @@ run, from the games origin's own copy the player keeps — so a reload keeps
 them, and so does Back to a pin. Kept as values where they sit, never as a
 copy of the file, so somebody else's change to the same file meanwhile
 stands: **Save them** splices each tweak into the file as it is then and
-writes it, and **Undo** drops them all and reloads the preview, since a value
-written into a running game cannot be taken back out. **Make some with the
+writes it, and **Undo** drops them all. A tweak let go — Undo, or a field put
+back to the file's own value — is undone where the game is, with no fresh
+page: the player keeps each object's values from before it first wrote into
+it, and puts back the ones nothing tries any more. **Make some with the
 builder**, which this section once
 carried for a game with no achievements, is beside *+ Add an achievement*
 under Share. It opens the game's builder room called *Achievements* — making

@@ -259,6 +259,24 @@ test('a tweak goes into the running game, and the next page has it before the ga
 
   next.studio({ tweaks: {} });
   assert.equal(next.storage.get('studio-tweaks:tank'), '{}', 'undone, nothing for the page after');
+  assert.equal(next.run('JSON.stringify(PLAY)'), '{"SPEED":4,"GROUP":{"A":1,"B":2},"LIST":[1,2]}',
+    'and the game is back to what the file says, at once');
+});
+
+// A value put back to what the file says is no tweak at all, so the studio
+// stops naming its declaration — and the game has to go back with it, now
+// rather than at the next page (decided 2026-10-05).
+test('a tweak let go puts the game back at once', () => {
+  const p = boot();
+  p.run('const PLAY = { SPEED: 4, JUMP: 2 }; const LOOK = { SKY: "#000" };');
+  p.studio({ tweaks: { 'config/play.js': { PLAY: { SPEED: 9, JUMP: 2 } }, 'config/look.js': { LOOK: { SKY: "#fff" } } } });
+  assert.equal(p.run('PLAY.SPEED'), 9);
+  p.studio({ tweaks: { 'config/look.js': { LOOK: { SKY: "#fff" } } } });
+  assert.equal(p.run('PLAY.SPEED'), 4, 'the one let go is the file\'s again');
+  assert.equal(p.run('LOOK.SKY'), '#fff', 'and the one still tried is left alone');
+  p.studio({ tweaks: { 'config/play.js': { PLAY: { SPEED: 7, JUMP: 2 } }, 'config/look.js': { LOOK: { SKY: "#fff" } } } });
+  p.studio({ tweaks: { 'config/look.js': { LOOK: { SKY: "#fff" } } } });
+  assert.equal(p.run('PLAY.SPEED'), 4, 'tried again and let go again, still the file\'s');
 });
 
 test('it asks the studio for its settings, and only when framed', () => {
