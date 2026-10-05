@@ -249,7 +249,7 @@ Three choices worth naming:
   files, and nothing else in the app wants one.
 
 An asset opens as the thing itself — a picture in the *pixel editor* full
-width under Pics or Code, a sound's sliders or player in the rail under Hear,
+width under Pics or Code, a sound's sliders or player under its row in Hear,
 an `img`, `audio` or `video` pointed at the studio's own read route for
 anything it cannot edit. An agent never sees its bytes (§8), and `write_file`
 takes text, so a helper can point a game at `assets/sprites/hero.png` but
@@ -536,8 +536,13 @@ the pane per keystroke would replace the Save button under the pointer.
 
 #### The shell
 
-Three panes: the sidebar, the conversation, the rail. Each choice is about
-where a thing is reachable from, not how it looks.
+Two panes: the sidebar and the centre. Each choice is about where a thing is
+reachable from, not how it looks. ⚠️ There were three until 2026-10-05: the
+**rail** on the right held the preview and the selected thing's fields, and
+went — on a phone there was only ever room for one pane,
+and on a wide screen neither pane could be closed. The preview is **Play**, a
+mode of the centre, and every selected thing's fields open **in place**, under
+the row or the cards they belong to.
 
 **The sidebar is one list at a time** — Games, Chats, Crew — with tabs and a
 filter box, not the three stacked foldable sections that fought each other
@@ -545,7 +550,7 @@ for the pane's height before. Crew is everyone in the studio, **Humans** over
 **Helpers**, since both belong to the studio rather than a game, from `GET
 /api/users` — names and ids, no addresses — read once at boot; the empty
 state says where accounts come from, since nothing here makes one. The tab is
-remembered per browser next to the rail width; the filter isn't, since a
+remembered per browser; the filter isn't, since a
 stale filter is a list with things missing. The button above the tabs makes
 whatever it holds, so `+ New chat` is never a click away.
 
@@ -738,20 +743,23 @@ three destinations a file can go — this game, another, or a picture into the
 `S.menu` holds which is open, keyed by the thing, so a render keeps it and a
 click elsewhere closes it.
 
-**The inspector** (a working name, ideas/calm-shell.md) is the rail under the
-preview, holding the selected thing's fields when the mode has one: in the
-story editor a scene's name, ways in, note, picture and music; a person's
-name and note; the title screen's two lines — letting the centre be what
-happens rather than what things are called. Its fields keep the ids the
-focus snapshot knows (§17), so the caret survives a render there too. A file
-has none: its bar in the centre already says what it is.
+**The inspector** (a working name, ideas/calm-shell.md) is the selected
+thing's fields, opened **in place** (`.inspector.in-place`, since 2026-10-05,
+when it left the rail): in the story editor a scene's name, ways in, note,
+picture and music, a person's name, note and moods, and the title screen's
+two lines, each at the head of the steps; the adventure's the same at the head
+of the spots; a sound's editor under its row in Hear; a character's under
+Pics' cards; the plan canvases' chosen point, thing or kind of square under
+its row in the side column. One open at a time, the same row or card closing
+it. Its fields keep the ids the focus snapshot knows (§17), so the caret
+survives a render. A file has none: its bar in the centre already says what
+it is, and a picture the studio wears says under it what it dresses.
 
-With nothing more specific selected, the inspector is the **tweaks**
-(`public/tweaks.js`, 2026-10-04; until then the scores and achievements,
-which live under Share alone now): the game's tuning files under the preview
-— every `config/` file but the ones that are content with editors of their
-own — as the config form's own rows, `config/play.js` open and the rest a
-click away. A value changed there is **tried**, not saved: it goes into the
+Under the game in Play are the **tweaks** (`public/tweaks.js`, 2026-10-04;
+until then the scores and achievements, which live under Share alone now):
+the game's tuning files — every `config/` file but the ones that are content
+with editors of their own — as the config form's own rows, `config/play.js`
+open and the rest a click away. A value changed there is **tried**, not saved: it goes into the
 running game at once, the preview player writing it into the live object
 (`PLAY.GRAVITY = 600`; a `const` that is a plain number cannot be written to
 and keeps what the file says), its row lit cyan with a dot, and it is kept in
@@ -762,9 +770,8 @@ them, and so does Back to a pin. Kept as values where they sit, never as a
 copy of the file, so somebody else's change to the same file meanwhile
 stands: **Save them** splices each tweak into the file as it is then and
 writes it, and **Undo** drops them all and reloads the preview, since a value
-written into a running game cannot be taken back out. The rail is meant to be
-the preview player's alone; what the editors keep in it is to move into the
-centre (TODO.md). **Make some with the builder**, which this section once
+written into a running game cannot be taken back out. **Make some with the
+builder**, which this section once
 carried for a game with no achievements, is beside *+ Add an achievement*
 under Share. It opens the game's builder room called *Achievements* — making
 it the first time, Building when the game already has every room it may —
@@ -782,14 +789,15 @@ below it.
 **The row under it is the mode row**: one pill per surface the centre can
 show, in the order the type gives (`modesFor` in `public/game-types.js`) —
 the chat, then the type's editors (**Write** for a visual novel), then
-pictures, sounds, controls, the tree, the versions and the public face. A chat
-project has no row. **The pill you are on, pressed again, closes the open
+pictures, sounds, controls, the tree, the versions, the public face and, last,
+**Play**: the game. A chat project has no row; a game in Game Design has no
+Play, having no game yet. **The pill you are on, pressed again, closes the open
 file** and leaves the mode: the way back to the cards, the rows or the tree
 without reaching for the bar's ✕. Not under Questions or Controls, where the
 file is the mode. **On a phone the row is the view changer** (§17): ‹ and › step
-through the same modes in the same order and wrap, the one you are on is
-named between them with its `what` under it, and Preview beside them opens
-the rail and closes it again.
+through the same modes in the same order and wrap, and the one you are on is
+named between them with its `what` under it — Play among them, with no
+button of its own.
 
 ⚠️ **The pills are named for the senses; nothing else is.** They read
 **Speak**, **See**, **Hear**, **Touch**, **Taste**, **Recall**, **Smell**,
@@ -807,9 +815,9 @@ it in Controls" while the pill in front of them says Touch. Two strings in
 `orchestrator.js` end that when the names stay. Which is showing is the centre's one piece of state
 (`S.mode`), in the address as `?mode=`, remembered per game; a game opens on
 what the address says, else what the browser remembers, else its type's
-first editor, else Chat. There is no Play — the preview lives in the rail
-only, so the ask-commit-reload-play loop stays one pane away regardless of
-mode. Leaving a mode lands the game's *pending commit* (§5).
+first editor, else Chat. **Play** is the eighth, and plainly named — no sense
+was left that meant it — `play` in the code too. Leaving a mode lands the
+game's *pending commit* (§5).
 
 **The body of the centre pane is the mode's.** Chat is the chat's own row —
 pills, the helpers listening and the `+` that calls another in (⚠️ each its
@@ -837,14 +845,14 @@ mood) over **Places** (backgrounds, with scene counts); for an *adventure*,
 **Studio dressing**, and **Other pictures** last, so nothing the tree holds
 is missing. ⚠️ A card pressed **once** opens full width in the *pixel
 editor*, the bar's ✕ — or the pill pressed again — the way back, the file's
-own `···` beside the ✕ since on a phone the card it came from is gone, and
-the rail carries the open picture's fields — where it lives, what it dresses. Selecting into the rail first and
-opening on the second click was a step that bought nothing: what the rail
-showed was the same picture at a size nothing could be done with, and Code's
-rows already went straight to the editor, so the two panes contradicted each
-other about what a picture is. Hear is rows, sounds over music;
-the open one's *sound editor* — or a player, for one not made here — lands
-in the rail, closed by the same row. Each has its maker at the top. Pics'
+own `···` beside the ✕ since on a phone the card it came from is gone; a
+picture the studio wears says under the bar what it dresses. Selecting a
+picture first and opening it on the second click was a step that bought
+nothing, and Code's rows already went straight to the editor. A character's
+card opens their fields under the cards, the same card closing them. Hear is
+rows, sounds over music; the open one's *sound editor* — or a player, for one
+not made here — opens under its own row, closed by the same row. Each has its
+maker at the top. Pics'
 is three buttons rather than a dialog — **Draw a picture**, **Upload a
 picture** straight into the device's own picker, and **Add from the studio**,
 the *shelf* (below) with every kind on it at once. Every way into Pics adds a
@@ -936,27 +944,34 @@ the column and SQLite can't change a default after the fact. A chat project
 is everyone's by rule rather than by column (§11): nothing reads its
 `open_edit`, so it wears no padlock and has no `Editors`.
 
-**The rail is the running game, and no tabs**: the preview, `Open` and
-`Hide` on the frame since both act on the game, and under it the problems
-and moments it reported, then the inspector (above). Folded, it is one row
-that still plays, remembered
-per browser. The preview is a thing, so what changes it is in its own `···`:
-the **shape** to try the game in — Normal (4:3), Wide (16:9), Phone (9:16),
-Square — a tick on the one it is in, remembered per browser next to the rail
-width. A game decides its own size from the window it is given
-(`Screens.fit`), so giving it a phone's window is the only way to find out
-what it does on one. The frame is the biggest box of that shape the rail's
-width and half the window's height allow, centred, with the foot under it the
-same width — a bar wider than the game it belongs to reads as a bar belonging
-to something else. `Reload` is gone — a save already reloads it. Files, Versions,
-Scoreboard and Achievements are modes of the centre now (above); the file
-editors open by kind: a picture under Pics or Code, a sound in the rail
-under Hear, everything else under Code.
+**Play is the running game** (since 2026-10-05; until then the rail, beside
+every mode): the preview, the preview player's controls and `Open` on its
+foot, the note or the robot's under it, the problems and moments it reported,
+then the tweaks (above), one scroller on the game's own loud surface. Nothing
+folds it away: leaving the tab is how. ⚠️ **Off Play the game stays loaded and
+paused** — the preview player is told so on every mode change (`showMode`)
+and on every new page — because the builder's *shot* is taken from the live
+preview when a message is sent, and messages are sent from Speak: unloaded
+off its tab, the builder would never see the game. It carries on coming back,
+unless it was paused by hand; it is unloaded only when no game is open. The
+preview is a thing, so what changes it is in its own `···`: the **shape** to
+try the game in — Normal (4:3), Wide (16:9), Phone (9:16), Square — a tick on
+the one it is in, remembered per browser. A game decides its own size from
+the window it is given (`Screens.fit`), so giving it a phone's window is the
+only way to find out what it does on one. The frame is the biggest box of
+that shape Play's width and height allow less room for its foot, centred,
+with the foot under it the same width — a bar wider than the game it belongs
+to reads as a bar belonging to something else. `Reload` is gone — a save
+already reloads it. **Try this scene** and **Try it** open Play (`tryFrom`),
+on the editor's place when it names one; the address carries the mode, so
+Back is the way back to the editor. The file editors open by kind: a picture
+under Pics or Code, a sound under its row in Hear, everything else under
+Code.
 
 **A game lends the studio its four colours** — its *look* — while it is
 open. `config/look.js` is read once for both the *palette* and these; the
 four are set on the shell as `--look-*`, read only by the chat pane, its
-buttons, the composer, the game's actions and the rail. The sidebar stays
+buttons, the composer, the game's actions and Play. The sidebar stays
 the studio's own cyan on purpose, so the studio never looks like whichever
 game is open. ⚠️ Each value is checked before reaching a style attribute —
 no colon or semicolon, so it can't close the declaration and open another,
@@ -1116,9 +1131,9 @@ without a commit (`stageFor` in `story-editor.js`, pure and tested); its
 pictures are cached object URLs, dropped when `files.changed` names their
 path. Under it, the **steps**: one row per line, dragged into order or moved
 from its `···`, then the exit (choices, go, or end) and the scene's problems.
-What the scene *is* — name, *comes from* links, note, picture, music — lives
-in the **inspector** in the rail; what can be done to it whole (*Start
-here*, *Duplicate*, *Delete*) is the `···` on its strip row.
+What the scene *is* — name, *comes from* links, note, picture, music — heads
+the steps, in the **inspector** opened in place; what can be done to it whole
+(*Start here*, *Duplicate*, *Delete*) is the `···` on its strip row.
 
 Like the quiz editor it regenerates the whole file and is byte-identical on
 an untouched save, and it says five things no single field can: a scene
@@ -1133,10 +1148,10 @@ picture, sound or quiz; Code's text editor keeps its Save, since half-typed
 code is a broken game the *reporter* would post. *Show the text* saves first
 and opens the file as plain text — the editor is in the middle, and a form
 there too would be a second surface writing the same file. *Try this scene*
-saves first, then reloads the preview and puts it on the scene through the
+saves first, then opens Play on a fresh page put on the scene through the
 *preview player*'s savepoint — `{playing, scene, line: 0}` laid over the
-game's State and pinned (`tryFrom`, below) — held while the editor shows, so
-each save's reload lands back there. The game takes no way in from its own
+game's State and pinned (`tryFrom`, below) — held across Play and the editor,
+so each save's reload lands back there, and forgotten in any other mode. The game takes no way in from its own
 address any more: a player cannot skip to an ending with `?scene=`. ⚠️
 Unsaved edits park per game on leaving and return while the file's etag
 still matches, so a mis-click in the sidebar can't cost a scene; a changed
@@ -1144,8 +1159,7 @@ file drops them with a word. ⚠️ A reload after a save keeps the story on
 screen until the new one is read, so the address isn't written without its
 scene as a spurious history entry. It keeps the person whose card is open
 too: a save's own `files.changed` often lands after its PUT has answered,
-and the re-read closed the card mid-edit. On a phone *Try this scene* also
-goes to the rail, where the preview is.
+and the re-read closed the card mid-edit.
 
 **The title screen** is a row above the scenes — the one thing here that
 isn't a scene. Its two lines are `config/words.js`'s, read and spliced back
@@ -1527,7 +1541,7 @@ where a push would duplicate the entry being arrived at.
 
 Reading it back is the same code path on load and on Back, and it takes away
 what the address does not say as well as putting in what it does: Back out of a
-file closes it. Within one game the rail moves on its own rather than the
+file closes it. Within one game the centre moves on its own rather than the
 project being refetched, because reopening a project clears the pins, the
 reasoning traces and anything mid-stream. A part that no longer exists — a
 deleted file, a commit past the end of the list — simply does not open.
@@ -1580,7 +1594,7 @@ middle moves it, its corner grip resizes it, and a tap on one opens its row.
 Under it one row per spot — *goes to* / *says* / *picks up*, then its target,
 its words or its item, then *only if*, *remembers* and a sound — and the
 scene's problems; the bar carries the whisper, *Show the text* and *Try this
-scene*. The rail holds the scene's name, ways in, note and picture (with
+scene*. At the head of the spots, in place, the scene's name, ways in, note and picture (with
 *Pick a picture…* to the shelf and the picture's size), an item's picture
 with *Draw one* / *Pick a thing…*, or the title screen's two lines. It saves
 itself like the story's, regenerates the file (byte-identical on an untouched
@@ -1650,8 +1664,8 @@ in hand; drag a rock, a pad or a puddle to move it; Delete takes the selected
 one out, never below three points. The column beside it holds the width as a
 slider, how long the loop is, **On the road** — a row per thing and a button
 to drop each kind, landing on the road nearest the middle — and the checks;
-the rail holds the selected point's or thing's own numbers, *Start here*, and
-the way to take it out. ⚠️ **Explicit Save**, unlike the story's and the
+the selected thing's own numbers open under its row, and a point's — it has
+no row — under the road's, with *Start here* and the way to take it out. ⚠️ **Explicit Save**, unlike the story's and the
 adventure's: a half-dragged track is a race nobody can finish, and Save is
 what puts the preview on the new road; *Try it* saves first. Regenerates the
 file (byte-identical on an untouched save), parks unsaved edits per game,
@@ -1713,8 +1727,8 @@ draws it. Drag a thing by wherever it was pressed to move it; the chosen
 one's white dot sizes it (a rectangle's corner in its own turned frame, a
 round thing's edge); drag the sling; Delete takes the chosen one out. The
 column holds a button per kind — dropped in the middle of the sky — a row per
-thing and the checks; the rail holds the chosen thing's kind, place, size and
-turn, or with nothing chosen the sling's place. Explicit Save, like the
+thing — the chosen one's kind, place, size and turn open under its row — the
+sling's place as numbers, and the checks. Explicit Save, like the
 track's. Its checks: **nothing to knock down**, **nothing still** (no block,
 so everything falls off the bottom), a body **past the edge of the world**,
 two bodies **starting inside each other** — measured by separating axes for
@@ -1779,8 +1793,8 @@ after the chosen one, so a new level is one the ball can already finish.
 Pick what a square is — Wall, Floor, Hole, Coin, Start, Goal, or a row under
 **Made up for this game** — then click or drag to paint; a second Start or
 Goal moves the first. `+ A new kind of square` takes the next free letter,
-a name to change and a colour, and the rail is where it is named, coloured
-and made solid; its `···` has Delete only while no level uses it, since a
+a name to change and a colour, and under its row is where it is named,
+coloured and made solid; its `···` has Delete only while no level uses it, since a
 letter SQUARES no longer names would shut the editor out of the file. `+ Row`, `− Row`, `+ Column`, `− Column`
 grow and shrink the grid at the near end and the right, between 3 and 24 a
 side; squares the ball can never reach are dimmed. The plan canvas takes its

@@ -1,6 +1,6 @@
 // The phone header (spec/ §17): the game's bar, and under it the view changer
 // that stands in for the pills on a phone — ‹, the mode you are on and what it
-// is for, ›, and Preview. How it sits on a screen is the browser's to judge; what
+// is for, and ›. How it sits on a screen is the browser's to judge; what
 // each control says it does, and that nothing in it is greyed, is this file's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,18 +71,19 @@ test('the name opens every mode as a list, the one on screen marked', () => {
   assert.deepEqual(items.filter((n) => hasClass(n, 'on')).map((n) => n.textContent), ['Hear']);
 });
 
-test('Preview is one button, lit and saying so while the rail is up', () => {
-  const [closed] = withClass(head({ pane: 'chat' }), 'view-preview');
-  assert.equal(closed.textContent, 'Preview');
-  assert.equal(hasClass(closed, 'on'), false);
-  const [open] = withClass(head({ pane: 'rail' }), 'view-preview');
-  assert.equal(open.textContent, 'Close preview');
-  assert.equal(hasClass(open, 'on'), true);
+// The game is Play, a mode like the rest, so the header has no button of its
+// own for it any more — it is the last in the list (spec/ §17).
+test('the game is Play, last in the list, with no button of its own', () => {
+  assert.equal(withClass(head(), 'view-preview').length, 0);
+  S.menu = 'modes';
+  let items;
+  try { items = withClass(head(), 'menu-item'); } finally { S.menu = null; }
+  assert.equal(items.at(-1).textContent, 'Play');
 });
 
 test('nothing in the header is greyed out', () => {
-  for (const pane of ['chat', 'rail']) {
-    for (const node of all(head({ mode: 'story', pane }))) {
+  for (const mode of ['story', 'play']) {
+    for (const node of all(head({ mode }))) {
       assert.equal(node.disabled, undefined, `${node.tag}.${node.className} is not disabled`);
     }
   }

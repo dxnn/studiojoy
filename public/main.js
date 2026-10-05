@@ -43,7 +43,7 @@ import {
   readChat, openChat, stickToBottom, sendMessage, followAt, keyAt, closeAtMenu, placeAtMenu,
 } from './chats.js';
 import { renderProblems, renderMoments, resetGameNodes } from './telemetry.js';
-import { renderPlayerControls, renderRobotNote } from './preview-player.js';
+import { renderPlayerControls, renderRobotNote, settlePlayer } from './preview-player.js';
 import { renderWardrobe, openWardrobe, closeWardrobe } from './wardrobe.js';
 import { renderTweaks } from './tweaks.js';
 import { loadPeople } from './people.js';
@@ -64,16 +64,6 @@ export const prefs = {
     try { localStorage.setItem(`gs.${key}`, String(value)); } catch { /* private mode */ }
   },
 };
-
-const RAIL_MIN = 280;
-const RAIL_MAX = 900;
-
-// The rail may never squeeze the chat below a readable width, whatever is
-// stored or dragged.
-function railClamp(px) {
-  const max = Math.max(RAIL_MIN, Math.min(RAIL_MAX, window.innerWidth - 420));
-  return Math.min(max, Math.max(RAIL_MIN, Number.isFinite(px) ? px : 360));
-}
 
 /* State ------------------------------------------------------------------- */
 
@@ -226,12 +216,11 @@ export const S = {
   autoscroll: true,
   narrowPane: 'chat',
   sidebar: prefs.get('sidebar', 'open') !== 'closed',
-  railWidth: railClamp(Number(prefs.get('rail', '360'))),
   // Which of the sidebar's three lists is showing — games, chats or crew (the
   // people and the helpers, in that order). Three stacked sections fought each
   // other for the height of the pane; one list at a time, with tabs over it,
-  // is the same things and one decision. Remembered like the rail width,
-  // because it is a place you work from rather than a step in a task.
+  // is the same things and one decision. Remembered per browser, because it
+  // is a place you work from rather than a step in a task.
   sideTab: ['games', 'chats', 'crew'].includes(prefs.get('side-tab', 'games'))
     ? prefs.get('side-tab', 'games')
     : 'games',
@@ -239,13 +228,8 @@ export const S = {
   // screen, not a query. Deliberately not remembered — a filter still in force
   // tomorrow is a list with things missing from it.
   sideFind: '',
-  // Whether the game is showing at the top of the rail or folded to one row.
-  // Remembered next to the rail width: on a small screen the file list is
-  // worth the whole pane, and that is a preference, not a step.
-  previewOpen: prefs.get('preview', 'open') !== 'closed',
   // Which shape the preview is trying the game in — see PREVIEW_SHAPES.
-  // Remembered for the same reason the rail's width is: it is how you are
-  // working, not a step in the work.
+  // Remembered per browser: it is how you are working, not a step in the work.
   previewShape: prefs.get('preview-shape', 'normal'),
 };
 
@@ -371,10 +355,10 @@ function keepOpenFileInView() {
 }
 
 export const isChat = () => S.project?.kind === 'chat';
-// The rail — the preview and what is selected — is a game's. A chat has no
-// game, and a game in Game Design has none yet: its cards take the width, and
-// a blank page saying to ask a helper who is not there would only mislead.
-export const hasRail = () => !isChat() && S.project?.type !== 'design';
+// The preview is a game's, under Play. A chat has no game, and a game in Game
+// Design has none yet: a blank page saying to ask a helper who is not there
+// would only mislead.
+const hasPreview = () => Boolean(S.project) && !isChat() && S.project.type !== 'design';
 
 // Whether this game is yours to change: you are one of its authors, or it is
 // open to the whole studio. Archived is the other half of the same question —
@@ -527,6 +511,12 @@ export const editorShowing = () => editorsFor(S.project?.type).find((e) => e.id 
 // version belongs: the last lines typed go in, and then the game's pending
 // commit lands (spec.md §5). Not awaited — the surface changes now, and the
 // timer lands it if this did not.
+//
+// The game under Play hears about it too: off its tab it waits, paused, still
+// loaded — so the builder's shot is the frame last looked at — and carries on
+// coming back, unless it was paused by hand (spec.md §6). A Try is
+// held across Play and the editor that asked for it, and forgotten anywhere
+// else.
 export function showMode(id) {
   const mode = modeOf(id) ?? 'chat';
   if (S.slug && S.mode !== mode) {
@@ -535,6 +525,8 @@ export function showMode(id) {
   S.mode = mode;
   S.menu = null;
   if (S.slug) prefs.set(`mode-${S.slug}`, mode);
+  if (S.player.trying && ![S.player.trying.mode, 'play'].includes(mode)) S.player.trying = null;
+  settlePlayer();
 }
 
 // Share shows what the public holds, so arriving there reads it: the scores,
@@ -1044,28 +1036,27 @@ function renderAuth() {
   );
 }
 
-/* Render: the preview and the rail ----------------------------------------- */
+/* Render: Play — the preview ------------------------------------------------ */
 
 // ⚠️ The game must not restart on every render. render() rebuilds the whole
 // tree, and an <iframe> reloads the moment it leaves the document — so while
 // the frame lived in the tree, every render was a reload: a banner arriving
 // and leaving six seconds later, a line typed in the story editor, a file
-// opened on the right, all restarted the game (spec.md §17). So the one frame
-// is appended to the body once and never moved. The tree holds a placeholder
-// of its size where it used to be, and the frame is a fixed box laid over the
-// placeholder's rectangle — measured again after every render, on resize, on
-// any scroll and while the rail is dragged — hidden while the placeholder is
-// hidden or gone, and unloaded (about:blank) when the preview is folded away
-// or no game is open, so a game never runs silently behind a chat.
+// opened, all restarted the game (spec.md §17). So the one frame is appended
+// to the body once and never moved. Play holds a placeholder of its size, and
+// the frame is a fixed box laid over the placeholder's rectangle — measured
+// again after every render, on resize and on any scroll — and hidden while
+// the placeholder is hidden or gone. Off Play it stays loaded, paused
+// (showMode), so the builder's shot is still there to take; it is unloaded
+// (about:blank) only when no game is open.
 const previewFrame = h('iframe', { class: 'preview-frame live', title: 'Game preview' });
 document.body.append(previewFrame);
 let previewSlot = null;
 let previewSrc = '';
 
 // The live preview's window, for the one thing anybody outside here needs of
-// it: asking the game inside for a frame (telemetry.js). Null while the
-// preview is folded away or unloaded, which is the same as saying nobody is
-// watching the game.
+// it: asking the game inside for a frame (telemetry.js). Null while it is
+// unloaded — no game open.
 export const previewWindow = () => (
   previewSrc && previewSrc !== 'about:blank' ? previewFrame.contentWindow : null
 );
@@ -1092,19 +1083,18 @@ export const PREVIEW_SHAPES = [
 
 const previewShape = () => PREVIEW_SHAPES.find((s) => s.id === S.previewShape) ?? PREVIEW_SHAPES[0];
 
-// How much of the window a preview may take before it starts eating the
-// inspector under it. A phone's shape in a 360-wide rail is 640 tall without
-// this, which is the whole rail and then some.
-const PREVIEW_TALLEST = 0.5;
+// What Play keeps of its own height for the controls and the note under the
+// game, so the game is as big as the pane allows with its foot still showing.
+const FOOT_ROOM = 104;
 
 function placePreview() {
   const slot = previewSlot?.isConnected ? previewSlot : null;
-  // A placeholder under display:none — a picture open, a phone showing the
-  // chat — measures as nothing, so a hidden placeholder is a hidden frame:
-  // hidden, never unloaded, exactly as the frame in the tree used to be.
+  // A placeholder under display:none measures as nothing, so a hidden
+  // placeholder is a hidden frame: hidden, never unloaded, exactly as the
+  // frame in the tree used to be.
   if (!slot) { previewFrame.style.display = 'none'; return; }
-  // The chosen shape, as big as the rail's width and the height it can spare
-  // allow. The height goes on the placeholder so the layout keeps room for it;
+  // The chosen shape, as big as Play's width and height allow. The height
+  // goes on the placeholder so the layout keeps room for it;
   // the width goes on the wrap as a variable, so the foot under the frame is
   // exactly as wide as the frame — a bar wider than the game it belongs to
   // reads as a bar belonging to something else.
@@ -1114,7 +1104,8 @@ function placePreview() {
   // each time if the value never changes.
   const { ratio } = previewShape();
   const room = slot.getBoundingClientRect().width;
-  const tall = `${Math.round(Math.min(room / ratio, window.innerHeight * PREVIEW_TALLEST))}px`;
+  const pane = slot.closest('[data-scroll]')?.clientHeight ?? window.innerHeight;
+  const tall = `${Math.round(Math.max(120, Math.min(room / ratio, pane - FOOT_ROOM)))}px`;
   if (slot.style.height !== tall) slot.style.height = tall;
   const box = slot.getBoundingClientRect();
   const wide = `${Math.round(Math.min(box.width, box.height * ratio))}px`;
@@ -1133,9 +1124,12 @@ function placePreview() {
   });
 }
 
-// After a render: no placeholder on screen means no game to show.
+// After a render: the open game's wrapper loaded whether or not Play is on
+// screen — off it the game waits, paused — and nothing at all without one.
+// The address is the game's and a version, nothing more: "Try this scene"
+// goes through the preview player's State (preview-player.js, tryFrom).
 function settlePreview() {
-  if (!previewSlot) showPreview('about:blank');
+  showPreview(hasPreview() ? `${S.project.play_url}_studio.html?v=${S.previewNonce}` : 'about:blank');
   placePreview();
   // The other thing laid over the tree rather than in it: a notice appearing
   // over the composer moves the box the @ menu is sitting on.
@@ -1144,43 +1138,25 @@ function settlePreview() {
 window.addEventListener('resize', placePreview);
 document.addEventListener('scroll', placePreview, true);
 
-// The preview, which is no longer a tab: a game is the thing you are working
-// on, so it sits at the top of the rail whatever else is open. Collapsed, it
-// is one row that still plays.
+// Play (spec.md §6): the game as big as the pane allows in the shape
+// chosen, its controls under it, what it reported, then the tweaks — its
+// tuning files as fields that go into the running game and nowhere else until
+// saved (tweaks.js). One scroller, on the game's own loud surface, the rail's
+// as it was: this is where the game is.
 //
 // The frame loads the studio's wrapper — the game's own index.html with the
 // reporter injected — while Open, and everyone playing, gets the untouched
 // page. That is why no game carries a script tag for this and why every game
 // already reports.
-function renderPreview() {
+function renderPlayMode() {
   const best = bestScore();
-  // The address is the game's and a version, nothing more: "Try this scene"
-  // goes through the preview player's State (preview-player.js, tryFrom).
-  const url = `${S.project.play_url}_studio.html?v=${S.previewNonce}`;
-  // Folded, the frame is unloaded rather than hidden: a collapsed preview is
-  // not a game running silently in the background.
-  showPreview(S.previewOpen ? url : 'about:blank');
   // The frame's place in the tree: a box of its size the live frame is laid
   // over (placePreview, above).
-  previewSlot = S.previewOpen ? h('div', { class: 'preview-frame slot' }) : null;
-  const shut = () => {
-    S.previewOpen = !S.previewOpen;
-    prefs.set('preview', S.previewOpen ? 'open' : 'closed');
-    render();
-  };
-  // The same control either way — folded, the row around it is a button too,
-  // so the click must not also reach it and unfold the game.
-  const openInTab = (stop) => h('a', {
-    href: S.project.play_url,
-    target: '_blank',
-    rel: 'noreferrer',
-    onclick: stop ? (e) => e.stopPropagation() : null,
-  }, h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' }));
-
-  return h('div', { class: `preview-wrap${S.previewOpen ? '' : ' collapsed'}` },
-    previewSlot,
-    S.previewOpen
-      ? h('div', { class: 'preview-foot' },
+  previewSlot = h('div', { class: 'preview-frame slot' });
+  return h('div', { class: 'play-mode scroll', 'data-scroll': 'play' },
+    h('div', { class: 'preview-wrap' },
+      previewSlot,
+      h('div', { class: 'preview-foot' },
         // The preview is its own player (preview-player.js): its clock is the
         // studio's to stop, and nothing it scores reaches a board.
         ...renderPlayerControls(),
@@ -1197,90 +1173,27 @@ function renderPreview() {
             render();
           },
         })), { label: 'What shape to try the game in' }),
-        openInTab(false),
-        h('button', { class: 'icon', text: 'Hide ▲', title: 'Fold the game away', onclick: shut }))
-      : null,
-    // Said once, under the game, because a maker testing the board will
-    // otherwise wonder where their score went — unless the robot has just
-    // broken the game, which matters more.
-    S.previewOpen ? (renderRobotNote() ?? h('p', {
-      class: 'hint muted preview-note',
-      text: 'The preview is its own player: its scores and achievements never count.',
-    })) : null,
-    // Folded: one row. The same control that hid it brings it back — Hide ▲
-    // and Show ▼ are one button in two states, in the place the eye already
-    // is — and the whole row is a way in too, because it lights up. Open comes
-    // with it: playing the game in its own tab is the one thing you would fold
-    // the preview away and still want.
-    S.previewOpen ? null : h('div', {
-      class: 'preview-row', title: `Show ${S.project.name}`, onclick: shut,
-    },
-    h('span', { class: 'play', text: '▶' }),
-    h('span', { class: 'pname', text: `Play ${S.project.name}` }),
-    openInTab(true),
-    h('button', {
-      class: 'icon', text: 'Show ▼', title: 'Show the game',
-      // The row under it is a button in all but name; letting the click reach
-      // it as well would toggle twice and fold it straight back.
-      onclick: (e) => { e.stopPropagation(); shut(); },
-    })),
-    // Rendered either way. Folding the game away stops it running, but the
-    // problems it already reported are still the answer to "why is it broken",
-    // and a panel that vanished with the frame would take them with it.
-    renderProblems(),
-    renderMoments());
-}
-
-// Drag the rail's left edge. Pointer capture keeps the drag on this element,
-// and the width is written straight to the shell as a CSS variable so a drag
-// never re-renders the pane it is resizing.
-function railGrip() {
-  const grip = h('div', { class: 'rail-grip', title: 'Drag to make this wider or narrower' });
-  grip.addEventListener('pointerdown', (down) => {
-    down.preventDefault();
-    grip.setPointerCapture(down.pointerId);
-    const app = document.querySelector('.app');
-    const move = (event) => {
-      S.railWidth = railClamp(window.innerWidth - event.clientX);
-      app.style.setProperty('--rail', `${S.railWidth}px`);
-      // The live frame follows the rail's edge as it moves.
-      placePreview();
-    };
-    const up = () => {
-      grip.removeEventListener('pointermove', move);
-      grip.removeEventListener('pointerup', up);
-      prefs.set('rail', S.railWidth);
-    };
-    grip.addEventListener('pointermove', move);
-    grip.addEventListener('pointerup', up);
-  });
-  return grip;
-}
-
-// The rail is the running game, and under it the selected thing (spec.md §6):
-// the preview with what the game reported, then the inspector — the fields of
-// whatever the centre's mode has selected, when it has one. The four tabs that
-// used to sit here — Files, Versions, Scoreboard, Achievements — are modes of
-// the centre now.
-function renderRail() {
-  if (!S.project) return h('div', { class: 'pane rail' }, railGrip());
-  // On a phone the rail is a pane of its own, under the phone header, whose
-  // Close preview is the way back.
-  // Under the game, the tweaks: its tuning files as fields that go into the
-  // running game and nowhere else until saved (tweaks.js). Every editor's own
-  // fields open in place in the centre now (ideas/one-pane.md).
-  return h('div', { class: `pane rail${S.narrowPane === 'rail' ? ' show' : ''}` },
-    railGrip(),
-    renderPreview(),
+        h('a', { href: S.project.play_url, target: '_blank', rel: 'noreferrer' },
+          h('button', { class: 'icon', text: 'Open', title: 'Play it in its own tab' }))),
+      // Said once, under the game, because a maker testing the board will
+      // otherwise wonder where their score went — unless the robot has just
+      // broken the game, which matters more.
+      renderRobotNote() ?? h('p', {
+        class: 'hint muted preview-note',
+        text: 'The preview is its own player: its scores and achievements never count.',
+      }),
+      renderProblems(),
+      renderMoments()),
     renderTweaks());
 }
 
 // The centre's body for every mode but the chat, whose thread and composer
 // are chat.js's. An editor is its type's; Code is the file list with the open
-// file's editor under it, as the rail's Files tab was; Share is a page.
+// file's editor under it; Share is a page; Play is the game.
 export function renderModeBody() {
   const editor = editorShowing();
   if (editor) return editor.render();
+  if (S.mode === 'play') return renderPlayMode();
   if (S.mode === 'pics') return renderPicsMode();
   if (S.mode === 'hear') return renderHearMode();
   if (S.mode === 'controls') return renderControlsEditor();
@@ -1354,22 +1267,21 @@ export function render() {
     return;
   }
 
-  // A chat has no files, versions or preview, so it has no rail at all and
-  // the thread takes the whole width.
+  // Two panes: the list and the centre (spec.md §6 — the rail that was a
+  // third is Play now, a mode of the centre).
   // The open game lends the studio its four colours, as an inline style on the
-  // shell — the chat pane, its buttons, the composer, the drawer and the rail
-  // read them and nothing else does. A game that names none of them leaves the
+  // shell — the chat pane, its buttons, the composer, the drawer and Play read
+  // them and nothing else does. A game that names none of them leaves the
   // studio's own defaults standing, so a partial look is fine.
-  // The phone header is over the centre and the rail alike, and not over the
-  // games list, which has a bar of its own. Only narrow.css ever shows it.
-  if (S.narrowPane === 'rail' && !hasRail()) S.narrowPane = 'chat';
+  // The phone header is over the centre and not over the games list, which
+  // has a bar of its own. Only narrow.css ever shows it.
   const head = S.project && S.narrowPane !== 'games' ? renderPhoneHeader() : null;
   const app = h('div', {
-    class: `app${S.sidebar ? '' : ' side-closed'}${hasRail() ? '' : ' no-rail'}${head ? ' has-head' : ''}`,
-    style: [`--rail:${S.railWidth}px`, ...LOOK_ROLES
+    class: `app${S.sidebar ? '' : ' side-closed'}${head ? ' has-head' : ''}`,
+    style: LOOK_ROLES
       .filter((name) => S.look[name])
-      .map((name) => `--look-${name}:${S.look[name]}`)].join(';'),
-  }, head, renderSidebar(), S.wardrobe ? renderWardrobe() : renderChat(), hasRail() ? renderRail() : null);
+      .map((name) => `--look-${name}:${S.look[name]}`).join(';'),
+  }, head, renderSidebar(), S.wardrobe ? renderWardrobe() : renderChat());
   root.append(app);
 
   // At the top, where the banner is at the bottom: this one is not a thing

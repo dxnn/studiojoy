@@ -23,6 +23,7 @@ import { S, render, say, frozen, more } from './main.js';
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
 import { planCanvas } from './plan-canvas.js';
+import { tryFrom } from './preview-player.js';
 
 export { WORLD_FILE };
 
@@ -293,7 +294,7 @@ export function renderWorldEditor() {
     }),
     h('p', { class: 'hint muted', text: ro ? '' : 'Drag a thing to move it, and the white dot on the chosen one to size it. Drag the sling to move where shots come from. Delete takes the chosen one out.' }),
     h('div', { class: 'section-label', text: 'In the world' }),
-    // The chosen thing's own numbers open under its row (ideas/one-pane.md).
+    // The chosen thing's own numbers open under its row (spec.md §6).
     ...model.bodies.map((b, i) => [bodyRow(b, i), st.selected === i ? bodyFields(st) : null]),
     h('div', { class: 'section-label', text: 'The sling' }),
     slingFields(st),
@@ -315,12 +316,10 @@ export function renderWorldEditor() {
       },
     }),
     h('button', {
-      class: 'link', text: 'Try it', title: 'Save, then play this world in the preview',
+      class: 'link', text: 'Try it', title: 'Save, then play this world under Play',
       onclick: async () => {
-        if (st.dirty && !(await saveWorld())) return;
-        S.previewOpen = true;
-        S.previewNonce += 1;
-        render();
+        if (st.dirty && !(await saveWorld())) return undefined;
+        return tryFrom();
       },
     }),
     h('button', {
@@ -356,7 +355,7 @@ function slingFields({ model }) {
     fieldRow('Down', numField('world-sy', model.sling[1], (v) => moveSling(model, model.sling[0], v))));
 }
 
-// The chosen thing's own numbers, in place under its row (ideas/one-pane.md).
+// The chosen thing's own numbers, in place under its row (spec.md §6).
 function bodyFields(st) {
   const { model, selected } = st;
   const ro = frozen();

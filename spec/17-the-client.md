@@ -31,7 +31,7 @@ test that cannot fail is decoration. ⚠️ Zero dependencies still holds: a
 hundred lines against jsdom, which is a browser. What genuinely needs one —
 layout, computed colour, a real pointer — stays a Playwright check by hand,
 and that list is now short. `install()` runs before the import, because the
-client still reads `document` and the stored rail width on the way in.
+client still reads `document` on the way in.
 
 ### What a render destroys
 
@@ -88,13 +88,15 @@ is gone unless it is snapshotted and put back.
 - **The preview iframe** — which is why it is no longer in the tree. ⚠️ An
   `<iframe>` reloads the moment it leaves the document, so while it lived in
   the tree every render restarted the game: a banner arriving and leaving six
-  seconds later, a line typed in the story editor, a file opened on the
-  right. The one frame is appended to the body once and never moved; the tree
-  holds a placeholder of its size where it was, and `placePreview` lays the
-  fixed frame over the placeholder's rectangle after every render, on resize,
-  on any scroll and while the rail is dragged — hidden while the placeholder
-  is hidden, unloaded to `about:blank` when the preview is folded or no game
-  is open. The problems panel and the moments panel are still painted in
+  seconds later, a line typed in the story editor, a file opened. The one
+  frame is appended to the body once and never moved; Play holds a
+  placeholder of its size, and `placePreview` lays the fixed frame over the
+  placeholder's rectangle after every render, on resize and on any scroll —
+  hidden while the placeholder is hidden or gone, which is every mode but
+  Play. ⚠️ Hidden, not unloaded: the game stays loaded and paused off Play
+  (§6), so the builder's shot is still there to take; `settlePreview` loads
+  the open game's wrapper whatever the mode, and `about:blank` only when no
+  game is open. The problems panel and the moments panel are still painted in
   place, never through `render()`: the game does restart on every commit, and
   a report that rendered would render a report. ⚠️
 
@@ -200,26 +202,24 @@ holds something git cannot recover.
 
 ### Panes
 
-- **A phone is views, one at a time, under a head that holds still.** At
-  860px and under the three panes take turns (`S.narrowPane`) — the games
-  list whenever no game is open, at `/` or Back to it, since the empty
-  centre's "on the left" has no left there — and
-  `renderPhoneHeader` draws one **phone header** above whichever of the
-  centre and the rail is showing — a row of the shell's grid, so a long
-  editor or a field scrolled up for a keyboard moves the pane under it and
-  never the header. It is the game's bar on one row — ☰, the name, which is
-  what gives way, and the game's ··· — and the **view changer** under it: ‹
-  and › step through the
+- **One pane, and on a phone views one at a time under a head that holds
+  still.** The shell is the sidebar and the centre (since 2026-10-05, when the
+  rail became Play — §6, the shell). At 860px and under the two take
+  turns (`S.narrowPane`, `games` or `chat`) — the games list whenever no game
+  is open, at `/` or Back to it, since the empty centre's "on the left" has no
+  left there — and `renderPhoneHeader` draws one **phone header** above the
+  centre — a row of the shell's grid, so a long editor or a field scrolled up
+  for a keyboard moves the pane under it and never the header. It is the
+  game's bar on one row — ☰, the name, which is what gives way, and the
+  game's ··· — and the **view changer** under it: ‹ and › step through the
   modes and wrap, the mode you are on is named between them with its `what`
   under it (a pill's title, which a phone has no hover to read) — a button
   whose list is every mode in the row's order, each with its `what`, the one
-  on screen lit (`more()` with a `face`) — and Preview
-  is the rail, lit and reading *Close preview* while it is up. The wide bar,
-  its published whisper and the pills are hidden at that width; an arrow
-  pressed on the rail goes to the next mode in the centre. ⚠️ A pick whose
-  fields live only in the rail — a character under See, a sound under Hear,
-  *Try this scene* — goes to the rail too, or on a phone it does nothing
-  anybody can see. ⚠️ No mode is taller than its pane: Write's guide, stage
+  on screen lit (`more()` with a `face`) — Play among them. The wide bar,
+  its published whisper and the pills are hidden at that width. ⚠️ Nothing
+  jumps to another pane any more: a pick's fields open in place, under the
+  row or cards they belong to, and *Try* opens Play. ⚠️ No mode is taller
+  than its pane: Write's guide, stage
   and steps were, and its bar hung off the foot of the screen, so on a phone
   that column is one scroller (`story-main`, named) with the bar held at its
   foot. `test/phone-header.test.js` holds what each control says;
@@ -227,8 +227,8 @@ holds something git cannot recover.
 - `MEDIA_KINDS` in `public/files-tab.js` is the one list to extend when the
   studio should show a new kind of file.
 - A picture opens on **one** click under Pics as it always did under Code, so
-  `S.pick` is a *person* and nothing else; the picture the rail describes is
-  `S.open` (§6).
+  `S.pick` is a *person* and nothing else, open under the cards; an open
+  picture is `S.open` (§6).
 - The preview reloads itself: every `files.changed` bumps `previewNonce`, which
   is in the iframe's `src`, so a helper's write, a save or an upload all
   restart the game — on the write, not on the commit, which for a save comes
@@ -239,8 +239,9 @@ holds something git cannot recover.
   frame.
 - The preview's **shape** (§6) is `placePreview`'s arithmetic rather than a
   CSS `aspect-ratio`: the placeholder's height and the frame's width are both
-  written from the shape, the rail's width and half the window's height, and
-  the width goes on the wrap as `--frame-w` so the foot matches the frame.
+  written from the shape, Play's width and its height less `FOOT_ROOM` for
+  the controls under the game, and the width goes on the wrap as `--frame-w`
+  so the foot matches the frame.
   ⚠️ Both writes are guarded against writing the value they already hold —
   this runs on every scroll event in the window, and a style write before a
   rectangle read is a forced reflow each time.

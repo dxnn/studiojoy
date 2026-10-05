@@ -5,7 +5,7 @@
 
 import { h } from './dom.js';
 import {
-  S, render, prefs, isChat, hasRail, agentName, urlAs, openProject,
+  S, render, prefs, isChat, agentName, urlAs, openProject,
   composerBox, sendComposer, send, api, say, sizeText,
   openMode, showMode, renderModeBody, frozen, canTalk, nearQuota,
   more, placeMenu,
@@ -825,9 +825,8 @@ export function renderPhoneHeader() {
 // title, and a phone has no hover to read one by. Pressed, that name is the
 // whole list — every mode in the row's order, each with what it is for and
 // the one on screen marked — for a mode further off than a step or two.
-// Speak's mark, when somebody
-// is waiting in there, rides the arrow that reaches it sooner. Preview is the
-// rail, a pane of its own on a phone, and the same button closes it again.
+// Speak's mark, when somebody is waiting in there, rides the arrow that
+// reaches it sooner. The game is Play, a mode like any other.
 function renderViewChanger(p) {
   const modes = modesFor(p);
   if (modes.length < 2) return null;
@@ -843,7 +842,6 @@ function renderViewChanger(p) {
       onclick: () => go(to.id),
     }, arrow, (by < 0) === leftward ? waiting : null);
   };
-  const railUp = S.narrowPane === 'rail';
   return h('div', { class: 'view-changer' },
     step(-1, '‹'),
     more('modes', modes.map((m, i) => ({
@@ -858,12 +856,7 @@ function renderViewChanger(p) {
         ],
       },
     }),
-    step(1, '›'),
-    hasRail() ? h('button', {
-      class: `quiet view-preview${railUp ? ' on' : ''}`,
-      text: railUp ? 'Close preview' : 'Preview',
-      onclick: () => { S.narrowPane = railUp ? 'chat' : 'rail'; render(); },
-    }) : null);
+    step(1, '›'));
 }
 
 // One pill per conversation, and at the right the things that are about this

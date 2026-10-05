@@ -15,11 +15,18 @@ const game = (type = null) => ({ kind: 'game', type });
 const idsOf = (project) => modesFor(project).map((m) => m.id);
 const labelsOf = (project) => modesFor(project).map((m) => m.label);
 
-test('the pills are the senses, in the row order the code has always had', () => {
+// …and then Play, last and plainly named: the game itself, which was the rail
+// beside every other mode until 2026-10-05 (spec/ §6).
+test('the pills are the senses, in the row order the code has always had, then Play', () => {
   assert.deepEqual(
     labelsOf(game()),
-    ['Speak', 'See', 'Hear', 'Touch', 'Taste', 'Recall', 'Smell'],
+    ['Speak', 'See', 'Hear', 'Touch', 'Taste', 'Recall', 'Smell', 'Play'],
   );
+});
+
+test('a game in Game Design has no Play: there is no game yet', () => {
+  assert.ok(!idsOf(game('design')).includes('play'));
+  assert.ok(!idsOf({ kind: 'chat', type: null }).includes('play'), 'nor a chat');
 });
 
 test('⚠️ the ids are the code\'s own words, whatever the pills say', () => {
@@ -28,7 +35,7 @@ test('⚠️ the ids are the code\'s own words, whatever the pills say', () => {
   // label moving must never move one. See spec/ §6.
   assert.deepEqual(
     idsOf(game()),
-    ['chat', 'pics', 'hear', 'controls', 'code', 'versions', 'share'],
+    ['chat', 'pics', 'hear', 'controls', 'code', 'versions', 'share', 'play'],
   );
 });
 

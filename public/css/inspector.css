@@ -12,7 +12,7 @@
   flex-direction: column;
   gap: 12px;
 }
-/* In place in the centre (ideas/one-pane.md): opened under the row or the
+/* In place in the centre (spec.md §6): opened under the row or the
    cards it belongs to, inside that pane's own scroller, so not one itself.
    Set apart from what is around it the way an open row is. */
 .inspector.in-place {

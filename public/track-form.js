@@ -26,6 +26,7 @@ import {
 import { refreshFiles, chooseFile } from './files.js';
 import { readEditorFile, writeEditorFile } from './editor-file.js';
 import { planCanvas } from './plan-canvas.js';
+import { tryFrom } from './preview-player.js';
 
 export { TRACK_FILE };
 
@@ -435,12 +436,10 @@ export function renderTrackEditor() {
       },
     }),
     h('button', {
-      class: 'link', text: 'Try it', title: 'Save, then race on this track in the preview',
+      class: 'link', text: 'Try it', title: 'Save, then race on this track under Play',
       onclick: async () => {
-        if (st.dirty && !(await saveTrack())) return;
-        S.previewOpen = true;
-        S.previewNonce += 1;
-        render();
+        if (st.dirty && !(await saveTrack())) return undefined;
+        return tryFrom();
       },
     }),
     h('button', {
@@ -458,7 +457,7 @@ export function renderTrackEditor() {
 /* The selected one's fields --------------------------------------------------- */
 
 // The selected point's or thing's own numbers, in place in the side column
-// (ideas/one-pane.md): under a thing's row, or under the road for a point,
+// (spec.md §6): under a thing's row, or under the road for a point,
 // which has no row. Nothing selected, nothing — the column says the rest.
 function selectedFields(st) {
   const { model, selected } = st;

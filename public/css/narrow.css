@@ -7,16 +7,14 @@
    surface with a narrow shape of its own keeps that rule in its own file
    (story-editor.css is the one). */
 
-/* Collapsing only means anything where the three panes are side by side; on a
-   narrow screen the panes already take turns. */
-/* Column count follows how many panes are actually rendered: a zero-width
-   track would just be handed to the next pane by grid auto-placement. Both
-   rules are wide-only — narrow screens show one pane at a time, so a second
-   column there would strand the visible pane in the first one. */
+/* Collapsing only means anything where the two panes are side by side; on a
+   narrow screen the panes already take turns. The column count follows how
+   many panes are actually rendered: a zero-width track would just be handed
+   to the next pane by grid auto-placement. Wide-only — narrow screens show one
+   pane at a time, so a second column there would strand the visible pane in
+   the first one. */
 @media (min-width: 861px) {
-  .app.no-rail { grid-template-columns: var(--side, 258px) minmax(0, 1fr); }
-  .app.side-closed { grid-template-columns: minmax(0, 1fr) var(--rail, 372px); }
-  .app.side-closed.no-rail { grid-template-columns: minmax(0, 1fr); }
+  .app.side-closed { grid-template-columns: minmax(0, 1fr); }
   .app.side-closed > .pane.side { display: none; }
   .app.side-closed > .pane.chat { border-left: none; }
 }
@@ -29,7 +27,6 @@
   .app > .pane { display: none; }
   .app > .pane.show { display: flex; }
   .pane + .pane { border-left: none; }
-  .rail-grip { display: none; }
   /* The phone header takes the bar's and the pills' place: a row of the grid
      above the pane that is showing, so whatever that pane does under it — a
      long editor, a field scrolled into view for a keyboard — the game's name

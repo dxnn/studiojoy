@@ -646,8 +646,7 @@ function renderGuide() {
             class: 'filled tiny', text: '▶ Try it',
             onclick: async () => {
               if (st.dirty && !(await saveAdventure())) return;
-              tryFrom({ playing: true, scene: st.model.scenes[0]?.key ?? null, lines: [] });
-              render();
+              return tryFrom({ playing: true, scene: st.model.scenes[0]?.key ?? null, lines: [] });
             },
           })),
     };
@@ -897,11 +896,9 @@ export function renderAdventureEditor() {
       class: 'link', text: 'Try this scene', title: 'Play the game from this scene',
       onclick: async () => {
         if (st.dirty && !(await saveAdventure())) return;
-        // The template's State: this scene, with nothing being said yet.
-        tryFrom({ playing: true, scene: scene.key, lines: [] });
-        // On a phone the preview is the rail, a pane away: go there.
-        S.narrowPane = 'rail';
-        render();
+        // The template's State: this scene, with nothing being said yet,
+        // under Play.
+        return tryFrom({ playing: true, scene: scene.key, lines: [] });
       },
     }) : null);
 
@@ -925,7 +922,7 @@ export function renderAdventureEditor() {
 /* The selected thing's fields -------------------------------------------------- */
 
 // The selected thing's own fields, at the head of the spots, in place
-// (ideas/one-pane.md): a scene's name, what leads to it, the note about it and
+// (spec.md §6): a scene's name, what leads to it, the note about it and
 // its picture; a thing's picture; the title screen's two lines.
 function adventureFields() {
   const st = S.adventure;

@@ -903,11 +903,8 @@ export function renderStoryEditor() {
       class: 'link', text: 'Try this scene', title: 'Play the game from this scene',
       onclick: async () => {
         if (st.dirty && !(await saveStory())) return;
-        // The template's State: this scene, from its first line.
-        tryFrom({ playing: true, scene: scene.key, line: 0 });
-        // On a phone the preview is the rail, a pane away: go there.
-        S.narrowPane = 'rail';
-        render();
+        // The template's State: this scene, from its first line, under Play.
+        return tryFrom({ playing: true, scene: scene.key, line: 0 });
       },
     }) : null);
 
@@ -936,7 +933,7 @@ export function renderStoryEditor() {
 // scene's name, what leads to it, the note about it, its picture and its
 // music; a person's name, note and moods; the title screen's two lines. They
 // were the head rows of the steps once, then the rail's while there was one
-// (ideas/one-pane.md). The fields keep their story-… ids, so the caret
+// (spec.md §6). The fields keep their story-… ids, so the caret
 // survives a render, and every edit saves the way every edit does: touched().
 function storyFields() {
   const st = S.story;

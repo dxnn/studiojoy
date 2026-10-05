@@ -174,9 +174,11 @@ walk into, each paid for once already.
   random stream and the robot's; Back never moves the clock backwards, because
   every template's loop takes `dt` from it and only caps it from above. While
   the **robot** plays, or above 1×, time goes in whole 1/60 s frames, which is
-  what makes a robot's run replay. The rail
-  under it is the **tweaks** when nothing else claims it: config values tried
-  in the running game, kept per browser, written only by Save
+  what makes a robot's run replay. ⚠️ It lives under **Play**, a mode, and
+  off Play it stays loaded and *paused* (`showMode` tells it), never
+  unloaded while a game is open: the builder's shot is taken from it when a
+  message is sent from Speak. Under the game are the **tweaks**: config
+  values tried in the running game, kept per browser, written only by Save
   (`public/tweaks.js`). A tweak reaches an object `const` live and never a
   plain-number one.
 - A reasoning trace is never persisted and never replayed into a later fire.
@@ -346,7 +348,7 @@ active row) and stays cyan whatever game is open; **pink is a helper**; **gold
 is a number worth looking at** — a score, a version — and nothing else;
 **crimson is danger** and nothing else. A game's own four (`primary`, `accent`,
 `highlight`, `deep` in its `config/look.js`) colour that game's surfaces only:
-the chat pane, the composer, the mode row, the rail. ⚠️ Gold is the one
+the chat pane, the composer, the mode row, Play. ⚠️ Gold is the one
 to police — the moment it appears on something that is not a number, the
 direction stops working.
 
@@ -498,7 +500,7 @@ specified:
   (§6, §10).
 - The **standard set** (`public/story-art/`) is picked from a shelf — a strip
   on the guide's picture card, and a dialog with a filter behind
-  `Pick a picture…` on a scene's Picture field in the rail — one file, one
+  `Pick a picture…` on a scene's Picture field — one file, one
   commit. 33 portraits and 9 backgrounds, all CC0 (Kenney and Stealthix).
   Beside it the **studio collection**: pictures people here have added, on
   the same shelf and first on it, put there by `Duplicate…` in a picture's
@@ -522,27 +524,31 @@ specified:
   rather than a key on the scene. ⚠️ Scene-level `sound:` still plays but is
   never written back, so an existing visual novel needs its own `js/story.js`
   brought forward before its story is re-saved (§6).
-- The centre pane is one **mode** at a time — Chat, a game type's editors
-  (Write, Questions), Pics, Hear, Code, Share — in a row of pills over it;
-  the rail is the preview, and under it the selected thing's fields. Pics
-  shows every picture by kind (a visual novel's Characters and Places, every
-  game's sprites and dressing), opens one full width in the pixel editor, and
-  adds one from three buttons rather than a dialog — Draw, Upload (straight
-  into the device's picker) and Add from the studio;
-  Hear lists sounds over music and puts the sound editor in the rail; Code is
+- **One pane** beside the sidebar (since 2026-10-05, spec/ §6 the shell):
+  the rail is gone, because on a phone there was only ever room for
+  one pane and on a wide screen neither could be closed. The centre is one
+  **mode** at a time — Chat, a game type's editors (Write, Questions), Pics,
+  Hear, Code, Share and, last, **Play**, the game — in a row of pills over it.
+  The selected thing's fields open **in place**, under the row or cards they
+  belong to, one at a time. Pics shows every picture by kind (a visual novel's
+  Characters and Places, every game's sprites and dressing), opens one full
+  width in the pixel editor, and adds one from three buttons rather than a
+  dialog — Draw, Upload (straight into the device's picker) and Add from the
+  studio; Hear lists sounds over music, a sound's editor under its row; Code is
   the tree, opening text and config forms — and on a phone an open file takes
   the whole pane, ✕ being the way back to the list; Share is the link, the versions,
   the scoreboard and the achievements editor as one page. The pixel editor,
   the sound editor, the story and the quiz save themselves; Code's text editor
   keeps Save. Everything done to a thing is behind its one `···` (§6,
   ideas/calm-shell.md). A picture opens on one click, wherever it is pressed;
-  the preview's `···` holds the shape to try the game in. ⚠️ The pills are
-  named for the senses — Speak, See, Hear, Touch, Taste, Recall, Smell — and
-  nothing under them is (spec/ §6). On a phone the bar and the pills are the
-  **phone header**: the game's name and `···` on one row, and the **view
-  changer**, ‹ mode › and Preview, holding still over the centre and the rail;
-  a pick whose fields are the rail's alone goes to the rail (spec/ §17).
-  Built 2026-10-02 and driven at 390px in the MCP browser, never on a finger.
+  the preview's `···` holds the shape to try the game in, and *Try* opens
+  Play. ⚠️ The pills are named for the senses — Speak, See, Hear, Touch,
+  Taste, Recall, Smell, then plain Play — and nothing under them is (spec/
+  §6). On a phone the bar and the pills are the **phone header**: the game's
+  name and `···` on one row, and the **view changer**, ‹ mode ›, holding still
+  over the centre (spec/ §17). Driven at 1280 and 390 in the MCP browser —
+  the paused-off-Play clock measured from inside the game, the shot taken
+  from Speak — never on a finger.
 - Typing an `@` in the composer opens the menu of everybody it could reach,
   people over helpers, filtered by the server's own rule (§6). ⚠️ It reads its
   keys before the composer does, or Enter sends half a sentence.
@@ -557,10 +563,10 @@ Open questions:
   `orchestrator.js` and, if it is worth it, reordering the row into sense
   order (it is Speak See Hear Touch Taste Recall Smell today, because the
   labels moved and the row did not).
-- **The rail is going** (decided 2026-10-05, ideas/one-pane.md): the preview
-  becomes a mode, every inspector opens in place in the centre, and the
-  rail's column is removed — phones first class, and neither pane could be
-  closed. Three questions wait on it before stage one.
+- **A transient info panel** sliding in from the right, for a selected thing,
+  may come back one day — but it does not translate to a phone, which is why
+  the rail went (2026-10-05). On a wide screen the chat and the game are a tab
+  apart now; *Open*, the game in its own browser tab, is how to have both.
 - Touch schemes and the story editor have never been felt on a real phone.
   `npm run ui` now holds what a machine can judge at 390px — no surface
   scrolls the page sideways, no field is under 16px, and a thumb really does

@@ -301,12 +301,13 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
 
   // The game as somebody was watching it (server/shots.js). ⚠️ It arrives
   // from a person's own browser, so there is one only while somebody has the
-  // preview open — which is the honest answer to give when there is not.
+  // game open in the studio — which is the honest answer to give when there is
+  // not.
   async function lookAtGame() {
     const latest = shot?.();
     if (!latest) {
       return 'nobody has the game open at the moment, so there is no picture of it. '
-        + 'Ask them to open the preview and play for a second, then look again.';
+        + 'Ask them to open Play and play for a second, then look again.';
     }
     const age = Math.round((Date.now() - Date.parse(latest.at)) / 1000);
     // ⚠️ Buffer.from, not the row's own value: node:sqlite hands a BLOB back

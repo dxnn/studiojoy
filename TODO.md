@@ -122,9 +122,6 @@ deliberately deferred.
   called from the server with its key in `studio.env` (ideas/dreams.md §2)
 - bring Game Design's cards back after Make it — a spec editor over
   `SPEC.md`, a different thing from the cards (ideas/dreams.md §2)
-- ! fold the rail into the centre: the preview becomes a mode, every
-  inspector opens in place, and the rail goes — three stages, three questions
-  waiting (ideas/one-pane.md, decided 2026-10-05)
 - let a game register the moments it says, so its achievements can be set
   against the whole list without a playthrough first; the preview still
   reports the ones it hears (decided 2026-10-04; ideas/achievements.md)

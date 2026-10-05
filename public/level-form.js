@@ -392,8 +392,7 @@ export function renderLevelEditor() {
         if (st.dirty && !(await saveLevel())) return;
         // The template's State: this level, arrived at fresh — no coins in
         // State is what makes Roll a ball build them again.
-        tryFrom({ playing: true, at: st.at, coins: null });
-        render();
+        return tryFrom({ playing: true, at: st.at, coins: null });
       },
     }),
     h('button', {
@@ -411,7 +410,7 @@ export function renderLevelEditor() {
 /* A made-up square's fields ---------------------------------------------------- */
 
 // The chosen kind of square, when the game made it up: named, coloured and
-// made solid in place under its row (ideas/one-pane.md). The six the studio
+// made solid in place under its row (spec.md §6). The six the studio
 // knows say what they do on their buttons and in the line under them.
 function squareFields(st) {
   const { model } = st;

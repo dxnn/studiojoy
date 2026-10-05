@@ -202,18 +202,24 @@ const VERSIONS_MODE = {
 const SHARE_MODE = {
   id: 'share', label: 'Smell', what: 'The link people play it on, the scoreboard and the achievements',
 };
+// Plainly Play: no sense was left that meant it (spec.md §6), and the
+// senses are on trial anyway.
+const PLAY_MODE = {
+  id: 'play', label: 'Play', what: 'The game, running — pause it, slow it down, let the robot play',
+};
 
 // The row of modes over a project's centre pane. A chat project is one room
 // and has only the chat; a game has the chat, its type's editors, then Pics,
-// Hear, Controls, Code, Versions and Share. Controls sits after the two that
-// are about what a game is made of and before the tree, because it is about
-// how the game is played rather than what is in it. The order is the old
-// one — the labels moved, the row did not. A game in Game Design has no
-// Controls: how it is held is one of the cards, and Make it writes the file.
+// Hear, Controls, Code, Versions, Share and, last, Play — the game itself,
+// which was the rail beside all of them until 2026-10-05. Controls sits after
+// the two that are about what a game is made of and before the tree, because
+// it is about how the game is played rather than what is in it. A game in
+// Game Design has no Controls — how it is held is one of the cards, and Make
+// it writes the file — and no Play, having no game yet.
 export const modesFor = (project) => (!project || project.kind === 'chat'
   ? [CHAT_MODE]
   : [
     CHAT_MODE, ...editorsFor(project.type),
     PICS_MODE, HEAR_MODE, project.type === 'design' ? null : CONTROLS_MODE,
-    CODE_MODE, VERSIONS_MODE, SHARE_MODE,
+    CODE_MODE, VERSIONS_MODE, SHARE_MODE, project.type === 'design' ? null : PLAY_MODE,
   ].filter(Boolean));

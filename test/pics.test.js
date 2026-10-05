@@ -145,7 +145,7 @@ test('a dressing is drawn here, brought from the device, or picked off the shelf
 });
 
 // The open picture's own bar says what it is and where; a picture the studio
-// wears says, under it, what it dresses (ideas/one-pane.md: no rail).
+// wears says, under it, what it dresses (spec/ §6: no rail).
 test('an open dressing says what it dresses, under its bar', () => {
   pics([picture(HERO_IMAGE, 2048)]);
   S.open = { path: HERO_IMAGE, mime: 'image/png', content: null };

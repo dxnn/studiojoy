@@ -817,8 +817,7 @@ function readyCard() {
       class: 'filled tiny', text: '▶ Try it',
       onclick: async () => {
         if (S.story.dirty && !(await saveStory())) return;
-        tryFrom({ playing: true, scene: model().scenes[0]?.key ?? null, line: 0 });
-        render();
+        return tryFrom({ playing: true, scene: model().scenes[0]?.key ?? null, line: 0 });
       },
     }));
 }

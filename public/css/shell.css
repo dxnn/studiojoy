@@ -1,15 +1,15 @@
 /* Shell ------------------------------------------------------------------- */
 
-/* The three panes, the hairline over them, the wordmark, the bar at the top of
-   each pane and the handful of layout utilities everything else leans on. The
-   width media queries that fold this down to one pane at a time are in
-   narrow.css, which loads last. */
+/* The two panes — the list and the centre — the hairline over them, the
+   wordmark, the bar at the top of each pane and the handful of layout
+   utilities everything else leans on. The width media queries that fold this
+   down to one pane at a time are in narrow.css, which loads last. There was a
+   third, the rail, until it became Play (spec.md §6). */
 
-/* Both side columns are adjustable: the left one collapses to nothing, the
-   right one is dragged by its grip and remembered in localStorage. */
+/* The list collapses to nothing; the centre takes the rest. */
 .app {
   display: grid;
-  grid-template-columns: var(--side, 258px) minmax(0, 1fr) var(--rail, 372px);
+  grid-template-columns: var(--side, 258px) minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   min-height: 0;
@@ -37,10 +37,9 @@
   background: var(--panel);
 }
 .pane + .pane { border-left: 1px solid var(--border); }
-.pane.rail { position: relative; }
 
-/* The left pane wears the halftone; the chat pane and the rail wear the
-   game's own colours, so they are painted further down. */
+/* The left pane wears the halftone; the centre wears the game's own colours,
+   so it is painted further down, and Play the loudest of them (preview.css). */
 .pane.side {
   background-color: var(--panel);
   background-image: var(--halftone);
@@ -57,34 +56,7 @@
   background-size: auto, auto, 15px 15px;
 }
 
-/* The rail is the loudest surface in the studio — the game's three colours
-   blown out behind a big halftone — because it is where the game itself is. */
-.pane.rail {
-  background-color: var(--look-deep);
-  background-image:
-    radial-gradient(oklch(0.12 0.03 300 / 0.34) 9px, transparent 9.5px),
-    radial-gradient(oklch(0.12 0.03 300 / 0.22) 3.5px, transparent 4px),
-    linear-gradient(180deg, oklch(0.16 0.04 300 / 0.1), oklch(0.16 0.04 300 / 0.42)),
-    radial-gradient(520px 400px at 14% 6%, color-mix(in oklab, var(--look-primary) 62%, transparent), transparent 62%),
-    radial-gradient(440px 540px at 96% 30%, color-mix(in oklab, var(--look-accent) 56%, transparent), transparent 60%),
-    radial-gradient(620px 460px at 24% 88%, oklch(0.46 0.14 320 / 0.45), transparent 66%),
-    radial-gradient(300px 320px at 78% 66%, color-mix(in oklab, var(--look-highlight) 22%, transparent), transparent 70%);
-  background-size: 18px 18px, 18px 18px, auto, auto, auto, auto, auto;
-  background-position: 0 0, 9px 9px, 0 0, 0 0, 0 0, 0 0, 0 0;
-}
-.pane.chat, .pane.rail { border-left-color: color-mix(in oklab, var(--look-primary) 40%, transparent); }
-
-.rail-grip {
-  position: absolute;
-  left: -4px;
-  top: 0;
-  bottom: 0;
-  width: 9px;
-  cursor: col-resize;
-  z-index: 5;
-  touch-action: none;
-}
-.rail-grip:hover, .rail-grip:active { background: color-mix(in oklab, var(--accent) 30%, transparent); }
+.pane.chat { border-left-color: color-mix(in oklab, var(--look-primary) 40%, transparent); }
 
 .bar {
   min-height: 56px;

@@ -1,4 +1,21 @@
-/* The preview, and its collapsed self ------------------------------------- */
+/* Play: the preview -------------------------------------------------------- */
+
+/* The game's own surface, the loudest in the studio — its three colours blown
+   out behind a big halftone — because it is where the game itself is. It was
+   the rail's until the rail became this mode (spec.md §6). */
+.play-mode {
+  background-color: var(--look-deep);
+  background-image:
+    radial-gradient(oklch(0.12 0.03 300 / 0.34) 9px, transparent 9.5px),
+    radial-gradient(oklch(0.12 0.03 300 / 0.22) 3.5px, transparent 4px),
+    linear-gradient(180deg, oklch(0.16 0.04 300 / 0.1), oklch(0.16 0.04 300 / 0.42)),
+    radial-gradient(520px 400px at 14% 6%, color-mix(in oklab, var(--look-primary) 62%, transparent), transparent 62%),
+    radial-gradient(440px 540px at 96% 30%, color-mix(in oklab, var(--look-accent) 56%, transparent), transparent 60%),
+    radial-gradient(620px 460px at 24% 88%, oklch(0.46 0.14 320 / 0.45), transparent 66%),
+    radial-gradient(300px 320px at 78% 66%, color-mix(in oklab, var(--look-highlight) 22%, transparent), transparent 70%);
+  background-size: 18px 18px, 18px 18px, auto, auto, auto, auto, auto;
+  background-position: 0 0, 9px 9px, 0 0, 0 0, 0 0, 0 0, 0 0;
+}
 
 .preview-wrap { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 9px; flex: 0 0 auto; }
 .preview-frame {
@@ -12,20 +29,19 @@
    are written by placePreview, from the shape the reader is trying the game
    in, and the live frame laid exactly over it carries the border. A border
    here as well would draw a second one around the frame the moment the shape
-   is narrower than the rail. */
+   is narrower than the pane. */
 .preview-frame.slot { border-color: transparent; background: none; }
 /* The live frame is one node on the body, never moved — an <iframe> reloads
    whenever it leaves the document, and render() rebuilds the tree — laid over
-   the placeholder the tree holds for it (main.js, placePreview): its size and
+   the placeholder Play holds for it (main.js, placePreview): its size and
    place come from the placeholder's rectangle, so nothing else is said here.
-   Above the rail, under the banner and every dialog. */
+   Under the banner and every dialog. */
 .preview-frame.live { position: fixed; z-index: 3; margin: 0; }
-/* Under the frame: the best score in highlight, then the two things you do to
-   the running game — open it in a tab, or fold it away. Both belong to the
-   preview, so both live on the preview. */
+/* Under the frame: the controls, the best score in highlight, then the shape
+   and Open. They belong to the preview, so they live on the preview. */
 .preview-foot {
   /* As wide as the frame over it, whatever shape that is — --frame-w is
-     placePreview's, and 100% is the shape that fills the rail. */
+     placePreview's, and 100% is the shape that fills the pane. */
   width: var(--frame-w, 100%);
   margin-inline: auto;
   display: flex;
@@ -63,6 +79,8 @@
   background: color-mix(in oklab, var(--accent) 24%, transparent);
 }
 .preview-foot button.icon svg { display: block; }
+/* An inline-flex anchor propagates its underline to the button inside it. */
+.preview-foot a { display: inline-flex; text-decoration: none; }
 /* The list of speeds is a column of short numbers, not a menu of words. */
 .preview-foot .menu { min-width: 0; }
 .preview-note { font-size: 11px; margin: 4px auto 0; width: var(--frame-w, 100%); padding: 0 4px; }
@@ -80,55 +98,10 @@
 .robot-note .hint { font-size: 12px; margin: 0; }
 .preview-frame { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 
-/* Collapsed: one row that keeps the two things you would miss — a way to show
-   the game again and a way to open it in its own tab — and the file list grows
-   into the space. Add .collapsed to .preview-wrap; nothing else moves. */
-.preview-wrap.collapsed .preview-frame,
-.preview-wrap.collapsed .preview-foot { display: none; }
-.preview-wrap.collapsed .preview-row { display: flex; }
-.preview-row {
-  display: none;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 11px;
-  border: 1px solid color-mix(in oklab, var(--look-primary) 55%, transparent);
-  border-radius: var(--radius);
-  background: color-mix(in oklab, var(--look-primary) 20%, transparent);
-  cursor: pointer;
-}
-.preview-row .play {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(140deg, var(--look-primary), var(--look-accent));
-  color: #1c0810;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.preview-row .pname { flex: 1; font-size: 13px; font-weight: 700; color: #fdf4f6; }
-/* An inline-flex anchor propagates its underline to the button inside it,
-   which the inline one in the foot does not. */
-.preview-row a { display: inline-flex; text-decoration: none; }
-/* Show ▼ against the frame's Hide ▲: one control in two states, so it reads
-   the same folded as it does open. */
-.preview-row button.icon {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fdf4f6;
-  padding: 3px 7px;
-  border-radius: 6px;
-}
-.preview-row button.icon:hover:not(:disabled) { background: oklch(0.98 0.01 300 / 0.16); }
-
-/* The rail's default when nothing more specific is selected: the tweaks — the
-   game's tuning files as fields, tried in the running game and written only
-   on Save (tweaks.js). A row being tried wears the studio's cyan and a dot:
-   it is a state the game is in, and the eye has to find what to undo. */
+/* Under the game: the tweaks — the game's tuning files as fields, tried in
+   the running game and written only on Save (tweaks.js). A row being tried
+   wears the studio's cyan and a dot: it is a state the game is in, and the eye
+   has to find what to undo. */
 .tweaks { padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 6px; }
 .tweaks-head { display: flex; align-items: baseline; gap: 8px; }
 .tweaks .hint { font-size: 12px; margin: 0; }
