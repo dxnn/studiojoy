@@ -52,10 +52,13 @@ function typeOf(ctx, row) {
 
 function projectPublic(ctx, row, user = null) {
   const db = ctx.db;
+  // The person's name without minding `deleted`, as messagePublic does: what
+  // somebody said is still theirs after they have left.
   const last = db
     .prepare(
-      `SELECT body, created_at FROM messages
-        WHERE project_id = ? ORDER BY id DESC LIMIT 1`,
+      `SELECT m.body, m.created_at, m.kind, m.user_id, m.agent_id, u.display_name AS user_name
+         FROM messages m LEFT JOIN users u ON u.id = m.user_id
+        WHERE m.project_id = ? ORDER BY m.id DESC LIMIT 1`,
     )
     .get(row.id);
   return {
@@ -95,6 +98,14 @@ function projectPublic(ctx, row, user = null) {
     stage: row.stage ?? 0,
     last_message_at: last?.created_at ?? row.created_at,
     preview: last ? last.body.slice(0, 80) : '',
+    // Who said it, as a message says it: the sidebar names them before the
+    // words, and the stream keeps this current (public/stream.js).
+    preview_from: last
+      ? {
+        kind: last.kind ?? null, user_id: last.user_id ?? null,
+        user_name: last.user_name ?? null, agent_id: last.agent_id ?? null,
+      }
+      : null,
     // How many messages in this project have called *you* by name and not
     // been read. Yours alone — every list in the sidebar is drawn for one
     // person, so this is never somebody else's mark.

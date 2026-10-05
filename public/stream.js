@@ -212,7 +212,12 @@ export function applyMessage(data) {
   // Whoever said it and wherever it landed, the line under the game's name in
   // the sidebar now says this. It moves nothing: talk is not a change.
   const row = S.projects.find((p) => p.slug === data.project_slug);
-  if (row) row.preview = data.body.slice(0, 80);
+  if (row) {
+    row.preview = data.body.slice(0, 80);
+    row.preview_from = {
+      kind: data.kind, user_id: data.user_id, user_name: data.user_name, agent_id: data.agent_id,
+    };
+  }
   // A piece's row lands behind its plan card (spec.md §8): the card's own
   // update carries what the thread shows of it, so this adds nothing to the
   // thread and marks nothing unread — the card did that when it arrived.

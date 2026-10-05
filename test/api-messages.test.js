@@ -116,6 +116,22 @@ test('messages come back in order with the project detail', async (t) => {
   assert.equal(detail.body.preview, 'third');
 });
 
+// The sidebar names who said the last thing; the words for it are the
+// client's (public/sidebar.js), so the server says it the way a message does.
+test('the preview says who it is from, as a message would', async (t) => {
+  const app = await project(t);
+  await send(app, { body: 'hello' });
+  const from = async () => (await app.client.json('GET', '/api/projects')).body
+    .find((p) => p.slug === 'tank').preview_from;
+  assert.deepEqual(await from(), { kind: null, user_id: 1, user_name: 'Dann', agent_id: null });
+
+  const tank = app.db.prepare("SELECT id FROM projects WHERE slug = 'tank'").get();
+  app.db.prepare(
+    "INSERT INTO messages (project_id, kind, body, created_at) VALUES (?, 'system', 'Paused', '2026-10-05')",
+  ).run(tank.id);
+  assert.deepEqual(await from(), { kind: 'system', user_id: null, user_name: null, agent_id: null });
+});
+
 test('history pages backwards and reports whether more remain', async (t) => {
   const app = await project(t);
   const ids = [];

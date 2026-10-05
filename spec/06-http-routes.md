@@ -55,7 +55,7 @@ the game as their avatar, with their alias on hover — never a name (§7).
 
 | method | path | body | effect |
 |---|---|---|---|
-| GET | `/api/projects` | — | all projects incl. archived, with last-message preview; each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
+| GET | `/api/projects` | — | all projects incl. archived, with last-message preview and who it is from (`preview_from`); each game says whether `icon.png` is at its root (`has_icon`) — the one *reserved image* the sidebar needs for games not open (§6) |
 | POST | `/api/projects` | `{name, slug?, kind?, template?, scheme?, design?}` | create row, and for a game its directory and git repo; slug derived from name when omitted; `kind` defaults to `game`; `template` copies a game-template starter tree in as a third commit — games only, validated against `public/game-templates/index.json`; no template means the blank start page instead. `design: true` — what New game sends — is a game born in **Game Design**: type `'design'`, the blank page, the default scheme, and `Humans only` alone; 400 beside a template or a scheme, which the cards decide. Answers with the project plus `chats` and `chat` — the conversation to open: `Building`, where the *builder* is waiting, `Humans only` for a game in Game Design, and a chat project's one room |
 | POST | `/api/projects/:slug/design` | `{template?, scheme?, libraries?}` | Game Design's **Make it**, an editor's, once (409 after): the template's tree over the blank page — or none — the scheme's seed, the extras, and `SPEC.md` as the answers over the template's own spec, every heading of that one level down; all one commit, `make it: <title>`, the pending commit landed first. A template decides its own scheme and extras, as at creation; without one they are the body's, checked against the two indexes. Then the type is set, `Building` opened with the builder, and the answer is the project with `chats` and `chat` (`Building`) |
 | GET | `/api/projects/:slug` | — | project, attached agents, recent messages |
@@ -636,7 +636,10 @@ Within a group, the game that changed last comes first (`updated_at`, §3): a
 write to its tree or a change to its row, never a message — a busy chat is
 not a changed game. A `files.changed` from any game moves that game's row as
 it lands, on the tab's own clock; a `project.updated` refetches the list
-(§9). The line under a game's name still follows its newest message.
+(§9). The line under a game's name still follows its newest message, and
+says who it is from first (`preview_from`, worded by `lastSaid`): *You*, a
+person's name, *Bot* for any helper, *Studio* for the studio's own notices —
+so a helper's name is never needed for a game that is not open.
 
 **The arc at the top of Building** (`public/arc-card.js`, `public/arc.js`,
 ideas/doneness.md): how done a game is, apart from whether it is out. A game

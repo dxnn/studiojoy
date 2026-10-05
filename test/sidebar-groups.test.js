@@ -18,7 +18,7 @@ globalThis.localStorage = {
 };
 
 const { S } = await import('../public/main.js');
-const { renderSidebar } = await import('../public/sidebar.js');
+const { renderSidebar, lastSaid } = await import('../public/sidebar.js');
 
 const game = (slug, extra) => ({
   slug, name: slug, kind: 'game', mine: false, open_edit: false, archived: false,
@@ -118,4 +118,21 @@ test('each group lists the most recently changed first', () => {
     ],
   });
   assert.deepEqual(names(tree), ['bomb', 'tank', 'kart', 'pipe', 'maze']);
+});
+
+// The line under a game of yours says who spoke last: You, as the thread says
+// it; a person by name; every helper as Bot; the studio's own notices — a
+// paused plan, a fork's first line — as Studio, even when one carries the
+// builder's id.
+test('the line under a game says who said the last thing', () => {
+  S.me = { id: 1, display_name: 'Dann' };
+  const from = (extra) => ({ kind: null, user_id: null, user_name: null, agent_id: null, ...extra });
+  const line = (previewFrom) => lastSaid({ preview: 'hi', preview_from: previewFrom }, 'No messages yet');
+  assert.equal(line(from({ user_id: 1, user_name: 'Dann' })), 'You: hi');
+  assert.equal(line(from({ user_id: 2, user_name: 'Robin' })), 'Robin: hi');
+  assert.equal(line(from({ agent_id: 7 })), 'Bot: hi');
+  assert.equal(line(from({ kind: 'plan', agent_id: 7 })), 'Bot: hi');
+  assert.equal(line(from({ kind: 'system', agent_id: 7 })), 'Studio: hi');
+  assert.equal(line(from({ kind: 'system' })), 'Studio: hi');
+  assert.equal(lastSaid({ preview: '', preview_from: null }, 'No messages yet'), 'No messages yet');
 });

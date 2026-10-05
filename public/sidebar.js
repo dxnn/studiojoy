@@ -242,7 +242,7 @@ function gameRows(matches) {
   h('div', {
     class: 'item-sub',
     text: p.mine
-      ? (p.preview || 'No messages yet')
+      ? lastSaid(p, 'No messages yet')
       : (p.authors.map((a) => a.display_name).join(', ') || 'Nobody'),
   }));
 
@@ -276,7 +276,22 @@ function announcementsRow() {
     h('span', { class: 'announce-mark', text: '📣', 'aria-hidden': 'true' }),
     h('span', { class: 'iname', text: p.name }),
     readMark(p)),
-  h('div', { class: 'item-sub', text: p.preview || 'Nothing said yet' }));
+  h('div', { class: 'item-sub', text: lastSaid(p, 'Nothing said yet') }));
+}
+
+// The line under a row's name: who said the last thing, then what. You are
+// You, as in the thread; every helper is Bot and the studio's own notices are
+// Studio, so no helper's name has to be known for a game that is not open.
+// Exported for test/sidebar-groups.test.js.
+export function lastSaid(p, empty) {
+  if (!p.preview) return empty;
+  const from = p.preview_from;
+  const who = !from ? null
+    : from.kind === 'system' ? 'Studio'
+      : from.agent_id !== null ? 'Bot'
+        : from.user_id === S.me.id ? 'You'
+          : (from.user_name ?? 'Someone');
+  return who ? `${who}: ${p.preview}` : p.preview;
 }
 
 // A chat is a game with the game taken out: the same thread and the same
