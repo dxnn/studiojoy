@@ -4,8 +4,10 @@
 // how fast, and whether the robot is playing. Per tab and per game, sent again
 // whenever the preview loads, since a reload is a new page that knows nothing.
 
-import { h } from './dom.js';
-import { S, render, say, previewWindow } from './main.js';
+import { h, SVG_NS } from './dom.js';
+import {
+  S, render, say, previewWindow, more,
+} from './main.js';
 import { gamesOrigin } from './telemetry.js';
 import { liveTweaks } from './tweaks.js';
 
@@ -21,8 +23,25 @@ const UNPINNED = {
   'not-a-save': 'That pin is from a game shaped differently from this one now.',
 };
 
-const SPEEDS = [1, 0.5, 0.25, 4, 16];
-const SPEED_WORDS = { 1: '1×', 0.5: '½×', 0.25: '¼×', 4: '4×', 16: '16×' };
+// Slowest first, as the list under the speed button reads. ⚠️ The same list
+// is the preview's (server/preview-player.js), which ignores any other.
+const SPEEDS = [0.25, 0.5, 1, 2, 4, 16];
+const SPEED_WORDS = {
+  0.25: '¼×', 0.5: '½×', 1: '1×', 2: '2×', 4: '4×', 16: '16×',
+};
+
+// One frame on: one arrow to a bar, drawn rather than ⏭, which is two arrows
+// — the next *track* — and is drawn as an emoji somewhere or other.
+function stepIcon() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  for (const [k, v] of Object.entries({
+    viewBox: '0 0 24 24', width: 13, height: 13, fill: 'currentColor', 'aria-hidden': 'true',
+  })) svg.setAttribute(k, v);
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M5 4l11 8-11 8z M17 4h3v16h-3z');
+  svg.append(path);
+  return svg;
+}
 
 function tell(data) {
   const frame = previewWindow();
@@ -125,16 +144,16 @@ export function renderPlayerControls() {
       onclick: () => { S.player.paused = !paused; settle(); render(); },
     }),
     paused ? h('button', {
-      class: 'icon', text: '⏭', title: 'One frame on', onclick: () => tell({ step: true }),
-    }) : null,
-    h('button', {
-      class: `icon${speed === 1 ? '' : ' on'}`, text: SPEED_WORDS[speed],
-      title: 'How fast the game runs here — press for the next speed: slower, then faster',
-      onclick: () => {
-        S.player.speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-        settle();
-        render();
-      },
+      class: 'icon', title: 'One frame on', 'aria-label': 'One frame on', onclick: () => tell({ step: true }),
+    }, stepIcon()) : null,
+    // How fast, pressed for the list of every speed, the one running lit.
+    more('speed', SPEEDS.map((s) => ({
+      text: SPEED_WORDS[s],
+      on: s === speed,
+      onPick: () => { S.player.speed = s; settle(); render(); },
+    })), {
+      label: 'How fast the game runs here',
+      face: { class: `icon speed${speed === 1 ? '' : ' on'}`, kids: [SPEED_WORDS[speed]] },
     }),
     // The robot plays it for you, run after run, and keeps playing through a
     // save; your own key or tap takes over.

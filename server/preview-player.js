@@ -7,7 +7,7 @@
 // It owns the game's time. The timestamps requestAnimationFrame hands a game,
 // performance.now(), Date.now(), setTimeout, setInterval and Math.random()
 // all come from here, so the studio can pause a game, step it one frame at a
-// time, run it at half or quarter speed or four or sixteen times over — every
+// time, run it at half or quarter speed or two, four or sixteen times over — every
 // canvas game, without the game knowing — and the random numbers are a
 // stream with a state of its own, so a moment can be had again: a savepoint
 // is the game's State (studio/state.js) and where that stream stood, taken by
@@ -677,7 +677,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
   // What the studio says: run or pause, how fast, one frame on, pin, back, a
   // place to jump to, the robot on or off. Settings arrive again after every
   // reload, asked for by 'ready' below.
-  var SPEEDS = [1, 0.5, 0.25, 4, 16];
+  var SPEEDS = [0.25, 0.5, 1, 2, 4, 16];
   window.addEventListener('message', function (event) {
     var d = null;
     try {

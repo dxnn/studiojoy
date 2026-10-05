@@ -54,9 +54,17 @@
   color: color-mix(in oklab, var(--look-primary) 25%, white);
 }
 .preview-foot button.icon:hover:not(:disabled) { color: #fff; background: oklch(0.98 0.01 300 / 0.12); }
-/* The preview player's own (preview-player.js): paused, or slowed, is a state
-   the game is in, so the button saying so is lit in the studio's cyan. */
-.preview-foot button.icon.on { color: var(--accent); }
+/* The preview player's own (preview-player.js): paused, at another speed, or
+   the robot playing is a state the game is in, so the button saying so is lit
+   in the studio's cyan — behind it too, since 🤖 is an emoji and no colour of
+   text reaches it. */
+.preview-foot button.icon.on {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+}
+.preview-foot button.icon svg { display: block; }
+/* The list of speeds is a column of short numbers, not a menu of words. */
+.preview-foot .menu { min-width: 0; }
 .preview-note { font-size: 11px; margin: 4px auto 0; width: var(--frame-w, 100%); padding: 0 4px; }
 /* What the robot found, in the note's place: the game's error, and the way
    back to just before it. */

@@ -38,6 +38,12 @@
   color: var(--text);
 }
 .menu-item:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+/* The one on screen, in a list of places or settings to pick from — the phone's
+   modes, the preview's speeds — lit the way a pill is when it is the one. */
+.menu-item.on {
+  color: #fff;
+  background: color-mix(in oklab, var(--look-primary) 32%, transparent);
+}
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 22%, transparent); }
 

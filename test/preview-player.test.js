@@ -293,6 +293,14 @@ test('fast, the clock goes in whole frames, as many as are owed, and silently', 
   assert.equal(seen.length, 12 + 64, 'a machine that cannot keep up lets the rest go');
 });
 
+test('2× is a speed it takes, two of the game\'s frames to one of yours', () => {
+  const p = boot();
+  const seen = loop(p);
+  p.studio({ speed: 2 });
+  p.frame(51);
+  assert.equal(seen.length, 6, '51 ms at 2× is 102 ms of game: six whole frames');
+});
+
 // A page with a keyboard and a body to tap, recording what reached it.
 function page() {
   const sent = [];

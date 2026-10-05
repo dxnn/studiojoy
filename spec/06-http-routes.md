@@ -1845,8 +1845,12 @@ injected after the reporter owns the game's time: the timestamps
 `requestAnimationFrame` hands it, `performance.now()`, `Date.now()`,
 `setTimeout`, `setInterval` and `Math.random()` (a seeded stream with a state
 of its own) all come from it, so the preview's foot can **pause** a game,
-step it **one frame on** (exactly 1/60 s) and run it at **½×**, **¼×**,
-**4×** or **16×** — every canvas game, unchanged, its timers included. A
+step it **one frame on** (exactly 1/60 s, one arrow to a bar) and run it at
+**¼×**, **½×**, **2×**, **4×** or **16×** — picked from a list under the
+speed, the one running lit; the same list is the injected player's, which
+ignores any other — every canvas game, unchanged, its timers included. Paused,
+another speed and the robot playing each light their button, the background
+too, since 🤖 is an emoji no text colour reaches. A
 timer runs at the top of the frame it comes due in; one that throws is thrown
 again on a real timer, so the reporter files it and the frame goes on. A
 person at 1× or slower gets the time that really passed in one frame, so slow
