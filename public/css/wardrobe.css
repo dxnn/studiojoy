@@ -4,7 +4,6 @@
    wide, drawn at whole multiples so a pixel stays a square (avatar.js). */
 .avatar-figure { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 .avatar-figure img, .avatar-head, .gear { display: block; image-rendering: pixelated; }
-.avatar-figure img, .avatar-head { background-size: 100% 100%; }
 .avatar-figure.big img { width: 128px; height: auto; }
 .avatar-figure.small img { width: 32px; height: auto; }
 

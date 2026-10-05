@@ -16,12 +16,11 @@ const bareOf = (slot) => {
 
 export const gearSrc = (id) => `/api/gear/${id}/picture`;
 
-// One slot: the piece worn, over the bare shape — so a piece with gaps in it
-// still has a body showing through them — or the bare shape alone.
+// One slot: the piece worn, on whatever it is drawn over — its gaps are gaps
+// (decided 2026-10-05) — or the bare shape, where nothing is.
 const part = (avatar, slot, cls) => h('img', {
   class: cls,
   src: avatar?.[slot] ? gearSrc(avatar[slot]) : bareOf(slot),
-  style: avatar?.[slot] ? `background-image:url("${bareOf(slot)}")` : null,
   alt: '',
 });
 

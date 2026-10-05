@@ -36,7 +36,9 @@ address: a list of names needn't be a list of emails to do its job.
 **Avatars and the wardrobe** (ideas/dreams.md §6, since 2026-10-04). An
 avatar is three pieces of **gear** — a head, a body, legs — stacked into one
 figure 32 pixels wide, each the bare shape (`public/gear-shapes.js`) where
-nothing is worn and showing through the gaps of what is. Everybody in the
+nothing is worn. A worn piece is drawn alone, over whatever is behind the
+figure, and its gaps are gaps (since 2026-10-05; the bare shape used to show
+through them). Everybody in the
 studio draws gear, three pieces a week, in the pixel editor's **gear mode**:
 a blank picture of the slot's size, the slot's shape as a mask every tool
 stays inside (the editor's one bounds check) and everything outside it

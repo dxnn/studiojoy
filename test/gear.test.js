@@ -144,7 +144,8 @@ test('the catalog shows whoever made each game as their avatar, never their name
   const page = await (await games.client.request('GET', '/')).text();
   const maker = page.match(/<span class="maker"[^>]*>.*?<\/span>/s)?.[0] ?? '';
   assert.match(maker, /title="made by Alias \d+"/);
-  assert.match(maker, new RegExp(`<img class="head" src="/_gear/${crown.id}"`));
+  assert.match(maker, new RegExp(`<img class="head" src="/_gear/${crown.id}" alt="">`),
+    'a worn piece alone, with no bare shape behind it');
   assert.match(maker, /<img class="body" src="data:image\/svg\+xml,/, 'the bare shape where nothing is worn');
   assert.doesNotMatch(page, /Dann/);
 

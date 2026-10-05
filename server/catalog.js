@@ -149,11 +149,11 @@ const has = (n) => n !== null && n !== undefined;
 // the joy still there to earn in it (server/joy.js). Under the card, the link
 // to everybody's: its own control, because the whole card opens the game.
 // Whoever made a game, as their avatar (server/gear.js): a head, a body and
-// legs, each a piece of gear's picture over the bare shape, or the bare shape
-// alone, with their alias on hover — the games origin says no name.
+// legs, each a piece of gear's picture, or the bare shape where nothing is
+// worn, with their alias on hover — the games origin says no name.
 const BARE = '#5b5486';
 const part = (m, slot) => (m[slot]
-  ? `<img class="${slot}" src="/_gear/${Number(m[slot])}" style="background-image:url('${shapeSvg(slot, BARE)}')" alt="">`
+  ? `<img class="${slot}" src="/_gear/${Number(m[slot])}" alt="">`
   : `<img class="${slot}" src="${shapeSvg(slot, BARE)}" alt="">`);
 const figure = (m) => (m
   ? `<span class="maker" title="made by ${escapeHtml(m.alias ?? '')}">${SLOTS.map((slot) => part(m, slot)).join('')}</span>`
@@ -269,7 +269,7 @@ export function catalogPage({ games, player = null }) {
   .badge { width: 28px; height: 28px; border-radius: 7px; vertical-align: -8px; margin-right: 10px; }
   /* Whoever made it, a head over a body over legs, pixels kept square. */
   .maker { flex: 0 0 auto; display: flex; flex-direction: column; margin-right: 12px; }
-  .maker img { display: block; width: 20px; height: auto; image-rendering: pixelated; background-size: 100% 100%; }
+  .maker img { display: block; width: 20px; height: auto; image-rendering: pixelated; }
   /* The numbers, stacked at the card's foot: scores in gold, the trophy count
      in the page's own ink, because a count is a number but not a score. */
   .nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
