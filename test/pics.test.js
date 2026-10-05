@@ -24,7 +24,8 @@ globalThis.fetch = async (url) => {
 };
 
 const { S } = await import('../public/main.js');
-const { renderPicsMode, renderPickInspector } = await import('../public/pics-hear.js');
+const { renderPicsMode, renderHearMode } = await import('../public/pics-hear.js');
+const { renderOpenFile } = await import('../public/files-tab.js');
 const { dialogFor } = await import('../public/dialogs.js');
 const { RESERVED_IMAGES, DRESSING, HERO_IMAGE } = await import('../public/files.js');
 
@@ -143,17 +144,49 @@ test('a dressing is drawn here, brought from the device, or picked off the shelf
   S.dialog = null;
 });
 
-test('the inspector belongs to the picture that is open', () => {
+// The open picture's own bar says what it is and where; a picture the studio
+// wears says, under it, what it dresses (ideas/one-pane.md: no rail).
+test('an open dressing says what it dresses, under its bar', () => {
   pics([picture(HERO_IMAGE, 2048)]);
-  assert.equal(renderPickInspector(), null, 'nothing open, nothing to inspect');
   S.open = { path: HERO_IMAGE, mime: 'image/png', content: null };
-  const box = renderPickInspector();
-  const said = texts(box).join(' ');
+  S.draw = null;
+  const said = texts(renderOpenFile()).join(' ');
   assert.ok(said.includes(HERO_IMAGE));
-  assert.ok(said.includes(DRESSING[HERO_IMAGE].what), 'a dressing says what it dresses');
-  // The picture is in the editor beside this; a second smaller copy of it is
-  // what made the old two-click open feel like a step for nothing.
-  assert.equal(withClass(box, 'thumb').length, 0);
+  assert.ok(said.includes(DRESSING[HERO_IMAGE].what));
+  S.open = null;
+});
+
+// In place: a character's fields under the cards, and the same card closes
+// them again — one open at a time, nothing a pane away.
+test('a character opens under the cards, and the same card closes them', () => {
+  pics([]);
+  S.project.type = 'visual-novel';
+  S.story = { model: { cast: [{ key: 'ada', name: 'Ada', moods: ['happy'] }], scenes: [] } };
+  const card = () => withClass(renderPicsMode(), 'face')[0];
+  press(card());
+  assert.deepEqual(S.pick, { kind: 'person', key: 'ada' });
+  const open = withClass(renderPicsMode(), 'in-place');
+  assert.equal(open.length, 1);
+  assert.ok(texts(open[0]).includes('Character'));
+  press(card());
+  assert.equal(S.pick, null);
+  assert.equal(withClass(renderPicsMode(), 'in-place').length, 0);
+  S.story = null;
+});
+
+test('a sound opens under its own row', () => {
+  pics([]);
+  S.mode = 'hear';
+  const sound = { path: 'assets/sounds/jump.wav', mime: 'audio/wav', size: 400 };
+  S.files = [sound, { path: 'assets/sounds/coin.wav', mime: 'audio/wav', size: 300 }];
+  S.open = { ...sound, content: null };
+  S.sound = null;
+  const kids = withClass(renderHearMode(), 'hear')[0].children.filter(Boolean);
+  const at = kids.findIndex((n) => hasClass(n, 'hear-row') && hasClass(n, 'on'));
+  assert.ok(at >= 0, 'the open row is lit');
+  assert.ok(hasClass(kids[at + 1], 'in-place'), 'and what it opened is the next thing under it');
+  S.open = null;
+  S.mode = 'pics';
 });
 
 test('gold is a number and nothing else', () => {

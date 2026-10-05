@@ -32,7 +32,7 @@ import {
   loadPalette, flushPalette, lookFileWith, LOOK_FILE, LOOK_ROLES,
 } from './drawing.js';
 import { renderFilesTab } from './files-tab.js';
-import { renderPicsMode, renderHearMode, renderPickInspector } from './pics-hear.js';
+import { renderPicsMode, renderHearMode } from './pics-hear.js';
 import {
   loadHistory, loadDiff, historyNeedsLoad, keepDiffInView,
 } from './history.js';
@@ -1272,16 +1272,15 @@ function renderRail() {
     renderInspector());
 }
 
-// The selected thing's fields, for the mode that has one: the story editor's
-// scene, person or title screen; Pics' picture or person; Hear's open sound.
-// Nothing more specific selected, and the rail is the preview player's: the
-// tweaks, the game's tuning files as fields that go into the running game and
-// nowhere else until saved (tweaks.js). The rail is meant to be the player's
-// alone; what the editors keep here is to move into the centre (TODO.md).
+// The selected thing's fields, for an editor that still keeps them here: the
+// story's and the adventure's scenes, and the plan canvases. Pics and Hear
+// open theirs in place. Nothing more specific selected, and the rail is the
+// preview player's: the tweaks, the game's tuning files as fields that go into
+// the running game and nowhere else until saved (tweaks.js). All of it is
+// moving into the centre (ideas/one-pane.md).
 function renderInspector() {
   const editor = editorShowing();
   if (editor?.inspector) return editor.inspector();
-  if (S.mode === 'pics' || S.mode === 'hear') return renderPickInspector();
   return renderTweaks();
 }
 

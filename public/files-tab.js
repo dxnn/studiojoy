@@ -18,7 +18,7 @@ import {
   S, render, frozen, sizeText, more, EDITOR_AREA, showMode, encodePath,
 } from './main.js';
 import {
-  chooseFile, closeOpenFile, saveOpenFile,
+  chooseFile, closeOpenFile, saveOpenFile, RESERVED_IMAGES, DRESSING,
 } from './files.js';
 import { loadHistory } from './history.js';
 import { renderDrawing } from './drawing.js';
@@ -320,7 +320,12 @@ export function renderOpenFile() {
 
     if (S.open.content === null) {
       const refused = S.drawRefused ?? S.soundRefused;
-      return h('div', { class: 'editor' }, bar,
+      // A picture the studio wears says what it dresses, since its name alone
+      // — hero.png — does not.
+      const dresses = RESERVED_IMAGES.includes(S.open.path)
+        ? h('div', { class: 'pad hint muted dresses', text: `Studio dressing: ${DRESSING[S.open.path].what}` })
+        : null;
+      return h('div', { class: 'editor' }, bar, dresses,
         S.draw ? renderDrawing() : S.sound ? renderSoundEditor() : renderMedia(S.open),
         refused ? h('div', { class: 'pad hint muted', text: refused }) : null);
     }

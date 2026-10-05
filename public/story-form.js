@@ -1028,7 +1028,7 @@ export function renderStoryInspector() {
 // from the shelf of faces, or renamed here, which renames the picture and
 // every line said in it. `close` is the way out of a card in Pics; the strip
 // in Write has no such thing to close.
-export function renderPersonInspector(person, { close = null } = {}) {
+export function renderPersonInspector(person, { close = null, inPlace = false } = {}) {
   const st = S.story;
   if (!st?.model || !person) return null;
   const { model } = st;
@@ -1084,7 +1084,8 @@ export function renderPersonInspector(person, { close = null } = {}) {
         },
       ], { label: `More about ${mood}` }));
   };
-  return h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' },
+  // In place, inside a pane's own scroller, it is not a scroller itself.
+  return h('div', inPlace ? { class: 'inspector in-place' } : { class: 'inspector scroll', 'data-scroll': 'inspector' },
     h('div', { class: 'inspector-head row' },
       h('div', { class: 'grow' },
         h('span', { class: 'section-label', text: 'Character' }),

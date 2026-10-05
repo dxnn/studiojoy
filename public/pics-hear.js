@@ -1,6 +1,7 @@
 // Pics and Hear (spec.md §6): every picture in the game by what it is, and
 // every sound over its music. A picture opens in the pixel editor on one
-// click; a sound opens its editor in the rail on one click.
+// click; a sound opens its editor under its own row, and a character their
+// fields under the cards — in place, since there is no other pane to put them.
 
 import { h } from './dom.js';
 import {
@@ -40,7 +41,7 @@ function pictureCard({
     class: `card${on ? ' on' : ''}${strip ? ' strip' : ''}`,
     onclick: (e) => {
       if (e.target.closest('button')) return undefined;
-      // A person may be selected into the rail; opening a picture is not about
+      // A person may be open under the cards; opening a picture is not about
       // them any more.
       S.pick = null;
       return chooseFile(path);
@@ -52,15 +53,16 @@ function pictureCard({
 }
 
 // A person, wearing their first mood. Their moods, their name and the note
-// about them are the inspector's; taking them out of the story is Write's.
+// about them open under the cards, and the same card closes them again;
+// taking them out of the story is Write's.
+const pickedPerson = (person) => S.pick?.kind === 'person' && S.pick.key === person.key;
 function personCard(person) {
-  const on = S.pick?.kind === 'person' && S.pick.key === person.key;
+  const on = pickedPerson(person);
   const img = h('img', { alt: '' });
   if (person.moods[0]) pictureInto(img, `${SPRITE_DIR}/${person.key}-${person.moods[0]}.png`);
   return h('div', {
     class: `card face${on ? ' on' : ''}`,
-    // Their fields are the rail's alone, a pane away on a phone: go there.
-    onclick: () => { S.pick = { kind: 'person', key: person.key }; S.narrowPane = 'rail'; render(); },
+    onclick: () => { S.pick = on ? null : { kind: 'person', key: person.key }; render(); },
   },
   h('div', { class: 'cpic' }, img),
   h('div', { class: 'crow' }, h('div', { class: 'cname', text: person.name || person.key })),
@@ -117,6 +119,10 @@ export function renderPicsMode() {
   const story = hasEditor('story') ? S.story?.model : null;
   if (story) {
     parts.push(...section('Characters', story.cast.map(personCard)));
+    const person = story.cast.find(pickedPerson);
+    if (person) {
+      parts.push(renderPersonInspector(person, { close: () => { S.pick = null; render(); }, inPlace: true }));
+    }
     for (const person of story.cast) {
       for (const mood of person.moods) covered.add(`${SPRITE_DIR}/${person.key}-${mood}.png`);
     }
@@ -187,27 +193,29 @@ export function renderPicsMode() {
 }
 
 // Hear: the game's sounds over its music (spec.md §6), a row each with a way
-// to hear it. Selecting one opens it — its editor lands in the rail, sliders
-// for a studio-made sound and a player for anything else — while the list
-// stays here; the same row closes it again.
+// to hear it. Selecting one opens it under its own row — sliders for a
+// studio-made sound and a player for anything else — and the same row closes
+// it again.
 export function renderHearMode() {
   const audio = S.files.filter((f) => isAudioFile(f) && !f.unreachable);
   const row = (f) => {
     const on = S.open?.path === f.path;
-    return h('div', {
+    return [h('div', {
       class: `hear-row${on ? ' on' : ''}`,
       onclick: (e) => {
         if (e.target.closest('button')) return undefined;
         if (on) return closeOpenFile();
-        // Its editor is the rail's alone, a pane away on a phone: go there.
-        S.narrowPane = 'rail';
         return chooseFile(f.path);
       },
     },
     playButton(f.path),
     h('span', { class: 'hname mono', text: f.path.split('/').pop() }),
     h('span', { class: 'hsize', text: sizeText(f.size) }),
-    fileMore(f.path));
+    fileMore(f.path)),
+    on && S.open && isAudioFile(S.open) ? h('div', { class: 'inspector in-place hear-open' },
+      S.sound ? renderSoundEditor() : renderMedia(S.open),
+      S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused }) : null,
+      h('p', { class: 'hint muted mono', text: f.path })) : null];
   };
   const section = (label, files) => (files.length
     ? [h('div', { class: 'section-label', text: label }), ...files.map(row)]
@@ -233,52 +241,4 @@ export function renderHearMode() {
         class: 'pad muted', text: 'No sounds yet. Make one, or upload a track.',
       })),
   ];
-}
-
-// The inspector for Pics and Hear: the picked picture or person, or the open
-// sound. A picture is where it lives and how big it is, and a way to draw on
-// it, with the file's ··· in its head — its card is not on screen once it is
-// open. A sound is the sound editor, or the player for one not made here.
-export function renderPickInspector() {
-  const head = (kind, name, ...extra) => h('div', { class: 'inspector-head row' },
-    h('div', { class: 'grow' },
-      h('span', { class: 'section-label', text: kind }),
-      h('div', { class: 'iname', text: name })),
-    ...extra);
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
-  const shut = (onclick) => h('button', { class: 'icon tiny', text: '✕', title: 'Close', onclick });
-
-  if (S.mode === 'hear') {
-    if (!S.open || !isAudioFile(S.open)) return null;
-    const { path } = S.open;
-    return box(head('Sound', path.split('/').pop(), fileMore(path, `rail:${path}`), shut(() => closeOpenFile())),
-      S.sound ? renderSoundEditor() : renderMedia(S.open),
-      S.soundRefused ? h('p', { class: 'hint muted', text: S.soundRefused }) : null,
-      fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: path })));
-  }
-  if (S.mode !== 'pics') return null;
-  // The open picture first: it is what the pane is about, and a person left
-  // selected from before is not.
-  if (S.open && isPictureFile(S.open)) {
-    const { path } = S.open;
-    const f = S.files.find((x) => x.path === path);
-    if (!f) return null;
-    const sprite = inDir(f, SPRITE_DIR);
-    const dressing = RESERVED_IMAGES.includes(path);
-    // No thumbnail: the picture itself is in the editor beside this, and the
-    // rail showing a second smaller copy of it was the whole of what made the
-    // old two-click open feel pointless.
-    return box(
-      head(dressing ? 'Studio dressing' : sprite ? 'Sprite' : 'Picture', path.split('/').pop(),
-        fileMore(path, `rail:${path}`), shut(() => closeOpenFile())),
-      fieldRow('Where it lives', h('span', { class: 'hint muted mono', text: `${path} · ${sizeText(f.size)}` })),
-      dressing ? fieldRow('Dresses', h('span', { class: 'hint muted', text: DRESSING[path].what })) : null);
-  }
-  if (S.pick?.kind === 'person') {
-    const person = S.story?.model?.cast.find((p) => p.key === S.pick.key);
-    return person ? renderPersonInspector(person, { close: () => { S.pick = null; render(); } }) : null;
-  }
-  return null;
 }
