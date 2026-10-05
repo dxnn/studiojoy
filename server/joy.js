@@ -19,7 +19,9 @@
 //
 // ⚠️ An unlock is the browser's word, as a score is, so a forged one now makes
 // joy. Accountable rather than prevented: every earn is a ledger row with a
-// name on it, and undoing one is one more row.
+// name on it. Undoing one takes two steps, the hold first: while the
+// `achievements` row stands, every settle pays it again, a row taking the joy
+// back included. Then one more row takes back what it paid.
 
 import { HttpError } from './http/respond.js';
 import { tx } from './db.js';

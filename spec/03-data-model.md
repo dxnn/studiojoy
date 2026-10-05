@@ -780,7 +780,10 @@ takes to get there from where it is — which is the interface's limit alone:
 the route takes any whole number (Dann, "we'll change this later").
 
 ⚠️ The unlock that pays it is the browser's word (above), so a forged one
-makes joy: accountable, every earn a row with a name on it. ⚠️ No file holds
+makes joy: accountable, every earn a row with a name on it. ⚠️ Undoing one is
+the hold first — the `achievements` row deleted — and then a row taking the
+joy back: with the hold still there, the next settle (every start, every
+chips put) pays it straight back. ⚠️ No file holds
 chips or joy, so no `write_file` can make either.
 
 Joy is spent on gear: a `bought` row of −20, with `gear_id` (an added column)
