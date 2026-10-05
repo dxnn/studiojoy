@@ -952,7 +952,8 @@ every mode): the preview, the preview player's controls and `Open` on its
 foot, the note or the robot's under it, the problems and moments it reported,
 then the tweaks (above), one scroller on the game's own loud surface. Nothing
 folds it away: leaving the tab is how. ⚠️ **Off Play the game stays loaded and
-paused** — the preview player is told so on every mode change (`showMode`)
+paused** — off its tab, and on a phone while the list is up instead — the
+preview player told so whenever that changes (`placePreview`, `playOnScreen`)
 and on every new page — because the builder's *shot* is taken from the live
 preview when a message is sent, and messages are sent from Speak: unloaded
 off its tab, the builder would never see the game. A page that loads off Play

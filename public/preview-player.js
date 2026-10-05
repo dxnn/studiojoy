@@ -6,7 +6,7 @@
 
 import { h, SVG_NS } from './dom.js';
 import {
-  S, render, say, previewWindow, more, openMode,
+  S, render, say, previewWindow, more, openMode, playOnScreen,
 } from './main.js';
 import { gamesOrigin } from './telemetry.js';
 import { liveTweaks } from './tweaks.js';
@@ -56,13 +56,14 @@ function tell(data) {
 
 // The settings and the tweaks (tweaks.js) — and, to a page that has just
 // loaded, the place an editor is trying (tryFrom, below). Paused whenever Play
-// is not on screen, as well as by hand: off its tab the game waits, loaded,
-// so the builder's shot is the frame last looked at (spec.md §6).
+// is not on screen (main.js, playOnScreen), as well as by hand: off its tab,
+// or behind the list on a phone, the game waits, loaded, so the builder's shot
+// is the frame last looked at (spec.md §6).
 function settle({ loaded = false } = {}) {
   const trying = S.player.trying;
   const jump = loaded && trying ? trying.fields : null;
   tell({
-    paused: S.player.paused || S.mode !== 'play',
+    paused: S.player.paused || !playOnScreen(),
     speed: S.player.speed,
     robot: S.player.robot,
     tweaks: liveTweaks(),

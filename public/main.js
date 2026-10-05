@@ -512,11 +512,11 @@ export const editorShowing = () => editorsFor(S.project?.type).find((e) => e.id 
 // commit lands (spec.md §5). Not awaited — the surface changes now, and the
 // timer lands it if this did not.
 //
-// The game under Play hears about it too: off its tab it waits, paused, still
-// loaded — so the builder's shot is the frame last looked at — and carries on
-// coming back, unless it was paused by hand (spec.md §6). A Try is
-// held across Play and the editor that asked for it, and forgotten anywhere
-// else.
+// The game under Play hears about it after the render, from placePreview: off
+// its tab it waits, paused, still loaded — so the builder's shot is the frame
+// last looked at — and carries on coming back, unless it was paused by hand
+// (spec.md §6). A Try is held across Play and the editor that asked for it,
+// and forgotten anywhere else.
 export function showMode(id) {
   const mode = modeOf(id) ?? 'chat';
   if (S.slug && S.mode !== mode) {
@@ -526,7 +526,6 @@ export function showMode(id) {
   S.menu = null;
   if (S.slug) prefs.set(`mode-${S.slug}`, mode);
   if (S.player.trying && ![S.player.trying.mode, 'play'].includes(mode)) S.player.trying = null;
-  settlePlayer();
 }
 
 // Share shows what the public holds, so arriving there reads it: the scores,
@@ -1087,12 +1086,26 @@ const previewShape = () => PREVIEW_SHAPES.find((s) => s.id === S.previewShape) ?
 // game, so the game is as big as the pane allows with its foot still showing.
 const FOOT_ROOM = 104;
 
+// Whether Play is on screen: its mode, and its pane showing — on a phone the
+// list can be up instead, the centre under display:none. The game runs only
+// while it is (preview-player.js, settle), so a hidden one is never heard, or
+// played by the robot, unseen. Scrolling Play is not this: the placeholder
+// keeps its size, and while the game is scrolled wholly out of sight its frame
+// is hidden (below) and the browser stops handing it frames by itself.
+let playShown = false;
+export const playOnScreen = () => playShown;
+const seen = (on) => {
+  if (on === playShown) return;
+  playShown = on;
+  settlePlayer();
+};
+
 function placePreview() {
   const slot = previewSlot?.isConnected ? previewSlot : null;
   // A placeholder under display:none measures as nothing, so a hidden
   // placeholder is a hidden frame: hidden, never unloaded, exactly as the
   // frame in the tree used to be.
-  if (!slot) { previewFrame.style.display = 'none'; return; }
+  if (!slot) { seen(false); previewFrame.style.display = 'none'; return; }
   // The chosen shape, as big as Play's width and height allow. The height
   // goes on the placeholder so the layout keeps room for it;
   // the width goes on the wrap as a variable, so the foot under the frame is
@@ -1109,6 +1122,7 @@ function placePreview() {
   const tall = `${Math.round(Math.max(120, Math.min(room / ratio, pane - FOOT_ROOM)))}px`;
   if (slot.style.height !== tall) slot.style.height = tall;
   const box = slot.getBoundingClientRect();
+  seen(box.width > 0 && box.height > 0);
   const wide = `${Math.round(Math.min(box.width, box.height * ratio))}px`;
   const wrap = slot.parentElement;
   if (wrap && wrap.style.getPropertyValue('--frame-w') !== wide) {

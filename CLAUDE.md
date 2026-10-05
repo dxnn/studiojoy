@@ -178,7 +178,8 @@ walk into, each paid for once already.
   frames further apart, so a game counting per frame counts the same as at
   1×, and a robot's run replays. The builder is told to count by time, not
   by frame, which is the half that fixes a 120 Hz screen. ⚠️ It lives under **Play**, a mode, and
-  off Play it stays loaded and *paused* (`showMode` tells it), never
+  off Play — or behind the list on a phone — it stays loaded and *paused*
+  (`placePreview` tells it, when `playOnScreen` flips), never
   unloaded while a game is open: the builder's shot is taken from it when a
   message is sent from Speak — so a page that loads paused is handed one
   frame with no time in it, or that shot is a canvas nothing drew on. The
