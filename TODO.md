@@ -138,6 +138,8 @@ deliberately deferred.
   and the same hundred again after a tweak (ideas/dreams.md §4, item 5)
 - let the catalog card play itself — a clip recorded while the robot plays,
   or a recorded run played back (ideas/dreams.md §4, item 7)
+- undo a forged earn of joy from a terminal — a `bin/` script that writes the
+  reversing `ledger` row, in `deluser`'s spirit (decided 2026-10-04)
 - let the story editor open a story holding steps it does not know — a
   game's own `{ flash: true }` or `{ video: … }` line, carried through a save
   untouched — so a game like qiby-fam-days gets its editor and *Try this
