@@ -379,6 +379,7 @@ export function renderTrackEditor() {
     render();
   };
 
+  const fields = selectedFields(st);
   const thingRow = (t, i) => h('div', {
     class: `plan-row${st.selected?.kind === 'thing' && st.selected.index === i ? ' on' : ''}`,
     onclick: (e) => {
@@ -404,8 +405,13 @@ export function renderTrackEditor() {
         + (st.play?.RIVALS != null ? ` · ${st.play.RIVALS} rivals` : ''),
     }),
     h('p', { class: 'hint muted', text: ro ? '' : 'Drag a point to move it. Click on the road to add one. Delete takes the selected one out.' }),
+    // A point has no row of its own: its numbers open under the road's.
+    st.selected?.kind === 'point' ? fields : null,
     h('div', { class: 'section-label', text: 'On the road' }),
-    ...model.things.map(thingRow),
+    ...model.things.map((t, i) => [
+      thingRow(t, i),
+      st.selected?.kind === 'thing' && st.selected.index === i ? fields : null,
+    ]),
     ro ? null : h('div', { class: 'row wrap' }, ...KINDS.map((kind) => h('button', {
       class: 'quiet tiny', text: `+ ${LABELS[kind]}`, title: `Put ${NAMES[kind]} on the road`, onclick: () => drop(kind),
     }))),
@@ -449,13 +455,12 @@ export function renderTrackEditor() {
     bar);
 }
 
-/* The inspector -------------------------------------------------------------- */
+/* The selected one's fields --------------------------------------------------- */
 
-// The selected point's or thing's own numbers, in the rail beside the preview;
-// nothing selected, and the track as a whole.
-export function renderTrackInspector() {
-  const st = S.track;
-  if (!st?.model || st.grown || st.missing || S.open?.path === TRACK_FILE) return null;
+// The selected point's or thing's own numbers, in place in the side column
+// (ideas/one-pane.md): under a thing's row, or under the road for a point,
+// which has no row. Nothing selected, nothing — the column says the rest.
+function selectedFields(st) {
   const { model, selected } = st;
   const ro = frozen();
   const head = (kind, name) => h('div', { class: 'inspector-head' },
@@ -463,7 +468,7 @@ export function renderTrackInspector() {
     h('div', { class: 'iname', text: name }));
   const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
     h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
   const numField = (id, value, onchange) => {
     const input = h('input', {
       type: 'number', class: 'cfg-num', id, step: '1', disabled: ro,
@@ -512,9 +517,5 @@ export function renderTrackInspector() {
         onclick: () => { removeThing(model, i); st.selected = null; markUnsaved(); render(); },
       }));
   }
-
-  const shape = trackShape(model);
-  return box(head('Track', `${shape.points} points`),
-    h('p', { class: 'hint muted', text: `${shape.length} pixels round, ${model.width} wide, ${shape.things} on the road.` }),
-    h('p', { class: 'hint muted', text: 'Click a point or something on the road to change its numbers here.' }));
+  return null;
 }

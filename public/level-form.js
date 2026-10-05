@@ -17,7 +17,7 @@
 import {
   levelModel, levelText, levelChecks, levelShape, paint, addRow, removeRow,
   addColumn, removeColumn, reachable, rollable, addLevel, duplicateLevel,
-  moveLevel, deleteLevel, addSquare, deleteSquare, usesOf, CHARS, TILES,
+  moveLevel, deleteLevel, addSquare, deleteSquare, usesOf, CHARS,
   MAX_SIDE, MIN_SIDE, MAX_NAME, LEVEL_FILE,
 } from './level-editor.js';
 import { h } from './dom.js';
@@ -300,7 +300,7 @@ export function renderLevelEditor() {
   };
 
   // A kind of square the game made up, as a row: picking it paints with it,
-  // and the rail is where it is named and coloured.
+  // and opens under the row where it is named and coloured.
   const squareRow = ([ch, sq]) => h('div', {
     class: `plan-row${st.tool === ch ? ' on' : ''}`,
     onclick: (e) => {
@@ -346,7 +346,7 @@ export function renderLevelEditor() {
     h('div', { class: 'section-label', text: 'Paint with' }),
     ro ? null : h('div', { class: 'row wrap level-tools' }, ...PALETTE.map(tool)),
     made.length ? h('div', { class: 'section-label', text: 'Made up for this game' }) : null,
-    ...made.map(squareRow),
+    ...made.map(([ch, sq]) => [squareRow([ch, sq]), st.tool === ch ? squareFields(st) : null]),
     ro ? null : h('button', {
       class: 'quiet tiny', text: '+ A new kind of square',
       title: 'A square of your own — a bomb, a power-up, anything — to name, colour and paint with',
@@ -408,20 +408,16 @@ export function renderLevelEditor() {
     bar);
 }
 
-/* The inspector -------------------------------------------------------------- */
+/* A made-up square's fields ---------------------------------------------------- */
 
-// The chosen kind of square. A made-up one is named, coloured and made solid
-// here; the six just say what they do, the one being painted with first.
-// The rail has no square of its own to show, since a level is painted, not
-// picked.
-export function renderLevelInspector() {
-  const st = S.level;
-  if (!st?.model || st.grown || st.missing || S.open?.path === LEVEL_FILE) return null;
+// The chosen kind of square, when the game made it up: named, coloured and
+// made solid in place under its row (ideas/one-pane.md). The six the studio
+// knows say what they do on their buttons and in the line under them.
+function squareFields(st) {
   const { model } = st;
   const { squares } = model;
-  const shape = levelShape(model.levels[st.at]);
   const ro = frozen();
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
+  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
   const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
     h('span', { class: 'ilabel', text: label }), ...kids);
 
@@ -462,12 +458,5 @@ export function renderLevelInspector() {
         : 'Not on any square yet.' }),
       h('p', { class: 'hint muted', text: `Painted as ${ch} in the file. The game draws it in its colour; what it does when the ball rolls on is up to the game — ask the helper to make it do something.` }));
   }
-
-  return box(
-    h('div', { class: 'inspector-head' },
-      h('span', { class: 'section-label', text: `Level ${st.at + 1} of ${model.levels.length}` }),
-      h('div', { class: 'iname', text: `${shape.cols} by ${shape.rows}` })),
-    ...CHARS.map((ch) => h('p', { class: `hint${ch === st.tool ? '' : ' muted'}` },
-      h('strong', { text: `${LABELS[ch]} ` }), WHAT[ch])),
-    h('p', { class: 'hint muted', text: `In the file each is one character: ${CHARS.map((ch) => `${ch === ' ' ? 'a space' : ch} ${TILES[ch]}`).join(', ')}.` }));
+  return null;
 }

@@ -293,7 +293,10 @@ export function renderWorldEditor() {
     }),
     h('p', { class: 'hint muted', text: ro ? '' : 'Drag a thing to move it, and the white dot on the chosen one to size it. Drag the sling to move where shots come from. Delete takes the chosen one out.' }),
     h('div', { class: 'section-label', text: 'In the world' }),
-    ...model.bodies.map(bodyRow),
+    // The chosen thing's own numbers open under its row (ideas/one-pane.md).
+    ...model.bodies.map((b, i) => [bodyRow(b, i), st.selected === i ? bodyFields(st) : null]),
+    h('div', { class: 'section-label', text: 'The sling' }),
+    slingFields(st),
     checks.length ? h('div', { class: 'section-label', text: 'To look at' }) : null,
     ...checks.map((line) => h('p', { class: 'hint warn problem', text: `⚠ ${line}` })),
     h('p', { class: 'hint muted' },
@@ -332,29 +335,35 @@ export function renderWorldEditor() {
     bar);
 }
 
-/* The inspector -------------------------------------------------------------- */
+/* The chosen thing's fields, and the sling's ----------------------------------- */
 
-// The chosen thing's own numbers, in the rail beside the preview; nothing
-// chosen, and the world as a whole with the sling's place.
-export function renderWorldInspector() {
-  const st = S.world;
-  if (!st?.model || st.grown || st.missing || S.open?.path === WORLD_FILE) return null;
+const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
+  h('span', { class: 'ilabel', text: label }), ...kids);
+const numField = (id, value, onchange) => {
+  const input = h('input', {
+    type: 'number', class: 'cfg-num', id, step: '1', disabled: frozen(),
+    onchange: (e) => { onchange(Number(e.currentTarget.value)); markUnsaved(); render(); },
+  });
+  input.value = String(value);
+  return input;
+};
+
+// Where shots come from, as numbers, for a sling dragged too near the edge to
+// drag again — always there, since the sling is always in the world.
+function slingFields({ model }) {
+  return h('div', { class: 'row wrap' },
+    fieldRow('Across', numField('world-sx', model.sling[0], (v) => moveSling(model, v, model.sling[1]))),
+    fieldRow('Down', numField('world-sy', model.sling[1], (v) => moveSling(model, model.sling[0], v))));
+}
+
+// The chosen thing's own numbers, in place under its row (ideas/one-pane.md).
+function bodyFields(st) {
   const { model, selected } = st;
   const ro = frozen();
   const head = (kind, name) => h('div', { class: 'inspector-head' },
     h('span', { class: 'section-label', text: kind }),
     h('div', { class: 'iname', text: name }));
-  const fieldRow = (label, ...kids) => h('div', { class: 'ifield' },
-    h('span', { class: 'ilabel', text: label }), ...kids);
-  const box = (...kids) => h('div', { class: 'inspector scroll', 'data-scroll': 'inspector' }, ...kids);
-  const numField = (id, value, onchange) => {
-    const input = h('input', {
-      type: 'number', class: 'cfg-num', id, step: '1', disabled: ro,
-      onchange: (e) => { onchange(Number(e.currentTarget.value)); markUnsaved(); render(); },
-    });
-    input.value = String(value);
-    return input;
-  };
+  const box = (...kids) => h('div', { class: 'inspector in-place' }, ...kids);
 
   const b = model.bodies[selected];
   if (b) {
@@ -384,10 +393,5 @@ export function renderWorldInspector() {
         onclick: () => { removeBody(model, i); st.selected = null; markUnsaved(); render(); },
       }));
   }
-
-  const shape = worldShape(model);
-  return box(head('World', `${shape.things} things`),
-    h('p', { class: 'hint muted', text: `${shape.targets} to knock down. Click a thing to change its numbers here.` }),
-    fieldRow('Sling across', numField('world-sx', model.sling[0], (v) => moveSling(model, v, model.sling[1]))),
-    fieldRow('Sling down', numField('world-sy', model.sling[1], (v) => moveSling(model, model.sling[0], v))));
+  return null;
 }

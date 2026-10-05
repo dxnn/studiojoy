@@ -30,14 +30,14 @@ import {
   adventureChanged, selectAdventureScene, dropAdventureSizes,
 } from './adventure-form.js';
 import {
-  renderTrackEditor, renderTrackInspector, loadTrack, parkTrack, trackChanged,
+  renderTrackEditor, loadTrack, parkTrack, trackChanged,
 } from './track-form.js';
 import {
-  renderWorldEditor, renderWorldInspector, loadWorld, parkWorld, worldChanged,
+  renderWorldEditor, loadWorld, parkWorld, worldChanged,
 } from './world-form.js';
 import { isWorldPath } from './world-editor.js';
 import {
-  renderLevelEditor, renderLevelInspector, loadLevel, parkLevel, levelChanged,
+  renderLevelEditor, loadLevel, parkLevel, levelChanged,
   levelView, selectLevel,
 } from './level-form.js';
 import { isLevelPath } from './level-editor.js';
@@ -146,7 +146,6 @@ export const GAME_TYPES = {
       park: () => parkTrack(),
       changed: () => trackChanged(),
       reset: () => { S.track = null; },
-      inspector: () => renderTrackInspector(),
     }],
   },
   knockdown: {
@@ -161,7 +160,6 @@ export const GAME_TYPES = {
       park: () => parkWorld(),
       changed: () => worldChanged(),
       reset: () => { S.world = null; },
-      inspector: () => renderWorldInspector(),
     }],
   },
   rollball: {
@@ -176,7 +174,6 @@ export const GAME_TYPES = {
       park: () => parkLevel(),
       changed: () => levelChanged(),
       reset: () => { S.level = null; },
-      inspector: () => renderLevelInspector(),
       viewParam: 'level',
       view: () => levelView(),
       applyView: (n) => selectLevel(n),
