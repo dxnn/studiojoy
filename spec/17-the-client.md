@@ -201,7 +201,9 @@ holds something git cannot recover.
 ### Panes
 
 - **A phone is views, one at a time, under a head that holds still.** At
-  860px and under the three panes take turns (`S.narrowPane`), and
+  860px and under the three panes take turns (`S.narrowPane`) — the games
+  list whenever no game is open, at `/` or Back to it, since the empty
+  centre's "on the left" has no left there — and
   `renderPhoneHeader` draws one **phone header** above whichever of the
   centre and the rail is showing — a row of the shell's grid, so a long
   editor or a field scrolled up for a keyboard moves the pane under it and

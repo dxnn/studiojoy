@@ -887,6 +887,9 @@ export async function openProject(slug, { view = null } = {}) {
   if (slug !== S.slug) S.player = { paused: false, speed: 1, robot: false, trying: null, broke: null };
 
   if (!slug) {
+    // No game open is the games list on a phone: there is no "on the left"
+    // for the empty pane to point at. The wardrobe sets its own pane after.
+    S.narrowPane = 'games';
     S.slug = null;
     S.project = null;
     S.files = [];
