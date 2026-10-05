@@ -679,7 +679,8 @@ function renderPending(localId, entry) {
 
 // A message only gets an answer if some agent attached to this project is
 // eligible. Nothing in the interface used to say that, so an unanswered
-// message looked like a broken app. Two distinct gaps, two distinct fixes.
+// message looked like a broken app. Said now where it is not obvious: helpers
+// that are here but waiting to be called, and a studio with none at all.
 function helperGap() {
   if (!S.project || frozen()) return null;
   // The human-only chat is not missing its helpers; it is the room without
@@ -695,18 +696,11 @@ function helperGap() {
       `Your helpers only answer when you call them. Try starting your message with ${names}, `,
       'or click the helper’s "..." and pick "Answer everything".');
   }
-  // The chat, not the game: a helper is in one conversation, so this one
-  // having nobody in it says nothing about the others.
-  const where = S.chat ? `“${S.chat.name}”` : 'this chat';
-  // With helpers in the studio the fix is in this room, so say where it is
-  // rather than offering a link whose only job would be to open a sidebar
-  // that is usually already open. Both ways in, because the second one — an @
-  // and a name — is the one nothing on screen would ever tell you about.
-  if (S.agents.length > 0) {
-    return h('div', { class: 'notice' },
-      `Nobody is in ${where} yet, so nobody will answer. `,
-      'Press the + above to put one in, or type @ and their name.');
-  }
+  // An empty room with helpers in the studio says nothing: every game's rooms
+  // come with the builder, and a chat with nobody in it is somebody's choice
+  // — the + and the @ are how to change it, and people know them (decided
+  // 2026-10-05).
+  if (S.agents.length > 0) return null;
   return h('div', { class: 'notice' },
     'Nobody can answer yet — the studio has no helpers. ',
     h('button', {
