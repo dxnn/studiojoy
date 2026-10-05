@@ -388,6 +388,29 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_ledger_user ON ledger (user_id, currency)`,
   `CREATE INDEX IF NOT EXISTS idx_ledger_achievement ON ledger (project_id, achievement)`,
+
+  // Gear: the pieces an avatar is made of — a head, a body, legs — drawn by
+  // the people here inside each slot's shape (public/gear-shapes.js) and
+  // bought for joy (server/gear.js). Like the studio collection, the PNG's
+  // bytes are in the row, so `npm run backup` covers them. A piece never
+  // changes once made: its picture is cached for good.
+  `CREATE TABLE IF NOT EXISTS gear (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slot TEXT NOT NULL CHECK (slot IN ('head', 'body', 'legs')),
+    name TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    made_by INTEGER NOT NULL REFERENCES users,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_gear_maker ON gear (made_by, created_at)`,
+  // Who owns which: the maker from the moment it is made, a buyer from the
+  // moment they pay. Owned is for good.
+  `CREATE TABLE IF NOT EXISTS gear_owned (
+    user_id INTEGER NOT NULL REFERENCES users,
+    gear_id INTEGER NOT NULL REFERENCES gear,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, gear_id)
+  )`,
 ];
 
 export function openDb(dbPath) {
@@ -502,6 +525,13 @@ export function openDb(dbPath) {
   // been given, so the weeks since are added the next time anything asks —
   // the budget's lazy rollover (server/joy.js). Null until the first time.
   addColumnIfMissing(db, 'users', 'chips_week', 'TEXT');
+  // What this person's avatar is wearing, a piece of gear a slot, or nothing
+  // there (server/gear.js).
+  addColumnIfMissing(db, 'users', 'wear_head', 'INTEGER REFERENCES gear');
+  addColumnIfMissing(db, 'users', 'wear_body', 'INTEGER REFERENCES gear');
+  addColumnIfMissing(db, 'users', 'wear_legs', 'INTEGER REFERENCES gear');
+  // Which piece of gear joy was spent on, for a `bought` row.
+  addColumnIfMissing(db, 'ledger', 'gear_id', 'INTEGER REFERENCES gear');
   // On, any account in the studio may change this project; off, only its
   // authors. The column's default is the safe one, and every game a person
   // makes overrides it to open at the INSERT — a database written before this

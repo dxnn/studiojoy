@@ -8,6 +8,7 @@ import {
 } from '../auth.js';
 import { setAlias } from '../alias.js';
 import { joyOf, stashOf } from '../joy.js';
+import { avatarOf } from '../gear.js';
 import { clientIp } from './helpers.js';
 
 export function authRoutes(r) {
@@ -67,20 +68,24 @@ export function authRoutes(r) {
     noContent(ctx.res);
   });
 
-  // Who else is in the studio. Names only: the sidebar's Crew tab shows the
-  // people beside the helpers, and an email address is more than a list of who
-  // is here needs. Studio access only — a player is somebody on a scoreboard,
-  // not somebody in the crew.
+  // Who else is in the studio. Names and avatars only: the sidebar's Crew tab
+  // shows the people beside the helpers, the chat their heads, and an email
+  // address is more than a list of who is here needs. Studio access only — a
+  // player is somebody on a scoreboard, not somebody in the crew.
   r.get('/api/users', (ctx) => {
     requireAuth(ctx);
     const rows = ctx.db
       .prepare(
-        `SELECT id, display_name FROM users
+        `SELECT id, display_name, wear_head, wear_body, wear_legs FROM users
           WHERE deleted = 0 AND studio_access = 1
           ORDER BY display_name COLLATE NOCASE`,
       )
       .all();
-    json(ctx.res, 200, rows);
+    json(ctx.res, 200, rows.map((u) => ({
+      id: u.id,
+      display_name: u.display_name,
+      avatar: { head: u.wear_head, body: u.wear_body, legs: u.wear_legs },
+    })));
   });
 
   r.get('/api/me', (ctx) => {
@@ -108,6 +113,8 @@ export function authRoutes(r) {
       // weeks you are owed added on the way.
       joy: joyOf(ctx.db, user.id),
       stash: stashOf(ctx.db, user.id),
+      // What your avatar wears (server/gear.js).
+      avatar: avatarOf(ctx.db, user.id),
       games_url: ctx.gamesUrl,
     });
   });

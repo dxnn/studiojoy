@@ -31,6 +31,8 @@ import {
 import { catalogPage, playersPage } from './catalog.js';
 import { joyOf, joyOn } from './joy.js';
 import { isAuthor } from './authors.js';
+import { gearBytes } from './gear.js';
+import { sendPicture } from './routes/gear.js';
 
 const ENTRY_FILE = 'index.html';
 // Login and sign-up bodies: three short strings.
@@ -127,8 +129,9 @@ export function createGamesApp({
     const rows = db
       .prepare(
         `SELECT p.id, p.slug, p.name, p.play_count,
-                (SELECT MAX(score) FROM scores s WHERE s.project_id = p.id) AS top
-           FROM projects p
+                (SELECT MAX(score) FROM scores s WHERE s.project_id = p.id) AS top,
+                u.alias AS maker, u.wear_head, u.wear_body, u.wear_legs
+           FROM projects p JOIN users u ON u.id = p.created_by
           WHERE p.published = 1 AND p.kind = 'game' AND p.archived = 0
           ORDER BY p.name`,
       )
@@ -176,6 +179,8 @@ export function createGamesApp({
             ? { got: defined.filter((a) => mine.has(a.id)).length, of: defined.length }
             : null,
           joy: toEarn || null,
+          // Whoever made it, as their avatar and alias — never a name here.
+          maker: { alias: g.maker, head: g.wear_head, body: g.wear_body, legs: g.wear_legs },
         },
         playCount: g.play_count,
         fresh: latest ? Date.now() - Date.parse(latest.at) < NEW_GAME_WINDOW_MS : false,
@@ -443,6 +448,15 @@ export function createGamesApp({
     );
     ctx.res.setHeader('Cache-Control', 'no-store');
     json(ctx.res, 201, result);
+  });
+
+  // A piece of gear's picture (server/gear.js), for the avatars the catalog
+  // shows beside the games people made. Every piece is everybody's to see —
+  // there is no approval, by decision — and none ever changes once made.
+  r.get('/_gear/:id', (ctx) => {
+    const bytes = gearBytes(db, Number(ctx.params.id));
+    if (!bytes) throw new HttpError(404, 'not found');
+    sendPicture(ctx, bytes);
   });
 
   // What a game has in assets/, live from disk, so a game can find its own

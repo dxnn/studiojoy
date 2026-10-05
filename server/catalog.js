@@ -1,4 +1,5 @@
 import { escapeHtml } from './util/html.js';
+import { SLOTS, shapeSvg } from '../public/gear-shapes.js';
 
 // The games origin's two studio-authored pages: the catalog at `/` — the
 // front door, and the one page there that is the studio's own rather than a
@@ -147,6 +148,15 @@ const has = (n) => n !== null && n !== undefined;
 // the game defines (ideas/front-page-players.md, rung 1) — and, in gold too,
 // the joy still there to earn in it (server/joy.js). Under the card, the link
 // to everybody's: its own control, because the whole card opens the game.
+// Whoever made a game, as their avatar (server/gear.js): a head, a body and
+// legs, each a piece of gear's picture or the bare shape, with their alias
+// on hover — the games origin says no name.
+const BARE = '#5b5486';
+const figure = (m) => (m
+  ? `<span class="maker" title="made by ${escapeHtml(m.alias ?? '')}">${SLOTS.map((slot) => `<img class="${slot}" src="${
+    m[slot] ? `/_gear/${Number(m[slot])}` : shapeSvg(slot, BARE)}" alt="">`).join('')}</span>`
+  : '');
+
 const card = (g) => {
   const slug = escapeHtml(g.slug);
   const hero = g.hero ? ` class="hero" style="--hero:url('/${slug}/hero.png')"` : '';
@@ -157,7 +167,7 @@ const card = (g) => {
     g.achievements ? `<span class="got"><small>★</small> ${g.achievements.got} of ${g.achievements.of}</span>` : '',
     has(g.joy) ? `<span class="joy"><small>joy to earn</small> ${num(g.joy)}</span>` : '',
   ].join('');
-  return `<li><a href="/${slug}/"${hero}><span class="name">${icon}${escapeHtml(g.name)}</span>`
+  return `<li><a href="/${slug}/"${hero}>${figure(g.maker)}<span class="name">${icon}${escapeHtml(g.name)}</span>`
     + `${nums ? `<span class="nums">${nums}</span>` : ''}</a>`
     + `<a class="players" href="/${slug}/_players">Scores &amp; trophies</a></li>`;
 };
@@ -251,10 +261,13 @@ export function catalogPage({ games, player = null }) {
       var(--hero);
     background-size: cover; background-position: center;
   }
-  .name { overflow: hidden; text-overflow: ellipsis; }
+  .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The game's icon before its name, the size the sidebar wears it plus a
      little, since a card is bigger than a row. */
   .badge { width: 28px; height: 28px; border-radius: 7px; vertical-align: -8px; margin-right: 10px; }
+  /* Whoever made it, a head over a body over legs, pixels kept square. */
+  .maker { flex: 0 0 auto; display: flex; flex-direction: column; margin-right: 12px; }
+  .maker img { display: block; width: 20px; height: auto; image-rendering: pixelated; }
   /* The numbers, stacked at the card's foot: scores in gold, the trophy count
      in the page's own ink, because a count is a number but not a score. */
   .nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }

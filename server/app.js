@@ -21,6 +21,7 @@ import { streamRoutes } from './routes/stream.js';
 import { achievementRoutes } from './routes/achievements.js';
 import { storyRoutes } from './routes/story.js';
 import { collectionRoutes } from './routes/collection.js';
+import { gearRoutes } from './routes/gear.js';
 import { pushRoutes } from './routes/push.js';
 import { planRoutes } from './routes/plans.js';
 import { tell } from './notify.js';
@@ -96,6 +97,7 @@ export function createApp({
   achievementRoutes(r);
   storyRoutes(r);
   collectionRoutes(r);
+  gearRoutes(r);
   pushRoutes(r);
   planRoutes(r);
 
