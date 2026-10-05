@@ -29,11 +29,10 @@ export const MAX_UNLOCK_BODY_BYTES = 1024;
 // it is not a list of achievements, and is not parsed on a public route.
 export const MAX_ACHIEVEMENTS_FILE_BYTES = 64 * 1024;
 
-// The definitions as the game's file says them right now, in file order:
-// [{id, name, how, icon}]. Missing, unreadable, too big or misshapen is an
-// empty list — the same answer the library gives itself in the browser.
-export async function definedAchievements(dir) {
-  const buffer = await readFileAt(path.join(dir, ACHIEVEMENTS_FILE));
+// The definitions a text of the file says, in file order: [{id, name, how,
+// icon}]. Missing, unreadable, too big or misshapen is an empty list — the
+// same answer the library gives itself in the browser.
+function definedIn(buffer) {
   if (buffer === null || buffer.length > MAX_ACHIEVEMENTS_FILE_BYTES) return [];
   const parsed = parseConfigFile(buffer.toString('utf8'));
   if (!parsed.ok) return [];
@@ -41,6 +40,30 @@ export async function definedAchievements(dir) {
   if (!decl) return [];
   return readAchievements(decl.node.value).ok
     .map(({ id, name, how, icon }) => ({ id, name, how, icon }));
+}
+
+// The definitions as the game's file says them right now.
+export const definedAchievements = async (dir) => definedIn(await readFileAt(path.join(dir, ACHIEVEMENTS_FILE)));
+
+// ⚠️ An achievement with joy on it stays (Dann, 2026-10-05): the chips went on
+// it for good and somebody may be playing for it, so a write that would take
+// it out of the file — a person's save, a helper's write, a delete, a move, a
+// version brought back — is refused, and this says why; null when it may go
+// ahead. `before` and `after` are the file's bytes, null where there is none.
+// Only what the file defines now can be lost, so a file already past reading
+// stays writable, to be mended. The editor hides Delete on these as well; this
+// is the rule, that is the courtesy.
+export function joyRefusal(db, projectId, rel, before, after) {
+  if (rel !== ACHIEVEMENTS_FILE || before === null) return null;
+  const joy = joyOn(db, projectId);
+  if (joy.size === 0) return null;
+  const kept = new Set(definedIn(after).map((a) => a.id));
+  const lost = definedIn(before).filter((a) => joy.has(a.id) && !kept.has(a.id));
+  if (lost.length === 0) return null;
+  const names = lost.map((a) => `“${a.name}”`).join(', ');
+  return lost.length === 1
+    ? `${names} gives joy, so it stays in ${ACHIEVEMENTS_FILE}`
+    : `${names} give joy, so they stay in ${ACHIEVEMENTS_FILE}`;
 }
 
 // What this player holds in this game: id -> when they earned it.

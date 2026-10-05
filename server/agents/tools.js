@@ -150,7 +150,12 @@ const TOOL_DEFINITIONS = [
 // A person's saves still waiting for their commit land before any write here
 // (files/pending.js): a helper's bytes must never ride into history under a
 // person's name, nor a person's under a helper's.
-export function createToolset({ dir, mutex, slug, pending = null, shot = null }) {
+// `keeps(rel, before, after)` is the game's own rule on what a write may not
+// take away — an achievement with joy on it (achievements.js, joyRefusal) —
+// answering why, or null.
+export function createToolset({
+  dir, mutex, slug, pending = null, shot = null, keeps = () => null,
+}) {
   // path -> {action, bytes}. The orchestrator commits these once per turn.
   const changes = new Map();
   const settlePending = () => (pending ? pending.settleLocked(slug) : null);
@@ -196,6 +201,15 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     changes.set(rel, { action: merged, bytes });
   }
 
+  // The game's own refusal (`keeps`), in the words a helper acts on.
+  const keptBy = (rel, before, after) => {
+    const why = keeps(rel, before, after);
+    return why
+      ? `refused: ${why} — whoever earns one is paid joy for it. Keep every entry that gives joy, `
+        + 'its id unchanged; anything else in the file may change.'
+      : null;
+  };
+
   async function writeFile({ path: p, content }) {
     const target = resolveForWrite(p);
     if (target.error) return target.error;
@@ -208,7 +222,8 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
       await settleFor(target.rel);
       const existing = await readFileAt(target.abs);
       const existed = existing !== null;
-      const refusal = configRefusal(target.rel, content, existed ? existing.toString('utf8') : null);
+      const refusal = configRefusal(target.rel, content, existed ? existing.toString('utf8') : null)
+        ?? keptBy(target.rel, existing, buffer);
       if (refusal) return refusal;
       try {
         await assertCapacity(dir, { addingBytes: buffer.length, isNewFile: !existed });
@@ -246,9 +261,9 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
       }
 
       const after = before.slice(0, first) + newText + before.slice(first + oldText.length);
-      const refusal = configRefusal(target.rel, after, before);
-      if (refusal) return refusal;
       const out = Buffer.from(after, 'utf8');
+      const refusal = configRefusal(target.rel, after, before) ?? keptBy(target.rel, buffer, out);
+      if (refusal) return refusal;
       if (out.length > MAX_FILE_BYTES) {
         return `refused: the result would be ${out.length} bytes, over the limit`;
       }
@@ -333,7 +348,10 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     if (target.error) return target.error;
     return mutex.run(slug, async () => {
       await settleFor(target.rel);
-      if ((await readFileAt(target.abs)) === null) return `no such file: ${target.rel}`;
+      const existing = await readFileAt(target.abs);
+      if (existing === null) return `no such file: ${target.rel}`;
+      const refusal = keptBy(target.rel, existing, null);
+      if (refusal) return refusal;
       await removeFileAt(dir, target.rel);
       record(target.rel, 'delete', 0);
       return `deleted ${target.rel}`;

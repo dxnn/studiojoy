@@ -165,7 +165,9 @@ walk into, each paid for once already.
   (`ledger`, `server/joy.js`): joy is made only by holding an achievement
   of a published game — paid up to what it gives, never twice, editors
   included — chips only by the weekly grant, and no `write_file` can make
-  either.
+  either. ⚠️ Nor take away an achievement with joy on it: every write door
+  asks `joyRefusal` (server/achievements.js), so a new door that writes
+  `config/achievements.js` must ask it too.
 - ⚠️ The preview is the **preview player** (`server/preview-player.js`,
   spec/ §6): always debugging, never on a board. It owns the game's clock,
   its timers (`setTimeout`, `setInterval`, `Date.now()`, `new Date()`, an

@@ -1101,8 +1101,12 @@ its own row with name, how to get it, an icon and the *moment* it waits for;
 `+ Add an achievement`; **Delete**, a bin and the word, crimson, confirmed
 with how many players keep what they earned — and absent on one that gives
 *joy*, which says it stays instead, since somebody may be playing for it. ⚠️
-That is the editor's rule only: the file can still lose it under Code or by
-a helper. Like the quiz and story it regenerates the whole file and
+The server holds the same rule at every door (`joyRefusal`, §3): a save under
+Code, a helper's write, patch or delete, a delete, a move, a file brought back
+or the game rolled back to a version without it — each is refused, a person
+with a 422 (not 409, which every editor reads as a conflict) and a helper with
+a sentence it can act on. Anything else about the entry may change. Like the
+quiz and story it regenerates the whole file and
 is byte-identical on an untouched save; a file that outgrows the shape keeps
 its tab with a reason and the text. Under Files it opens as plain text only
 — one surface writes it. It reads two things no field can: how many players

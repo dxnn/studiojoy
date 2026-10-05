@@ -18,6 +18,7 @@ import {
 import { messagePublic, agentAuthorFor, isArchived } from '../routes/helpers.js';
 import { parseMentions, agentEligible } from '../mentions.js';
 import { createToolset } from './tools.js';
+import { joyRefusal } from '../achievements.js';
 import {
   pausedPlan, draftPlan, queuedPlan, createPlan, planFor, setPiece, setPlanStatus, settlePieces,
   queuePlan, announcePlan as announcePlanRow,
@@ -1731,6 +1732,7 @@ export function createOrchestrator({
 
     const toolset = createToolset({
       dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
+      keeps: (rel, before, after) => joyRefusal(db, row.project_id, rel, before, after),
     });
     let messages = extended(fire, GO_AHEAD);
     let outcome = await runLoop({
@@ -1984,6 +1986,7 @@ export function createOrchestrator({
       state.live = true;
       const toolset = createToolset({
         dir, mutex, slug: row.slug, pending, shot: () => latestShot(db, row.project_id),
+        keeps: (rel, before, after) => joyRefusal(db, row.project_id, rel, before, after),
       });
       const turn = pieceTurn({
         request: current.request, pieces: current.pieces, index: i,

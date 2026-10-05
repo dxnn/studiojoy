@@ -100,6 +100,43 @@ test('an author puts chips on a published game\'s achievement, from their stash,
   assert.equal(theirs.body.can_put, false);
 });
 
+// ⚠️ An achievement with joy on it stays (Dann, 2026-10-05): every door a
+// person has to take it out of the file is shut — a save, a delete, a move, a
+// version brought back — while the rest of the file still changes freely.
+test('an achievement with joy on it cannot be taken out of the file, by any door', async (t) => {
+  const { app } = await studio(t);
+  const save = (body) => app.client.json('PUT', '/api/projects/tank/files/config/achievements.js', {
+    rawBody: body, headers: { 'content-type': 'application/octet-stream' },
+  });
+  const withoutFirst = FILE.replace(/\n {2}\{ id: "first-run".*/, '');
+  assert.equal((await save(withoutFirst)).status, 200, 'with no chips on it, it goes like any entry');
+  const before = (await app.client.json('POST', '/api/projects/tank/commit')).body.commit;
+  assert.equal((await save(FILE)).status, 200);
+  await app.client.json('POST', '/api/projects/tank/commit');
+
+  await publish(app, true);
+  await put(app, 'first-run', 3);
+  const refused = await save(withoutFirst);
+  assert.equal(refused.status, 422, 'not 409, which an editor reads as somebody else saving first');
+  assert.match(refused.body.error, /“First run” gives joy, so it stays/);
+  assert.equal((await save(FILE.replace('Finish a run', 'Finish any run'))).status, 200, 'anything else may change');
+
+  assert.equal((await app.client.json('DELETE', '/api/projects/tank/files/config/achievements.js')).status, 422);
+  const moved = await app.client.json('POST', '/api/projects/tank/files/move', {
+    body: { from: 'config/achievements.js', to: 'config/old.js' },
+  });
+  assert.equal(moved.status, 422);
+  const back = await app.client.json('POST', '/api/projects/tank/restore', {
+    body: { sha: before, path: 'config/achievements.js' },
+  });
+  assert.equal(back.status, 422, 'a version from before it existed would take it out');
+  assert.equal((await app.client.json('POST', '/api/projects/tank/rollback', { body: { sha: before } })).status, 422);
+
+  const listed = await app.client.json('GET', '/api/projects/tank/achievements');
+  assert.deepEqual(listed.body.achievements.map((a) => [a.id, a.joy, a.how]),
+    [['first-run', 3, 'Finish any run'], ['halfway', 0, 'Reach level 5']]);
+});
+
 test('every holder ends up paid what it gives now: editors too, never twice', async (t) => {
   const { app, games, dann, pat } = await studio(t);
   await publish(app, true);

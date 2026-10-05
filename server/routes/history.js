@@ -3,8 +3,9 @@ import { readJson } from '../http/body.js';
 import { mimeForPath, OCTET_STREAM } from '../http/static.js';
 import { requireAuth } from '../auth.js';
 import { resolveProjectPath, checkProjectPath } from '../files/paths.js';
+import path from 'node:path';
 import {
-  writeFileAt, etagFor, listTree, removeFileAt,
+  writeFileAt, readFileAt, etagFor, listTree, removeFileAt,
   MAX_PROJECT_BYTES, MAX_PROJECT_FILES,
 } from '../files/tree.js';
 import {
@@ -13,6 +14,8 @@ import {
 } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
+import { keepsJoy } from './files.js';
+import { ACHIEVEMENTS_FILE } from '../achievements.js';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -128,6 +131,7 @@ export function historyRoutes(r) {
         if (err instanceof GitError) throw new HttpError(404, 'not found at that commit');
         throw err;
       }
+      keepsJoy(ctx, project, rel, await readFileAt(abs), buffer);
       await writeFileAt(abs, buffer);
       const short = sha.slice(0, 7);
       const commit = await commitPaths(
@@ -177,6 +181,12 @@ export function historyRoutes(r) {
       const wanted = new Set(entries.map((e) => e.path));
       const { files } = await listTree(dir);
       const removed = files.map((f) => f.path).filter((p) => !wanted.has(p));
+      // A version from before an achievement had joy on it would take it out.
+      keepsJoy(
+        ctx, project, ACHIEVEMENTS_FILE,
+        await readFileAt(path.join(dir, ACHIEVEMENTS_FILE)),
+        wanted.has(ACHIEVEMENTS_FILE) ? await showFile(dir, sha, ACHIEVEMENTS_FILE) : null,
+      );
 
       // An empty tree is a legitimate destination — the initial commit — and
       // `checkout <sha> -- .` fails on a pathspec that matches nothing.

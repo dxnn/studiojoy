@@ -786,6 +786,15 @@ joy back: with the hold still there, the next settle (every start, every
 chips put) pays it straight back. ⚠️ No file holds
 chips or joy, so no `write_file` can make either.
 
+⚠️ And no write can take away an achievement with joy on it (Dann,
+2026-10-05): the chips went on it for good and somebody may be playing for it.
+`joyRefusal` (server/achievements.js) compares the file's definitions before
+and after a write and names any id with chips that would go — its name
+changing is fine, its id going is not. Only what the file defines now can be
+lost, so a file already past reading stays writable, to be mended. Every
+door asks it: the file routes (save, delete, move), restore and rollback, and
+the helper's write, patch and delete (§6, §8).
+
 Joy is spent on gear: a `bought` row of −20, with `gear_id` (an added column)
 naming the piece. It goes to nobody — there is no matching row for the maker.
 

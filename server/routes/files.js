@@ -11,6 +11,15 @@ import { commitPaths, movePath } from '../files/git.js';
 import { versionNew } from '../files/pending.js';
 import { addLibrary, listExtras } from '../files/library.js';
 import { requireProject, projectDirFor, authorFor } from './helpers.js';
+import { joyRefusal } from '../achievements.js';
+
+// An achievement with joy on it stays (achievements.js, joyRefusal): a write
+// that would take one out is refused. 422 rather than 409, which every editor
+// reads as somebody else's save getting there first.
+export function keepsJoy(ctx, project, rel, before, after) {
+  const why = joyRefusal(ctx.db, project.id, rel, before, after);
+  if (why) throw new HttpError(422, `${why} — somebody may be playing for it.`);
+}
 
 // Describe the current state of a path for a conflict response, so the editor
 // can show what it would have clobbered.
@@ -47,12 +56,14 @@ export function fileRoutes(r) {
       // Every direct commit lands the pending one first (files/pending.js):
       // here because `git mv` cannot move a file history has not seen yet.
       await ctx.pending.settleLocked(project.slug);
-      if ((await readFileAt(from.abs)) === null) {
+      const moving = await readFileAt(from.abs);
+      if (moving === null) {
         throw new HttpError(404, `no such file: ${from.rel}`);
       }
       if ((await readFileAt(to.abs)) !== null) {
         throw new HttpError(409, `${to.rel} already exists`);
       }
+      keepsJoy(ctx, project, from.rel, moving, null);
       const sha = await movePath(
         dir, from.rel, to.rel, `move ${from.rel} to ${to.rel}`, authorFor(user),
       );
@@ -216,6 +227,7 @@ export function fileRoutes(r) {
         }
       }
 
+      keepsJoy(ctx, project, rel, existing, buffer);
       await assertCapacity(dir, {
         addingBytes: buffer.length, isNewFile: existing === null,
       });
@@ -269,7 +281,9 @@ export function fileRoutes(r) {
 
     await ctx.mutex.run(project.slug, async () => {
       await ctx.pending.settleLocked(project.slug);
-      if ((await readFileAt(abs)) === null) throw new HttpError(404, 'no such file');
+      const existing = await readFileAt(abs);
+      if (existing === null) throw new HttpError(404, 'no such file');
+      keepsJoy(ctx, project, rel, existing, null);
       await removeFileAt(dir, rel);
       const sha = await commitPaths(dir, [rel], `delete ${rel}`, authorFor(user));
       ctx.broker.broadcast('files.changed', {

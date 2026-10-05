@@ -1042,6 +1042,42 @@ test('a sizing cancelled before its answer is still charged its prompt', async (
   assert.equal(llm.calls.length, 0, 'and nothing after it');
 });
 
+// ⚠️ An achievement with joy on it stays (Dann, 2026-10-05), and the builder
+// is told so in a sentence it can act on — the person's door is shut the same
+// way (joy.test.js). Anything else in the file it may still change.
+test('a helper cannot take an achievement with joy out of the file', async (t) => {
+  const ACH = `const ACHIEVEMENTS = [
+  { id: "first-run", name: "First run", how: "Finish a run", icon: "🚀", when: { moment: "run-over" } },
+  { id: "halfway", name: "Halfway there", how: "Reach level 5", when: { moment: "level", atLeast: 5 } },
+];
+`;
+  const tidied = ACH.replace(/\n {2}\{ id: "first-run".*/, '');
+  const llm = scriptedLlm([
+    calls([
+      write('config/achievements.js', tidied),
+      { name: 'patch_file', input: { path: 'config/achievements.js', old_text: '"first-run"', new_text: '"first"' } },
+      { name: 'delete_file', input: { path: 'config/achievements.js' } },
+      { name: 'patch_file', input: { path: 'config/achievements.js', old_text: 'Reach level 5', new_text: 'Reach level 6' } },
+    ]),
+    says('Tidied.'),
+  ], [sized({ size: 'small' })]);
+  const { app, chatId, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await saved(app, { 'config/achievements.js': ACH });
+  await app.client.json('POST', '/api/projects/tank/publish', { body: { published: true } });
+  const chips = await app.client.json('POST', '/api/projects/tank/achievements/first-run/chips', { body: { chips: 2 } });
+  assert.equal(chips.status, 201);
+
+  await send(app, chatId, 'tidy up the achievements');
+  await stream.waitFor((e) => e.event === 'agent.stream.end');
+  const results = llm.calls[1].messages.filter((m) => m.role === 'tool').map((m) => m.content);
+  assert.equal(results.length, 4);
+  for (const refused of results.slice(0, 3)) assert.match(refused, /^refused: “First run” gives joy, so it stays/);
+  assert.match(results[3], /^patched config\/achievements\.js/, 'the rest of the file is its to change');
+  assert.equal(read(dir, 'config/achievements.js'), ACH.replace('Reach level 5', 'Reach level 6'));
+});
+
 // A save is the person's: it lands as their own version before the undo reads
 // HEAD, so HEAD — and the file — is what they saved.
 test("Cancel keeps a person's save of the same file, made while the fire ran", async (t) => {
