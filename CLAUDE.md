@@ -557,11 +557,10 @@ Open questions:
   `orchestrator.js` and, if it is worth it, reordering the row into sense
   order (it is Speak See Hear Touch Taste Recall Smell today, because the
   labels moved and the row did not).
-- **What the rail is for.** The preview earns less of the pane than expected,
-  but the rail is also where the story editor's scene fields, Hear's sound
-  editor and Pics' picture fields live, so "close the rail" is blocked on
-  deciding where those go. The preview already folds to one row, which is most
-  of what closing would buy.
+- **The rail is going** (decided 2026-10-05, ideas/one-pane.md): the preview
+  becomes a mode, every inspector opens in place in the centre, and the
+  rail's column is removed — phones first class, and neither pane could be
+  closed. Three questions wait on it before stage one.
 - Touch schemes and the story editor have never been felt on a real phone.
   `npm run ui` now holds what a machine can judge at 390px — no surface
   scrolls the page sideways, no field is under 16px, and a thumb really does
