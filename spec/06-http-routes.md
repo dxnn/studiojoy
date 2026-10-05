@@ -1093,8 +1093,11 @@ The **achievements editor** is the third, and the first every game has:
 `config/achievements.js` is seeded into every game (§4), so its editor is
 the studio's own — the **Achievements** part of Share: each achievement in
 its own row with name, how to get it, an icon and the *moment* it waits for;
-`+ Add an achievement`; `Take it out`, confirmed with how many players keep
-what they earned. Like the quiz and story it regenerates the whole file and
+`+ Add an achievement`; **Delete**, a bin and the word, crimson, confirmed
+with how many players keep what they earned — and absent on one that gives
+*joy*, which says it stays instead, since somebody may be playing for it. ⚠️
+That is the editor's rule only: the file can still lose it under Code or by
+a helper. Like the quiz and story it regenerates the whole file and
 is byte-identical on an untouched save; a file that outgrows the shape keeps
 its tab with a reason and the text. Under Files it opens as plain text only
 — one surface writes it. It reads two things no field can: how many players

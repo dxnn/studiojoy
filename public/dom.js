@@ -44,9 +44,11 @@ const ICONS = {
   ellipse: ['M12 5a8 7 0 1 0 0 14a8 7 0 1 0 0-14'],
   undo: ['M2 5v6h6', 'M4.6 15.5a9 9 0 1 0 1.9-9.2L2 11'],
   redo: ['M22 5v6h-6', 'M19.4 15.5a9 9 0 1 1-1.9-9.2L22 11'],
+  // A bin with its lid, beside the word Delete rather than instead of it.
+  trash: ['M3 6h18', 'M8 6V4h8v2', 'M6 6l1 14h10l1-14', 'M10 10v6', 'M14 10v6'],
 };
 
-function icon(name, size = 17) {
+export function icon(name, size = 17) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('width', size);

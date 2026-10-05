@@ -21,7 +21,7 @@
 import {
   ACHIEVEMENTS_FILE, achievementsModel, achievementsText, achievementChecks, freshId, TESTS,
 } from './achievements-editor.js';
-import { h } from './dom.js';
+import { h, icon } from './dom.js';
 import {
   S, render, send, say, api, frozen, encodePath, NO_CONNECTION,
 } from './main.js';
@@ -447,22 +447,28 @@ function renderAchievementsForm(st) {
       h('div', { class: 'row' },
         idNode,
         h('div', { class: 'spacer' }),
-        h('button', {
-          class: 'quiet tiny', text: 'Take it out', disabled: frozen(),
-          onclick: () => {
-            S.dialog = {
-              kind: 'remove-achievement',
-              name: a.name,
-              players: counts.get(slug)?.players.get(a.id) ?? 0,
-              remove: () => {
-                entries.splice(i, 1);
-                opened.index = null;
-                commit(st);
-              },
-            };
-            render();
-          },
-        })));
+        // Left out rather than greyed where it cannot be pressed: on a game
+        // that is not yours to change, and on one that gives joy — chips put
+        // on an achievement stay there for good, so the achievement does too
+        // (decided 2026-10-05).
+        frozen() ? null : (counts.get(slug)?.joy.get(a.id) ?? 0) > 0
+          ? h('span', { class: 'hint muted', text: 'It gives joy, so it stays.' })
+          : h('button', {
+            class: 'quiet tiny danger ach-delete',
+            onclick: () => {
+              S.dialog = {
+                kind: 'remove-achievement',
+                name: a.name,
+                players: counts.get(slug)?.players.get(a.id) ?? 0,
+                remove: () => {
+                  entries.splice(i, 1);
+                  opened.index = null;
+                  commit(st);
+                },
+              };
+              render();
+            },
+          }, icon('trash', 14), 'Delete')));
     return h('div', { class: 'ach-card on' }, head, body);
   };
 

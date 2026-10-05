@@ -142,6 +142,10 @@ button.quiet:hover:not(:disabled) {
   color: var(--accent);
   border-color: var(--accent);
 }
+/* A quiet button that destroys something is still crimson: quiet is its size
+   and weight, and danger is what it does. */
+button.quiet.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, transparent); }
+button.quiet.danger:hover:not(:disabled) { background: var(--danger); color: #1c0810; border-color: var(--danger); }
 button.link {
   border: none;
   background: none;

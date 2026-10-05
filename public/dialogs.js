@@ -1500,14 +1500,14 @@ export function dialogFor(d) {
   // it (spec.md §3), so the warning is about the players, not about data.
   if (d.kind === 'remove-achievement') {
     const who = d.players === 1 ? 'One player has' : `${d.players} players have`;
-    return wrap(d.name ? `Take out ${d.name}?` : 'Take out this achievement?',
+    return wrap(d.name ? `Delete ${d.name}?` : 'Delete this achievement?',
       h('p', {
         text: d.players
           ? `${who} have already earned this achievement. If you bring it back, they'll have it again.`
           : 'Nobody has earned this achievement yet.',
       }),
       h('div', { class: 'actions' }, cancel, h('button', {
-        class: 'danger', text: 'Take it out',
+        class: 'danger', text: 'Delete',
         onclick: () => { close(); d.remove(); render(); },
       })));
   }
