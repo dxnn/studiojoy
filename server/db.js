@@ -573,6 +573,10 @@ export function openDb(dbPath) {
   // rows still carrying the old default.
   db.prepare('UPDATE chats SET name = ? WHERE name = ? AND bots = 0')
     .run(HOME_CHAT, OLD_HOME_CHAT);
+  // The studio's announcements: the one chat project with this set (spec/ §3,
+  // server/announcements.js), made once there is an admin to have made it.
+  // Before intoChats, which has to know which project it is.
+  addColumnIfMissing(db, 'projects', 'announce', 'INTEGER NOT NULL DEFAULT 0');
   intoChats(db);
   // After intoChats, never before: that one hands every project both chats,
   // and this takes the second one back off the projects that are only a room.
@@ -580,6 +584,15 @@ export function openDb(dbPath) {
   // And after both: every game's Building becomes the builder's, or gets a
   // fresh one beside it when people's helpers were already in it.
   intoBuilderRooms(db);
+  // ⚠️ The announcements' one room takes no helper. Until 2026-10-05 the first
+  // boot after it was made opened it — intoChats gave it a Building, and
+  // intoOneRoom folded that back in with helpers allowed — so this shuts it
+  // again, and lets go of any helper an admin's @ called in meanwhile.
+  db.prepare('UPDATE chats SET bots = 0 WHERE project_id IN (SELECT id FROM projects WHERE announce = 1)').run();
+  db.prepare(
+    `DELETE FROM chat_agents WHERE chat_id IN
+       (SELECT c.id FROM chats c JOIN projects p ON p.id = c.project_id WHERE p.announce = 1)`,
+  ).run();
   // A plan the last process was mid-way through is nobody's now; the next
   // message in its chat picks up the rest.
   pauseRunningPlans(db);
@@ -629,9 +642,6 @@ export function openDb(dbPath) {
   addColumnIfMissing(db, 'plans', 'begun', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'plans', 'edited', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'plans', 'built_by', 'INTEGER');
-  // The studio's announcements: the one chat project with this set (spec/ §3,
-  // server/announcements.js), made once there is an admin to have made it.
-  addColumnIfMissing(db, 'projects', 'announce', 'INTEGER NOT NULL DEFAULT 0');
   // A browser whose bell is off still hears the announcements, so its
   // subscription is kept and marked rather than dropped (spec/ §6).
   addColumnIfMissing(db, 'push_subscriptions', 'announcements_only', 'INTEGER NOT NULL DEFAULT 0');
@@ -658,12 +668,13 @@ const CARRIED_CHAT = 'Building';
 // below are about what moves, never about whether the chat exists.
 function intoChats(db) {
   // ⚠️ Not a game in Game Design: it has its human-only room and no other
-  // until Make it (server/design.js), and this runs on every boot.
+  // until Make it (server/design.js), and this runs on every boot. Nor the
+  // announcements, whose one room takes no helper (server/announcements.js).
   const projects = db.prepare(
     `SELECT p.id, p.created_at,
             (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id) AS chats,
             (SELECT COUNT(*) FROM chats c WHERE c.project_id = p.id AND c.bots = 1) AS bot_chats
-       FROM projects p WHERE p.type IS NOT 'design'`,
+       FROM projects p WHERE p.type IS NOT 'design' AND p.announce = 0`,
   ).all();
   const old = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_agents'").all();
   const hasOld = old.length > 0;

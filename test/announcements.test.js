@@ -3,7 +3,9 @@
 // and everybody reads and reacts — and hears, even with the bell off.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, signIn } from './helpers.js';
+import path from 'node:path';
+import { setup, signIn, scratchDir } from './helpers.js';
+import { openDb } from '../server/db.js';
 import { createUser } from '../server/auth.js';
 import { ensureAnnouncements } from '../server/announcements.js';
 import { makeKeys } from '../server/push.js';
@@ -40,6 +42,33 @@ test('a studio has its announcements from its first account: one room, no helper
   // no second one.
   assert.equal(ensureAnnouncements(app.db), null);
   assert.equal(app.db.prepare('SELECT COUNT(*) AS n FROM projects WHERE announce = 1').get().n, 1);
+});
+
+// ⚠️ A restart used to open it: the boot's migrations gave it a Building and
+// folded that back in with helpers allowed, and the admin was told nobody was
+// in there to answer.
+test('a restart keeps its room shut, and shuts one an earlier boot opened', () => {
+  const file = path.join(scratchDir('announce-db'), 'db');
+  let db = openDb(file);
+  createUser(db, { email: 'dann@example.com', password: 'hunter2', displayName: 'Dann' });
+  const rooms = () => db.prepare(
+    'SELECT c.name, c.bots FROM chats c JOIN projects p ON p.id = c.project_id WHERE p.announce = 1',
+  ).all().map((c) => [c.name, c.bots]);
+  db.close();
+
+  db = openDb(file);
+  assert.deepEqual(rooms(), [['Announcements', 0]]);
+  // What production holds: opened by the old boot, a helper called in by an @.
+  db.prepare("INSERT INTO agents (name, description, created_by, created_at) VALUES ('Bot', 'helps', 1, '2026-10-02')").run();
+  const chat = db.prepare('SELECT c.id FROM chats c JOIN projects p ON p.id = c.project_id WHERE p.announce = 1').get();
+  db.prepare('UPDATE chats SET bots = 1 WHERE id = ?').run(chat.id);
+  db.prepare("INSERT INTO chat_agents (chat_id, agent_id, attached_by, attached_at) VALUES (?, 1, 1, '2026-10-02')").run(chat.id);
+  db.close();
+
+  db = openDb(file);
+  assert.deepEqual(rooms(), [['Announcements', 0]]);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM chat_agents').get().n, 0);
+  db.close();
 });
 
 test('a game somebody called Announcements first keeps its slug', async (t) => {

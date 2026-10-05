@@ -206,6 +206,10 @@ writes in it or changes it (`canEdit`, and the message route's own refusal,
 since a room with no helpers is otherwise everyone's to talk in); nobody
 archives it; everybody reads it and reacts. The flag, not the name, is what
 makes it the announcements, so an admin renaming it changes nothing else.
+⚠️ The boot's chat migrations pass it by (`intoChats`): until 2026-10-05 the
+first restart gave it a `Building` and `intoOneRoom` folded that back in with
+helpers allowed, so every boot now puts `bots = 0` back and lets go of any
+helper in it.
 
 `updated_at` is stamped from one hook on the broker (`watchChanges`, the
 same place web push hangs) on every `files.changed` and `project.updated`:
