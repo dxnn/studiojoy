@@ -31,7 +31,6 @@ import {
 import { unseenInProject, unseenInChat } from '../mentions.js';
 import { projectHasUnread, chatHasUnread } from '../reads.js';
 import { arcFor } from '../../public/arc.js';
-import { isAnnouncements } from '../announcements.js';
 import { settleJoy } from '../joy.js';
 
 const MAX_PROJECT_NAME = 200;
@@ -646,6 +645,7 @@ export function projectRoutes(r) {
     const slug = requireSlug(ctx.params.slug);
     const project = ctx.db.prepare('SELECT * FROM projects WHERE slug = ?').get(slug);
     if (!project) throw new HttpError(404, 'no such project');
+    project.archived = isArchived(project) ? 1 : 0;
     if (project.created_by !== user.id) {
       throw new HttpError(403, `${project.name} is not yours to ${verb} — only whoever made it can`);
     }
@@ -657,11 +657,10 @@ export function projectRoutes(r) {
   // is read.
   r.post('/api/projects/:slug/archive', async (ctx) => {
     const project = originatorsProject(ctx, 'archive');
-    // A game's door alone: a chat is never archived (helpers.js).
+    // A game's door alone: a chat is never archived (helpers.js) — the
+    // announcements included, which are one.
     if (project.kind === 'chat') throw new HttpError(409, 'a chat is never archived');
     if (project.archived) throw new HttpError(409, 'project is archived');
-    // The studio's own room, not anybody's project to put away.
-    if (isAnnouncements(project)) throw new HttpError(409, 'the announcements stay');
     if (project.published) {
       throw new HttpError(409, `${project.name} is published — unpublish it first`);
     }

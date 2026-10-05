@@ -29,13 +29,14 @@ if (!slug) {
   process.exit(0);
 }
 
-const row = db.prepare('SELECT id, slug, name, archived FROM projects WHERE slug = ?').get(slug);
+const row = db.prepare('SELECT id, slug, name, kind, archived FROM projects WHERE slug = ?').get(slug);
 if (!row) {
   console.error(`no game or chat called ${slug}`);
   db.close();
   process.exit(1);
 }
-if (row.archived === 0) {
+// A chat is never archived, whatever bit it carries from before (routes/helpers.js).
+if (row.archived === 0 || row.kind === 'chat') {
   console.error(`${row.name} is not archived`);
   db.close();
   process.exit(1);

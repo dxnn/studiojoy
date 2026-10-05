@@ -622,6 +622,10 @@ test('a chat is never archived, and one archived before is a chat like any other
     body: { body: 'still here', chat_id: open.body.chat.id },
   });
   assert.equal(said.status, 201);
+  // Nor is there anything to bring back: the doors read it the same way.
+  const back = await app.client.json('POST', '/api/projects/room/unarchive', { body: {} });
+  assert.equal(back.status, 409);
+  assert.match(back.body.error, /not archived/);
 });
 
 test("archiving and unarchiving are the originator's alone, and never a published game's", async (t) => {

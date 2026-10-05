@@ -1671,7 +1671,7 @@ export function dialogFor(d) {
             // you are looking at. Requiring a second "add to this chat" click
             // was the trap that made a new studio look broken. A game has no
             // room for it — every room there is the Builder's or the humans'.
-            if (!editing && S.project?.kind === 'chat' && !S.project.archived) await attachAgent(res.body);
+            if (!editing && S.project?.kind === 'chat') await attachAgent(res.body);
             render();
           },
         })));

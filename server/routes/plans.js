@@ -10,6 +10,7 @@ import { requireAuth } from '../auth.js';
 import { canEdit } from '../authors.js';
 import { planFor, editPlan, announcePlan } from '../plans.js';
 import { cleanPieces, cleanAssumptions, cleanSummary } from '../agents/sizing.js';
+import { isArchived } from './helpers.js';
 
 const OPEN = new Set(['draft', 'paused']);
 
@@ -20,7 +21,7 @@ function requirePlan(ctx) {
   const plan = planFor(ctx.db, id);
   if (!plan) throw new HttpError(404, 'no such plan');
   const project = ctx.db.prepare('SELECT * FROM projects WHERE id = ?').get(plan.project_id);
-  if (project.archived) throw new HttpError(409, 'project is archived');
+  if (isArchived(project)) throw new HttpError(409, 'project is archived');
   if (!canEdit(ctx.db, project, user)) {
     throw new HttpError(403, `${project.name} is not yours to change — ask one of its editors`);
   }

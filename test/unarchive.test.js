@@ -54,3 +54,13 @@ test('a slug brings the game back, once', async () => {
   await assert.rejects(run('node', [script, 'tank'], { env }), /is not archived/);
   await assert.rejects(run('node', [script, 'nope'], { env }), /no game or chat called nope/);
 });
+
+// A chat is never archived (decided 2026-10-05), whatever bit its row kept.
+test('a chat with the bit from before is not archived, and is left alone', async () => {
+  const dbPath = seededDb(scratchDir('unarchive'));
+  const db = new DatabaseSync(dbPath);
+  db.prepare("UPDATE projects SET kind = 'chat' WHERE slug = 'tank'").run();
+  db.close();
+  await assert.rejects(run('node', [script, 'tank'], { env: { ...process.env, DB_PATH: dbPath } }), /is not archived/);
+  assert.equal(archivedBit(dbPath), 1, 'the row keeps its bit; nothing migrates');
+});
