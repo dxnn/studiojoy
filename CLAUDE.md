@@ -154,6 +154,10 @@ walk into, each paid for once already.
   lands it first, inside the mutex, or a commit carries somebody else's
   uncommitted work under the wrong name. The preview follows `files.changed`
   (the write); Versions follows `version.new` (the commit).
+- ⚠️ **Cancel** (`toolset.putBack`, spec/ §8) undoes a fire by writing HEAD
+  back over what it touched, and commits nothing. That is right only while a
+  fire commits at its end and never before, and every write tool settles the
+  pending commit first. A tool that commits mid-fire breaks Cancel silently.
 - A score, a personal best and an achievement are rows in SQLite, never files:
   a run commits nothing, restarts no preview, and never enters an agent's
   context or thrashes its prompt cache. ⚠️ So are **chips** and **joy**
@@ -374,6 +378,11 @@ specified:
   until **Build it**, and its pieces run at `none`. A message mid-plan pauses it; the
   next sizing carries on, sets aside or replaces it. Measured in §14 on
   2026-09-03 and 2026-09-06; designed in ideas/planner.md (§8).
+- **Cancel** (§8, built 2026-10-05, a kid's ask): on any live reply, for
+  whoever may write there, no confirmation. Stops the running fire — one
+  piece, one small ask, one reply — and puts back every file it wrote; in a
+  plan only that piece, and the plan pauses. Driven once in the MCP browser
+  against live DeepSeek, mid-piece; never on a finger.
 - Accounts split into **studio access** and players behind a waiting list; one
   admin role, per-person allowances over a studio-wide budget; games have
   authors and an **open** flag (§3, §10, §11).

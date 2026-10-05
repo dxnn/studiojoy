@@ -624,6 +624,15 @@ function renderLive(agentId, entry) {
 
   entry.nodes = { trace, thinking, working, workingPanel, reply, tool };
 
+  // Cancel (spec.md §8): stops this reply and puts back everything it wrote,
+  // no question asked — what it throws away is unfinished. For whoever may
+  // talk here, and gone once pressed while the reply winds itself down.
+  const cancel = canTalk() && !entry.cancelling ? h('button', {
+    class: 'quiet tiny live-cancel', text: 'Cancel',
+    title: 'Stop, and put back everything it changed',
+    onclick: (e) => cancelLive(agentId, entry, e.currentTarget),
+  }) : null;
+
   return h('div', { class: 'msg from-agent' },
     h('div', { class: 'from', text: agentName(agentId) }),
     thinking,
@@ -631,7 +640,20 @@ function renderLive(agentId, entry) {
     reply,
     entry.error
       ? h('div', { class: 'busy error', text: 'Something went wrong. Try asking again.' })
-      : tool);
+      : h('div', { class: 'live-foot' }, tool, cancel));
+}
+
+// Hidden in place rather than by a render, like everything else on a live
+// reply. A 409 is the reply having finished first, which it says itself.
+async function cancelLive(agentId, entry, button) {
+  entry.cancelling = true;
+  button.hidden = true;
+  const res = await api('POST', `/api/projects/${S.slug}/chats/${S.chat.id}/agents/${agentId}/cancel`);
+  if (!res.ok && res.status !== 409) {
+    entry.cancelling = false;
+    button.hidden = false;
+    say(res.body?.error ?? 'Could not cancel it.', true);
+  }
 }
 
 // A send still in flight, or one that did not make it. Painted from S.pending

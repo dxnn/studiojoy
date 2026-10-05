@@ -47,6 +47,46 @@ The tool loop (step 4) and the persisting (steps 5–7) are functions of their
 own, `runLoop` and `persistReply`, because the builder's room runs them more
 than once per fire.
 
+### Cancel
+
+**Cancel** on a live reply stops the running fire — one piece, one small ask,
+one helper's reply — and puts every file it wrote back as it was when it
+began (asked for by a kid, built 2026-10-05).
+Any helper's, for whoever may write in that room, and no confirmation: what it
+throws away is unfinished work no version ever held.
+`POST /api/projects/:slug/chats/:chat_id/agents/:agent_id/cancel` (§6) calls
+the orchestrator's `cancel`, which aborts that fire's `AbortController`
+(`stops`, beside `firing`) and clears its pending flag — cancelling is
+stopping, not asking again; a message sent after the press sets it afresh.
+
+- **The stop.** The signal reaches `llm.stream` and `llm.complete`, which abort
+  the request with the idle guard's own controller and throw `cancelled`
+  rather than *stalled*. `runLoop` checks it on every event, after each
+  stream and before each tool call, so nothing starts after the press; a write
+  already under the mutex finishes. The outcome comes back `cancelled`, and
+  each caller winds down through `cancelFire` instead of `persistReply`. A
+  sizing that was cancelled falls open like any failure, and every caller asks
+  `stopped(fire)` before acting on its answer.
+- **The undo** (`toolset.putBack`). Every write tool settles a person's
+  pending saves first, and a fire's own writes are committed only at its end,
+  so at the press HEAD holds each path this fire touched as it was before it
+  touched it. Under the mutex: settle again, then each changed path gets HEAD's
+  bytes back, or goes when HEAD has none. ⚠️ Nothing is committed: the fire
+  leaves nothing in history. A person who saved the same file mid-fire keeps
+  it — it lands as their version first, and that is what comes back.
+- **What is left.** No reply row: the live entry ends with no `message_id`,
+  `files.changed` names the paths put back, and a studio notice stands in the
+  thread (*Cancelled — everything Builder changed is back how it was.*, or
+  *Cancelled.* where nothing had been written or there is no tree). The
+  tokens are charged — a stream nobody let finish sends no usage, so what it
+  streamed is estimated, as a capped trace's is.
+- **In a plan,** only the running piece: it goes back to `todo` and the plan
+  **pauses**, so *Carry on* runs it again; the pieces before it keep their
+  versions. Cancelled during Build it's own sizing, before any piece ran, the
+  plan pauses the same way. Cancelled while an overrun's rest is being sized,
+  the small ask's work is already its own version and stays. Undoing a whole
+  plan is a different thing, not built.
+
 ### The reply and its working
 
 A tool-using fire says something on most turns — *now I'll write js/tank.js*

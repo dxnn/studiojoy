@@ -472,6 +472,23 @@ test('a stalled stream aborts with a legible error', async () => {
   );
 });
 
+// Cancel (spec.md §8): the caller's signal closes a stream that is waiting on
+// the model, and the error says cancelled — not stalled, which is the guard's,
+// and which a caller reports as the upstream failing.
+test("a caller's signal cancels a waiting stream, and says so", async () => {
+  const fetchImpl = timedFetch([textChunk('almost')], { hang: true });
+  const stop = new AbortController();
+  setTimeout(() => stop.abort(), 30);
+  await assert.rejects(
+    collect(createDeepSeek({ apiKey: 'k', fetchImpl, idleMs: 5_000 }), { signal: stop.signal }),
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.equal(err.code, 'cancelled');
+      return true;
+    },
+  );
+});
+
 /* complete() — the whole answer at once, for the studio's own small asks ----- */
 
 function jsonFetch(payload, { status = 200 } = {}) {

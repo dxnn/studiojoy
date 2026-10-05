@@ -142,6 +142,7 @@ There is no route that deletes a chat.
 | POST | `/api/projects/:slug/chats/:chat_id/agents` | `{agent_id, chatty?}` | put a helper in a *chat project*'s room; 409 anywhere in a game — `Humans only` and every *builder room* — and for the builder itself |
 | PATCH | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | `{chatty}` | update |
 | DELETE | `/api/projects/:slug/chats/:chat_id/agents/:agent_id` | — | take out; 409 for the builder, whose seat is the room's |
+| POST | `/api/projects/:slug/chats/:chat_id/agents/:agent_id/cancel` | — | **Cancel**: stop that helper's fire there and put back what it wrote (§8); 202, 409 when nothing is running; an editor's, the builder included |
 
 #### Messages
 

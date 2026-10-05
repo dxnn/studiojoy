@@ -22,8 +22,6 @@ deliberately deferred.
   reached a frame a second on an older iPad and nobody but the person holding
   it could tell. ⚠️ iOS Low Power Mode holds every page to 30, so the line
   has to sit under that. Wants a sketch in ideas/ first
-- build *cancel* on a live reply: stop the running fire and put back what it
-  wrote — asked for by a kid, two questions waiting (ideas/cancel.md)
 - finish ideas/planner.md's step 6. The small half: the plan card's synopsis,
   one no-tools call over the pieces' headlines when a plan of two or more
   finishes, as the card's head. The big half: sub-pieces when a piece outruns

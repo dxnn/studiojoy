@@ -4,6 +4,7 @@ import { isTextPath } from '../http/static.js';
 import {
   readFileAt, writeFileAt, removeFileAt, assertCapacity, MAX_FILE_BYTES,
 } from '../files/tree.js';
+import { currentSha, treeAtCommit, showFile } from '../files/git.js';
 import { parseConfigFile, isConfigPath } from '../../public/config-file.js';
 
 // A config file is what a person tunes as a form, and the form opens only
@@ -346,6 +347,28 @@ export function createToolset({ dir, mutex, slug, pending = null, shot = null })
     // files.changed. read_file is absent by construction.
     changedPaths() {
       return [...changes.keys()];
+    },
+    // Cancel (spec.md §8): every path this fire changed goes back to HEAD's
+    // bytes, or away when HEAD has none. HEAD is the tree as it was before
+    // the fire touched them — its own writes are committed only at its end,
+    // and each one settled a person's saves first — so nothing is committed
+    // here, and the fire leaves nothing in history. A person's save of the
+    // same file lands as theirs first, and is what comes back. Answers the
+    // paths it put back.
+    async putBack() {
+      const paths = [...changes.keys()];
+      if (paths.length === 0) return [];
+      await mutex.run(slug, async () => {
+        await settlePending();
+        const sha = await currentSha(dir);
+        const held = new Set((await treeAtCommit(dir, sha)).map((e) => e.path));
+        for (const rel of paths) {
+          if (held.has(rel)) await writeFileAt(resolveInside(dir, rel), await showFile(dir, sha, rel));
+          else await removeFileAt(dir, rel);
+        }
+      });
+      changes.clear();
+      return paths;
     },
     async run(name, input) {
       const handler = handlers[name];

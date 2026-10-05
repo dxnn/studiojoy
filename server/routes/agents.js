@@ -187,6 +187,21 @@ export function agentRoutes(r) {
     json(ctx.res, 200, { agent_id: agent.id, chatty, chat_id: chat.id });
   });
 
+  // Cancel (spec.md §8): that helper's reply stopped where it is, and what it
+  // wrote put back. Anybody who may write here, the builder included, and no
+  // confirmation: what it throws away is unfinished work no version ever held.
+  r.post('/api/projects/:slug/chats/:chat_id/agents/:agent_id/cancel', (ctx) => {
+    requireAuth(ctx);
+    const project = requireProject(ctx, { write: true });
+    const chat = requireChat(ctx.db, project, ctx.params.chat_id);
+    const agentId = Number(ctx.params.agent_id);
+    if (!Number.isInteger(agentId)) throw new HttpError(404, 'no such agent');
+    if (!ctx.orchestrator?.cancel(chat.id, agentId)) {
+      throw new HttpError(409, 'nothing to cancel — it has already finished');
+    }
+    json(ctx.res, 202, { cancelled: true });
+  });
+
   r.delete('/api/projects/:slug/chats/:chat_id/agents/:agent_id', (ctx) => {
     requireAuth(ctx);
     const project = requireProject(ctx, { write: true });

@@ -140,6 +140,17 @@ export class LlmError extends Error {
   }
 }
 
+// Cancel (spec.md §8): the caller's signal aborts the same controller the idle
+// guard does, and a request that ends that way says it was cancelled rather
+// than that it stalled — the catch asks the caller's signal first.
+function follow(signal, controller) {
+  if (!signal) return;
+  if (signal.aborted) controller.abort();
+  else signal.addEventListener('abort', () => controller.abort(), { once: true });
+}
+
+const cancelled = () => new LlmError('cancelled', { code: 'cancelled' });
+
 // The price list's weights, read 2026-09-10 (spec.md §14): on this model a
 // cache hit is a fiftieth of a miss and output is four times a miss, in the
 // peak and the off-peak window alike. Output includes the reasoning trace,
@@ -211,6 +222,7 @@ export function createDeepSeek({
     thinking = 'none',
     maxTokens = 1024,
     responseFormat = null,
+    signal = null,
   }) {
     const body = {
       model: MODEL,
@@ -224,6 +236,7 @@ export function createDeepSeek({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), idleMs);
     timer.unref?.();
+    follow(signal, controller);
 
     let res;
     try {
@@ -238,6 +251,7 @@ export function createDeepSeek({
       });
     } catch (err) {
       clearTimeout(timer);
+      if (signal?.aborted) throw cancelled();
       if (controller.signal.aborted) {
         throw new LlmError(`deepseek did not answer within ${idleMs / 1000}s`);
       }
@@ -269,6 +283,7 @@ export function createDeepSeek({
       thinking = DEFAULT_THINKING,
       thinkingCap = THINKING_CAP_CHARS,
       maxTokens = DEFAULT_MAX_TOKENS,
+      signal = null,
     }) {
       const body = {
         model: MODEL,
@@ -295,6 +310,7 @@ export function createDeepSeek({
       };
       // The first arming also covers connecting and waiting for headers.
       arm();
+      follow(signal, controller);
 
       let res;
       try {
@@ -309,6 +325,7 @@ export function createDeepSeek({
         });
       } catch (err) {
         clearTimeout(timer);
+        if (signal?.aborted) throw cancelled();
         throw new LlmError(`deepseek request failed: ${err.message}`);
       }
 
@@ -410,6 +427,7 @@ export function createDeepSeek({
       } catch (err) {
         // The guard firing surfaces as a bare AbortError from reader.read();
         // name what actually happened.
+        if (signal?.aborted) throw cancelled();
         if (controller.signal.aborted) {
           throw new LlmError(`deepseek stream stalled: nothing arrived for ${idleMs / 1000}s`);
         }

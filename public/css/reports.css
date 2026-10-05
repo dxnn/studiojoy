@@ -98,6 +98,9 @@ details.thinking .folded, details.working .folded {
 }
 
 .busy { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--agent); }
+/* What a live reply is doing, and beside it the way to stop it (Cancel,
+   spec.md §8). */
+.live-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dots::after {
   content: '';
   animation: dots 1.2s steps(4, end) infinite;

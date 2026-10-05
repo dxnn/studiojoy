@@ -926,3 +926,162 @@ test('still small after the cap, the retry carries the trace and the receipt doe
   await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system'
     && /stop planning and start working/.test(e.data.body));
 });
+
+/* Cancel (spec.md §8) ------------------------------------------------------ */
+
+// A turn that streams what it is given and then waits for Cancel, which the
+// real client answers by throwing (deepseek.js).
+function waits(events = []) {
+  let reached;
+  const started = new Promise((resolve) => { reached = resolve; });
+  const turn = async function* run(opts) {
+    yield* events;
+    reached();
+    await new Promise((resolve) => opts.signal.addEventListener('abort', resolve, { once: true }));
+    const err = new Error('cancelled');
+    err.code = 'cancelled';
+    throw err;
+  };
+  return { turn, started };
+}
+
+const cancel = (app, chatId, agentId = builderId(app), slug = 'tank') => app.client.json(
+  'POST', `/api/projects/${slug}/chats/${chatId}/agents/${agentId}/cancel`,
+);
+const read = (dir, p) => fs.readFileSync(path.join(dir, p), 'utf8');
+const notice = (stream) => stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'system');
+// Files a person saved, landed as their version.
+async function saved(app, files) {
+  for (const [p, body] of Object.entries(files)) {
+    const res = await app.client.json('PUT', `/api/projects/tank/files/${p}`, { rawBody: body });
+    assert.ok(res.status < 300, JSON.stringify(res.body));
+  }
+  await app.client.json('POST', '/api/projects/tank/commit');
+}
+
+// The kid's ask: stop whatever the builder is doing and undo it. Everything
+// the fire wrote goes back — changed, made, deleted — and since a fire's own
+// writes are committed only at its end, nothing lands in Recall at all.
+test('Cancel stops a fire and puts back everything it wrote, leaving no version', async (t) => {
+  const hang = waits([{ type: 'delta', text: 'Now the tanks' }]);
+  const llm = scriptedLlm([
+    calls([
+      write('index.html', '<h1>Changed</h1>'),
+      write('js/tank.js', 'drive()'),
+      { name: 'delete_file', input: { path: 'BRIEF.md' } },
+    ], { text: 'Page first.' }),
+    hang.turn,
+  ], [sized({ size: 'small' })]);
+  const { app, chatId, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  const page = '<h1>Mine</h1>';
+  const brief = 'A tank game.';
+  await saved(app, { 'index.html': page, 'BRIEF.md': brief });
+  const versions = (await logCommits(dir)).length;
+
+  await send(app, chatId, 'make it a tank game');
+  await hang.started;
+  assert.equal(read(dir, 'index.html'), '<h1>Changed</h1>', 'halfway through');
+  assert.equal((await cancel(app, chatId)).status, 202);
+
+  assert.equal((await notice(stream)).data.body, 'Cancelled — everything Builder changed is back how it was.');
+  const end = await stream.waitFor((e) => e.event === 'agent.stream.end');
+  assert.equal(end.data.message_id, undefined, 'the live reply goes, with no row to replace it');
+  const back = await stream.waitFor((e) => e.event === 'files.changed' && e.data.paths.includes('js/tank.js'));
+  assert.deepEqual(back.data.paths.sort(), ['BRIEF.md', 'index.html', 'js/tank.js']);
+  assert.equal(read(dir, 'index.html'), page);
+  assert.equal(read(dir, 'BRIEF.md'), brief);
+  assert.ok(!fs.existsSync(path.join(dir, 'js')), 'a file it made goes, and its folder');
+  assert.equal((await logCommits(dir)).length, versions, 'nothing in Recall');
+
+  // The turn before the press is charged; no reply row, nothing to come.
+  const spent = app.db.prepare('SELECT tokens_used_today AS n FROM studio_state WHERE id = 1').get().n;
+  assert.ok(spent > 0);
+  const detail = await app.client.json('GET', `/api/projects/tank?chat=${chatId}`);
+  assert.ok(!detail.body.messages.some((m) => m.agent_id !== null && m.kind === null));
+  assert.equal(app.db.prepare('SELECT response_pending AS p FROM chat_agents WHERE chat_id = ?').get(chatId).p, 0);
+  assert.equal((await cancel(app, chatId)).status, 409, 'nothing left to stop');
+});
+
+// A save is the person's: it lands as their own version before the undo reads
+// HEAD, so HEAD — and the file — is what they saved.
+test("Cancel keeps a person's save of the same file, made while the fire ran", async (t) => {
+  const hang = waits();
+  const llm = scriptedLlm([calls([write('index.html', '<h1>Builder</h1>')]), hang.turn], [sized({ size: 'small' })]);
+  const { app, chatId, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'make it a tank game');
+  await hang.started;
+  const mine = await app.client.json('PUT', '/api/projects/tank/files/index.html', { rawBody: '<h1>Mine</h1>' });
+  assert.equal(mine.body.pending, true, 'saved, not yet a version');
+  assert.equal((await cancel(app, chatId)).status, 202);
+
+  await notice(stream);
+  assert.equal(read(dir, 'index.html'), '<h1>Mine</h1>');
+  const [newest] = await logCommits(dir);
+  assert.equal(newest.author, 'Dann');
+  assert.deepEqual(newest.paths, ['index.html']);
+});
+
+// Only the piece that is running: the ones before it keep their versions, and
+// this one waits to be done again, the plan paused with Carry on.
+test('Cancel mid-plan puts back the running piece and pauses the plan', async (t) => {
+  const hang = waits();
+  const llm = scriptedLlm([
+    calls([write('index.html', '<h1>Tank</h1>')]),
+    says(''),
+    calls([write('js/tank.js', 'drive()')]),
+    hang.turn,
+  ], [sized({ size: 'pieces', pieces: PIECES }), confirmed()]);
+  const { app, chatId, dir } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+
+  await send(app, chatId, 'build me a tank game');
+  const card = await stream.waitFor((e) => e.event === 'message.new' && e.data.kind === 'plan');
+  assert.equal((await build(app, card.data.id)).status, 202);
+  await hang.started;
+  assert.equal((await cancel(app, chatId)).status, 202);
+
+  const paused = await stream.waitFor((e) => e.event === 'plan.update' && e.data.plan.status === 'paused');
+  assert.deepEqual(paused.data.plan.pieces.map((p) => p.status), ['done', 'todo']);
+  assert.equal((await notice(stream)).data.body,
+    'Cancelled — piece 2 of 2 is back how it was, and the plan is paused.');
+  assert.equal(read(dir, 'index.html'), '<h1>Tank</h1>', 'piece 1 stays');
+  assert.ok(!fs.existsSync(path.join(dir, 'js')));
+  assert.equal((await logCommits(dir))[0].subject, 'Builder: piece 1 of 2 — The page');
+});
+
+// Any helper, not only the builder: in a chat project there is no tree, so
+// Cancel only stops the reply.
+test("Cancel stops a person's helper too, with nothing to put back", async (t) => {
+  const hang = waits([{ type: 'delta', text: 'Once upon' }]);
+  const llm = scriptedLlm([hang.turn]);
+  const { app } = await studio(t, { llm });
+  const stream = await openStream(app.client);
+  t.after(() => stream.close());
+  await app.client.json('POST', '/api/projects', { body: { name: 'Room', slug: 'room', kind: 'chat' } });
+  const pal = (await app.client.json('POST', '/api/agents', { body: { name: 'Pal', description: 'tells stories' } })).body;
+  const put = await putInChat(app, 'room', pal.id, { chatty: true });
+  assert.equal(put.status, 201, JSON.stringify(put.body));
+
+  await app.client.json('POST', '/api/projects/room/messages', { body: { body: 'tell me a story', chat_id: put.body.chat_id } });
+  await hang.started;
+  assert.equal((await cancel(app, put.body.chat_id, pal.id, 'room')).status, 202);
+  assert.equal((await notice(stream)).data.body, 'Cancelled.');
+  const detail = await app.client.json('GET', '/api/projects/room');
+  assert.ok(!detail.body.messages.some((m) => m.agent_id !== null && m.kind === null));
+});
+
+test('Cancel is for whoever may write in the game', async (t) => {
+  const { app, chatId } = await studio(t, { llm: scriptedLlm([]) });
+  assert.equal((await cancel(app, chatId)).status, 409, 'nothing running');
+  await app.client.json('POST', '/api/projects/tank/open', { body: { open_edit: false } });
+  const theirs = app.newClient();
+  await signIn(app, { email: 'kid@example.com', password: 'hunter2', displayName: 'Robin', client: theirs });
+  const refused = await theirs.json('POST', `/api/projects/tank/chats/${chatId}/agents/${builderId(app)}/cancel`);
+  assert.equal(refused.status, 403);
+});

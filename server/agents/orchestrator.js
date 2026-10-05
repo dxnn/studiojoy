@@ -915,6 +915,9 @@ export function createOrchestrator({
   // Agents mid-fire. A message arriving now sets the dirty bit; the running
   // fire picks it up when it finishes.
   const firing = new Set();
+  // chat_agents.id -> the AbortController Cancel presses, for each fire
+  // running (spec.md §8). Beside `firing` and cleared with it.
+  const stops = new Map();
   // chat_agents.id -> MAX(messages.id) when that agent last fired
   // successfully. Used to reorder context so a message that arrived
   // mid-stream is presented after the reply that never saw it. Lost on
@@ -999,9 +1002,13 @@ export function createOrchestrator({
   // room, where a first turn that thought too long is a request that wanted
   // sizing. On any later turn the cap always retries. `handoff` starts a loop
   // already carrying a trace, thinking off — the retry a caller runs itself.
+  //
+  // `signal` is Cancel's (spec.md §8). Pressed, the request in flight is
+  // aborted, no tool call starts after it, and the outcome comes back
+  // `cancelled` for the caller to wind down rather than keep.
   async function runLoop({
     agent, system, messages: initial, toolset, thinking, emit, capMode = 'retry', handoff = null,
-    limits = roomLimits, masked = [],
+    limits = roomLimits, masked = [], signal = null,
   }) {
     const messages = initial.map((m) => ({ ...m }));
     // Everything the loop appends is counted, so a fire cannot grow past
@@ -1069,7 +1076,7 @@ export function createOrchestrator({
       working: said.slice(0, -1).join('\n\n'),
       charged, requests, turnsUsed, toolCallCount, grown, sheds, sentPrompt,
       pendingCut, hitLength, hitLimit, streamFailed, lastReasoning, lastOut, cappedThinking,
-      capped: null, ...extra,
+      capped: null, cancelled: false, ...extra,
     });
 
     for (let turn = 0; turn < limits.turns; turn += 1) {
@@ -1078,6 +1085,15 @@ export function createOrchestrator({
       let cutCalls = 0;
       // This turn's trace, held only until the turn ends: what a cap hands on.
       let trace = '';
+      // Whether this turn's usage arrived. A stream cancelled before its end
+      // sends none, so what it streamed is charged from an estimate, the way
+      // an abandoned trace is (below).
+      let billed = false;
+      const cancelled = () => {
+        if (!billed) charged += tokensForChars(trace.length + text.length) * OUTPUT_WEIGHT;
+        return outcome({ cancelled: true });
+      };
+      if (signal?.aborted) return outcome({ cancelled: true });
       turnsUsed = turn + 1;
       sentPrompt = promptText(system, messages);
       // A trace is never kept (spec.md §8, §12): the one this fire hands on,
@@ -1094,8 +1110,11 @@ export function createOrchestrator({
           tools: toolset ? toolset.definitions : null,
           thinking: thinkingOff ? 'none' : thinking,
           maxTokens: DEFAULT_MAX_TOKENS,
+          signal,
         });
         for await (const event of stream) {
+          // Leaving the loop is what closes the request (deepseek.js).
+          if (signal?.aborted) break;
           if (event.type === 'reasoning') {
             // Streamed for the UI, never persisted and never replayed.
             trace += event.text;
@@ -1116,6 +1135,7 @@ export function createOrchestrator({
           } else if (event.type === 'end') {
             if (event.finish_reason === 'length') hitLength = true;
             charged += tokensCharged(event.usage);
+            billed = true;
             if (event.usage) {
               requests.push({
                 hit: event.usage.prompt_cache_hit_tokens ?? 0,
@@ -1130,6 +1150,8 @@ export function createOrchestrator({
           }
         }
       } catch (err) {
+        // Cancel, landing while the request waited: not a failure at all.
+        if (signal?.aborted) return cancelled();
         // Thinking ran away with the turn: nothing was produced and the
         // trace passed its ceiling, which left to itself ends in an empty
         // reply nine minutes later (spec.md §14). Not a failure to salvage
@@ -1163,6 +1185,7 @@ export function createOrchestrator({
         if (text) said.push(text);
         break;
       }
+      if (signal?.aborted) return cancelled();
 
       if (text) said.push(text);
       pendingCut = cutCalls > 0;
@@ -1184,6 +1207,9 @@ export function createOrchestrator({
         });
 
         for (const call of calls) {
+          // Nothing starts after a press; a write already under way finishes,
+          // and the caller's undo comes after it under the same mutex.
+          if (signal?.aborted) return outcome({ cancelled: true });
           if (toolCallCount >= limits.tools) {
             hitLimit = 'tool';
             append({
@@ -1358,6 +1384,31 @@ export function createOrchestrator({
     return { messageId, commitSha, changed, nothing: false };
   }
 
+  // Cancel pressed (spec.md §8): what persistReply does for a fire that ends,
+  // for one that was stopped. What it wrote goes back (toolset.putBack), what
+  // it spent is charged, and a studio notice stands where the reply would
+  // have — no row of its own and no commit, so it leaves nothing in history.
+  const stopped = (fire) => fire.signal?.aborted === true;
+  async function cancelFire(fire, { toolset = null, charged = 0, body = null } = {}) {
+    const {
+      row, project, chat, agent, asker, emit, state,
+    } = fire;
+    consumeBudget(db, charged);
+    chargeUser(db, asker?.id, charged);
+    const paths = toolset ? await toolset.putBack() : [];
+    if (state.live) {
+      emit('agent.stream.end');
+      state.live = false;
+    }
+    if (paths.length > 0) broker.broadcast('files.changed', { project_slug: row.slug, paths });
+    postSystemMessage(db, broker, {
+      project, chat, agentId: agent.id,
+      body: body ?? (paths.length > 0
+        ? `Cancelled — everything ${row.agent_name} changed is back how it was.`
+        : 'Cancelled.'),
+    });
+  }
+
   // Re-arm the agent to pick up where it stopped, if it still may: a fresh
   // fire rebuilds its context from disk, which is what clears the weight.
   // The 'system' row is not decoration: it enters the transcript as a user
@@ -1479,8 +1530,12 @@ export function createOrchestrator({
     const { agent, context, emit } = fire;
     const outcome = await runLoop({
       agent, system: context.system, messages: context.messages, toolset: null,
-      thinking: agent.thinking, emit,
+      thinking: agent.thinking, emit, signal: fire.signal,
     });
+    if (outcome.cancelled) {
+      await cancelFire(fire, { charged: outcome.charged });
+      return;
+    }
     const kept = await persistReply({
       ...fire, toolset: null, outcome, subject: firstLine(outcome.reply) || 'update files',
     });
@@ -1520,8 +1575,11 @@ export function createOrchestrator({
     ].filter(Boolean).join('\n\n');
     fire.exchange = null;
     try {
+      // Cancelled mid-sizing, this falls open like any failure; every caller
+      // asks `stopped` before acting on the answer.
       const opts = {
         system: context.system, thinking: 'none', maxTokens: SIZING_MAX_TOKENS, responseFormat: 'json_object',
+        signal: fire.signal,
       };
       let answer = await llm.complete({ ...opts, messages });
       let charged = tokensCharged(answer.usage);
@@ -1637,6 +1695,10 @@ export function createOrchestrator({
       if (draft) dropPlan(fire, draft);
     };
     let sized = await sizeRequest(fire, { paused });
+    if (stopped(fire)) {
+      await cancelFire(fire);
+      return;
+    }
     if (sized.size === 'pieces') {
       replacePlans();
       await runPlan(fire, { request, ...sized });
@@ -1649,11 +1711,15 @@ export function createOrchestrator({
     let messages = extended(fire, GO_AHEAD);
     let outcome = await runLoop({
       agent, system: context.system, messages, toolset, masked: fire.exchange?.masked,
-      thinking: agent.thinking, emit, capMode: 'return', limits: smallLimits,
+      thinking: agent.thinking, emit, capMode: 'return', limits: smallLimits, signal: fire.signal,
     });
     if (outcome.capped !== null) {
       const abandoned = outcome.charged;
       sized = await sizeRequest(fire, { paused, notes: outcome.capped });
+      if (stopped(fire)) {
+        await cancelFire(fire, { toolset, charged: abandoned });
+        return;
+      }
       if (sized.size === 'pieces') {
         consumeBudget(db, abandoned);
         chargeUser(db, asker?.id, abandoned);
@@ -1664,9 +1730,13 @@ export function createOrchestrator({
       messages = extended(fire, GO_AHEAD);
       outcome = await runLoop({
         agent, system: context.system, messages, toolset, masked: fire.exchange?.masked,
-        thinking: agent.thinking, emit, handoff: outcome.capped, limits: smallLimits,
+        thinking: agent.thinking, emit, handoff: outcome.capped, limits: smallLimits, signal: fire.signal,
       });
       outcome.charged += abandoned;
+    }
+    if (outcome.cancelled) {
+      await cancelFire(fire, { toolset, charged: outcome.charged });
+      return;
     }
     const kept = await persistReply({
       ...fire, context: receiptContext(context, messages), toolset, outcome,
@@ -1701,6 +1771,11 @@ export function createOrchestrator({
     state.live = true;
     const said = [outcome.working, outcome.reply].filter(Boolean).join('\n\n');
     const sized = await sizeRequest(fire, { paused, begun: { changed, said } });
+    // What the small ask did is its own version already; this only stops.
+    if (stopped(fire)) {
+      await cancelFire(fire);
+      return;
+    }
     if (sized.size === 'pieces') {
       if (paused) dropPlan(fire, paused);
       await runPlan(fire, { request, ...sized, begun: true });
@@ -1782,6 +1857,12 @@ export function createOrchestrator({
       plan = settlePieces(db, queued.message_id, sized.size === 'pieces' ? sized.pieces : left);
     } else {
       await sizeRequest(fire, { trigger: CONFIRM_TRIGGER });
+    }
+    // Before any piece ran: the plan waits as a paused one, Carry on and all.
+    if (stopped(fire)) {
+      announcePlan(fire, setPlanStatus(db, plan.message_id, 'paused'));
+      await cancelFire(fire);
+      return;
     }
     await runPieces(fire, plan);
   }
@@ -1888,8 +1969,20 @@ export function createOrchestrator({
       const messages = extended(fire, fresh ? `${turn}\n\n${fresh}` : turn);
       const outcome = await runLoop({
         agent, system: context.system, messages, toolset, thinking, emit,
-        masked: fire.exchange?.masked,
+        masked: fire.exchange?.masked, signal: fire.signal,
       });
+      // Cancelled: this piece goes back and waits to be done again, the plan
+      // paused — the pieces before it keep their versions (spec.md §8).
+      if (outcome.cancelled) {
+        setPiece(db, plan.message_id, i, { status: 'todo' });
+        announcePlan(fire, setPlanStatus(db, plan.message_id, 'paused'));
+        await cancelFire(fire, {
+          toolset,
+          charged: outcome.charged,
+          body: `Cancelled — piece ${i + 1} of ${n} is back how it was, and the plan is paused.`,
+        });
+        return;
+      }
       // The headline: the closing paragraph the piece was asked for, or the
       // piece's name when it said nothing. Its row goes behind the card.
       const note = headline(outcome.reply) || `Piece ${i + 1} of ${n}: ${piece.title}`;
@@ -1956,6 +2049,8 @@ export function createOrchestrator({
     // again rather than being swallowed.
     clearPending();
     firing.add(row.id);
+    const stop = new AbortController();
+    stops.set(row.id, stop);
 
     // Every event says which conversation it is about: a reply streaming into
     // a chat nobody is looking at must not paint itself into the open one.
@@ -2042,7 +2137,7 @@ export function createOrchestrator({
       state.live = true;
 
       const fire = {
-        row, project, chat, agent, dir, asker, context, emit, state, snapshot,
+        row, project, chat, agent, dir, asker, context, emit, state, snapshot, signal: stop.signal,
       };
       if (builderRoom) await builderFire(fire);
       else await openFire(fire);
@@ -2078,6 +2173,7 @@ export function createOrchestrator({
       }
     } finally {
       firing.delete(row.id);
+      stops.delete(row.id);
       try {
         // Cooldown runs from the end of the response, not its start.
         const readyAt = Date.now() + cooldownMs;
@@ -2096,9 +2192,26 @@ export function createOrchestrator({
     }
   }
 
+  // Cancel, pressed on a live reply (spec.md §8, routes/agents.js): stops that
+  // helper's fire in that chat, which winds itself down from wherever it is.
+  // Answers whether there was one to stop. The pending flag goes too —
+  // cancelling is stopping, not asking again — and a message sent after the
+  // press sets it afresh, so that one is still answered.
+  function cancel(chatId, agentId) {
+    const seat = db
+      .prepare('SELECT id FROM chat_agents WHERE chat_id = ? AND agent_id = ?')
+      .get(chatId, agentId);
+    const stop = seat ? stops.get(seat.id) : null;
+    if (!stop || stop.signal.aborted) return false;
+    db.prepare('UPDATE chat_agents SET response_pending = 0 WHERE id = ?').run(seat.id);
+    stop.abort();
+    return true;
+  }
+
   return {
     onHumanMessage,
     buildPlan,
+    cancel,
     // Test seams.
     _fireAgent: fireAgent,
     _buildContext: buildContext,
