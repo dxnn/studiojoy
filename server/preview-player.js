@@ -141,24 +141,24 @@ export const PREVIEW_PLAYER_JS = `(function () {
   // timing itself with it pauses, hurries and plays back like any other. So
   // does new Date() with nothing in the brackets, which is the same question
   // asked another way — a Date of the game's own clock, still a Date to
-  // instanceof, and Date(...) with a time given just what it always was.
+  // instanceof and to its own constructor, so asking a Date for its
+  // constructor, or copying one with it, behaves as on the public page; and
+  // Date(...) with a time given just what it always was. No fallback: an
+  // engine without new.target cannot parse this script at all.
   var RealDate = Date;
   var dateBase = RealDate.now() - now;
   var clockNow = function () { return Math.floor(dateBase + now); };
-  try {
-    var ClockDate = function Date() {
-      if (!new.target) return new RealDate(clockNow()).toString();
-      var args = arguments.length ? Array.prototype.slice.call(arguments) : [clockNow()];
-      return Reflect.construct(RealDate, args, new.target);
-    };
-    ClockDate.prototype = RealDate.prototype;
-    ClockDate.now = clockNow;
-    ClockDate.parse = RealDate.parse;
-    ClockDate.UTC = RealDate.UTC;
-    window.Date = ClockDate;
-  } catch (err) {
-    RealDate.now = clockNow;
-  }
+  var ClockDate = function Date() {
+    if (!new.target) return new RealDate(clockNow()).toString();
+    var args = arguments.length ? Array.prototype.slice.call(arguments) : [clockNow()];
+    return Reflect.construct(RealDate, args, new.target);
+  };
+  ClockDate.prototype = RealDate.prototype;
+  RealDate.prototype.constructor = ClockDate;
+  ClockDate.now = clockNow;
+  ClockDate.parse = RealDate.parse;
+  ClockDate.UTC = RealDate.UTC;
+  window.Date = ClockDate;
 
   // An input event's timeStamp is the same clock again: a game timing a double
   // tap or a held key with it slows, pauses and plays back with the rest. A

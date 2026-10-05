@@ -325,6 +325,8 @@ test('timers and Date.now keep the player\'s clock, so Pause pauses them too', (
   assert.ok(Math.abs(p.run('new Date().getTime()') - date - 100) <= 1, 'and so did new Date()');
   assert.equal(p.run('new Date(0).getTime()'), 0, 'a Date of a given time is that time');
   assert.equal(p.run('new Date() instanceof Date'), true);
+  assert.equal(p.run('new Date().constructor === Date'), true, 'its own constructor, as on the public page');
+  assert.equal(p.run('var d = new Date(5); new d.constructor(d).getTime()'), 5, 'so a copy made from it is a copy');
   p.run('clearInterval(every)');
   p.frame(500);
   assert.equal(p.run('fired.length'), 3);
