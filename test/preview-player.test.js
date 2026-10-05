@@ -114,6 +114,21 @@ test('the game runs on the player\'s clock, which pauses, steps and slows', () =
   assert.equal(seen.length, 4, 'a speed it does not offer is ignored');
 });
 
+// Off Play the page loads paused, and the builder's shot is taken from it: a
+// game never called has drawn nothing, so it gets one frame with no time in it.
+test('a page paused before its first frame still draws one, without moving', () => {
+  const p = boot();
+  p.studio({ paused: true });
+  const start = p.run('performance.now()');
+  p.frame(100);
+  const seen = loop(p);
+  p.frame(100);
+  assert.deepEqual(seen, [start], 'called once, the moment it asked, at the time it loaded');
+  p.frame(100);
+  p.frame(100);
+  assert.equal(seen.length, 1, 'and once is all: paused is paused');
+});
+
 // What Asteriskoids met: a game counting per frame counted four times as fast
 // in slow motion while its rocks moved at a quarter. Whole frames, further
 // apart, and the frame and the second agree again.

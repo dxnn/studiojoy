@@ -954,7 +954,10 @@ folds it away: leaving the tab is how. ⚠️ **Off Play the game stays loaded a
 paused** — the preview player is told so on every mode change (`showMode`)
 and on every new page — because the builder's *shot* is taken from the live
 preview when a message is sent, and messages are sent from Speak: unloaded
-off its tab, the builder would never see the game. It carries on coming back,
+off its tab, the builder would never see the game. A page that loads off Play
+— every helper write reloads it — is paused before its first frame, so it is
+handed one with no time in it the moment the game asks, or the shot would be
+a canvas nothing ever drew on. It carries on coming back,
 unless it was paused by hand; it is unloaded only when no game is open. The
 preview is a thing, so what changes it is in its own `···`: the **shape** to
 try the game in — Normal (4:3), Wide (16:9), Phone (9:16), Square — a tick on

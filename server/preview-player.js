@@ -51,6 +51,11 @@ export const PREVIEW_PLAYER_JS = `(function () {
   var speed = 1;
   var steps = 0;
   var redraw = false;
+  // Whether this page has handed the game a frame yet. A page that loads off
+  // Play is paused before its first one, and a game that has never been called
+  // has drawn nothing — so it is given one with no time in it, as soon as it
+  // asks: the builder's shot is taken from this page (spec.md §6).
+  var shown = false;
   var realNow = performance.now.bind(performance);
   var realFrame = window.requestAnimationFrame.bind(window);
   var now = realNow();
@@ -72,6 +77,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
   function frame() {
     var due = queue;
     queue = [];
+    if (due.length) shown = true;
     for (var i = 0; i < due.length; i++) due[i].fn(now);
   }
 
@@ -108,7 +114,7 @@ export const PREVIEW_PLAYER_JS = `(function () {
     if (paused) {
       owed = 0;
       if (steps > 0) { steps -= 1; wholeFrame(); }
-      else if (drawAgain) frame();
+      else if (drawAgain || !shown) frame();
       return;
     }
     owed += gap * speed;
