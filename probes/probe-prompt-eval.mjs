@@ -39,14 +39,16 @@ const OUT = path.join(ROOT, 'tmp', 'prompt-eval');
 // Each ask leans on one part of the prompt, so a drop points at a cut.
 // `size`: reply, one (a plan of one), plan (two or more), work (either), any.
 // Read against the template: Meteor Run already plays Sound.play("shoot") and
-// already has a level-5 achievement, so neither is asked for.
+// already has a level-5 achievement, so neither is asked for — and it already
+// has "Break 100 meteors in one run" too, so rocks100 is a question whose right
+// answer is that it is there: does the builder look before it writes?
 const ASKS = [
   { key: 'frog', template: '', size: 'plan', text: 'make a game where a frog jumps between lily pads and eats flies' },
   { key: 'slower', template: 'arcade', size: 'one', clear: true, text: 'make the meteors fall slower' },
   { key: 'freeze', template: 'arcade', size: 'work', text: 'when I lose my last life the game just freezes and I cant play again' },
   { key: 'drawship', template: 'arcade', size: 'reply', text: 'how do I draw my own spaceship?' },
   { key: 'laser', template: 'arcade', size: 'any', text: 'add a laser sound when I shoot' },
-  { key: 'rocks100', template: 'arcade', size: 'one', text: 'give me an achievement for breaking 100 meteors in one game' },
+  { key: 'rocks100', template: 'arcade', size: 'reply', text: 'give me an achievement for breaking 100 meteors in one game' },
   { key: 'beach', template: 'quiz', size: 'one', text: 'add 3 more questions about what you like to do at the beach' },
   { key: 'split', template: 'arcade', size: 'work', text: 'add a second kind of meteor that splits in two when you shoot it' },
   { key: 'exciting', template: 'arcade', size: 'work', clear: false, text: 'make it more exciting' },
@@ -292,7 +294,8 @@ const jsOf = (dir) => walk(dir, 'js').map((p) => read(dir, p) ?? '').join('\n');
 
 function checks(runDir) {
   const r = JSON.parse(fs.readFileSync(path.join(runDir, 'record.json'), 'utf8'));
-  const { ask } = r;
+  // Today's expectations, not the ones the run was recorded with.
+  const ask = ASKS.find((a) => a.key === r.ask.key) ?? r.ask;
   const B = path.join(runDir, 'before');
   const A = path.join(runDir, 'after');
   const c = {};
@@ -358,10 +361,7 @@ function checks(runDir) {
   // The shot already plays "shoot": what is missing is the file, which only a
   // person can make, so the answer is asking for it by path and button.
   if (ask.key === 'laser') c.laser_asks = /assets\/sounds\/[\w-]+\.wav/.test(reply) && /Make a sound/.test(reply);
-  if (ask.key === 'rocks100') {
-    const t = read(A, 'config/achievements.js') ?? '';
-    c.rocks100_rule = /moment:\s*["']rock-broken["'][^}]*times:\s*100\b/.test(t);
-  }
+  if (ask.key === 'rocks100') c.rocks100_noticed = /already/i.test(reply);
   if (ask.key === 'beach') {
     const q = quizModel(read(A, 'config/questions.js') ?? '');
     const q0 = quizModel(read(B, 'config/questions.js') ?? '');
