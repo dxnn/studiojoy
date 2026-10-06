@@ -506,7 +506,7 @@ asserts each one is present:
 
 | what an agent cannot do | what it is told to say |
 |---|---|
-| make or change a picture or a sound | ask for the path by name, and name the button — `Add a file`, and which of its choices: `+ Draw a picture`, `+ Make a sound`, `+ Upload` |
+| make or change a picture or a sound | ask for the path by name, and name the button over the pictures or the sounds: `Draw a picture` (up to 256 a side), `Add from the studio` (the shelf; it lands under its own name, so a kind of thing is asked for rather than a path), `Make a sound`, `Upload a picture`, `Upload a sound`, and `Add dressing` for the three reserved images. The pills are not named: their words are on trial (§6) |
 | change a *studio library* | call it, say what needs changing, and load it with its `<script>` tag when writing `index.html` |
 
 Naming a capability isn't the same as asking for it to be used, and the

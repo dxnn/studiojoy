@@ -755,10 +755,14 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // The shape is gated the same way the notes are: this game holds input and
   // nothing else, so nothing here names a call it does not have.
   assert.ok(!system.includes('Screens.title'), 'no shape for a library it lacks');
-  assert.match(system, /"Add a file"/, 'the one button the four choices live behind');
-  assert.match(system, /"\+ Draw a picture"/);
-  assert.match(system, /"\+ Make a sound"/);
-  assert.match(system, /"\+ Upload"/);
+  // By the words on the buttons over the pictures and the sounds — the
+  // Code-only "Add a file" dialog is not where a kid goes for either.
+  assert.match(system, /"Draw a picture"/);
+  assert.match(system, /up to 256 a side/, 'what the editor draws, not the 1024 it opens');
+  assert.match(system, /"Add from the studio"/, 'the shelf, big set and all');
+  assert.match(system, /"Make a sound"/);
+  assert.match(system, /"Upload a picture" and "Upload a sound"/);
+  assert.match(system, /"Add dressing"/);
   // The three reserved images, by their exact names: a helper that has not
   // heard of them files a wallpaper under assets/images/ where nothing looks.
   // hero.png alone would match the sprite example above, so the bar rides in.
@@ -1082,7 +1086,7 @@ test('a switched-off scoreboard leaves the preamble', async (t) => {
   assert.ok(!system.includes('/_scores/'), 'the scoreboard is not named');
   assert.ok(!system.includes('scoreboard'), 'not even in passing');
   // The paragraphs around it are intact.
-  assert.match(system, /"\+ Draw a picture"/);
+  assert.match(system, /"Draw a picture"/);
   assert.match(system, /BRIEF\.md — the file map/);
 });
 
