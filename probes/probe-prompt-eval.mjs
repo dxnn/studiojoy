@@ -37,18 +37,20 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'tmp', 'prompt-eval');
 
 // Each ask leans on one part of the prompt, so a drop points at a cut.
-// `size`: reply, one (a plan of one), plan (two or more), work (either).
+// `size`: reply, one (a plan of one), plan (two or more), work (either), any.
+// Read against the template: Meteor Run already plays Sound.play("shoot") and
+// already has a level-5 achievement, so neither is asked for.
 const ASKS = [
   { key: 'frog', template: '', size: 'plan', text: 'make a game where a frog jumps between lily pads and eats flies' },
   { key: 'slower', template: 'arcade', size: 'one', clear: true, text: 'make the meteors fall slower' },
   { key: 'freeze', template: 'arcade', size: 'work', text: 'when I lose my last life the game just freezes and I cant play again' },
   { key: 'drawship', template: 'arcade', size: 'reply', text: 'how do I draw my own spaceship?' },
-  { key: 'laser', template: 'arcade', size: 'one', text: 'add a laser sound when I shoot' },
-  { key: 'level5', template: 'arcade', size: 'one', text: 'give me an achievement for reaching level 5' },
+  { key: 'laser', template: 'arcade', size: 'any', text: 'add a laser sound when I shoot' },
+  { key: 'rocks100', template: 'arcade', size: 'one', text: 'give me an achievement for breaking 100 meteors in one game' },
   { key: 'beach', template: 'quiz', size: 'one', text: 'add 3 more questions about what you like to do at the beach' },
   { key: 'split', template: 'arcade', size: 'work', text: 'add a second kind of meteor that splits in two when you shoot it' },
   { key: 'exciting', template: 'arcade', size: 'work', clear: false, text: 'make it more exciting' },
-  { key: 'tap', template: 'arcade', size: 'one', text: 'make it so you play by tapping anywhere on the screen' },
+  { key: 'tap', template: 'arcade', size: 'work', text: 'make it so you play by tapping anywhere on the screen' },
 ];
 
 const DOCS = new Set(['BRIEF.md', 'SPEC.md', 'TODO.md']);
@@ -301,7 +303,8 @@ function checks(runDir) {
   c.sized = sizing ? sized !== null : null;
   const pieces = sized?.size === 'pieces' ? sized.pieces.length : 0;
   const got = sized ? (sized.size === 'reply' ? 'reply' : pieces === 1 ? 'one' : 'plan') : null;
-  c.sized_right = sized ? (ask.size === 'work' ? got !== 'reply' : got === ask.size) : false;
+  c.sized_right = ask.size === 'any' ? null
+    : sized ? (ask.size === 'work' ? got !== 'reply' : got === ask.size) : false;
   c.clear_right = ask.clear !== undefined && got === 'one' && sized.clear !== null
     ? sized.clear === ask.clear : null;
   const streams = r.calls.filter((x) => x.type === 'stream');
@@ -313,7 +316,8 @@ function checks(runDir) {
   c.no_refusals = !r.toolResults.some((t) => t.startsWith('refused:'));
   const changed = walkDiff(runDir);
   const work = changed.filter((p) => !DOCS.has(p));
-  c.changed_right = ask.size === 'reply' ? work.length === 0 : work.length > 0;
+  c.changed_right = ask.size === 'any' ? null
+    : ask.size === 'reply' ? work.length === 0 : work.length > 0;
 
   // The tree, where the run changed it.
   if (work.length) {
@@ -351,13 +355,12 @@ function checks(runDir) {
   }
   if (ask.key === 'slower') c.slower_config_only = work.length > 0 && work.every((p) => p.startsWith('config/'));
   if (ask.key === 'drawship') c.drawship_points = /Draw a picture/.test(reply) && /[\w-]+\.png\b/.test(reply);
-  if (ask.key === 'laser') {
-    c.laser_calls = (jsA.match(/Sound\.play\(/g) ?? []).length > (jsB.match(/Sound\.play\(/g) ?? []).length;
-    c.laser_asks = /assets\/sounds\/[\w-]+\.wav/.test(reply) && /Make a sound/.test(reply);
-  }
-  if (ask.key === 'level5') {
+  // The shot already plays "shoot": what is missing is the file, which only a
+  // person can make, so the answer is asking for it by path and button.
+  if (ask.key === 'laser') c.laser_asks = /assets\/sounds\/[\w-]+\.wav/.test(reply) && /Make a sound/.test(reply);
+  if (ask.key === 'rocks100') {
     const t = read(A, 'config/achievements.js') ?? '';
-    c.level5_rule = /moment:\s*["']level["']\s*,\s*atLeast:\s*5\b/.test(t);
+    c.rocks100_rule = /moment:\s*["']rock-broken["'][^}]*times:\s*100\b/.test(t);
   }
   if (ask.key === 'beach') {
     const q = quizModel(read(A, 'config/questions.js') ?? '');
