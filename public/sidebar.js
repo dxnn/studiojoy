@@ -102,7 +102,10 @@ export function renderSidebar() {
         text: make.label,
         onclick: () => { S.dialog = { ...make.dialog }; render(); },
       })),
-    announcementsRow(),
+    // Over the tabs only while something in it is new, or while it is the
+    // room open, so a click on it does not take it away; and not over Chats,
+    // whose list it heads.
+    S.sideTab === 'chats' ? null : announcementsRow({ newOnly: true }),
     h('div', { class: 'side-search' }, search),
     tabs,
     // Named per tab: three lists behind one scroller, and restoring the games
@@ -260,15 +263,17 @@ function gameRows(matches) {
   return out.length ? out : nothing('No games yet. Make one!');
 }
 
-// The studio's announcements (spec/ §6): pinned over every tab and every
-// filter, because it is the studio talking to everybody rather than one more
-// conversation to look for. A row that opens on a click anywhere in it, like
-// a game's. It lights up while something in it is unread, on top of the mark
-// every row wears, so it does not read as just another busy room.
-function announcementsRow() {
+// The studio's announcements (spec/ §6): at the head of Chats under every
+// filter, and over every tab while there is something new in it, because it
+// is the studio talking to everybody rather than one more conversation to
+// look for. A row that opens on a click anywhere in it, like a game's. It
+// lights up while something in it is unread, on top of the mark every row
+// wears, so it does not read as just another busy room.
+function announcementsRow({ newOnly = false } = {}) {
   const p = S.projects.find((x) => x.announce);
   if (!p) return null;
   const news = Boolean(p.mentions || p.unread);
+  if (newOnly && !news && p.slug !== S.slug) return null;
   return h('button', {
     class: `item announce${p.slug === S.slug ? ' active' : ''}${news ? ' news' : ''}`,
     title: `${p.name} — what the studio says to everybody`,
@@ -297,8 +302,8 @@ export function lastSaid(p, empty) {
 }
 
 // A chat is a game with the game taken out: the same thread and the same
-// helpers, no files and no preview. The announcements are pinned above
-// instead of listed here.
+// helpers, no files and no preview. The announcements head the list, whatever
+// it is filtered by.
 function chatRows(matches) {
   const rows = S.projects
     .filter((p) => p.kind === 'chat' && !p.announce && matches(p.name))
@@ -308,7 +313,7 @@ function chatRows(matches) {
         onclick: () => { S.narrowPane = 'chat'; openProject(p.slug); },
       }),
       readMark(p)));
-  return rows.length ? rows : nothing('No chats yet. Start one with + New chat.');
+  return [announcementsRow(), rows.length ? rows : nothing('No chats yet. Start one with + New chat.')];
 }
 
 // The crew is everyone in the studio, in two kinds: the people, then the

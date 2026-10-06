@@ -607,10 +607,14 @@ subscription and anything else to the bell-on ones (`audience` in
 `server/notify.js`). The bell says so in its title. A browser that never said
 yes is the one place an announcement cannot reach, past its mark.
 
-**The announcements are pinned over the sidebar** — above the search box and
-the tabs, outside every list and every filter, with 📣 in front of the name
-and the last thing said under it — because it is the studio talking to
-everybody rather than another conversation to look for. It opens like any
+**The announcements head the Chats tab** — over every filter, with 📣 in
+front of the name and the last thing said under it — because it is the
+studio talking to everybody rather than another conversation to look for.
+While something in it is unread it is pinned over the sidebar as well, above
+the search box and the tabs, on every tab but Chats, so news is seen from
+wherever you are; and while it is the room open, so pressing it does not take
+it away. Read and left, it is only in Chats (since 2026-10-05: always pinned,
+it was furniture). It opens like any
 chat project; it lights up in the studio's cyan while something in it is
 unread, over the mark every row wears. Its composer is an admin's: anybody
 else reads *Only an admin writes here. You can still react.*, and there is no

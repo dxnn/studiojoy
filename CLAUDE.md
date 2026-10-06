@@ -431,7 +431,8 @@ specified:
   `VAPID_*` in the environment or none; without them the routes are 404 and
   only a live tab is told. Needs a secure origin.
 - **The announcements** (`server/announcements.js`, §3, §6): one chat
-  project with `announce = 1`, pinned over the sidebar, written by an admin
+  project with `announce = 1`, heading the Chats tab and pinned over the
+  sidebar only while something in it is unread, written by an admin
   and read and reacted to by everybody. ⚠️ The bell off no longer
   unsubscribes: it keeps the browser for the announcements alone
   (`announcements_only`), so they reach everybody whose browser ever said

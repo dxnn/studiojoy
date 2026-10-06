@@ -201,13 +201,17 @@
 }
 .item.active .item-sub { color: color-mix(in oklab, var(--accent) 45%, white); }
 .item.archived .item-name { color: var(--muted); font-style: italic; }
-/* The studio's announcements, pinned over the tabs: outside the list, so its
-   own inset, and outlined in the studio's own cyan because it is the studio
-   talking. Brighter while something in it is unread — its mark, on top of the
-   dot every row wears. */
+/* The studio's announcements, at the head of Chats and over the tabs while
+   something in it is new: outlined in the studio's own cyan because it is the
+   studio talking. Over the tabs it is outside the list, so its own inset.
+   Brighter while something in it is unread — its mark, on top of the dot
+   every row wears. */
 .pane.side > .item.announce {
   width: calc(100% - 20px);
   margin: 0 10px 8px;
+}
+.scroll > .item.announce { margin-bottom: 8px; }
+.item.announce {
   border: 1px dashed color-mix(in oklab, var(--accent) 45%, transparent);
   border-left-width: 3px;
   border-left-style: solid;
