@@ -765,7 +765,8 @@ it. Its fields keep the ids the focus snapshot knows (§17), so the caret
 survives a render. A file has none: its bar in the centre already says what
 it is, and a picture the studio wears says under it what it dresses.
 
-Under the game in Play are the **tweaks** (`public/tweaks.js`, 2026-10-04;
+Beside the game in Play, or under it on a narrow one (below), are the
+**tweaks** (`public/tweaks.js`, 2026-10-04;
 until then the scores and achievements, which live under Share alone now):
 the game's tuning files — every `config/` file but the ones that are content
 with editors of their own — as the config form's own rows, `config/play.js`
@@ -959,8 +960,16 @@ is everyone's by rule rather than by column (§11): nothing reads its
 **Play is the running game** (since 2026-10-05; until then the rail, beside
 every mode): the preview, the preview player's controls and `Open` on its
 foot, the note or the robot's under it, the problems and moments it reported,
-then the tweaks (above), one scroller on the game's own loud surface. Nothing
-folds it away: leaving the tab is how. ⚠️ **Off Play the game stays loaded and
+on the game's own loud surface; and the tweaks (above), each side scrolling
+on its own so the game stays on screen while a number is tried (2026-10-05).
+From 700px across — Play's own width, a container query, since the sidebar
+takes 260 of a laptop's — the tweaks are a 320px column beside the game, and
+**Hide tweaks** on the preview's foot puts them away for a bigger game,
+remembered per browser (`tweaks-panel`); its label flips to *Show tweaks*.
+Narrower, they are under the game, which takes at most `GAME_SHARE` (55%) of
+Play, and there is no button: put away, they would gain the game nothing.
+Without a tweakable file Play is the game alone, as big as ever. Nothing
+folds the game away: leaving the tab is how. ⚠️ **Off Play the game stays loaded and
 paused** — off its tab, and on a phone while the list is up instead — the
 preview player told so whenever that changes (`placePreview`, `playOnScreen`)
 and on every new page — because the builder's *shot* is taken from the live

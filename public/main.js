@@ -231,6 +231,9 @@ export const S = {
   // Which shape the preview is trying the game in — see PREVIEW_SHAPES.
   // Remembered per browser: it is how you are working, not a step in the work.
   previewShape: prefs.get('preview-shape', 'normal'),
+  // Whether the tweaks are put away beside the game, for a bigger one.
+  // Remembered per browser, for the same reason as the shape.
+  tweaksShut: prefs.get('tweaks-panel', 'open') === 'shut',
 };
 
 // The composer is built once and reused by every render. render() replaces
@@ -1089,6 +1092,10 @@ const previewShape = () => PREVIEW_SHAPES.find((s) => s.id === S.previewShape) ?
 // What Play keeps of its own height for the controls and the note under the
 // game, so the game is as big as the pane allows with its foot still showing.
 const FOOT_ROOM = 104;
+// How much of Play the game and its foot take with the tweaks under them,
+// where Play is too narrow to put them beside (preview.css): the rest is the
+// tweaks', so a number can be tried with the game still on screen.
+const GAME_SHARE = 0.55;
 
 // Whether Play is on screen: its mode, and its pane showing — on a phone the
 // list can be up instead, the centre under display:none. The game runs only
@@ -1122,7 +1129,10 @@ function placePreview() {
   const { ratio } = previewShape();
   const room = slot.getBoundingClientRect().width;
   const scroller = slot.closest('[data-scroll]');
-  const pane = scroller?.clientHeight ?? window.innerHeight;
+  const split = slot.closest('.play-split.has-tweaks');
+  const pane = split && getComputedStyle(split).flexDirection === 'column'
+    ? split.clientHeight * GAME_SHARE
+    : scroller?.clientHeight ?? window.innerHeight;
   const tall = `${Math.round(Math.max(120, Math.min(room / ratio, pane - FOOT_ROOM)))}px`;
   if (slot.style.height !== tall) slot.style.height = tall;
   const box = slot.getBoundingClientRect();
@@ -1132,10 +1142,10 @@ function placePreview() {
   if (wrap && wrap.style.getPropertyValue('--frame-w') !== wide) {
     wrap.style.setProperty('--frame-w', wide);
   }
-  // Play scrolls — the tweaks are under the game — and the frame is fixed, so
-  // it is cut to the scroller's box: uncut, it slid up over the pills and the
-  // bar with the placeholder and took their clicks. A clip-path clips the
-  // pointer too.
+  // The game's side of Play scrolls — under a long list of problems — and the
+  // frame is fixed, so it is cut to the scroller's box: uncut, it slid up over
+  // the pills and the bar with the placeholder and took their clicks. A
+  // clip-path clips the pointer too.
   const view = scroller?.getBoundingClientRect();
   const above = view ? Math.max(0, Math.round(view.top - box.top)) : 0;
   const below = view ? Math.max(0, Math.round(box.bottom - view.bottom)) : 0;
@@ -1180,7 +1190,28 @@ function renderPlayMode() {
   // The frame's place in the tree: a box of its size the live frame is laid
   // over (placePreview, above).
   previewSlot = h('div', { class: 'preview-frame slot' });
-  return h('div', { class: 'play-mode scroll', 'data-scroll': 'play' },
+  // The tweaks are beside the game where Play is wide enough and under it
+  // where it is not (preview.css), each side scrolling on its own, so the
+  // number being tried and the game taking it are on screen together. Beside,
+  // they can be put away for a bigger game; under, that gains nothing, so the
+  // button that does it is only there beside.
+  const tweaks = renderTweaks();
+  const shut = Boolean(tweaks) && S.tweaksShut;
+  const shutBtn = tweaks ? h('button', {
+    class: 'icon tweaks-toggle',
+    text: shut ? 'Show tweaks' : 'Hide tweaks',
+    title: shut ? 'Put the tweaks back beside the game' : 'Put the tweaks away, for a bigger game',
+    'aria-expanded': String(!shut),
+    onclick: () => {
+      S.tweaksShut = !shut;
+      prefs.set('tweaks-panel', S.tweaksShut ? 'shut' : 'open');
+      render();
+    },
+  }) : null;
+  return h('div', { class: 'play-mode' }, h('div', {
+    class: `play-split${tweaks ? ' has-tweaks' : ''}${shut ? ' tweaks-shut' : ''}`,
+  },
+  h('div', { class: 'play-game scroll', 'data-scroll': 'play' },
     h('div', { class: 'preview-wrap' },
       previewSlot,
       h('div', { class: 'preview-foot' },
@@ -1189,6 +1220,7 @@ function renderPlayMode() {
         ...renderPlayerControls(),
         best === null ? null : h('span', { class: 'best', text: `BEST ${showScore(best)}` }),
         h('div', { class: 'spacer' }),
+        shutBtn,
         // The preview is a thing, so what changes it is in its ···: the shape
         // to try the game in, with a tick on the one it is in now.
         more('preview', PREVIEW_SHAPES.map((shape) => ({
@@ -1210,8 +1242,8 @@ function renderPlayMode() {
         text: 'The preview is its own player: its scores and achievements never count.',
       }),
       renderProblems(),
-      renderMoments()),
-    renderTweaks());
+      renderMoments())),
+  tweaks));
 }
 
 // The centre's body for every mode but the chat, whose thread and composer

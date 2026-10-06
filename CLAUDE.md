@@ -185,8 +185,10 @@ walk into, each paid for once already.
   unloaded while a game is open: the builder's shot is taken from it when a
   message is sent from Speak — so a page that loads paused is handed one
   frame with no time in it, or that shot is a canvas nothing drew on. The
-  fixed frame is cut to Play's scroller (`clip-path`), or scrolling to the
-  tweaks slides it over the pills. Under the game are the **tweaks**: config
+  fixed frame is cut to the scroller of Play's game side (`clip-path`), or
+  scrolling it slides the frame over the pills. Beside the game from 700px
+  of Play across, under it narrower, each side scrolling on its own, are
+  the **tweaks**: config
   values tried in the running game, kept per browser, written only by Save
   (`public/tweaks.js`). A tweak reaches an object `const` live and never a
   plain-number one.
