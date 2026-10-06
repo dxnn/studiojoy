@@ -128,14 +128,13 @@ test('a game made from a blank page is playable straight away', async (t) => {
     'the bindings load before the library that reads them',
   );
 
-  // A brief goes with the page, the way every template ships one. It is the
-  // only place that says which tags this particular page carries, and that
-  // the control scheme is a decision somebody made rather than a default.
+  // A brief goes with the page, the way every template ships one. It says
+  // which tags this particular page carries, and that the control scheme was
+  // chosen; what each scheme is, the input library's note says, once.
   const brief = fs.readFileSync(path.join(app.gamesDir, 'tank', 'BRIEF.md'), 'utf8');
   assert.match(brief, /started from a blank page/);
+  assert.match(brief, /script\s+tags for all seven libraries/);
   assert.match(brief, /chosen when the game was made/);
-  assert.match(brief, /"none"/);
-  assert.match(brief, /"one-button"/);
   // Escaped for the page, never for the brief: the substitution is HTML.
   assert.ok(!brief.includes('&amp;'), 'no html escaping in markdown');
 });

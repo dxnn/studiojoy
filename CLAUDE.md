@@ -36,7 +36,11 @@ holds plans and sketches. Completed work is git history, not this file.
 
 `probes/` holds the one-off scripts §14 is made of, tracked since 2026-09-13 —
 they lived in gitignored `tmp/` before that, so the spec cited files nobody
-else had. They are not in `npm test` and they cost money to run. ⚠️ Never a
+else had. They are not in `npm test` and they cost money to run.
+`probes/probe-prompt-eval.mjs` is how a change to the builder's prompt is
+judged: the real orchestrator on ten fixed asks, a rule score, and pairs for
+a blind judge, read against two runs of the old prompt (§14, about $0.50 a
+run of thirty). ⚠️ Never a
 key in there: `tmp/deepseek.key` or `$DEEPSEEK_API_KEY`, and `probes/*.key` is
 ignored as a second lock.
 
@@ -233,13 +237,14 @@ walk into, each paid for once already.
   once and cannot know better; break it and the fix is by hand, game by game.
 - A library is *named* to an agent rather than sent — each one's top comment
   block rides the preamble as its API note, read from the game's own copy.
-  ⚠️ screens.js's is 3,693 bytes against a 4,096 cap (raised from 3,072 when
-  `fit` and the meter arrived): condense before adding to it, and raise the
-  cap only when the alternative is deleting a call somebody can still make.
-  The notes are followed by the **shape of a game**, which is what says
-  a game is expected to *make* those calls rather than merely being able to;
-  each library's lines are its `shape` in `studio-lib/index.json`, gated on
-  the manifest, and both halves are tested.
+  The largest, screens.js's, is 2,387 bytes against a 4,096 cap since the
+  2026-10-06 trim: say a call once, and raise the cap only when the
+  alternative is deleting a call somebody can still make. Each note is led
+  by its library's lines of the **shape of a game**, which is what says a
+  game is expected to *make* those calls rather than merely being able to;
+  they are its `shape` in `studio-lib/index.json`, gated on the manifest, and
+  both halves are tested. The note is the calls and the shape is the
+  expectation — neither repeats the other.
 - The ambient file block lives in the **system prompt**, after the brief and
   the agent description, never on the last user message; the order inside it
   and the history trim boundary hold still between fires. All of it is for the

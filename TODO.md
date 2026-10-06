@@ -8,6 +8,16 @@ deliberately deferred.
   better and not fixed; a kid reporting a broken game is the commonest ask
   there is. ⚠️ Do not tune the wording against three runs an ask — that fits
   the noise. It wants a bigger ask list and more reps before another go
+  — `probes/probe-prompt-eval.mjs` is that list's start (the freeze ask
+  sized as work 8 times in 9 on 2026-10-06)
+- a third of the builder's code-writing runs leave a tuning number in `js/`
+  (15 of 23 passing on both prompts, spec/ §14 *The length of the preamble*):
+  the config rule is in the preamble twice and still the most often missed.
+  Try a check after the fire, like `configRefusal`, before more words
+- trim the builder's prompt by arc stage, round 2 of the 2026-10-06 cut:
+  every held library keeps one line at every stamp and its whole note only
+  at the stamps that use it. Score it against a fresh pair of baseline runs
+  with `probes/probe-prompt-eval.mjs`, and add asks for the stamps it touches
 - watch what the builder does with `look_at` and `look_at_game` now it can see
   (spec/ §8). Two questions a browser cannot answer: whether a *shot* taken
   only on send is the right moment, and whether "nobody has the game open"

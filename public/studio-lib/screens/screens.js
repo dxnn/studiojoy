@@ -1,67 +1,42 @@
-// The furniture around the game: how big it is on the screen, a how-to-play
-// hint, the title and game-over screen, the HUD strip, and snippets to go
-// inside them — the scoreboard above all.
+// The furniture around the game: its size on the screen, the title and
+// game-over screen, the HUD strip, the how-to-play line and the scoreboard.
 //
 //   Screens.fit(document.getElementById("wrap"));  // once, at boot
 //
-// fit() gives the game as much of the window as its shape allows, taking that
-// shape from the canvas's own width/height. ⚠️ Sizing on the window's width
-// alone is what takes a game off the bottom of a sideways phone, so delete any
-// width/height css of your own on that element: fit writes over it. Pass the
-// box the game lives in — the canvas, or whatever holds it and its overlays.
-// { max, width, height } override the cap and the shape; it sets
-// --screens-fit-top/-left/-width/-height on :root for your own css.
-//
-//   ctx.fillText(Screens.hint(), x, y);  // "Arrows / WASD to move · Space to fire"
-//
-// hint() is read off config/controls.js and the device, so it is never wrong:
-// player1's keys, or the shape SCHEME draws and nothing that is not on it,
-// with a plugged-in controller folded in. start and every verb in HIDDEN are
-// left out. WORDS.howToPlay replaces the line verbatim.
+// fit() gives the game as much of the window as the canvas's own width/height
+// allows, and writes over any width/height css on that element — delete yours.
+// Pass the canvas, or the box holding it and its overlays. { max, width,
+// height } override; it sets --screens-fit-top/-left/-width/-height on :root.
 //
 //   Screens.title({ onStart: start });   // the title screen
-//   Screens.title({ score: 12, onStart: start, post: true, board: true });
+//   Screens.title({ score: 12, onStart: start, post: true, board: true });  // game over
 //
-// title() fills the window over the game: the name (WORDS.title, else the page
-// title), WORDS.tagline, one Start button that Enter, Space or a tap presses,
-// and the hint. The drawn controls step aside while it is up. A score shows
-// big and the button says Play again (WORDS.again). { name, tagline, hint,
-// start, score, onStart } beat config; `post: true` puts the score on the
-// scoreboard, `board: true` adds the top ten (or { limit, around, title }),
-// `extra` is your own node put in the panel. Returns { close }.
+// The name (WORDS.title), WORDS.tagline, one Start button that Enter, Space or
+// a tap presses, and the hint; the drawn controls step aside. A score shows big
+// and the button says Play again (WORDS.again). `post` puts the score on the
+// scoreboard, `board` adds the top ten ({ limit, around, title }), `extra` is
+// your node in the panel; { name, tagline, hint, start } beat config. Returns
+// { close } — there is no Screens.close.
 //
 //   Screens.chips({ Score: 12, Lives: 3 }, { hint: true });   // the HUD strip
 //   Screens.chips({ Risk: { value: 43, max: 100, text: "43/100" } });  // a meter
 //   Screens.chips({ Fuel: myOwnDiv });        // your node, in that place
 //
-// chips() sits over the game — in the band above it when there is one — and is
-// cheap every frame: built once, only what changed touched. Each call says the
-// whole strip, in order; a key not named is removed, chips({}) clears it. A
-// value is text, a meter, or a node of your own it never touches again.
-// { hint: true } ends the row with the how-to-play line, left out where the
-// game is too narrow for it.
+// The whole strip each call, cheap every frame; a key not named is removed,
+// chips({}) clears it. { hint: true } ends it with the how-to-play line.
 //
-// Snippets are nodes you place yourself, in a screen or your own page:
-//
-//   Screens.board({ limit: 10, around: 14 }) // the scoreboard, fetched
+//   Screens.hint()                           // "Arrows / WASD to move · Space to fire"
+//   Screens.board({ limit: 10, around: 14 }) // the scoreboard, fetched, that row marked
 //   Screens.rows({ Rocks: 42, Level: 7 })    // a label-and-value list
 //   Screens.signin()                         // who you are, or a sign-in link
 //   await Screens.me()                       // { name } or null
 //   await Screens.post(score)                // {rank} | {signin:true} | {}
 //
-// board() asks /_scores itself and fills in when it answers; `around: rank`
-// marks that row and adds the four either side.
-//
-// Styling: every part wears a screens- class and your own css wins — a rule
-// here weighs one element selector, so `.screens-name { … }` beats it, and
-// !important is never needed. LOOK in config/look.js gives primary (name,
-// button), accent (tagline), highlight (⚠️ a score, a meter, nothing else),
-// deep (the ground). --screens-font and -mono, -text, -muted, -ink, -panel,
-// -border, -radius are yours on :root; the screen wears screens-over on game
-// over.
-//
-// Missing pieces are quiet — an empty string or a no-op, never an error.
-// Load config/controls.js first.
+// hint() reads config/controls.js and the device, leaving out start and
+// HIDDEN; WORDS.howToPlay replaces it. Every part wears a screens- class and
+// the game's css wins (.screens-name beats it). LOOK in config/look.js colours
+// it: primary, accent, highlight (⚠️ a score or a meter, nothing else), deep.
+// Missing pieces are quiet. Load config/controls.js first.
 
 const Screens = (function () {
   "use strict";

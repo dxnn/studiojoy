@@ -1,24 +1,16 @@
-// Draws the pictures in assets/sprites/ by name, animated when the picture is
-// a film strip: square frames side by side in one file.
+// Draws the game's pictures by name, animated when one is a film strip.
 //
 //   Sprites.tick();                          // once a frame, at the top
-//   Sprites.draw(ctx, "hero", x, y);         // draws assets/sprites/hero.png
+//   Sprites.draw(ctx, "hero", x, y);         // assets/sprites/hero.png, x, y its top-left
 //   Sprites.draw(ctx, "hero", x, y, { frame: 0, scale: 2, flip: true, fps: 12 });
+//   Sprites.draw(ctx, "assets/images/sky.png", 0, 0);   // a still picture, by path
 //
-// A picture whose width is a whole multiple of its height is a strip: a
-// 64x16 file is four 16x16 frames, played in order at 8 frames a second —
-// fps changes the speed, frame pins one. Any other shape is a single frame
-// drawn whole, so a big backdrop is safe. scale enlarges without smoothing,
-// pixels staying square; flip mirrors left-to-right; frames overrides the
-// count for the rare strip whose frames are not square.
-//
-// Those two calls are the whole of it. There is no preload, no init and no
-// list of sprites to declare — the name is the file, the first draw loads
-// it, and a picture still loading draws nothing rather than crashing the
-// game. A file that cannot load is one console warning, then silence. Make
-// a strip with "+ Draw a picture" — pick how many frames — or upload one.
-// A picture that does not move lives in assets/images/ instead, and is drawn
-// by its path: Sprites.draw(ctx, "assets/images/sky.png", 0, 0).
+// A picture whose width is a whole multiple of its height is a strip of
+// square frames — 64x16 is four — played at 8 a second: fps changes that,
+// frame pins one, frames overrides the count. Any other shape is drawn whole.
+// scale keeps pixels square; flip mirrors. A picture still loading draws
+// nothing, and one that cannot load is a quiet console warning. tick and draw
+// are the whole of it: no preload, init or list of sprites.
 
 const Sprites = (function () {
   "use strict";

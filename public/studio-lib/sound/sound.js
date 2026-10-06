@@ -1,30 +1,17 @@
-// Plays the sounds in assets/sounds/ with one call, and never breaks the game
-// over a sound: a missing file or a not-yet-allowed autoplay is a quiet
-// console warning, not an error.
+// Plays the game's sounds by name, and never breaks the game over one.
 //
-//   Sound.play("laser");        // plays assets/sounds/laser.wav
-//   Sound.play("laser", 0.5);   // quieter — volume runs 0 to 1
-//   Sound.loop("engine");       // keeps going until stopped
-//   Sound.stop("engine");       // stops that sound, loop and overlaps alike
-//   Sound.mute();               // everything silent; call again to unmute
+//   Sound.play("laser");        // assets/sounds/laser.wav
+//   Sound.play("laser", 0.5);   // volume 0 to 1
+//   Sound.loop("engine");       // until stopped; calling it every frame is fine
+//   Sound.loop("assets/music/theme.mp3", 0.4);  // a track, quieter, under it all
+//   Sound.stop("engine");       // that sound, loop and overlaps alike
+//   Sound.mute();               // everything; again to unmute
 //
-// A plain name is a file in assets/sounds/ without the ending: "laser" plays
-// assets/sounds/laser.wav — the files "+ Make a sound" and "+ Upload" put
-// there. A name with a dot or a slash in it is used as a path, so
-// "assets/boom.mp3" works too.
-//
-// The same sound played twice quickly overlaps instead of cutting itself off
-// or being dropped — every shot gets a free player. Calling loop() every
-// frame is fine: a loop that is already going is left alone. Browsers keep a
-// page silent until the player has clicked or pressed something once; sounds
-// asked for before that are skipped quietly, so start music on a key press
-// or a button and it will always be heard.
-//
-// Those four calls are the whole of it. There is no init, unlock, preload or
-// register and none is ever needed — the first play() does everything — and
-// there is no list of sounds to declare: the name is the file. Replacing a
-// hand-rolled sound.js means deleting it and its script tag and changing
-// each call to the matching file's name in assets/sounds/.
+// A name with a dot or a slash is a path. A sound played twice overlaps. A
+// missing file, or a sound asked for before the player's first click or key —
+// browsers keep a page silent until then — is a quiet console warning, so
+// start music on a press. play, loop, stop and mute are the whole of it: no
+// init, unlock, preload or list of sounds.
 
 const Sound = (function () {
   "use strict";

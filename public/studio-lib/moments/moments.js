@@ -2,27 +2,15 @@
 // listen. A moment is a fact — "this happened" — never a request for a prize.
 //
 //   Moments.say("level", 3);          // a number
-//   Moments.say("ending", "good");    // a word
-//   Moments.say("run-over");          // just that it happened
-//   Moments.on("level", (value) => { ... });   // listen, if the game wants to
+//   Moments.say("ending", "good");    // a word, up to 100 characters
+//   Moments.say("run-over");          // just that it happened, heard as true
+//   const stop = Moments.on("level", (value) => { ... });   // listen; stop() ends it
 //
-// Put say() on the exact line where the thing happens: a level gained, a run
-// over, the final score, a pickup, an ending reached. A name is short and
-// slug-shaped — lowercase letters, digits and dashes, up to 40 — and a value
-// is a number, a piece of text up to 100 characters, or nothing at all, which
-// is heard as true. Anything else is one console warning and is dropped.
-// Saying a moment every frame is fine.
-//
-// on(name, fn) calls fn(value) each time that moment is said and returns a
-// function that stops listening. Underneath, every moment is a
-// CustomEvent("moment") on the window with { name, value } as its detail —
-// what the achievements library and the studio's preview listen to, and a
-// game can listen the same way.
-//
-// Those two calls are the whole of it. There is no register, no list of
-// moments to declare and no init — the first say() is enough — and nothing
-// here knows what an achievement is: config/achievements.js is where a
-// moment becomes something a player earns.
+// A name is a slug: lowercase letters, digits and dashes, up to 40. Anything
+// else is one console warning and dropped. Saying one every frame is fine.
+// Each is also a CustomEvent("moment") on the window with { name, value }.
+// say and on are the whole of it: no register or init. config/achievements.js
+// is where a moment becomes something a player earns.
 
 const Moments = (function () {
   "use strict";

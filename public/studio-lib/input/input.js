@@ -1,56 +1,34 @@
 // One way in for the keyboard, a game controller and a touchscreen.
 //
-// Every part of the game asks the same question — Input.held("left") — and
-// this file works out whether that came from a key, a pad, or a thumb on a
-// screen. What is bound to what lives in config/controls.js, so the buttons
-// can be changed without opening this file.
-//
-// Call Input.update() once at the top of every frame, before anything reads
-// it. That is what makes pressed() mean "went down just now":
-//
-//   Input.update();
-//   if (Input.held("left"))     turn(-1);
-//   if (Input.pressed("fire"))  shoot();          // once per press
+//   Input.update();                                // first, every frame
+//   if (Input.held("left"))     turn(-1);          // down now
+//   if (Input.pressed("fire"))  shoot();           // went down this frame
+//   if (Input.released("fire")) stopCharging();    // came up this frame
 //   ship.x += Input.axis("left", "right") * SPEED; // -1 .. 1, analog on a stick
+//   Input.held("left", 2);                         // player 2: player2's keys, second pad
+//   Input.pads();                                  // how many controllers are plugged in
 //
-// Two players share one keyboard and one screen: pass 2 as the last argument
-// — Input.held("left", 2) — and Input reads player2's bindings and the second
-// controller.
+// The verbs are config/controls.js's: CONTROLS.player1 (and player2) maps
+// each to its bindings — "key:space pad:a touch:fire". SCHEME there is the
+// shape of the game on a touchscreen, and the bindings have to match it:
+//   "buttons" (no SCHEME)  touch: names drawn as buttons, touch:left/right/up/
+//                          down under one thumb and the rest under the other;
+//                          toggle:NAME latches, tap on and tap off;
+//                          BUTTON_SIDE = "left" mirrors the layout
+//   "one-button"           a tap or a click anywhere: touch:screen
+//   "swipe-tap"            swipe:left … swipe:tap — read with pressed(), never held()
+//   "stick-buttons"        a stick (stick:left …) beside the drawn buttons
+//   "dual-stick"           an aim stick too (stick:aim-left …); stick:move and
+//                          stick:aim are held while pushed
+//   "none"                 nothing drawn: the page's own buttons are the controls
+// Bindings with no pad: at all are lent a controller: arrows on the d-pad and
+// stick, other verbs on A, B, X, Y in the file's order, start on Start. HIDDEN
+// lists verbs for making the game, never lent a button or shown in a hint.
 //
-// On a touchscreen, player 1's touch: names are drawn as buttons.
-// touch:left/right/up/down sit under one thumb — two of them as a big pair,
-// three or four as an arrow pad — and every other touch: name under the
-// other thumb. A thumb slides between neighbouring buttons without lifting.
-// toggle:NAME draws a button that latches instead: tap on, tap off, held()
-// while latched. Give it to a verb a thumb would otherwise have to hold —
-// autofire, an engine — and keep key:/pad: on the same verb, which stay
-// momentary. BUTTON_SIDE = "left" in config/controls.js mirrors the layout.
-//
-// A game whose bindings name no pad: at all is lent a controller: the arrow
-// verbs on the d-pad and left stick, every other verb on A, B, X, Y in the
-// order the file lists them (the first two on the right and left triggers
-// too), start on Start and A. Bind one pad: yourself and nothing is lent.
-//
-// config/controls.js may also declare SCHEME, the shape of the game on a
-// touch screen. "buttons" is the drawn-buttons shape above, and what no
-// SCHEME means. "one-button": a tap or a click anywhere is the button
-// (touch:screen). "swipe-tap": four flicks and a tap (swipe:left …
-// swipe:tap) — moments, not states, so read them with pressed(), never
-// held(). "stick-buttons": an analog stick under one thumb (stick:left …)
-// beside the drawn buttons. "dual-stick": an aim stick too (stick:aim-left
-// …); stick:move and stick:aim are held while a stick is pushed. "none": no
-// controller at all — the game's own buttons on the page are the controls, so
-// nothing is drawn, the page still scrolls, and a key bound here also still
-// does whatever the browser does with it.
-//
-// Use this instead of your own keydown listeners — two input systems fight
-// over the same keys. index.html must load config/controls.js and then
-// studio/input.js, in front of the game's own scripts, or these calls run
-// against nothing.
-//
-// Those calls — update, held, pressed, released, axis, pads — are the whole
-// of it. There is no setup call and no listener to add: loading the file is
-// enough, and everything else is asking questions once update() has run.
+// update, held, pressed, released, axis and pads are the whole of it: there is
+// no pointer or touch position and no setup call. Never a keydown listener of
+// the game's own: two input systems fight over the same keys. Load
+// config/controls.js, then this file, before the game's scripts.
 
 const Input = (function () {
   "use strict";

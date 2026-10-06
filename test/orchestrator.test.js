@@ -746,7 +746,7 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   // person can draw a sprite in one click writes the game without one.
   // The input module documents itself: the note at the top of the game's own
   // copy is in the preamble, and the not-held fallback is not.
-  assert.match(system, /How to use studio\/input\.js/);
+  assert.match(system, /^studio\/input\.js:$/m);
   assert.match(system, /Input\.update\(\)/);
   assert.match(system, /Input\.axis\("left", "right"\)/);
   assert.match(system, /config\/controls\.js/);
@@ -779,9 +779,10 @@ test('the context carries the tree and the brief, and the pin rides the last mes
   assert.match(system, /config\/controls\.js as "Controls"/);
   assert.match(system, /config\/story\.js/);
   assert.match(system, /config\/achievements\.js/);
-  // Moments are what achievements are written over, so the preamble says where
-  // to say them.
-  assert.match(system, /Moments\.say\("name", value\)/);
+  // Where to say a moment is the moments library's to teach, gated on the
+  // game holding it like every other library (the shape test, below): this
+  // game holds input alone, so Moments goes unnamed.
+  assert.ok(!system.includes('Moments.say'), 'no call into a library it lacks');
   // Where the game is on its arc, so a helper's suggestions fit the stamp the
   // person is working towards. A blank game's first stamp is the question a
   // template would have answered — held as `what`, and its words read from
@@ -906,9 +907,9 @@ test('a racing game tells its helpers the track is drawn, not typed', async (t) 
 });
 
 // The four asset folders, by name: a helper that has not been told about
-// assets/music/ has nowhere to put a track, and one that thinks a plain name
-// resolves there writes a path that never loads.
-test('the preamble names all four asset folders and how music plays', async (t) => {
+// assets/music/ has nowhere to put a track. That a track is named by its path
+// is the sound library's note to say, and the shape test holds it there.
+test('the preamble names all four asset folders', async (t) => {
   const llm = createFakeLlm([says('ok')]);
   const { app } = await studio(t, { llm });
   const stream = await openStream(app.client);
@@ -918,9 +919,10 @@ test('the preamble names all four asset folders and how music plays', async (t) 
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
   const { system } = llm.lastCall();
-  assert.match(system, /in four folders/);
-  assert.match(system, /assets\/music\/ for whole tracks/);
-  assert.match(system, /Sound\.loop\("assets\/music\/theme\.mp3", 0\.4\)/);
+  assert.match(system, /assets\/sprites\/ \(pictures that move/);
+  assert.match(system, /assets\/images\/ \(ones that do not\)/);
+  assert.match(system, /assets\/sounds\/ \(short noises\)/);
+  assert.match(system, /assets\/music\/ \(whole\s+tracks\)/);
 });
 
 // The shape a game takes, after the API notes and gated on the manifest. A
@@ -945,21 +947,24 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
   const { system } = llm.lastCall();
-  assert.match(system, /How a game is shaped/);
+  // Everything about one library in one place: its name, its shape, its note.
+  const at = (s) => system.indexOf(s);
+  assert.ok(at('studio/screens.js:\n') >= 0, 'each library has its heading');
+  assert.ok(at('studio/screens.js:\n') < at('- It opens on Screens.title'), 'the shape under it');
+  assert.ok(at('- It opens on Screens.title') < at('// The furniture around the game'), 'then the note');
   // Both screens are the same call, and the score is the difference — a
   // helper that misses that writes its own game-over overlay.
   assert.match(system, /Screens\.title\(\{ onStart: start \}\)/);
   assert.match(system, /Screens\.title\(\{ score, post: true,/);
-  assert.match(system, /there is no\n\s+Screens\.close/, 'the one call it invents');
-  assert.match(system, /Screens\.chips\(\{ Score: 12, Lives: 3 \}\)/);
+  assert.match(system, /there is no Screens\.close/, 'the one call it invents');
+  assert.match(system, /Screens\.chips\(\{ Score: 12, Lives: 3 \}/);
   // How big the game is on the screen is the studio's answer too. Left to the
   // game it was written as width alone twice, and both came off the bottom of
   // a phone held sideways.
   assert.match(system, /Screens\.fit\(el\)/);
   assert.match(system, /not width css of your own/);
   // A meter and a node of the game's own are what a hand-rolled HUD was for.
-  assert.match(system, /A bar is a chip too/);
-  assert.match(system, /a node of\n\s+your own as a value/);
+  assert.match(system, /a meter or a node of your own included/);
   assert.match(system, /Every frame begins with Input\.update\(\)/);
   assert.match(system, /SCHEME says what a touchscreen gets/, 'and where the shape is declared');
   // Picking it is the person's, since New game asks and the choice can be
@@ -971,8 +976,8 @@ test('the preamble says how a game is shaped, for the libraries it holds', async
   // shape line for a library that is not in the tree is a call into nothing.
   // Gated one library at a time, so a game with sound and no sprites is not
   // told about Sprites on sound's coat-tails.
-  assert.ok(!system.includes('A picture is Sprites.draw'), 'nothing for a library it lacks');
-  assert.ok(!system.includes('A noise is Sound.play'), 'and each is gated on its own');
+  assert.ok(!system.includes('Every picture is Sprites.draw'), 'nothing for a library it lacks');
+  assert.ok(!system.includes('Every noise and every track is Sound'), 'and each is gated on its own');
 });
 
 // A type's paragraph is its template's `brief` (game-templates/index.json),
@@ -1026,6 +1031,9 @@ test("each library's shape lines ride its own manifest entry and no other", asyn
     await stream.waitFor(() => replies() > i);
     const { system } = llm.lastCall();
     assert.ok(system.includes(index.libraries[name].shape.join('\n')), `${name}'s shape`);
+    // A track is named by its path; a helper that thinks a plain name
+    // resolves to assets/music/ writes one that never loads.
+    if (name === 'sound') assert.match(system, /Sound\.loop\("assets\/music\/theme\.mp3", 0\.4\)/);
     for (const other of names) {
       if (other === name) continue;
       assert.ok(!system.includes(index.libraries[other].shape[0]), `${name} alone: nothing of ${other}'s`);
@@ -1103,11 +1111,11 @@ test('a game without the input library gets no note about it', async (t) => {
   await stream.waitFor((e) => e.event === 'message.new' && e.data.agent_id !== null);
 
   const { system } = llm.lastCall();
-  assert.ok(!system.includes('How to use studio/'), 'no note without a library');
+  assert.ok(!/^studio\/input\.js:$/m.test(system), 'no note without a library');
   assert.ok(!system.includes('+ Controls'), 'and no button to point at');
   // The tags are the one thing a helper has to get right on its own, so they
   // are said whether or not this game holds anything yet.
-  assert.match(system, /<script src="studio\/input\.js"><\/script>/);
+  assert.match(system, /needs its <script> tag in index\.html before the game's own scripts/);
 });
 
 // The brief is the one project file that goes into the system prompt whole, so

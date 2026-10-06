@@ -1,32 +1,17 @@
-// What a player can earn in this game, and the moment they earn it. The rules
-// live in config/achievements.js — id, name, how, icon and `when`, one test on
-// one of the game's moments — and this library watches the moments the game
-// says with Moments.say(), awards each achievement the first time its rule is
-// met, and shows a toast at the top of the screen. Earned is forever, per
-// signed-in player, kept by the studio and never in the game's files.
+// Watches the moments the game says and awards each achievement in
+// config/achievements.js the first time its rule is met: a toast, and the
+// studio keeps it forever for a signed-in player — never in the game's files.
+// Signed out, the toast says to sign in to keep it. How a rule is written is
+// at the top of config/achievements.js.
 //
-//   Achievements.unlock("secret-room");   // grant one by hand, from the code
-//   await Achievements.mine();            // [{ id, name, how, icon, got }]
+//   Achievements.unlock("secret-room");   // one whose `when` is left out, from code
+//   await Achievements.mine();            // [{ id, name, how, icon, got }], got null if not yet
 //
-// unlock() is for an achievement whose `when` is left out — a moment nobody
-// wants to publish — and does what a met rule does: one save, one toast, and
-// nothing the second time. mine() is the list in the file's order, each with
-// `got` — when this player earned it, or null; a trophy screen is that list
-// drawn. Signed out, the toast still shows, with a line saying to sign in on
-// the front page to keep it, and nothing is stored. Each award is also said on
-// the window as an "achievement" event with { id, name, how, icon } as its
-// detail — how Screens.title() lists what the run won on the game-over
-// screen, and a game can listen the same way.
-//
-// The toast wears achievements- classes (achievements-toast, -icon, -name,
-// -how, -keep) and the game's LOOK colours, and the game's own css wins over
-// its rules. A missing file, an unknown id or a dead network is one console
-// warning, never an error.
-//
-// Those two calls are the whole of it. There is no init, no register and no
-// list to declare here — the file is the list — and nothing here says a
-// moment: that is Moments.say() in the game's own code, on the line where the
-// thing happens. Load config/achievements.js before this file.
+// Each award is also an "achievement" event on the window with { id, name,
+// how, icon } — how Screens.title() lists what a run won. The toast wears
+// achievements- classes and the game's LOOK colours. Problems are one console
+// warning. unlock and mine are the whole of it: no init, and the file is the
+// list. Load config/achievements.js first.
 
 const Achievements = (function () {
   "use strict";

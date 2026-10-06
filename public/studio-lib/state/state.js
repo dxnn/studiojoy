@@ -3,29 +3,16 @@
 //   State.reset({ score: 0, lives: 3, ship: { x: 480, y: 540 }, rocks: [] }); // a new run
 //   State.score += 10;                  // read and change it like any object
 //   State.rocks.push({ x: 100, y: 0 });
-//
-// Keep every changing thing here — never in a variable, a closure or a class
-// of the game's own — and keep it plain: numbers, words, true and false, and
-// lists and groups of those. No functions, pictures, canvases or library
-// objects: a picture is drawn by name, and a physics body is the physics
-// library's. Reach through State every time (State.ship.x): a load replaces
-// the pieces, so a piece kept in a variable of your own is left behind.
-//
-// That is what lets the studio's preview pin a moment and go back to it, and
-// what makes a save file one call:
-//
 //   const file = State.save();          // the whole run, as text
 //   State.load(file);                   // and back to it
 //   State.loaded(() => show());         // after every load — redraw a page
+//   State.include("physics", save, load); // a library's own state, beside it
 //
-// A library with state of its own keeps it beside the game's — the physics
-// library keeps its bodies this way:
-//
-//   State.include("physics", save, load);
-//
-// reset, save, load, loaded and include are the whole of it, and none of them
-// is part of the data: not in a save, not in a loop over State, and not a name
-// a field of the game's may take.
+// Plain data only: numbers, words, true and false, and lists and groups of
+// those — no functions, pictures, canvases or library objects. Reach through
+// State every time (State.ship.x): a load replaces the pieces, so one kept in
+// a variable of your own is left behind. reset, save, load, loaded and
+// include are not data, and no field of the game's may take their names.
 
 const State = (function () {
   "use strict";

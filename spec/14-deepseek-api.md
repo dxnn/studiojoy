@@ -631,6 +631,53 @@ A 35 K attachment swamps an ask placed ahead of it; the ask goes after. The
 two traces were design deliberation and pseudo-code more than code (5–13%
 code-shaped lines), both ending at the cap on "OK write files now."
 
+### The length of the preamble
+
+Measured 2026-10-06 on `deepseek-flash` with `probes/probe-prompt-eval.mjs`:
+the studio's own orchestrator against the live API — sizing, Build it,
+pieces, the tool loop, commits — on ten fixed asks (a whole game from a blank
+page, a quiz, eight on the arcade template) three times each, scored three
+ways: the share of mechanical checks passed (each a rule the preamble
+teaches: sized right, config forms intact, no number left in `js/`, the
+libraries used, the editors' shapes kept…), a blind side-by-side judge, and
+tokens. Today's prompt was run twice first; the gap between those two runs
+is the noise, and a smaller gap is no difference.
+
+| | blank game's system prompt | rule score | judge, side by side (ties half) |
+|---|---|---|---|
+| today's prompt, run 1 | 43,916 bytes | 94% (368/392) | — |
+| today's prompt, run 2 | 43,916 bytes | 96% (374/391) | 52% against run 1 (13–12, 5 ties) |
+| said once (the cut) | 26,713 bytes, −39% | 95% (365/384) | 53% against run 2 (12–10, 8 ties) |
+
+Templated games came down less — arcade −24%, rollball −20% — since the rest
+of their prompt is the game's own code. A request's prompt fell 12–16% and
+an arcade sizing call from 17.8 K to 13.8 K tokens; requests per run varied
+8.7–10.9 between runs of the *same* prompt, so the cost of a run did not
+move outside that.
+
+**Neutral, and shorter, so the cut stands.** It did not come out neutral
+first time: the judge scored it 42%, and the losses had causes, each a fact
+the trim had taken out — that the picture editor draws film strips (the
+builder told a kid to draw frames side by side by hand), and the closing
+"these calls are the whole of it" on each API note (without it, two tap runs
+called an `Input.pointer()` that does not exist). Both went back, with
+`Sprites.draw`'s x, y named as its top-left, and the asks that had lost were
+run again: even. The table's judge column for the cut counts those re-runs
+for those three asks; its rule score is the first run's, and the re-runs
+scored 99% (181/183). ⚠️ So the line that ends a note's list of calls is not
+filler; it is what stops a helper inventing the next one.
+
+Three things the measurement showed about itself. Three runs of one ask in
+one go tend to agree with each other — *make it more exciting* sized as a
+plan three times in one run and as a reply three times in the next — so the
+reps are not independent, and a single check moving by two runs in thirty is
+noise; only the whole score and a gap that repeats can be read. The judge
+rewarded a call that does not exist once, so it reads plausibility, not
+truth; the mechanical checks are what catch that. And on both prompts a
+third of the runs that wrote code left a tuning number in `js/` (15 of 23
+passing each time) — the rule the preamble already calls the one most often
+missed.
+
 ### Tools
 
 **Both** models support function calling — the original guess that

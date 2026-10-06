@@ -317,8 +317,8 @@ what prompt caching pays for (below):
 1. A fixed studio preamble: what this app is, the project slug, the path rules
    from §4, how each tool behaves, a nudge to prefer `patch_file` over
    rewriting whole files, the project documents and file layout it is expected
-   to keep (below), each held library's API note followed by the **shape of a
-   game** those notes are for, two paragraphs on **method** (both below), and
+   to keep (below), each held library under its own path — its lines of the
+   **shape of a game**, then its API note — two paragraphs on **method** (both below), and
    a section for the game's *type* when it has one, which is that
    template's `brief` in `game-templates/index.json` — a visual
    novel is told what `config/story.js` is, that the person writes it in the
@@ -514,7 +514,7 @@ difference cost a game: each library's **API note** says what its calls do,
 but nothing says a game is *expected* to make them, so an agent reading six
 notes reads six optional conveniences — one hand-rolled its own title
 screen, game-over banner, restart and controls hint rather than calling any
-of them. So the notes are followed by the **shape of a game**: the title and
+of them. So each note is led by the **shape of a game**: the title and
 game-over screen are one call with the score as the difference, how big the
 game is on the screen is `Screens.fit` rather than width css of the game's
 own, the HUD strip is `Screens.chips` — meters and the game's own nodes
@@ -523,8 +523,12 @@ with `Input.update()`, choosing `SCHEME` is the game's job, `Moments.say` goes
 on the line where the thing happens, and what a player earns is a rule over
 a moment, not a trophy list of the game's own. Each library carries its own
 lines as `shape` in `studio-lib/index.json`, beside its `what`, so a library
-the studio grows teaches the shape with no orchestrator edit; they are
-emitted in the index's order, so each library's lines stand on their own.
+the studio grows teaches the shape with no orchestrator edit. They stand
+under the library's path, just ahead of its note, so everything about one
+library is said in one place, and neither half repeats the other: the note
+is the calls, the shape is what a game is expected to do with them (since
+2026-10-06; before, every note came first and the shape after, and the
+same rule was often said in both).
 ⚠️ Each library's lines are gated on the manifest exactly as the notes are — a
 game without `screens.js` is told nothing about `Screens`, since a call into
 nothing is worse than silence — and `test/orchestrator.test.js` asserts both
