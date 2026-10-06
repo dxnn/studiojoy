@@ -69,6 +69,20 @@ is gone unless it is snapshotted and put back.
   The dialog's fields need none of this: the dialog is one node, re-appended.
 - **Every scroller's position.** A `.scroll` container needs a `data-scroll`
   name or it jumps to the top on the next render.
+- **An open colour picker.** It is the browser's own, over the page, and it
+  closes when its `<input type="color">` leaves the document. On an iPad that
+  was a second into dragging a slider, since every pick rendered (2026-10-05).
+  So while a colour box has the focus, `render()` does nothing but note that
+  it is owed. The hold ends on a press anywhere else, or when the focus really
+  leaves the box. Only the second pays the owed render at once: a press may be
+  the start of a stroke, and a render then would take the canvas from under
+  it. A window losing the focus leaves the box the active element, and the
+  hold stands. ⚠️ So `focusSnapshot` never puts the focus back on a colour box.
+  Focus from code opens no picker on an iPad, left the box focused so the
+  next tap opened nothing, and would start the hold again. Every colour box
+  is covered — the pixel editor's, the config form's, the level editor's — by
+  its type, with no id or class needed. Driven in Chromium; no iPad has felt
+  it yet.
 - **The open dialog**, which is built once and re-appended as the same node,
   never rebuilt mid-decision — a background render used to wipe what was
   being typed into it. ⚠️ Re-appending is still a leave and a return, and

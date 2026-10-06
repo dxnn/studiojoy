@@ -295,6 +295,10 @@ function focusSnapshot() {
       scroll: el.scrollTop,
     };
   }
+  // Never a colour box's. Focus put back from code opens no picker on an
+  // iPad, and left the box focused so the next tap on it opened nothing
+  // either (2026-10-05); it would also start holding renders again (below).
+  if (el?.type === 'color') return null;
   // Anything else with an id is found again by it. A background render — a
   // write to anybody's game anywhere in the studio, a helper's reply, the
   // banner going — must not take the caret out of what is being typed in, so a
@@ -1269,7 +1273,31 @@ function renderShareMode() {
 // composer: the node surviving is what keeps the words.
 let dialogShown = { for: null, node: null };
 
+// ⚠️ A colour box's picker is the browser's own, over the page, and a render
+// takes the box out from under it, which closes it: on an iPad, a second into
+// dragging a slider (2026-10-05). So while a colour box has the focus a render
+// is owed rather than run. A press anywhere else ends that, and so does the
+// focus leaving the box; only the second pays at once, because a press may be
+// the start of a stroke and a render would take the canvas from under it —
+// the press renders for itself soon enough.
+let picker = null;
+let renderOwed = false;
+document.addEventListener('focusin', (e) => { if (e.target.type === 'color') picker = e.target; });
+document.addEventListener('pointerdown', (e) => { if (e.target !== picker) picker = null; }, true);
+document.addEventListener('focusout', (e) => {
+  if (e.target !== picker) return;
+  // Once the focus has landed. Still on the box is the window losing it,
+  // which a picker in a window of its own does, and the box keeps its hold.
+  setTimeout(() => {
+    if (picker !== e.target || document.activeElement === picker) return;
+    picker = null;
+    if (renderOwed) render();
+  });
+});
+
 export function render() {
+  if (picker?.isConnected) { renderOwed = true; return; }
+  renderOwed = false;
   const focus = focusSnapshot();
   const scrolls = scrollSnapshot();
   // Rebuilt by the Play tab if it is on screen; cleared means an arriving
