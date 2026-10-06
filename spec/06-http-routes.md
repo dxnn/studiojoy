@@ -459,7 +459,12 @@ Twelve choices worth naming:
   seconds after a stroke and the colours go with it (§5's *pending commit* is
   what makes that affordable); the bar says which is on its way. There is no
   Save. The seven tools are icons, with words on `title` and `aria-label` so
-  nothing is only a picture.
+  nothing is only a picture, and the chosen tool's word heads the row of brush
+  widths, because a finger never hovers. The colour box stands left of the
+  tools and the widths, as tall as both, over the palette (2026-10-05): a row
+  of its own under the palette made the tools scroll on an iPad, and a 32px
+  box was hard to hit. The words that row held — where the colours come from,
+  whether they are saved — went with it; the bar says the second.
 
 - **A step is the pixels it changed, not a copy of the picture.** One
   gesture — a stroke from pointer down to up, or a fill — records each pixel

@@ -882,8 +882,10 @@ export function renderDrawing({ bar = null } = {}) {
   const available = BRUSHES.filter((n) => n === 1 || n <= Math.min(viewW, picture.height) / 4);
   if (!available.includes(S.drawPrefs.brush)) S.drawPrefs.brush = available[available.length - 1];
 
+  // Headed by the chosen tool's word, since the icons above say nothing until
+  // they are hovered, and a finger never hovers.
   const brushes = h('div', { class: 'row wrap' },
-    h('span', { class: 'hint muted', text: 'Brush' }),
+    h('span', { class: 'hint muted', text: DRAW_TOOLS.find((t) => t.key === S.drawPrefs.tool)?.label }),
     available.map((n) => h('button', {
       class: `quiet tiny${S.drawPrefs.brush === n ? ' on' : ''}`,
       text: n === 1 ? '1 pixel' : `${n}`,
@@ -923,8 +925,10 @@ export function renderDrawing({ bar = null } = {}) {
   }));
 
   const well = h('input', {
-    type: 'color', id: 'draw-well',
-    title: `Change the square you have chosen — this edits ${LOOK_FILE}`,
+    type: 'color', class: 'well',
+    title: gearMode()
+      ? 'Change the square you have chosen, for this piece'
+      : `Change the square you have chosen — this edits ${LOOK_FILE}`,
     'aria-label': 'Change the chosen colour',
   });
   well.value = colours[S.drawPrefs.slot] ?? PALETTE[0];
@@ -937,29 +941,11 @@ export function renderDrawing({ bar = null } = {}) {
   });
   well.addEventListener('change', () => setPaletteColour(S.drawPrefs.slot, well.value));
 
-  const swatches = h('div', { class: 'col' },
-    h('div', { class: 'swatches' }, chips),
-    h('div', { class: 'row wrap' },
-      well,
-      h('span', {
-        class: 'hint muted',
-        text: gearMode()
-          ? 'The studio\'s colours — the colour box changes the chosen one, for this piece'
-          : S.palette?.dirty
-            ? `Colours change ${LOOK_FILE} when you save`
-            : S.palette?.from
-              ? `Colours from ${LOOK_FILE}`
-              : `The studio's colours — changing one writes ${LOOK_FILE}`,
-      }),
-      h('div', { class: 'spacer' }),
-      S.palette?.from
-        ? h('button', {
-          class: 'link tiny',
-          text: 'See them',
-          title: `Open ${LOOK_FILE}`,
-          onclick: () => openFile(LOOK_FILE),
-        })
-        : null));
+  // The colour box beside the tools and the brush widths and as tall as both,
+  // over the palette: a row of its own made the tools scroll on an iPad, and
+  // a small box was hard to hit with a finger. Whether the colours are saved
+  // yet is the bar's to say.
+  const toolbox = h('div', { class: 'toolbox' }, well, tools, brushes);
 
   // The strip, always playing while it is being edited: a small canvas on the
   // frame row looping at the library's own 8 frames a second, reading the
@@ -1061,7 +1047,7 @@ export function renderDrawing({ bar = null } = {}) {
   paint();
   return h('div', { class: 'drawing grow' },
     media,
-    h('div', { class: 'pad col' }, frameRow, tools, brushes, swatches),
+    h('div', { class: 'pad col' }, frameRow, toolbox, h('div', { class: 'swatches' }, chips)),
     h('div', { class: `editor-bar row${gearMode() ? ' wrap' : ''}` },
       gearMode() ? null : state,
       ...(bar ?? []),
