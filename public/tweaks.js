@@ -123,9 +123,26 @@ function setTweak(path, at, kind, raw, input) {
   refreshLive(S.slug, path);
   settlePlayer();
   paintCount();
-  // A value settled — a number left, a box ticked — lights its row; one being
-  // typed waits, since a render would replace the field under the keys.
-  if (input || kind === 'boolean') render();
+  // A value settled lights its row; one being typed waits, since a render
+  // would replace the field under the keys. A box ticked renders — its change
+  // comes with the click, once the press is over. ⚠️ A number left is lit in
+  // place: it is left by pressing something else, and a render between that
+  // press and its release replaced the button under it, so Save or Undo
+  // pressed straight from a number did nothing (2026-10-05). The config form
+  // under Code found the same (setConfigValue).
+  if (input) paintRow(path, key, input);
+  else if (kind === 'boolean') render();
+}
+
+const fileHead = (path, open, tried) => `${open ? '▾' : '▸'} ${path}${tried ? ` · ${tried} tried` : ''}`;
+
+// One number's row and its file's count, patched as paintCount patches the
+// total: the row is the field's, and the file's head is just before its body.
+function paintRow(path, key, input) {
+  const fileTweaks = stored().list[path] ?? {};
+  input.closest('.cfg-row')?.classList.toggle('tweaked', Boolean(fileTweaks[key]));
+  const head = input.closest('.tweaks-body')?.previousElementSibling;
+  if (head) head.textContent = fileHead(path, true, Object.keys(fileTweaks).length);
 }
 
 function tweakedValue(path, at, node) {
@@ -192,7 +209,7 @@ function renderFile(path) {
   const fileTweaks = stored().list[path] ?? {};
   const tried = Object.keys(fileTweaks).length;
   const head = h('button', {
-    class: 'link tweaks-file', text: `${open ? '▾' : '▸'} ${path}${tried ? ` · ${tried} tried` : ''}`,
+    class: 'link tweaks-file', text: fileHead(path, open, tried),
     onclick: () => { opened.set(key, !open); render(); },
   });
   if (!open) return head;

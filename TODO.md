@@ -140,11 +140,5 @@ deliberately deferred.
   game's own `{ flash: true }` or `{ video: … }` line, carried through a save
   untouched — so a game like qiby-fam-days gets its editor and *Try this
   scene* back (decided 2026-10-04)
-- make the first press of a tweak's Save or Undo count: pressed while a
-  number field still has the focus, the field's `change` renders on the press
-  (`setTweak`, `public/tweaks.js`) and replaces the button before the
-  release, so the click never fires and only a second press works. Light the
-  row in place rather than render. Seen with a mouse in the MCP browser
-  (2026-10-05); the config form under Code may do the same, unchecked
 - let a maker change a piece of gear they made — ideas/gear-editing.md, three
   questions waiting, the first being what a buyer of it gets

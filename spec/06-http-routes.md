@@ -774,7 +774,11 @@ open and the rest a click away. A value changed there is **tried**, not saved: i
 running game at once, the preview player writing it into the live object
 (`PLAY.GRAVITY = 600`; a `const` that is a plain number cannot be written to
 and keeps what the file says), its row lit cyan with a dot, and it is kept in
-this browser for this game. Every new page of the preview is handed the
+this browser for this game. ⚠️ A number's row is lit in place when it is left,
+never by a render: it is left by pressing something else, and a render
+between that press and its release replaced the button under it, so **Save
+them** or **Undo** pressed straight from a number did nothing until pressed
+again (2026-10-05, `test/tweaks.test.js`). Every new page of the preview is handed the
 tweaks before the game's own code runs — each file's the moment that file has
 run, from the games origin's own copy the player keeps — so a reload keeps
 them, and so does Back to a pin. Kept as values where they sit, never as a
