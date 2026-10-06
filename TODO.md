@@ -140,3 +140,5 @@ deliberately deferred.
   game's own `{ flash: true }` or `{ video: … }` line, carried through a save
   untouched — so a game like qiby-fam-days gets its editor and *Try this
   scene* back (decided 2026-10-04)
+- let a maker change a piece of gear they made — ideas/gear-editing.md, three
+  questions waiting, the first being what a buyer of it gets
